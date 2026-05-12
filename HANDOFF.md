@@ -1,8 +1,8 @@
 # AESIS — Session Handoff Log
 
 > **How to use this file**
-> At the start of every new session, read this file before touching any code.
-> At the end of every session, append a new entry under `## Sessions` using the template at the bottom.
+> Read this file at the START of every session before touching any code.
+> Append a new entry at the END of every session using the template at the bottom.
 
 ---
 
@@ -11,54 +11,106 @@
 | Field | Value |
 |---|---|
 | **Project** | AESIS — AI-Enhanced Student Internship Supervision System |
+| **GitHub** | `https://github.com/deladei/AESIS` (branch: `main`) |
 | **Repo root** | `~/Desktop/AISYSTEM/` |
 | **Backend** | `backend/` — Node.js + Express + TypeScript + Prisma (PostgreSQL) |
+| **AI Engine** | `ai/` — FastAPI + Celery (Python 3.11) |
 | **Frontend** | `frontend/` — React + TypeScript + Tailwind CSS + shadcn/ui + Recharts |
-| **AI Engine** | `ai/` — FastAPI (Python) — not yet built |
-| **Infra** | Docker Compose (PG 16, Mongo 7, Redis 7) |
-| **Test runner** | Jest + ts-jest (`npm test` inside `backend/`) |
+| **Infra** | Docker Compose — PG 16, Mongo 7, Redis 7, AI Engine, Celery Worker |
+| **Test runner** | Jest + ts-jest — run `npm test` inside `backend/` |
 | **Type check** | `npx tsc --noEmit` inside `backend/` |
-| **Current phase** | Phase 2 complete → Phase 3 next (Logbook System) |
+| **Current phase** | **Phase 4 complete → Phase 5 next (Real-Time Notifications)** |
 
 ---
 
-## Architecture Quick-Reference
+## Architecture
 
 ```
 AISYSTEM/
-├── backend/
-│   ├── prisma/schema.prisma          # 14+ Prisma models (PostgreSQL)
-│   ├── src/
-│   │   ├── app.ts                    # Express app factory
-│   │   ├── server.ts                 # Entry point
-│   │   ├── config/                   # env, prisma, mongo, redis, logger, seed
-│   │   ├── middleware/               # authenticate, authorize, errorHandler,
-│   │   │                             #   rateLimiter, requestLogger
-│   │   ├── shared/
-│   │   │   ├── utils/                # crypto (AES-256-GCM), email, pagination,
-│   │   │   │                         #   response, token (JWT + refresh)
-│   │   │   ├── types/index.ts
-│   │   │   └── validators/common.ts
-│   │   └── modules/
-│   │       ├── auth/                 # DONE — register, login, refresh, logout,
-│   │       │                         #   verify-email, reset-password
-│   │       └── placements/           # DONE — placement CRUD, company CRUD,
-│   │                                 #   approval workflow, logbook schedule gen,
-│   │                                 #   document upload
-│   └── ...config files (jest, tsconfig, .env, docker-compose)
-├── frontend/
+├── HANDOFF.md                     ← THIS FILE — read first every session
+│
+├── backend/                       ← Node.js API (port 3000)
+│   ├── docker-compose.yml         ← PG + Mongo + Redis + AI Engine + Celery
+│   ├── prisma/schema.prisma       ← 14+ PostgreSQL models
+│   ├── .env                       ← real secrets (gitignored)
+│   ├── .env.example               ← template (committed)
 │   └── src/
-│       ├── components/layout/AppShell.tsx
-│       ├── components/shared/RiskBadge.tsx, StatusBadge.tsx
-│       ├── lib/utils.ts
-│       ├── styles/globals.css
-│       └── pages/
-│           ├── auth/          LoginPage.tsx, RegisterPage.tsx
-│           ├── student/       StudentDashboard, LogbookEditor, ChatbotPanel,
-│           │                  NotificationInbox, SubmissionHistory
-│           ├── supervisor/    SupervisorDashboard, LogbookReview
-│           └── coordinator/   CoordinatorDashboard, PlacementApproval
-└── HANDOFF.md                        # ← this file
+│       ├── app.ts                 ← Express app factory + route wiring
+│       ├── server.ts              ← startup: connects PG + Mongo + Redis + Socket.io
+│       ├── config/
+│       │   ├── env.ts             ← Zod-validated env vars (crashes on missing)
+│       │   ├── prisma.ts          ← Prisma client singleton
+│       │   ├── mongo.ts           ← MongoDB client + COLLECTIONS constants
+│       │   ├── redis.ts           ← Redis client
+│       │   ├── logger.ts          ← Pino structured logger
+│       │   └── seed.ts            ← DB seed (CS dept + academic year)
+│       ├── middleware/
+│       │   ├── authenticate.ts    ← JWT verification, attaches req.user
+│       │   ├── authorize.ts       ← RBAC role guard factory
+│       │   ├── errorHandler.ts    ← AppError class + global error handler
+│       │   ├── rateLimiter.ts     ← express-rate-limit (100/15min/IP)
+│       │   └── requestLogger.ts   ← HTTP request logging
+│       ├── shared/
+│       │   ├── types/index.ts     ← AuthenticatedRequest, RiskTier, etc.
+│       │   ├── utils/
+│       │   │   ├── crypto.ts      ← AES-256-GCM encryptPII / decryptPII
+│       │   │   ├── email.ts       ← Nodemailer (SendGrid prod / console dev)
+│       │   │   ├── pagination.ts  ← paginate() + buildMeta()
+│       │   │   ├── response.ts    ← ok() / created() / noContent()
+│       │   │   └── token.ts       ← JWT + refresh token utils
+│       │   └── validators/
+│       │       └── common.ts      ← uuidParam, paginationQuery, institutionalEmail
+│       └── modules/
+│           ├── auth/              ✅ DONE — register, login, refresh, logout,
+│           │                                verify-email, reset-password (19 tests)
+│           ├── placements/        ✅ DONE — placement CRUD, company CRUD,
+│           │                                approval workflow, 24-week schedule gen,
+│           │                                document upload (14 tests)
+│           └── logbook/           ✅ DONE — draft lifecycle, submission with late
+│                                            detection, RBAC reads, attachments,
+│                                            supervisor feedback in $transaction,
+│                                            real MongoDB write, real AI HTTP call (25 tests)
+│
+├── ai/                            ← FastAPI AI Engine (port 8000)
+│   ├── .env                       ← AI service secrets (gitignored)
+│   ├── .env.example               ← template (committed)
+│   ├── requirements.txt           ← all free Python deps
+│   ├── Dockerfile                 ← python:3.11-slim, pre-downloads models
+│   ├── main.py                    ← FastAPI app entry point
+│   ├── config/
+│   │   ├── settings.py            ← Pydantic settings
+│   │   └── database.py            ← async (asyncpg/motor) + sync (psycopg2/pymongo) clients
+│   ├── models/schemas.py          ← Pydantic request/response models
+│   ├── utils/
+│   │   ├── text_processing.py     ← NLP utils: 80+ CS keywords, reflection/temporal markers
+│   │   └── feature_extraction.py  ← 18 XGBoost features from PostgreSQL
+│   ├── services/
+│   │   ├── quality_scorer.py      ← 4-rubric NLP scorer, zero training needed
+│   │   ├── plagiarism_detector.py ← TF-IDF + FAISS, persistent /tmp index
+│   │   ├── sentiment_analyser.py  ← VADER → 6 emotion classes
+│   │   ├── risk_predictor.py      ← XGBoost + SHAP + rule-based fallback
+│   │   └── chatbot.py             ← RAG: sentence-transformers + FAISS + Ollama streaming
+│   ├── tasks/
+│   │   ├── celery_app.py          ← Celery config, Redis broker, 2 queues
+│   │   └── analysis_tasks.py      ← analyze_logbook task + compute_risk task
+│   └── routers/
+│       ├── health.py              ← GET /health (checks Ollama connectivity)
+│       ├── analysis.py            ← POST /ai/analyze/logbook
+│       ├── risk.py                ← POST /ai/predict/risk + GET preview
+│       └── chat.py                ← POST /ai/chat (streaming SSE)
+│
+└── frontend/                      ← React app (port 5173) — UI scaffolds only
+    └── src/
+        ├── components/
+        │   ├── layout/AppShell.tsx
+        │   └── shared/RiskBadge.tsx, StatusBadge.tsx
+        ├── pages/
+        │   ├── auth/         LoginPage.tsx, RegisterPage.tsx
+        │   ├── student/      StudentDashboard, LogbookEditor, ChatbotPanel,
+        │   │                 NotificationInbox, SubmissionHistory
+        │   ├── supervisor/   SupervisorDashboard, LogbookReview
+        │   └── coordinator/  CoordinatorDashboard, PlacementApproval
+        └── styles/globals.css
 ```
 
 ---
@@ -71,14 +123,134 @@ AISYSTEM/
 | 1 | Auth System | ✅ Done | 19/19 |
 | 2 | Placement Workflow | ✅ Done | 14/14 |
 | 3 | Logbook System | ✅ Done | 25/25 |
-| 4 | AI Engine (FastAPI) | ✅ Done | — (Python) |
-| 5 | Real-Time Notifications | ⬜ Pending | — |
+| 4 | AI Engine (FastAPI) | ✅ Done | Python, no pytest yet |
+| 5 | Real-Time Notifications | 🔜 **NEXT** | — |
 | 6 | Dashboards & Analytics | ⬜ Pending | — |
 | 7 | Frontend Integration | ⬜ Pending | — |
 | 8 | Security Hardening & QA | ⬜ Pending | — |
 | 9 | Deployment (Docker + Nginx + CI/CD) | ⬜ Pending | — |
 
-**Total test count as of last session: 58/58 passing (Node.js), `tsc --noEmit` clean. AI Engine: Python, no pytest yet.**
+**Node.js: 58/58 tests passing. `tsc --noEmit` clean. Git: 3 commits on `main`.**
+
+---
+
+## Git History
+
+| Commit | Message |
+|---|---|
+| `53fd251` | feat(ai): Phase 4 — FastAPI AI Engine, all free/local resources |
+| `b70e9fc` | feat(logbook): Phase 3 — Logbook submission, review & feedback system |
+| `688c376` | feat: initial commit — AESIS backend Phase 0-2 + frontend UI scaffolds |
+
+---
+
+## Key Design Decisions (binding — do not revisit without reason)
+
+| Decision | Rationale |
+|---|---|
+| Refresh token stored as SHA-256 hash in DB | Raw token never persists server-side — prevents DB breach → session hijack |
+| AES-256-GCM for PII (phone, address) | Compliance; encrypted at application layer before Prisma write |
+| Company supervisor created as unverified placeholder | Invite flow for company supervisors is future scope |
+| 24-week logbook schedule pre-generated at approval | Deadline checks are a simple DB read; no computation at submit time |
+| Past-deadline weeks skipped at schedule generation | Avoids phantom overdue entries if coordinator approves late |
+| `req.user!.sub` + Zod param parsing in controllers | `ParamsDictionary` types values as `string\|string[]`; Zod parse gives clean `string` |
+| AI engine is non-blocking / fire-and-forget | `fetch()` to AI engine is void; submission succeeds even if AI is offline |
+| XGBoost rule-based fallback | No training data on day 1; model retrains automatically when ≥ 20 placements complete |
+| Ollama for chatbot LLM | Free, local, no API key — graceful fallback response if not running |
+| `tsc --noEmit` + Jest must be green before moving phase | Non-negotiable quality gate |
+
+---
+
+## Manual Steps (user must run, not Claude)
+
+```bash
+# ── Infrastructure ───────────────────────────────────────────
+sudo docker compose up -d              # PG + Mongo + Redis + AI + Celery
+
+# ── First-time DB setup ───────────────────────────────────────
+cd backend
+npx prisma migrate dev --name init     # run migrations
+npm run db:seed                        # seed CS dept + academic year
+
+# ── Run backend dev server ────────────────────────────────────
+npm run dev                            # Express on port 3000
+
+# ── Ollama (free local LLM — do this NEXT SESSION) ───────────
+curl -fsSL https://ollama.com/install.sh | sh
+ollama pull mistral                    # ~4 GB — or: ollama pull llama3.2:1b (~1 GB, faster)
+# Ollama runs as a background service automatically after install
+```
+
+---
+
+## Phase 5 — Real-Time Notifications (NEXT)
+
+**What to build:**
+
+| File | Purpose |
+|---|---|
+| `src/modules/notifications/notifications.service.ts` | read + mark-read + list notifications |
+| `src/modules/notifications/notifications.router.ts` | GET `/notifications`, PATCH `/:id/read`, PATCH `/read-all` |
+| `src/modules/notifications/notifications.controller.ts` | handlers |
+| `src/shared/utils/socketEmitter.ts` | `emitToUser(io, userId, event, payload)` helper |
+| Update `server.ts` | export `io` so services can emit without circular deps |
+| `src/jobs/deadlineReminder.ts` | node-cron: 48h + 24h before Friday deadline → create Notification + email |
+| `src/jobs/weeklyReport.ts` | node-cron: Monday 08:00 → coordinator compliance email |
+| Update `logbook.service.ts` (submitFeedback) | emit `feedback_received` socket event after DB write |
+| Update `tasks/analysis_tasks.py` | emit `risk_alert` via Redis pub/sub → Node Socket.io picks it up |
+
+**Socket.io events to implement:**
+
+| Event | Direction | Payload |
+|---|---|---|
+| `notification:new` | Server → Client | `{ id, type, title, body, link }` |
+| `risk_alert` | Server → Supervisor | `{ studentId, placementId, tier, factors }` |
+| `feedback_received` | Server → Student | `{ submissionId, weekNumber, outcome }` |
+
+**Cron schedule:**
+
+| Job | Schedule | Action |
+|---|---|---|
+| Deadline reminder 48h | `0 9 * * 3` (Wed 09:00) | Check next-Friday deadline submissions with status=draft → notify student |
+| Deadline reminder 24h | `0 9 * * 4` (Thu 09:00) | Same check, more urgent wording |
+| Weekly compliance report | `0 8 * * 1` (Mon 08:00) | Email coordinator: cohort compliance rate + high-risk count |
+
+**Routes to add in `app.ts`:**
+```typescript
+import notificationsRouter from './modules/notifications/notifications.router';
+app.use('/api/v1/notifications', notificationsRouter);
+```
+
+---
+
+## Future Phases (brief)
+
+### Phase 6 — Dashboards & Analytics
+- Coordinator: cohort compliance rate, risk distribution (donut), submission trends (bar) — Recharts
+- Supervisor: student performance table with quality trend sparklines
+- Company analytics endpoint `getCompanyAnalytics` already exists in `placements.service.ts`
+- All aggregate server-side; no raw data dumps to frontend
+
+### Phase 7 — Frontend Integration
+- TanStack Query for all API calls; Axios with 401 → auto-refresh interceptor
+- Auth context: access token in memory, refresh in HttpOnly cookie
+- Wire all page components to live API
+- Socket.io client in `NotificationInbox` for real-time push
+- `EventSource` or socket stream for chatbot SSE response in `ChatbotPanel`
+
+### Phase 8 — Security Hardening & QA
+- Stricter rate limits on auth routes (5 req/15 min)
+- DOMPurify on frontend + server-side strip-tags for logbook rich text
+- Supertest end-to-end tests against real test DB
+- Achieve 75% Jest coverage threshold
+- Helmet + CSP headers review
+
+### Phase 9 — Deployment
+- Nginx: `/api` → Node:3000, `/ai` → FastAPI:8000, `/` → React build
+- Docker Compose production profile with secrets management
+- GitHub Actions: lint → test → build → push → deploy
+- SSL via Let's Encrypt (Certbot)
+- PM2 or Docker restart policy
 
 ---
 
@@ -89,280 +261,94 @@ AISYSTEM/
 ### Session 1 — 2026-05-12
 
 **Work done**
-
 - Read existing codebase state; user shared full PRD for AESIS
-- Generated TRD, App Flow, UI/UX design system (dark mode, blue/indigo palette)
-- Built all UI screens as React + Tailwind components:
-  - Auth: `LoginPage.tsx`, `RegisterPage.tsx`
-  - Student: `StudentDashboard`, `LogbookEditor`, `ChatbotPanel`, `NotificationInbox`, `SubmissionHistory`
-  - Supervisor: `SupervisorDashboard`, `LogbookReview`
-  - Coordinator: `CoordinatorDashboard`, `PlacementApproval`
-  - Shared: `AppShell`, `RiskBadge`, `StatusBadge`
+- Designed TRD, App Flow, UI/UX design system (dark mode, blue/indigo, 3-tier risk colours)
+- Built all frontend UI screens as React + Tailwind + shadcn/ui components (10 pages, 5 shared components)
 - Scaffolded full backend (Phase 0): Express + TypeScript + Prisma, all middleware, shared utils, Docker Compose
-- Built Phase 1 (Auth): register, login, refresh, logout, verify-email, reset-password — 19 tests passing
-- Built Phase 2 (Placements): placement CRUD, company CRUD, approval workflow with 24-week logbook schedule generation, document upload — 14 tests passing
+- Phase 1 (Auth): register, login, refresh, logout, verify-email, reset-password — 19/19 tests
+- Phase 2 (Placements): placement CRUD, company CRUD, approval workflow, 24-week logbook schedule gen, document upload — 14/14 tests
 
-**Errors encountered & fixes**
-
-| Error | Fix |
-|---|---|
-| `jest.config.ts` had invalid property `setupFilesAfterFramework` | Removed the property; it does not exist in Jest's type definition |
-| `.env` `ENCRYPTION_KEY` was non-hex placeholder string | Generated real 64-char hex via `crypto.randomBytes(32).toString('hex')`; updated both `.env` and Zod validation |
-| `docker-compose.yml` had obsolete `version: '3.9'` field | Removed the `version` key |
-| `node_modules` corrupted mid-install (ENOENT on `@types/strip-json-comments`) | `rm -rf node_modules && npm install` — 625 packages installed cleanly |
-| TypeScript error on `prisma.company.upsert` — `name` not `@unique` | Added `@unique` to `Company.name` in schema; refactored service to `findFirst` + conditional `create`/`update`; regenerated Prisma client |
-| 3 placement tests failing: `company.create is not a function` | Test mock defined `company` with `upsert` but not `create`; added `create: jest.fn(), update: jest.fn()` to mock |
-| 3 placement tests failing: `logbookSubmission.createMany` called 0 times | `fakePlacement.startDate` was `2025-06-02` (past date); all 24 computed deadlines were in the past and filtered out — `createMany` never called. Fixed by setting `startDate` to `Date.now() + 30 days` |
-| Tests still mocking `company.upsert` after service refactor | Updated test setup for `createPlacement` tests to mock `company.findFirst` (→ null) + `company.create` |
-
-**Manual steps still required by user**
-
-```bash
-sudo docker compose up -d                    # start PG, Mongo, Redis
-npx prisma migrate dev --name init           # run migrations
-npm run db:seed                              # seed departments + academic year
-npm run dev                                  # start dev server
-```
-
----
-
-### Session 3 — 2026-05-12
-
-**Work done — Phase 4: AI Engine (FastAPI, 100% free/local)**
-
-Created `ai/` directory with full FastAPI AI Engine:
-
-| File | Purpose |
-|---|---|
-| `requirements.txt` | All free Python deps: FastAPI, Celery, sentence-transformers, FAISS, XGBoost, SHAP, VADER, NLTK |
-| `config/settings.py` | Pydantic settings from .env |
-| `config/database.py` | Async (asyncpg/motor) + sync (psycopg2/pymongo) DB clients |
-| `models/schemas.py` | Pydantic request/response models |
-| `utils/text_processing.py` | NLP helpers: CS vocabulary (80+ terms), reflection markers, NLTK tokenization |
-| `utils/feature_extraction.py` | Extracts 18 XGBoost features from PostgreSQL via raw SQL |
-| `services/quality_scorer.py` | 4-rubric quality scorer: Task Depth 30%, Tech Vocab 25%, Reflection 25%, Temporal 20% — pure NLP, no training |
-| `services/plagiarism_detector.py` | TF-IDF + FAISS cosine similarity, threshold 0.35, persistent index at /tmp |
-| `services/sentiment_analyser.py` | VADER compound score → 6 emotion classes |
-| `services/risk_predictor.py` | XGBoost (loads model if exists) + rule-based fallback + SHAP explainability |
-| `services/chatbot.py` | RAG: sentence-transformers embeddings + FAISS retrieval + Ollama streaming, graceful fallback if Ollama offline |
-| `tasks/celery_app.py` | Celery config with Redis broker, separate `analysis` and `risk` queues |
-| `tasks/analysis_tasks.py` | `analyze_logbook` task (quality+plagiarism+sentiment→PG) + `compute_risk` task (18 features→XGBoost→notification) |
-| `routers/analysis.py` | `POST /ai/analyze/logbook` — enqueues Celery task |
-| `routers/risk.py` | `POST /ai/predict/risk` + `GET /ai/predict/risk/preview` |
-| `routers/chat.py` | `POST /ai/chat` — streaming SSE response, persists to MongoDB |
-| `routers/health.py` | `GET /health` — checks Ollama connectivity |
-| `main.py` | FastAPI app with CORS + lifespan DB pool |
-| `Dockerfile` | python:3.11-slim, pre-downloads sentence-transformers model + NLTK data |
-
-Updated Node.js backend:
-- `logbook.service.ts`: replaced `upsertMongoLogbook()` stub with real MongoDB write + `enqueueAiAnalysis()` stub with real `fetch()` to FastAPI
-- `docker-compose.yml`: added `ai-engine` and `celery-worker` services
-- `logbook.service.test.ts`: added mocks for `config/mongo` and `AI_ENGINE_URL` env vars
-
-**Free resources used (no paid APIs):**
-- Ollama — local LLM (user installs separately, free): `curl -fsSL https://ollama.com/install.sh | sh && ollama pull mistral`
-- sentence-transformers `all-MiniLM-L6-v2` — auto-downloads from HuggingFace (~90MB), free
-- FAISS-cpu — local vector search, free
-- XGBoost + SHAP — free
-- VADER sentiment — free
-- All other packages — free/open-source
-
-**Errors encountered & fixes**
+**Errors & fixes**
 
 | Error | Fix |
 |---|---|
-| `getMongo()` throws "MongoDB not connected" in logbook tests | Added `jest.mock('../../../config/mongo', ...)` to logbook test file with collection stub |
-| Test needed `AI_ENGINE_URL` and `AI_ENGINE_API_KEY` in env mock | Added those keys to the env mock in logbook test |
-
-**Manual steps to run Phase 4:**
-```bash
-# Install Ollama (free, local LLM)
-curl -fsSL https://ollama.com/install.sh | sh
-ollama pull mistral          # or: ollama pull llama3.2:1b (smaller, faster)
-
-# Create ai/.env (already done from .env.example)
-
-# Run with Docker (builds AI image — takes ~5 min first time for model downloads)
-sudo docker compose up -d
-
-# OR run AI engine locally (development)
-cd ai
-python -m venv .venv && source .venv/bin/activate
-pip install -r requirements.txt
-uvicorn main:app --reload --port 8000
-# In another terminal:
-celery -A tasks.celery_app worker --loglevel=info -Q analysis,risk
-```
-
-**Left off at**
-- 58/58 Node.js tests passing, tsc clean
-- Phase 4 Python code complete — not yet run/tested (requires pip install)
-- AI Engine is standalone: Node backend calls it via HTTP, gracefully handles AI engine being offline
-
-**Next session should start with**
-- Read this file
-- Phase 5: Real-Time Notifications (Socket.io server-side events, node-cron deadline reminders, email dispatch for feedback/risk alerts)
+| `jest.config.ts` invalid property `setupFilesAfterFramework` | Removed — does not exist in Jest types |
+| `.env` `ENCRYPTION_KEY` was non-hex placeholder | Generated real 64-char hex with `crypto.randomBytes(32).toString('hex')` |
+| `docker-compose.yml` obsolete `version: '3.9'` | Removed the version key |
+| `node_modules` corrupted (ENOENT on `@types/strip-json-comments`) | `rm -rf node_modules && npm install` — 625 packages clean |
+| `prisma.company.upsert` TypeScript error — `name` not `@unique` | Added `@unique` to `Company.name` in schema; refactored to `findFirst` + conditional `create`/`update`; regenerated Prisma client |
+| 3 placement tests: `company.create is not a function` | Added `create: jest.fn(), update: jest.fn()` to company mock |
+| 3 placement tests: `logbookSubmission.createMany` called 0 times | `fakePlacement.startDate` was past — all deadlines filtered out; fixed to `Date.now() + 30 days` |
 
 ---
 
 ### Session 2 — 2026-05-12
 
 **Work done**
-- Committed full project to GitHub (`https://github.com/deladei/AESIS`, branch `main`, 65 files, 14 469 lines)
-- Created `HANDOFF.md` (this file) and persisted session-handoff protocol to Claude memory
-- Built Phase 3 — Logbook System (25 new tests, all passing):
-  - `src/modules/logbook/logbook.schema.ts` — Zod schemas: `saveDraftSchema`, `feedbackSchema`, `weekParamSchema`
-  - `src/modules/logbook/logbook.service.ts` — 7 service functions: `getOrCreateDraft`, `saveDraft`, `submitLogbook`, `getSubmission`, `listSubmissions`, `addAttachment`, `listAttachments`, `submitFeedback`
-  - `src/modules/logbook/logbook.controller.ts` — 8 route handlers using `req.user!` + Zod param parsing
-  - `src/modules/logbook/logbook.router.ts` — 9 routes wired with RBAC guards
-  - `src/modules/logbook/__tests__/logbook.service.test.ts` — 25 tests across 5 describe blocks
-  - Wired `logbookRouter` into `app.ts` at `/api/v1/logbook`
+- Committed full project to GitHub (`https://github.com/deladei/AESIS`, 65 files, 14 469 lines)
+- Created `HANDOFF.md` and session-handoff memory protocol
+- Phase 3 (Logbook System) — 25/25 tests:
+  - `logbook.schema.ts` — Zod schemas
+  - `logbook.service.ts` — 8 service functions with full access control
+  - `logbook.controller.ts` — 8 handlers using Zod param parsing
+  - `logbook.router.ts` — 9 routes across 3 RBAC groups
+  - `logbook.service.test.ts` — 25 tests
 
-**Errors encountered & fixes**
+**Errors & fixes**
 
 | Error | Fix |
 |---|---|
-| 8 TypeScript errors: "Argument of type `string \| string[]` is not assignable to parameter of type `string`" in controller | `@types/express-serve-static-core` types `ParamsDictionary` values as `string \| string[]`. Fixed by parsing `req.params` through Zod schemas (`z.object({ submissionId: z.string().uuid() })`) and using `req.user!.sub`/`req.user!.role` directly — matching the pattern in `placements.controller.ts` |
-
-**Left off at**
-- 58/58 tests passing, `tsc --noEmit` clean
-- Phase 3 complete
-- Phase 3 MongoDB stub: `upsertMongoLogbook()` returns a placeholder ID — real Mongo write wired in Phase 4
-- Phase 3 AI stub: `enqueueAiAnalysis()` logs intent only — real FastAPI call wired in Phase 4
-- Phase 3 S3 stub: attachment URL is a `local://` placeholder — real upload wired in Phase 9
-
-**Next session should start with**
-- Read this file, confirm phase tracker, then start Phase 4: AI Engine (FastAPI Python service in `ai/` directory)
-- Phase 4 also wires: `upsertMongoLogbook()` real implementation in logbook.service, `enqueueAiAnalysis()` real HTTP call to FastAPI
+| 8 TS errors: `string\|string[]` not assignable to `string` in controller | `ParamsDictionary` values are `string\|string[]` in this `@types/express` version. Fixed by parsing `req.params` through Zod schemas + using `req.user!` directly (same as placements controller) |
 
 ---
 
-## Phase 3 — Logbook System (Next)
+### Session 3 — 2026-05-12
 
-**What to build**
+**Work done**
+- Phase 4 (AI Engine) — FastAPI + Celery, 100% free/local:
+  - `services/quality_scorer.py` — rubric NLP scorer, no training
+  - `services/plagiarism_detector.py` — TF-IDF + FAISS, persistent index
+  - `services/sentiment_analyser.py` — VADER → 6 emotion classes
+  - `services/risk_predictor.py` — XGBoost + SHAP + rule-based fallback
+  - `services/chatbot.py` — RAG + Ollama streaming, graceful fallback
+  - `tasks/analysis_tasks.py` — `analyze_logbook` + `compute_risk` Celery tasks
+  - `routers/` — analysis, risk, chat, health endpoints
+  - `Dockerfile` — pre-downloads sentence-transformers model + NLTK data
+  - `docker-compose.yml` updated — added `ai-engine` + `celery-worker` services
+  - `logbook.service.ts` — replaced both stubs: real MongoDB write + real AI HTTP call
+  - `logbook.service.test.ts` — mocked `config/mongo` + AI engine env vars
 
-| File | Purpose |
+**Errors & fixes**
+
+| Error | Fix |
 |---|---|
-| `src/modules/logbook/logbook.schema.ts` | Zod schemas: `CreateSubmissionInput`, `UpdateSubmissionInput`, `SubmitDraftInput`, `FeedbackInput` |
-| `src/modules/logbook/logbook.service.ts` | Core logic (see below) |
-| `src/modules/logbook/logbook.controller.ts` | Route handlers |
-| `src/modules/logbook/logbook.router.ts` | Express router |
-| `src/modules/logbook/__tests__/logbook.service.test.ts` | Unit tests |
+| `getMongo()` throws "not connected" in logbook tests | Added `jest.mock('../../../config/mongo', ...)` with collection stub to logbook test |
+| Test missing `AI_ENGINE_URL` + `AI_ENGINE_API_KEY` in env mock | Added both keys to the env mock in logbook test |
 
-**Service functions to implement**
-
-```
-getOrCreateDraftSubmission(studentId, placementId, weekNumber)
-  → finds the scheduled LogbookSubmission for that week
-  → throws 404 if week does not exist in schedule
-  → returns existing draft or creates one
-
-saveDraft(submissionId, studentId, input)
-  → validates ownership
-  → updates content fields (tasks, technologies, challenges, reflection, hoursWorked)
-  → does NOT change status
-
-submitLogbook(submissionId, studentId)
-  → validates ownership + status is 'draft'
-  → checks deadline not exceeded (throws 422 if late)
-  → checks not already submitted (409 guard)
-  → sets status → 'submitted', records submittedAt
-  → enqueues AI analysis task (stub for Phase 4)
-
-getSubmission(submissionId, requesterId, requesterRole)
-  → resource-level access (student=own, supervisor=assigned, coord/admin=all)
-
-listStudentSubmissions(studentId, placementId, requesterId, requesterRole)
-  → returns all submissions for a placement, ordered by weekNumber
-
-addAttachment(submissionId, studentId, file)
-  → validates ownership + submission not yet graded
-  → creates LogbookAttachment record
-
-submitFeedback(submissionId, supervisorId, input)
-  → validates supervisorId is academicSupervisorId on the placement
-  → creates SupervisorFeedback record
-  → updates submission status → 'approved' or 'flagged'
-  → creates Notification for student
-```
-
-**Key constraints**
-- Duplicate-submission guard: if `submissionStatus` is already `submitted`/`approved`/`flagged`, reject re-submit with 409
-- Deadline enforcement: compare `new Date()` against `LogbookSubmission.deadline` — throw 422 `{ code: 'DEADLINE_PASSED' }` if late
-- Multer config for attachments: 10 MB max, accept PDF/PNG/JPG/DOCX
-- All status transitions must be logged to `AuditLog`
-
-**Routes to add in `app.ts`**
-
-```typescript
-import logbookRouter from './modules/logbook/logbook.router';
-app.use('/api/v1/logbook', logbookRouter);
-```
+**Stopped here — next session installs Ollama then continues Phase 5**
 
 ---
 
-## Future Phases (brief spec)
+### Next session should start with
 
-### Phase 4 — AI Engine (FastAPI, separate `ai/` service)
-- XGBoost risk prediction (18 features from logbook + placement data)
-- SHAP explainability for risk scores
-- BERT-based quality scoring of logbook text
-- FAISS plagiarism detection (cosine similarity against submission corpus)
-- RAG chatbot (AESIS Assistant) backed by Redis + Mongo
-- Exposes internal HTTP API consumed by Node backend after submission
-
-### Phase 5 — Real-Time Notifications
-- Socket.io server-side: rooms per user, emit on `risk_alert`, `feedback_received`, `deadline_reminder`
-- Cron jobs (node-cron): 48h + 24h deadline reminders, weekly compliance reports
-- Email dispatch: Nodemailer templates for each notification type
-- `Notification` model already in schema — just needs the dispatch layer
-
-### Phase 6 — Dashboards & Analytics
-- Coordinator: cohort compliance rate, risk distribution, submission trends (Recharts on frontend)
-- Supervisor: student performance table, quality score trends per student
-- Company analytics: already partially implemented in `placements.service.ts → getCompanyAnalytics`
-- All endpoints return pre-aggregated data (no raw query dumps to frontend)
-
-### Phase 7 — Frontend Integration
-- Set up React Query (TanStack Query) for all API calls
-- Auth context: store access token in memory, refresh token in HttpOnly cookie
-- Axios instance with 401 interceptor → auto-refresh flow
-- Wire each page component to real API endpoints
-- Socket.io client for real-time notifications in `NotificationInbox`
-- Streaming chatbot responses via `EventSource` or socket
-
-### Phase 8 — Security Hardening & QA
-- Rate limit auth endpoints (stricter: 5 req/15 min for login/register)
-- Input sanitization for logbook rich-text fields (DOMPurify on frontend, strip tags on backend)
-- Review all RBAC guards for privilege escalation paths
-- End-to-end tests with Supertest hitting real test DB
-- Achieve 75% Jest coverage threshold across all modules
-
-### Phase 9 — Deployment
-- Nginx reverse proxy: `/api` → Node:3000, `/ai` → FastAPI:8000, `/` → React build
-- Docker Compose production profile with env secrets
-- GitHub Actions: lint → test → build → push image → deploy
-- SSL via Let's Encrypt (Certbot)
-- PM2 or Docker restart policy for process supervision
-
----
-
-## Key Design Decisions (do not revisit without good reason)
-
-| Decision | Rationale |
-|---|---|
-| Refresh token stored as SHA-256 hash in DB | Raw token never persists server-side — prevents DB breach → session hijack |
-| AES-256-GCM for PII (phone, address) | Compliance requirement; encrypted at application layer before Prisma write |
-| Company supervisor has `isVerified: false`, empty `passwordHash` | Placeholder account — company supervisors authenticate through a separate invite flow (future) |
-| 24-week logbook schedule generated at placement approval time | Pre-creates all `LogbookSubmission` rows with computed Friday 23:59 deadlines so deadline checks are a simple DB read |
-| Past-deadline weeks skipped at schedule generation | Avoids phantom overdue entries if coordinator approves late in semester |
-| `tsc --noEmit` + Jest both must be green before moving to next phase | Non-negotiable quality gate |
+1. Read this file top to bottom
+2. Install Ollama on the machine:
+   ```bash
+   curl -fsSL https://ollama.com/install.sh | sh
+   ollama pull mistral        # or: ollama pull llama3.2:1b  (lighter, ~1 GB)
+   ```
+3. Verify AI engine works (optional smoke test):
+   ```bash
+   cd ai && python -m venv .venv && source .venv/bin/activate
+   pip install -r requirements.txt
+   uvicorn main:app --reload --port 8000
+   curl http://localhost:8000/health
+   ```
+4. Start Phase 5 — Real-Time Notifications (see spec above)
 
 ---
 
 ## Handoff Entry Template
-
-Copy this block and fill it in at the end of each session:
 
 ```markdown
 ### Session N — YYYY-MM-DD
@@ -370,18 +356,12 @@ Copy this block and fill it in at the end of each session:
 **Work done**
 - ...
 
-**Errors encountered & fixes**
+**Errors & fixes**
 
 | Error | Fix |
 |---|---|
 | ... | ... |
 
-**Manual steps required**
-- ...
-
-**Left off at**
-- ...
-
-**Next session should start with**
+**Stopped here — next session should**
 - ...
 ```
