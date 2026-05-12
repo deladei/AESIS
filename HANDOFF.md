@@ -71,14 +71,14 @@ AISYSTEM/
 | 1 | Auth System | ✅ Done | 19/19 |
 | 2 | Placement Workflow | ✅ Done | 14/14 |
 | 3 | Logbook System | ✅ Done | 25/25 |
-| 4 | AI Engine (FastAPI) | ⬜ Pending | — |
+| 4 | AI Engine (FastAPI) | ✅ Done | — (Python) |
 | 5 | Real-Time Notifications | ⬜ Pending | — |
 | 6 | Dashboards & Analytics | ⬜ Pending | — |
 | 7 | Frontend Integration | ⬜ Pending | — |
 | 8 | Security Hardening & QA | ⬜ Pending | — |
 | 9 | Deployment (Docker + Nginx + CI/CD) | ⬜ Pending | — |
 
-**Total test count as of last session: 58/58 passing, `tsc --noEmit` clean.**
+**Total test count as of last session: 58/58 passing (Node.js), `tsc --noEmit` clean. AI Engine: Python, no pytest yet.**
 
 ---
 
@@ -123,6 +123,85 @@ npx prisma migrate dev --name init           # run migrations
 npm run db:seed                              # seed departments + academic year
 npm run dev                                  # start dev server
 ```
+
+---
+
+### Session 3 — 2026-05-12
+
+**Work done — Phase 4: AI Engine (FastAPI, 100% free/local)**
+
+Created `ai/` directory with full FastAPI AI Engine:
+
+| File | Purpose |
+|---|---|
+| `requirements.txt` | All free Python deps: FastAPI, Celery, sentence-transformers, FAISS, XGBoost, SHAP, VADER, NLTK |
+| `config/settings.py` | Pydantic settings from .env |
+| `config/database.py` | Async (asyncpg/motor) + sync (psycopg2/pymongo) DB clients |
+| `models/schemas.py` | Pydantic request/response models |
+| `utils/text_processing.py` | NLP helpers: CS vocabulary (80+ terms), reflection markers, NLTK tokenization |
+| `utils/feature_extraction.py` | Extracts 18 XGBoost features from PostgreSQL via raw SQL |
+| `services/quality_scorer.py` | 4-rubric quality scorer: Task Depth 30%, Tech Vocab 25%, Reflection 25%, Temporal 20% — pure NLP, no training |
+| `services/plagiarism_detector.py` | TF-IDF + FAISS cosine similarity, threshold 0.35, persistent index at /tmp |
+| `services/sentiment_analyser.py` | VADER compound score → 6 emotion classes |
+| `services/risk_predictor.py` | XGBoost (loads model if exists) + rule-based fallback + SHAP explainability |
+| `services/chatbot.py` | RAG: sentence-transformers embeddings + FAISS retrieval + Ollama streaming, graceful fallback if Ollama offline |
+| `tasks/celery_app.py` | Celery config with Redis broker, separate `analysis` and `risk` queues |
+| `tasks/analysis_tasks.py` | `analyze_logbook` task (quality+plagiarism+sentiment→PG) + `compute_risk` task (18 features→XGBoost→notification) |
+| `routers/analysis.py` | `POST /ai/analyze/logbook` — enqueues Celery task |
+| `routers/risk.py` | `POST /ai/predict/risk` + `GET /ai/predict/risk/preview` |
+| `routers/chat.py` | `POST /ai/chat` — streaming SSE response, persists to MongoDB |
+| `routers/health.py` | `GET /health` — checks Ollama connectivity |
+| `main.py` | FastAPI app with CORS + lifespan DB pool |
+| `Dockerfile` | python:3.11-slim, pre-downloads sentence-transformers model + NLTK data |
+
+Updated Node.js backend:
+- `logbook.service.ts`: replaced `upsertMongoLogbook()` stub with real MongoDB write + `enqueueAiAnalysis()` stub with real `fetch()` to FastAPI
+- `docker-compose.yml`: added `ai-engine` and `celery-worker` services
+- `logbook.service.test.ts`: added mocks for `config/mongo` and `AI_ENGINE_URL` env vars
+
+**Free resources used (no paid APIs):**
+- Ollama — local LLM (user installs separately, free): `curl -fsSL https://ollama.com/install.sh | sh && ollama pull mistral`
+- sentence-transformers `all-MiniLM-L6-v2` — auto-downloads from HuggingFace (~90MB), free
+- FAISS-cpu — local vector search, free
+- XGBoost + SHAP — free
+- VADER sentiment — free
+- All other packages — free/open-source
+
+**Errors encountered & fixes**
+
+| Error | Fix |
+|---|---|
+| `getMongo()` throws "MongoDB not connected" in logbook tests | Added `jest.mock('../../../config/mongo', ...)` to logbook test file with collection stub |
+| Test needed `AI_ENGINE_URL` and `AI_ENGINE_API_KEY` in env mock | Added those keys to the env mock in logbook test |
+
+**Manual steps to run Phase 4:**
+```bash
+# Install Ollama (free, local LLM)
+curl -fsSL https://ollama.com/install.sh | sh
+ollama pull mistral          # or: ollama pull llama3.2:1b (smaller, faster)
+
+# Create ai/.env (already done from .env.example)
+
+# Run with Docker (builds AI image — takes ~5 min first time for model downloads)
+sudo docker compose up -d
+
+# OR run AI engine locally (development)
+cd ai
+python -m venv .venv && source .venv/bin/activate
+pip install -r requirements.txt
+uvicorn main:app --reload --port 8000
+# In another terminal:
+celery -A tasks.celery_app worker --loglevel=info -Q analysis,risk
+```
+
+**Left off at**
+- 58/58 Node.js tests passing, tsc clean
+- Phase 4 Python code complete — not yet run/tested (requires pip install)
+- AI Engine is standalone: Node backend calls it via HTTP, gracefully handles AI engine being offline
+
+**Next session should start with**
+- Read this file
+- Phase 5: Real-Time Notifications (Socket.io server-side events, node-cron deadline reminders, email dispatch for feedback/risk alerts)
 
 ---
 

@@ -48,7 +48,51 @@ services:
       timeout: 5s
       retries: 5
 
+  ai-engine:
+    build:
+      context: ../ai
+      dockerfile: Dockerfile
+    container_name: aesis_ai
+    restart: unless-stopped
+    env_file: ../ai/.env
+    ports:
+      - '8000:8000'
+    depends_on:
+      postgres:
+        condition: service_healthy
+      mongo:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    volumes:
+      - ai_models:/tmp  # cache downloaded models + FAISS indices
+    healthcheck:
+      test: ['CMD-SHELL', 'curl -f http://localhost:8000/health || exit 1']
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 60s  # allow time for model warm-up
+
+  celery-worker:
+    build:
+      context: ../ai
+      dockerfile: Dockerfile
+    container_name: aesis_celery
+    restart: unless-stopped
+    env_file: ../ai/.env
+    command: celery -A tasks.celery_app worker --loglevel=info -Q analysis,risk --concurrency=2
+    depends_on:
+      redis:
+        condition: service_healthy
+      postgres:
+        condition: service_healthy
+      mongo:
+        condition: service_healthy
+    volumes:
+      - ai_models:/tmp
+
 volumes:
   postgres_data:
   mongo_data:
   redis_data:
+  ai_models:

@@ -19,11 +19,22 @@ jest.mock('../../../config/prisma', () => ({
 
 jest.mock('../../../config/env', () => ({
   env: {
-    NODE_ENV:       'test',
-    BCRYPT_ROUNDS:  4,
-    ENCRYPTION_KEY: 'a'.repeat(64),
-    FRONTEND_URL:   'http://localhost:5173',
+    NODE_ENV:          'test',
+    BCRYPT_ROUNDS:     4,
+    ENCRYPTION_KEY:    'a'.repeat(64),
+    FRONTEND_URL:      'http://localhost:5173',
+    AI_ENGINE_URL:     'http://localhost:8000',
+    AI_ENGINE_API_KEY: 'dev_internal_key',
   },
+}));
+
+jest.mock('../../../config/mongo', () => ({
+  getMongo: jest.fn(() => ({
+    collection: jest.fn(() => ({
+      updateOne: jest.fn().mockResolvedValue({ upsertedId: 'sub-1' }),
+    })),
+  })),
+  COLLECTIONS: { LOGBOOK_ENTRIES: 'logbook_entries', CHAT_SESSIONS: 'chat_sessions' },
 }));
 
 import { prisma } from '../../../config/prisma';

@@ -1,6 +1,8 @@
 import { prisma } from '../../config/prisma';
+import { getMongo, COLLECTIONS } from '../../config/mongo';
 import { AppError } from '../../middleware/errorHandler';
 import { paginate, buildMeta } from '../../shared/utils/pagination';
+import { env } from '../../config/env';
 import type { SaveDraftInput, FeedbackInput } from './logbook.schema';
 
 // ── Draft management ──────────────────────────────────────────
@@ -98,8 +100,7 @@ export async function submitLogbook(submissionId: string, studentId: string) {
     },
   });
 
-  // Phase 4: enqueue AI analysis — stub here
-  void enqueueAiAnalysis(submissionId);
+  void enqueueAiAnalysis(submissionId, studentId, submission.placementId);
 
   return updated;
 }
@@ -276,14 +277,34 @@ async function upsertMongoLogbook(
   existingDocId: string | null,
   data: Record<string, unknown>,
 ): Promise<string> {
-  // Phase 4 will wire this to a real MongoDB write via the mongo client.
-  // For now we return the existing ID or generate a placeholder so PG stays consistent.
-  if (existingDocId) return existingDocId;
-  return `mongo_stub_${data['submissionId']}_${Date.now()}`;
+  const db  = getMongo();
+  const col = db.collection(COLLECTIONS.LOGBOOK_ENTRIES);
+  const id  = (data['submissionId'] as string);
+
+  await col.updateOne(
+    { submissionId: id },
+    { $set: { ...data, updatedAt: new Date() } },
+    { upsert: true },
+  );
+
+  return id; // use submissionId as the stable reference key
 }
 
-async function enqueueAiAnalysis(submissionId: string): Promise<void> {
-  // Phase 4: POST to FastAPI AI Engine to trigger async analysis pipeline.
-  // Placeholder — logs intent without crashing the submission flow.
-  console.info(`[AI stub] Enqueue analysis for submission ${submissionId}`);
+async function enqueueAiAnalysis(submissionId: string, studentId: string, placementId: string): Promise<void> {
+  try {
+    const res = await fetch(`${env.AI_ENGINE_URL}/ai/analyze/logbook`, {
+      method:  'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-api-key':    env.AI_ENGINE_API_KEY,
+      },
+      body: JSON.stringify({ submission_id: submissionId, student_id: studentId, placement_id: placementId }),
+    });
+    if (!res.ok) {
+      console.error(`[AI engine] Enqueue failed: ${res.status}`);
+    }
+  } catch (err) {
+    // Non-fatal — AI analysis runs async; submission is already saved
+    console.error(`[AI engine] Could not reach AI engine: ${(err as Error).message}`);
+  }
 }
