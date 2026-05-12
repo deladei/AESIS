@@ -1,0 +1,33 @@
+import { z } from 'zod';
+
+export const createPlacementSchema = z.object({
+  companyName:            z.string().trim().min(2).max(200),
+  companyAddress:         z.string().trim().min(5).max(500),
+  companySupervisorName:  z.string().trim().min(2).max(100),
+  companySupervisorEmail: z.string().email(),
+  startDate:              z.string().date('Invalid start date (YYYY-MM-DD)'),
+  endDate:                z.string().date('Invalid end date (YYYY-MM-DD)'),
+}).refine((d) => new Date(d.endDate) > new Date(d.startDate), {
+  message: 'End date must be after start date',
+  path: ['endDate'],
+});
+
+export const updatePlacementStatusSchema = z.object({
+  status:          z.enum(['active', 'rejected', 'completed', 'withdrawn', 'failed']),
+  rejectionReason: z.string().min(10).max(1000).optional(),
+  supervisorId:    z.string().uuid().optional(),
+}).refine(
+  (d) => d.status !== 'rejected' || !!d.rejectionReason,
+  { message: 'Rejection reason is required when rejecting a placement', path: ['rejectionReason'] },
+);
+
+export const createCompanySchema = z.object({
+  name:     z.string().trim().min(2).max(200),
+  address:  z.string().trim().max(500).optional(),
+  industry: z.string().trim().max(100).optional(),
+  website:  z.string().url().optional().or(z.literal('')),
+});
+
+export type CreatePlacementInput       = z.infer<typeof createPlacementSchema>;
+export type UpdatePlacementStatusInput = z.infer<typeof updatePlacementStatusSchema>;
+export type CreateCompanyInput         = z.infer<typeof createCompanySchema>;

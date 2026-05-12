@@ -1,0 +1,480 @@
+// AESIS — AI-Enhanced Student Internship Supervision System
+// PostgreSQL schema via Prisma ORM
+// CS Department Pilot — AY 2024/2025
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ─────────────────────────────────────────────
+// ENUMS
+// ─────────────────────────────────────────────
+
+enum UserRole {
+  student
+  academic_supervisor
+  company_supervisor
+  coordinator
+  admin
+}
+
+enum PlacementStatus {
+  pending
+  active
+  completed
+  withdrawn
+  failed
+}
+
+enum SubmissionStatus {
+  draft
+  submitted
+  under_review
+  approved
+  flagged
+}
+
+enum AiAnalysisStatus {
+  pending
+  processing
+  completed
+  failed
+}
+
+enum RiskTier {
+  low
+  medium
+  high
+}
+
+enum NotificationType {
+  risk_alert
+  feedback_received
+  submission_reminder
+  placement_approved
+  placement_rejected
+  escalation
+  system
+}
+
+enum EscalationAction {
+  check_in_scheduled
+  escalated_to_coordinator
+  dismissed
+}
+
+enum EscalationOutcome {
+  site_visit_requested
+  placement_transfer_initiated
+  resolved
+  pending
+}
+
+enum AuditAction {
+  role_change
+  data_export
+  ai_override
+  placement_status_change
+  escalation_created
+  escalation_resolved
+  logbook_override
+}
+
+// ─────────────────────────────────────────────
+// REFERENCE TABLES
+// ─────────────────────────────────────────────
+
+model Department {
+  id          String   @id @default(uuid())
+  name        String   @unique
+  code        String   @unique
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  users       User[]
+  programmes  AcademicProgramme[]
+
+  @@map("departments")
+}
+
+model AcademicProgramme {
+  id           String     @id @default(uuid())
+  name         String
+  code         String     @unique
+  departmentId String     @map("department_id")
+  department   Department @relation(fields: [departmentId], references: [id])
+  createdAt    DateTime   @default(now()) @map("created_at")
+
+  users        User[]
+
+  @@map("academic_programmes")
+}
+
+model AcademicYear {
+  id          String   @id @default(uuid())
+  label       String   @unique // e.g. "2024/2025"
+  startDate   DateTime @map("start_date")
+  endDate     DateTime @map("end_date")
+  isActive    Boolean  @default(false) @map("is_active")
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  placements  Placement[]
+  cohortConfigs CohortConfig[]
+
+  @@map("academic_years")
+}
+
+model CohortConfig {
+  id                   String       @id @default(uuid())
+  academicYearId       String       @map("academic_year_id")
+  academicYear         AcademicYear @relation(fields: [academicYearId], references: [id])
+  submissionDeadlineDay Int         @default(5) @map("submission_deadline_day") // ISO weekday: 5 = Friday
+  submissionDeadlineHour Int        @default(23) @map("submission_deadline_hour")
+  submissionDeadlineMinute Int      @default(59) @map("submission_deadline_minute")
+  reminderDayOfWeek    Int          @default(1) @map("reminder_day_of_week") // 1 = Monday
+  reminderHour         Int          @default(8) @map("reminder_hour")
+  totalWeeks           Int          @default(24) @map("total_weeks")
+  createdAt            DateTime     @default(now()) @map("created_at")
+
+  @@unique([academicYearId])
+  @@map("cohort_configs")
+}
+
+// ─────────────────────────────────────────────
+// USERS
+// ─────────────────────────────────────────────
+
+model User {
+  id               String            @id @default(uuid())
+  email            String            @unique
+  passwordHash     String            @map("password_hash")
+  role             UserRole
+  firstName        String            @map("first_name")
+  lastName         String            @map("last_name")
+  phone            String?           // AES-256-GCM encrypted at app layer
+  departmentId     String            @map("department_id")
+  department       Department        @relation(fields: [departmentId], references: [id])
+  programmeId      String?           @map("programme_id")
+  programme        AcademicProgramme? @relation(fields: [programmeId], references: [id])
+  isVerified       Boolean           @default(false) @map("is_verified")
+  verificationToken String?          @map("verification_token")
+  passwordResetToken String?         @map("password_reset_token")
+  passwordResetExpiry DateTime?      @map("password_reset_expiry")
+  createdAt        DateTime          @default(now()) @map("created_at")
+  updatedAt        DateTime          @updatedAt @map("updated_at")
+  lastLoginAt      DateTime?         @map("last_login_at")
+
+  // Relations by role
+  studentPlacements         Placement[]        @relation("StudentPlacements")
+  supervisorPlacements      Placement[]        @relation("AcademicSupervisorPlacements")
+  companySupervisorPlacements Placement[]      @relation("CompanySupervisorPlacements")
+  logbookSubmissions        LogbookSubmission[]
+  supervisorFeedback        SupervisorFeedback[]
+  notifications             Notification[]
+  riskScores                StudentRiskScore[]
+  escalationsCreated        RiskEscalation[]   @relation("EscalationCreatedBy")
+  refreshTokens             RefreshToken[]
+  auditLogs                 AuditLog[]
+  visitSchedules            VisitSchedule[]    @relation("SupervisorVisits")
+
+  @@map("users")
+}
+
+model RefreshToken {
+  id        String   @id @default(uuid())
+  userId    String   @map("user_id")
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  tokenHash String   @map("token_hash")
+  expiresAt DateTime @map("expires_at")
+  createdAt DateTime @default(now()) @map("created_at")
+  revokedAt DateTime? @map("revoked_at")
+
+  @@map("refresh_tokens")
+}
+
+// ─────────────────────────────────────────────
+// COMPANIES
+// ─────────────────────────────────────────────
+
+model Company {
+  id          String   @id @default(uuid())
+  name        String   @unique
+  address     String?  // AES-256-GCM encrypted at app layer
+  industry    String?
+  website     String?
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  placements  Placement[]
+
+  @@map("companies")
+}
+
+// ─────────────────────────────────────────────
+// PLACEMENTS
+// ─────────────────────────────────────────────
+
+model Placement {
+  id                     String          @id @default(uuid())
+  studentId              String          @map("student_id")
+  student                User            @relation("StudentPlacements", fields: [studentId], references: [id])
+  academicSupervisorId   String?         @map("academic_supervisor_id")
+  academicSupervisor     User?           @relation("AcademicSupervisorPlacements", fields: [academicSupervisorId], references: [id])
+  companySupervisorId    String?         @map("company_supervisor_id")
+  companySupervisor      User?           @relation("CompanySupervisorPlacements", fields: [companySupervisorId], references: [id])
+  companyId              String?         @map("company_id")
+  company                Company?        @relation(fields: [companyId], references: [id])
+  academicYearId         String          @map("academic_year_id")
+  academicYear           AcademicYear    @relation(fields: [academicYearId], references: [id])
+  startDate              DateTime?       @map("start_date")
+  endDate                DateTime?       @map("end_date")
+  placementStatus        PlacementStatus @default(pending) @map("placement_status")
+  rejectionReason        String?         @map("rejection_reason")
+  approvedAt             DateTime?       @map("approved_at")
+  approvedBy             String?         @map("approved_by") // coordinator user id
+  createdAt              DateTime        @default(now()) @map("created_at")
+  updatedAt              DateTime        @updatedAt @map("updated_at")
+
+  logbookSubmissions     LogbookSubmission[]
+  riskScores             StudentRiskScore[]
+  visitSchedules         VisitSchedule[]
+  documents              PlacementDocument[]
+
+  @@map("placements")
+}
+
+// ─────────────────────────────────────────────
+// LOGBOOK
+// ─────────────────────────────────────────────
+
+model LogbookSubmission {
+  id               String           @id @default(uuid())
+  placementId      String           @map("placement_id")
+  placement        Placement        @relation(fields: [placementId], references: [id])
+  studentId        String           @map("student_id") // denormalised for query perf
+  student          User             @relation(fields: [studentId], references: [id])
+  weekNumber       Int              @map("week_number")
+  mongoDocId       String?          @map("mongo_doc_id") // ref to full text in MongoDB
+  submissionStatus SubmissionStatus @default(draft) @map("submission_status")
+  aiAnalysisStatus AiAnalysisStatus @default(pending) @map("ai_analysis_status")
+  submittedAt      DateTime?        @map("submitted_at")
+  deadline         DateTime
+  isLate           Boolean          @default(false) @map("is_late")
+  createdAt        DateTime         @default(now()) @map("created_at")
+  updatedAt        DateTime         @updatedAt @map("updated_at")
+
+  analysis         LogbookAnalysis?
+  feedback         SupervisorFeedback[]
+  attachments      LogbookAttachment[]
+
+  @@unique([placementId, weekNumber])
+  @@map("logbook_submissions")
+}
+
+model LogbookAttachment {
+  id           String            @id @default(uuid())
+  submissionId String            @map("submission_id")
+  submission   LogbookSubmission @relation(fields: [submissionId], references: [id], onDelete: Cascade)
+  fileUrl      String            @map("file_url") // S3 / Cloudinary URL
+  fileName     String            @map("file_name")
+  fileSize     Int               @map("file_size") // bytes
+  mimeType     String            @map("mime_type")
+  uploadedAt   DateTime          @default(now()) @map("uploaded_at")
+
+  @@map("logbook_attachments")
+}
+
+// ─────────────────────────────────────────────
+// AI ANALYSIS
+// ─────────────────────────────────────────────
+
+model LogbookAnalysis {
+  id                    String            @id @default(uuid())
+  submissionId          String            @unique @map("submission_id")
+  submission            LogbookSubmission @relation(fields: [submissionId], references: [id], onDelete: Cascade)
+
+  // Quality scoring (rubric: Task Depth 30%, Tech Vocab 25%, Reflection 25%, Temporal Consistency 20%)
+  qualityScore          Decimal?          @map("quality_score") @db.Decimal(5, 2)    // 0.00–100.00
+  taskDepthScore        Decimal?          @map("task_depth_score") @db.Decimal(5, 2)
+  techVocabScore        Decimal?          @map("tech_vocab_score") @db.Decimal(5, 2)
+  reflectionScore       Decimal?          @map("reflection_score") @db.Decimal(5, 2)
+  temporalConsistencyScore Decimal?       @map("temporal_consistency_score") @db.Decimal(5, 2)
+
+  // CS relevance
+  relevanceScore        Decimal?          @map("relevance_score") @db.Decimal(4, 3)  // 0.000–1.000
+  isRelevanceFlagged    Boolean           @default(false) @map("is_relevance_flagged")
+
+  // Plagiarism
+  plagiarismSimilarity  Decimal?          @map("plagiarism_similarity") @db.Decimal(4, 3)
+  isPlagiarismFlagged   Boolean           @default(false) @map("is_plagiarism_flagged")
+  plagiarismMatchIds    String[]          @map("plagiarism_match_ids") // submission IDs of matches
+
+  // Authenticity
+  authenticityFlag      Boolean           @default(false) @map("authenticity_flag")
+
+  // Sentiment (from supervisor feedback, updated after feedback submission)
+  sentimentPolarity     Decimal?          @map("sentiment_polarity") @db.Decimal(4, 3)
+  sentimentClass        String?           @map("sentiment_class") // constructive/critical/supportive/frustrated/neutral/encouraging
+
+  // Explainability
+  shapValues            Json?             @map("shap_values")
+  aiFeedbackSummary     String?           @map("ai_feedback_summary")
+
+  computedAt            DateTime?         @map("computed_at")
+  createdAt             DateTime          @default(now()) @map("created_at")
+  updatedAt             DateTime          @updatedAt @map("updated_at")
+
+  @@map("logbook_analyses")
+}
+
+// ─────────────────────────────────────────────
+// RISK SCORES
+// ─────────────────────────────────────────────
+
+model StudentRiskScore {
+  id               String    @id @default(uuid())
+  studentId        String    @map("student_id")
+  student          User      @relation(fields: [studentId], references: [id])
+  placementId      String    @map("placement_id")
+  placement        Placement @relation(fields: [placementId], references: [id])
+  riskScore        Decimal   @map("risk_score") @db.Decimal(4, 3)       // 0.000–1.000
+  riskTier         RiskTier  @map("risk_tier")
+  previousTier     RiskTier? @map("previous_tier")
+  topRiskFactors   String[]  @map("top_risk_factors")                   // human-readable SHAP top-3
+  shapValues       Json      @map("shap_values")
+  computedAt       DateTime  @default(now()) @map("computed_at")
+
+  escalations      RiskEscalation[]
+
+  @@map("student_risk_scores")
+}
+
+// ─────────────────────────────────────────────
+// SUPERVISOR FEEDBACK
+// ─────────────────────────────────────────────
+
+model SupervisorFeedback {
+  id            String            @id @default(uuid())
+  submissionId  String            @map("submission_id")
+  submission    LogbookSubmission @relation(fields: [submissionId], references: [id])
+  supervisorId  String            @map("supervisor_id")
+  supervisor    User              @relation(fields: [supervisorId], references: [id])
+  feedbackText  String            @map("feedback_text")
+  rating        Int?              // optional 1–5 structured rating
+  submittedAt   DateTime          @default(now()) @map("submitted_at")
+
+  @@map("supervisor_feedback")
+}
+
+// ─────────────────────────────────────────────
+// RISK ESCALATIONS
+// ─────────────────────────────────────────────
+
+model RiskEscalation {
+  id              String             @id @default(uuid())
+  riskScoreId     String             @map("risk_score_id")
+  riskScore       StudentRiskScore   @relation(fields: [riskScoreId], references: [id])
+  createdById     String             @map("created_by_id") // supervisor who acted
+  createdBy       User               @relation("EscalationCreatedBy", fields: [createdById], references: [id])
+  action          EscalationAction   @map("action")
+  dismissReason   String?            @map("dismiss_reason")
+  outcome         EscalationOutcome? @map("outcome")
+  resolvedAt      DateTime?          @map("resolved_at")
+  createdAt       DateTime           @default(now()) @map("created_at")
+  updatedAt       DateTime           @updatedAt @map("updated_at")
+
+  @@map("risk_escalations")
+}
+
+// ─────────────────────────────────────────────
+// NOTIFICATIONS
+// ─────────────────────────────────────────────
+
+model Notification {
+  id         String           @id @default(uuid())
+  userId     String           @map("user_id")
+  user       User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  type       NotificationType
+  title      String
+  body       String
+  isRead     Boolean          @default(false) @map("is_read")
+  link       String?          // deep link into the app
+  metadata   Json?            // contextual payload (e.g. studentId, submissionId)
+  createdAt  DateTime         @default(now()) @map("created_at")
+  readAt     DateTime?        @map("read_at")
+
+  @@map("notifications")
+}
+
+// ─────────────────────────────────────────────
+// DOCUMENTS & FILES
+// ─────────────────────────────────────────────
+
+model PlacementDocument {
+  id          String    @id @default(uuid())
+  placementId String    @map("placement_id")
+  placement   Placement @relation(fields: [placementId], references: [id], onDelete: Cascade)
+  docType     String    @map("doc_type") // placement_letter | acceptance_letter | final_report
+  fileUrl     String    @map("file_url")
+  fileName    String    @map("file_name")
+  fileSize    Int       @map("file_size")
+  mimeType    String    @map("mime_type")
+  uploadedAt  DateTime  @default(now()) @map("uploaded_at")
+
+  @@map("placement_documents")
+}
+
+// ─────────────────────────────────────────────
+// VISIT SCHEDULES
+// ─────────────────────────────────────────────
+
+model VisitSchedule {
+  id           String    @id @default(uuid())
+  placementId  String    @map("placement_id")
+  placement    Placement @relation(fields: [placementId], references: [id])
+  supervisorId String    @map("supervisor_id")
+  supervisor   User      @relation("SupervisorVisits", fields: [supervisorId], references: [id])
+  scheduledAt  DateTime  @map("scheduled_at")
+  notes        String?
+  completed    Boolean   @default(false)
+  completedAt  DateTime? @map("completed_at")
+  createdAt    DateTime  @default(now()) @map("created_at")
+
+  @@map("visit_schedules")
+}
+
+// ─────────────────────────────────────────────
+// AUDIT LOG
+// ─────────────────────────────────────────────
+
+model AuditLog {
+  id         String      @id @default(uuid())
+  userId     String      @map("user_id")
+  user       User        @relation(fields: [userId], references: [id])
+  action     AuditAction
+  entityType String      @map("entity_type") // e.g. "placement", "logbook_submission"
+  entityId   String      @map("entity_id")
+  metadata   Json?       // before/after state or relevant context
+  ipAddress  String?     @map("ip_address")
+  createdAt  DateTime    @default(now()) @map("created_at")
+
+  @@map("audit_logs")
+}
+
+// ─────────────────────────────────────────────
+// CHATBOT SESSION (lightweight — full history in Redis/MongoDB)
+// ─────────────────────────────────────────────
+
+model ChatSession {
+  id        String   @id @default(uuid())
+  userId    String   @map("user_id")
+  mongoSessionId String @map("mongo_session_id") // full message history in MongoDB
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@map("chat_sessions")
+}

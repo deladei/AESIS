@@ -1,0 +1,46 @@
+# Dependencies
+node_modules/
+__pycache__/
+*.pyc
+.venv/
+venv/
+
+# Build outputs
+dist/
+build/
+.next/
+out/
+
+# Environment — NEVER commit real secrets
+.env
+.env.local
+.env.*.local
+*.env
+
+# Logs
+*.log
+logs/
+npm-debug.log*
+
+# Test & coverage
+coverage/
+.nyc_output/
+htmlcov/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# IDE
+.vscode/
+.idea/
+*.swp
+
+# Prisma generated (keep schema, ignore migrations until prod-ready)
+backend/prisma/migrations/
+
+# Python
+*.egg-info/
+dist/
+.mypy_cache/
+.pytest_cache/
