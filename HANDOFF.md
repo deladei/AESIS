@@ -70,7 +70,7 @@ AISYSTEM/
 | 0 | Scaffold & Config | ✅ Done | — |
 | 1 | Auth System | ✅ Done | 19/19 |
 | 2 | Placement Workflow | ✅ Done | 14/14 |
-| 3 | Logbook System | 🔜 Next | — |
+| 3 | Logbook System | ✅ Done | 25/25 |
 | 4 | AI Engine (FastAPI) | ⬜ Pending | — |
 | 5 | Real-Time Notifications | ⬜ Pending | — |
 | 6 | Dashboards & Analytics | ⬜ Pending | — |
@@ -78,7 +78,7 @@ AISYSTEM/
 | 8 | Security Hardening & QA | ⬜ Pending | — |
 | 9 | Deployment (Docker + Nginx + CI/CD) | ⬜ Pending | — |
 
-**Total test count as of last session: 33/33 passing, `tsc --noEmit` clean.**
+**Total test count as of last session: 58/58 passing, `tsc --noEmit` clean.**
 
 ---
 
@@ -123,6 +123,38 @@ npx prisma migrate dev --name init           # run migrations
 npm run db:seed                              # seed departments + academic year
 npm run dev                                  # start dev server
 ```
+
+---
+
+### Session 2 — 2026-05-12
+
+**Work done**
+- Committed full project to GitHub (`https://github.com/deladei/AESIS`, branch `main`, 65 files, 14 469 lines)
+- Created `HANDOFF.md` (this file) and persisted session-handoff protocol to Claude memory
+- Built Phase 3 — Logbook System (25 new tests, all passing):
+  - `src/modules/logbook/logbook.schema.ts` — Zod schemas: `saveDraftSchema`, `feedbackSchema`, `weekParamSchema`
+  - `src/modules/logbook/logbook.service.ts` — 7 service functions: `getOrCreateDraft`, `saveDraft`, `submitLogbook`, `getSubmission`, `listSubmissions`, `addAttachment`, `listAttachments`, `submitFeedback`
+  - `src/modules/logbook/logbook.controller.ts` — 8 route handlers using `req.user!` + Zod param parsing
+  - `src/modules/logbook/logbook.router.ts` — 9 routes wired with RBAC guards
+  - `src/modules/logbook/__tests__/logbook.service.test.ts` — 25 tests across 5 describe blocks
+  - Wired `logbookRouter` into `app.ts` at `/api/v1/logbook`
+
+**Errors encountered & fixes**
+
+| Error | Fix |
+|---|---|
+| 8 TypeScript errors: "Argument of type `string \| string[]` is not assignable to parameter of type `string`" in controller | `@types/express-serve-static-core` types `ParamsDictionary` values as `string \| string[]`. Fixed by parsing `req.params` through Zod schemas (`z.object({ submissionId: z.string().uuid() })`) and using `req.user!.sub`/`req.user!.role` directly — matching the pattern in `placements.controller.ts` |
+
+**Left off at**
+- 58/58 tests passing, `tsc --noEmit` clean
+- Phase 3 complete
+- Phase 3 MongoDB stub: `upsertMongoLogbook()` returns a placeholder ID — real Mongo write wired in Phase 4
+- Phase 3 AI stub: `enqueueAiAnalysis()` logs intent only — real FastAPI call wired in Phase 4
+- Phase 3 S3 stub: attachment URL is a `local://` placeholder — real upload wired in Phase 9
+
+**Next session should start with**
+- Read this file, confirm phase tracker, then start Phase 4: AI Engine (FastAPI Python service in `ai/` directory)
+- Phase 4 also wires: `upsertMongoLogbook()` real implementation in logbook.service, `enqueueAiAnalysis()` real HTTP call to FastAPI
 
 ---
 

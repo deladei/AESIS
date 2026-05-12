@@ -10,9 +10,9 @@ import { env } from './config/env';
 import authRouter        from './modules/auth/auth.router';
 import placementsRouter  from './modules/placements/placements.router';
 import companiesRouter   from './modules/placements/companies.router';
+import logbookRouter     from './modules/logbook/logbook.router';
 // Future phases — uncomment as modules are built:
 // import usersRouter        from './modules/users/users.router';
-// import logbookRouter      from './modules/logbook/logbook.router';
 // import supervisorRouter   from './modules/supervisor/supervisor.router';
 // import coordinatorRouter  from './modules/coordinator/coordinator.router';
 // import notificationsRouter from './modules/notifications/notifications.router';
@@ -56,6 +56,7 @@ export function createApp() {
   app.use('/api/v1/auth',       authRouter);
   app.use('/api/v1/placements', placementsRouter);
   app.use('/api/v1/companies',  companiesRouter);
+  app.use('/api/v1/logbook',    logbookRouter);
   // app.use('/api/v1/users',         usersRouter);
   // app.use('/api/v1/logbook',       logbookRouter);
   // app.use('/api/v1/supervisor',    supervisorRouter);
