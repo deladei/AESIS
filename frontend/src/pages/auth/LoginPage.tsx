@@ -1,8 +1,11 @@
 import { useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { Eye, EyeOff, Loader2, Shield } from 'lucide-react';
+import { useAuth } from '@/contexts/AuthContext';
 
 export default function LoginPage() {
+  const { login } = useAuth();
+  const navigate = useNavigate();
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const [form, setForm] = useState({ email: '', password: '' });
@@ -12,10 +15,15 @@ export default function LoginPage() {
     e.preventDefault();
     setLoading(true);
     setError('');
-    // POST /api/v1/auth/login
     try {
-      await new Promise((r) => setTimeout(r, 1200));
-      // navigate by role after login
+      const loggedInUser = await login(form.email, form.password);
+      const redirects: Record<string, string> = {
+        student:             '/student/dashboard',
+        academic_supervisor: '/supervisor/dashboard',
+        coordinator:         '/coordinator/dashboard',
+        admin:               '/coordinator/dashboard',
+      };
+      navigate(redirects[loggedInUser.role] ?? '/student/dashboard', { replace: true });
     } catch {
       setError('Invalid email or password.');
     } finally {

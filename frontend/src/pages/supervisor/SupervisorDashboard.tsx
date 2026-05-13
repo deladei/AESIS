@@ -1,41 +1,44 @@
 import { useState } from 'react';
-import { Users, AlertTriangle, ClipboardCheck, Clock, ChevronRight, Filter } from 'lucide-react';
+import { Users, AlertTriangle, ClipboardCheck, ChevronRight, Filter, Loader2 } from 'lucide-react';
 import { RiskBadge } from '@/components/shared/RiskBadge';
-import { StatusBadge } from '@/components/shared/StatusBadge';
+import { useSupervisorDashboard } from '@/hooks/useDashboard';
 
 type RiskTier = 'low' | 'medium' | 'high';
 
-interface Student {
-  id: string;
-  name: string;
-  programme: string;
-  company: string;
-  riskTier: RiskTier;
-  riskScore: number;
-  latestQuality: number;
-  weekStatus: 'submitted' | 'pending' | 'late' | 'approved';
-  weekNumber: number;
-  lastActivity: string;
-}
-
-const students: Student[] = [
-  { id: '1', name: 'Chioma Okafor',   programme: 'B.Sc. Software Engineering', company: 'TechBridge Ltd',       riskTier: 'high',   riskScore: 0.74, latestQuality: 48, weekStatus: 'late',      weekNumber: 8, lastActivity: '4 days ago' },
-  { id: '2', name: 'Emmanuel Eze',    programme: 'B.Sc. Computer Science',      company: 'DataSync Nigeria',     riskTier: 'medium', riskScore: 0.51, latestQuality: 63, weekStatus: 'submitted', weekNumber: 9, lastActivity: '2 days ago' },
-  { id: '3', name: 'Fatima Abdullahi',programme: 'B.Sc. Information Tech',      company: 'InnovatePH',           riskTier: 'low',    riskScore: 0.18, latestQuality: 84, weekStatus: 'approved',  weekNumber: 9, lastActivity: 'Today'      },
-  { id: '4', name: 'Kelechi Nwachukwu',programme:'B.Sc. Computer Science',     company: 'ByteHouse Africa',     riskTier: 'low',    riskScore: 0.22, latestQuality: 79, weekStatus: 'approved',  weekNumber: 9, lastActivity: 'Yesterday'  },
-  { id: '5', name: 'Ngozi Uchenna',   programme: 'B.Sc. Cybersecurity',         company: 'SecureNet Solutions',  riskTier: 'medium', riskScore: 0.44, latestQuality: 70, weekStatus: 'submitted', weekNumber: 9, lastActivity: '1 day ago'  },
-  { id: '6', name: 'Tunde Adesanya',  programme: 'B.Sc. Software Engineering',  company: 'CodeCraft Studios',    riskTier: 'low',    riskScore: 0.09, latestQuality: 91, weekStatus: 'approved',  weekNumber: 9, lastActivity: 'Today'      },
-];
-
-const weekStatusConfig = {
-  approved:  { label: 'Approved',   classes: 'bg-emerald-500/10 text-emerald-400 border-emerald-500/30' },
-  submitted: { label: 'Submitted',  classes: 'bg-blue-500/10 text-blue-400 border-blue-500/30' },
-  pending:   { label: 'Pending',    classes: 'bg-slate-700/50 text-slate-400 border-slate-600' },
-  late:      { label: 'Late',       classes: 'bg-red-500/10 text-red-400 border-red-500/30' },
+const weekStatusConfig: Record<string, { label: string; classes: string }> = {
+  approved:     { label: 'Approved',  classes: 'bg-emerald-500/10 text-emerald-400 border-emerald-500/30' },
+  submitted:    { label: 'Submitted', classes: 'bg-blue-500/10 text-blue-400 border-blue-500/30' },
+  under_review: { label: 'In Review', classes: 'bg-violet-500/10 text-violet-400 border-violet-500/30' },
+  pending:      { label: 'Pending',   classes: 'bg-slate-700/50 text-slate-400 border-slate-600' },
+  late:         { label: 'Late',      classes: 'bg-red-500/10 text-red-400 border-red-500/30' },
+  flagged:      { label: 'Flagged',   classes: 'bg-red-500/10 text-red-400 border-red-500/30' },
 };
 
+function latestStatus(recentWeeks: { week: number; status: string; score: number | null }[]) {
+  if (!recentWeeks.length) return 'pending';
+  const sorted = [...recentWeeks].sort((a, b) => b.week - a.week);
+  return sorted[0].status;
+}
+
+function formatLastActivity(iso: string | null) {
+  if (!iso) return 'No submissions';
+  const d = new Date(iso);
+  const diff = Date.now() - d.getTime();
+  if (diff < 86_400_000) return 'Today';
+  if (diff < 172_800_000) return 'Yesterday';
+  return `${Math.floor(diff / 86_400_000)} days ago`;
+}
+
 export default function SupervisorDashboard() {
+  const { data, isLoading } = useSupervisorDashboard();
   const [filterTier, setFilterTier] = useState<RiskTier | 'all'>('all');
+
+  if (isLoading) {
+    return <div className="p-6 flex justify-center items-center h-64"><Loader2 className="w-6 h-6 animate-spin text-blue-400" /></div>;
+  }
+
+  const overview  = data?.overview  ?? { assignedStudents: 0, pendingReview: 0, avgQualityScore: null };
+  const students  = data?.students  ?? [];
 
   const highRisk = students.filter((s) => s.riskTier === 'high');
   const filtered = filterTier === 'all' ? students : students.filter((s) => s.riskTier === filterTier);
@@ -44,12 +47,11 @@ export default function SupervisorDashboard() {
     <div className="p-6 max-w-7xl mx-auto space-y-6">
       <div>
         <h1 className="text-xl font-bold text-white">Supervisor Dashboard</h1>
-        <p className="text-slate-400 text-sm mt-0.5">Week 9 of 24 · {students.length} assigned students</p>
+        <p className="text-slate-400 text-sm mt-0.5">{overview.assignedStudents} assigned students</p>
       </div>
 
-      {/* High risk alert banner */}
       {highRisk.length > 0 && (
-        <div className="bg-red-500/10 border border-red-500/30 rounded-xl p-4 glow-red">
+        <div className="bg-red-500/10 border border-red-500/30 rounded-xl p-4">
           <div className="flex items-start gap-3">
             <AlertTriangle className="w-5 h-5 text-red-400 shrink-0 mt-0.5" />
             <div className="flex-1 min-w-0">
@@ -57,7 +59,7 @@ export default function SupervisorDashboard() {
                 {highRisk.length} student{highRisk.length > 1 ? 's' : ''} in High Risk
               </p>
               <p className="text-red-400/70 text-xs">
-                {highRisk.map((s) => s.name).join(', ')} — immediate intervention recommended
+                {highRisk.map((s) => `${s.student.firstName} ${s.student.lastName}`).join(', ')} — immediate intervention recommended
               </p>
             </div>
             <a href="/supervisor/alerts" className="flex items-center gap-1 text-red-400 hover:text-red-300 text-xs font-medium transition-colors cursor-pointer shrink-0">
@@ -67,13 +69,11 @@ export default function SupervisorDashboard() {
         </div>
       )}
 
-      {/* Stats */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="grid grid-cols-2 lg:grid-cols-3 gap-4">
         {[
-          { label: 'Total Students',   value: students.length, icon: Users,          color: 'text-blue-400' },
-          { label: 'High Risk',        value: students.filter(s=>s.riskTier==='high').length,   icon: AlertTriangle,   color: 'text-red-400' },
-          { label: 'Pending Reviews',  value: students.filter(s=>s.weekStatus==='submitted').length, icon: ClipboardCheck, color: 'text-amber-400' },
-          { label: 'Late This Week',   value: students.filter(s=>s.weekStatus==='late').length,  icon: Clock,           color: 'text-orange-400' },
+          { label: 'Total Students',  value: overview.assignedStudents,                              icon: Users,          color: 'text-blue-400'   },
+          { label: 'High Risk',       value: highRisk.length,                                        icon: AlertTriangle,  color: 'text-red-400'    },
+          { label: 'Pending Reviews', value: overview.pendingReview,                                 icon: ClipboardCheck, color: 'text-amber-400'  },
         ].map((s) => (
           <div key={s.label} className="bg-slate-900 border border-slate-800 rounded-xl p-4">
             <div className="flex items-center justify-between mb-3">
@@ -85,7 +85,6 @@ export default function SupervisorDashboard() {
         ))}
       </div>
 
-      {/* Students table */}
       <div className="bg-slate-900 border border-slate-800 rounded-xl">
         <div className="flex items-center justify-between px-5 py-4 border-b border-slate-800 flex-wrap gap-3">
           <h2 className="text-sm font-semibold text-white">Assigned Students</h2>
@@ -108,71 +107,82 @@ export default function SupervisorDashboard() {
           </div>
         </div>
 
-        <div className="overflow-x-auto">
-          <table className="w-full">
-            <thead>
-              <tr className="border-b border-slate-800">
-                {['Student', 'Programme', 'Company', 'Risk', 'Quality', 'Wk 9 Status', 'Last Active', ''].map((h) => (
-                  <th key={h} className="px-5 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-wide whitespace-nowrap">
-                    {h}
-                  </th>
-                ))}
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-800/50">
-              {filtered.map((s) => {
-                const ws = weekStatusConfig[s.weekStatus];
-                return (
-                  <tr key={s.id} className="hover:bg-slate-800/30 transition-colors group">
-                    <td className="px-5 py-3.5">
-                      <div className="flex items-center gap-3">
-                        <div className="w-8 h-8 rounded-full bg-slate-800 border border-slate-700 flex items-center justify-center shrink-0">
-                          <span className="text-xs font-semibold text-slate-400 font-mono">
-                            {s.name.split(' ').map(n => n[0]).join('')}
-                          </span>
+        {filtered.length === 0 ? (
+          <p className="px-5 py-10 text-center text-sm text-slate-500">No students in this tier.</p>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full">
+              <thead>
+                <tr className="border-b border-slate-800">
+                  {['Student', 'Email', 'Risk', 'Avg Quality', 'Latest Status', 'Last Active', ''].map((h) => (
+                    <th key={h} className="px-5 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-wide whitespace-nowrap">
+                      {h}
+                    </th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-800/50">
+                {filtered.map((s) => {
+                  const name    = `${s.student.firstName} ${s.student.lastName}`;
+                  const status  = latestStatus(s.recentWeeks);
+                  const wsCfg   = weekStatusConfig[status] ?? weekStatusConfig.pending;
+                  const quality = s.avgQualityScore;
+
+                  return (
+                    <tr key={s.placementId} className="hover:bg-slate-800/30 transition-colors group">
+                      <td className="px-5 py-3.5">
+                        <div className="flex items-center gap-3">
+                          <div className="w-8 h-8 rounded-full bg-slate-800 border border-slate-700 flex items-center justify-center shrink-0">
+                            <span className="text-xs font-semibold text-slate-400 font-mono">
+                              {name.split(' ').map(n => n[0]).join('')}
+                            </span>
+                          </div>
+                          <span className="text-sm text-slate-200 font-medium whitespace-nowrap">{name}</span>
                         </div>
-                        <span className="text-sm text-slate-200 font-medium whitespace-nowrap">{s.name}</span>
-                      </div>
-                    </td>
-                    <td className="px-5 py-3.5">
-                      <span className="text-xs text-slate-400 whitespace-nowrap">{s.programme.replace('B.Sc. ', '')}</span>
-                    </td>
-                    <td className="px-5 py-3.5">
-                      <span className="text-xs text-slate-400 whitespace-nowrap">{s.company}</span>
-                    </td>
-                    <td className="px-5 py-3.5">
-                      <RiskBadge tier={s.riskTier} score={s.riskScore} size="sm" showScore />
-                    </td>
-                    <td className="px-5 py-3.5">
-                      <span className={`font-mono text-sm font-semibold ${
-                        s.latestQuality >= 75 ? 'text-emerald-400' :
-                        s.latestQuality >= 50 ? 'text-amber-400' : 'text-red-400'
-                      }`}>
-                        {s.latestQuality}/100
-                      </span>
-                    </td>
-                    <td className="px-5 py-3.5">
-                      <span className={`inline-flex items-center rounded-full border text-xs px-2.5 py-0.5 font-medium ${ws.classes}`}>
-                        {ws.label}
-                      </span>
-                    </td>
-                    <td className="px-5 py-3.5">
-                      <span className="text-xs text-slate-500">{s.lastActivity}</span>
-                    </td>
-                    <td className="px-5 py-3.5">
-                      <a
-                        href={`/supervisor/students/${s.id}`}
-                        className="opacity-0 group-hover:opacity-100 flex items-center gap-1 text-xs text-blue-400 hover:text-blue-300 transition-all cursor-pointer whitespace-nowrap"
-                      >
-                        Review <ChevronRight className="w-3.5 h-3.5" />
-                      </a>
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        </div>
+                      </td>
+                      <td className="px-5 py-3.5">
+                        <span className="text-xs text-slate-500">{s.student.email}</span>
+                      </td>
+                      <td className="px-5 py-3.5">
+                        {s.riskTier
+                          ? <RiskBadge tier={s.riskTier} score={s.riskScore ?? undefined} size="sm" showScore />
+                          : <span className="text-xs text-slate-500">—</span>
+                        }
+                      </td>
+                      <td className="px-5 py-3.5">
+                        {quality !== null ? (
+                          <span className={`font-mono text-sm font-semibold ${
+                            quality >= 75 ? 'text-emerald-400' : quality >= 50 ? 'text-amber-400' : 'text-red-400'
+                          }`}>
+                            {quality.toFixed(0)}/100
+                          </span>
+                        ) : (
+                          <span className="text-xs text-slate-500">—</span>
+                        )}
+                      </td>
+                      <td className="px-5 py-3.5">
+                        <span className={`inline-flex items-center rounded-full border text-xs px-2.5 py-0.5 font-medium ${wsCfg.classes}`}>
+                          {wsCfg.label}
+                        </span>
+                      </td>
+                      <td className="px-5 py-3.5">
+                        <span className="text-xs text-slate-500">{formatLastActivity(s.lastSubmittedAt)}</span>
+                      </td>
+                      <td className="px-5 py-3.5">
+                        <a
+                          href="/supervisor/review"
+                          className="opacity-0 group-hover:opacity-100 flex items-center gap-1 text-xs text-blue-400 hover:text-blue-300 transition-all cursor-pointer whitespace-nowrap"
+                        >
+                          Review <ChevronRight className="w-3.5 h-3.5" />
+                        </a>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        )}
       </div>
     </div>
   );

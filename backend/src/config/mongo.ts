@@ -5,23 +5,27 @@ import { logger } from './logger';
 let client: MongoClient;
 let db: Db;
 
-export async function connectMongo(): Promise<Db> {
+export async function connectMongo(): Promise<Db | null> {
   if (db) return db;
 
-  client = new MongoClient(env.MONGO_URI, {
-    maxPoolSize: 10,
-    serverSelectionTimeoutMS: 5000,
-  });
+  try {
+    client = new MongoClient(env.MONGO_URI, {
+      maxPoolSize: 10,
+      serverSelectionTimeoutMS: 5000,
+    });
 
-  await client.connect();
-  db = client.db();
-  logger.info('MongoDB connected');
-  return db;
+    await client.connect();
+    db = client.db();
+    logger.info('MongoDB connected');
+    return db;
+  } catch (err) {
+    logger.warn('MongoDB unavailable — logbook document store disabled', { err });
+    return null;
+  }
 }
 
-export function getMongo(): Db {
-  if (!db) throw new Error('MongoDB not connected — call connectMongo() first');
-  return db;
+export function getMongo(): Db | null {
+  return db ?? null;
 }
 
 export async function disconnectMongo() {

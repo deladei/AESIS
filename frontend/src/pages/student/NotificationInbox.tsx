@@ -1,45 +1,52 @@
-import { useState } from 'react';
-import { Bell, AlertTriangle, MessageSquare, CheckCircle2, FileText, Clock } from 'lucide-react';
+import { useEffect } from 'react';
+import { Bell, AlertTriangle, MessageSquare, CheckCircle2, FileText, Clock, Loader2 } from 'lucide-react';
+import { useNotifications, useMarkRead, useMarkAllRead, useUnreadCount } from '@/hooks/useNotifications';
+import { getSocket } from '@/lib/socket';
+import { queryClient } from '@/lib/queryClient';
 
-type NotifType = 'risk_alert' | 'feedback_received' | 'submission_reminder' | 'placement_approved' | 'escalation';
-
-interface Notification {
-  id: string;
-  type: NotifType;
-  title: string;
-  body: string;
-  isRead: boolean;
-  createdAt: string;
-  link?: string;
-}
-
-const notifConfig: Record<NotifType, { icon: React.ElementType; iconClass: string; bg: string }> = {
+const notifConfig: Record<string, { icon: React.ElementType; iconClass: string; bg: string }> = {
   risk_alert:           { icon: AlertTriangle,  iconClass: 'text-red-400',    bg: 'bg-red-500/10 border-red-500/20' },
   feedback_received:    { icon: MessageSquare,  iconClass: 'text-blue-400',   bg: 'bg-blue-500/10 border-blue-500/20' },
   submission_reminder:  { icon: Clock,          iconClass: 'text-amber-400',  bg: 'bg-amber-500/10 border-amber-500/20' },
   placement_approved:   { icon: CheckCircle2,   iconClass: 'text-emerald-400',bg: 'bg-emerald-500/10 border-emerald-500/20' },
   escalation:           { icon: AlertTriangle,  iconClass: 'text-orange-400', bg: 'bg-orange-500/10 border-orange-500/20' },
+  system:               { icon: FileText,       iconClass: 'text-slate-400',  bg: 'bg-slate-700/50 border-slate-600' },
 };
 
-const initialNotifs: Notification[] = [
-  { id: '1', type: 'feedback_received',   title: 'New feedback from Dr. Emeka Obi', body: 'Your Week 8 logbook has been reviewed. Feedback submitted.', isRead: false, createdAt: '2 hours ago', link: '/student/logbook/8' },
-  { id: '2', type: 'submission_reminder', title: 'Week 9 logbook due in 3 days',    body: 'Remember to submit your logbook by Friday 16 May 2025 at 23:59.', isRead: false, createdAt: '6 hours ago' },
-  { id: '3', type: 'placement_approved',  title: 'Placement approved',              body: 'Your placement at TechBridge Ltd has been approved. Your logbook schedule is now active.', isRead: true, createdAt: '2 days ago' },
-  { id: '4', type: 'feedback_received',   title: 'New feedback from Dr. Emeka Obi', body: 'Your Week 7 logbook has been reviewed.', isRead: true, createdAt: '1 week ago' },
-  { id: '5', type: 'submission_reminder', title: 'Week 8 logbook due tomorrow',     body: 'Submit your Week 8 logbook by Friday 9 May 2025 at 23:59.', isRead: true, createdAt: '1 week ago' },
-];
+function formatDate(iso: string) {
+  const d = new Date(iso);
+  const now = Date.now();
+  const diff = now - d.getTime();
+  if (diff < 60_000)     return 'Just now';
+  if (diff < 3_600_000)  return `${Math.floor(diff / 60_000)}m ago`;
+  if (diff < 86_400_000) return `${Math.floor(diff / 3_600_000)}h ago`;
+  return d.toLocaleDateString('en-GB', { day: 'numeric', month: 'short' });
+}
 
 export default function NotificationInbox() {
-  const [notifications, setNotifications] = useState(initialNotifs);
-  const unread = notifications.filter((n) => !n.isRead).length;
+  const { data: notifications = [], isLoading } = useNotifications();
+  const { data: unread = 0 } = useUnreadCount();
+  const markRead    = useMarkRead();
+  const markAllRead = useMarkAllRead();
 
-  const markRead = (id: string) => {
-    setNotifications((prev) => prev.map((n) => n.id === id ? { ...n, isRead: true } : n));
-  };
+  // Live push: invalidate list when socket fires
+  useEffect(() => {
+    const socket = getSocket();
+    if (!socket) return;
+    const handler = () => {
+      queryClient.invalidateQueries({ queryKey: ['notifications'] });
+    };
+    socket.on('notification:new', handler);
+    return () => { socket.off('notification:new', handler); };
+  }, []);
 
-  const markAllRead = () => {
-    setNotifications((prev) => prev.map((n) => ({ ...n, isRead: true })));
-  };
+  if (isLoading) {
+    return (
+      <div className="p-6 flex justify-center items-center h-64">
+        <Loader2 className="w-6 h-6 animate-spin text-blue-400" />
+      </div>
+    );
+  }
 
   return (
     <div className="p-6 max-w-3xl mx-auto space-y-5">
@@ -54,8 +61,9 @@ export default function NotificationInbox() {
         </div>
         {unread > 0 && (
           <button
-            onClick={markAllRead}
-            className="text-xs text-blue-400 hover:text-blue-300 transition-colors cursor-pointer"
+            onClick={() => markAllRead.mutate()}
+            disabled={markAllRead.isPending}
+            className="text-xs text-blue-400 hover:text-blue-300 transition-colors cursor-pointer disabled:opacity-60"
           >
             Mark all read
           </button>
@@ -70,12 +78,12 @@ export default function NotificationInbox() {
       ) : (
         <div className="space-y-2">
           {notifications.map((n) => {
-            const cfg = notifConfig[n.type];
+            const cfg = notifConfig[n.type] ?? notifConfig.system;
             const Icon = cfg.icon;
             return (
               <div
                 key={n.id}
-                onClick={() => markRead(n.id)}
+                onClick={() => { if (!n.isRead) markRead.mutate(n.id); }}
                 className={`flex items-start gap-4 px-5 py-4 rounded-xl border transition-colors cursor-pointer ${
                   n.isRead
                     ? 'bg-slate-900 border-slate-800 hover:bg-slate-800/50'
@@ -94,7 +102,9 @@ export default function NotificationInbox() {
                   </div>
                   <p className="text-xs text-slate-400 leading-relaxed">{n.body}</p>
                 </div>
-                <span className="text-xs text-slate-600 shrink-0 whitespace-nowrap mt-0.5">{n.createdAt}</span>
+                <span className="text-xs text-slate-600 shrink-0 whitespace-nowrap mt-0.5">
+                  {formatDate(n.createdAt)}
+                </span>
               </div>
             );
           })}

@@ -14,9 +14,9 @@ import { startRiskAlertSubscriber } from './jobs/riskAlertSubscriber';
 async function bootstrap() {
   // ── Connect all data stores before accepting traffic ──────────
   await connectRedis();
-  await connectMongo();
+  await connectMongo(); // optional — server starts even if MongoDB is unavailable
   await prisma.$connect();
-  logger.info('All data stores connected');
+  logger.info('Core data stores connected (PostgreSQL + Redis)');
 
   const app = createApp();
   const httpServer = http.createServer(app);

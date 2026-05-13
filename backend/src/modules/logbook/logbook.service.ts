@@ -287,17 +287,18 @@ async function upsertMongoLogbook(
   existingDocId: string | null,
   data: Record<string, unknown>,
 ): Promise<string> {
-  const db  = getMongo();
-  const col = db.collection(COLLECTIONS.LOGBOOK_ENTRIES);
-  const id  = (data['submissionId'] as string);
+  const id = (data['submissionId'] as string);
+  const db = getMongo();
+  if (!db) return id; // MongoDB not available — skip document store
 
+  const col = db.collection(COLLECTIONS.LOGBOOK_ENTRIES);
   await col.updateOne(
     { submissionId: id },
     { $set: { ...data, updatedAt: new Date() } },
     { upsert: true },
   );
 
-  return id; // use submissionId as the stable reference key
+  return id;
 }
 
 async function enqueueAiAnalysis(submissionId: string, studentId: string, placementId: string): Promise<void> {

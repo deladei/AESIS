@@ -1,38 +1,39 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { Eye, EyeOff, Loader2, CheckCircle2 } from 'lucide-react';
+import { useAuth } from '@/contexts/AuthContext';
+import { api } from '@/lib/api';
 
-const PROGRAMMES = [
-  'B.Sc. Computer Science',
-  'B.Sc. Software Engineering',
-  'B.Sc. Information Technology',
-  'B.Sc. Cybersecurity',
-];
-
-const LEVELS = ['100', '200', '300', '400', '500'];
+interface Programme { id: string; name: string; code: string; }
 
 export default function RegisterPage() {
+  const { register } = useAuth();
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const [success, setSuccess] = useState(false);
+  const [programmes, setProgrammes] = useState<Programme[]>([]);
   const [form, setForm] = useState({
     firstName: '',
     lastName: '',
     email: '',
     password: '',
-    programme: '',
-    level: '',
+    programmeId: '',
   });
-  const [errors, setErrors] = useState<Partial<typeof form>>({});
+  const [errors, setErrors] = useState<Partial<Record<keyof typeof form, string>>>({});
+
+  useEffect(() => {
+    api.get<{ data: { programmes: Programme[] } }>('/auth/programmes')
+      .then((r) => setProgrammes(r.data.data.programmes))
+      .catch(() => {});
+  }, []);
 
   const validate = () => {
-    const e: Partial<typeof form> = {};
+    const e: Partial<Record<keyof typeof form, string>> = {};
     if (!form.firstName.trim()) e.firstName = 'Required';
     if (!form.lastName.trim()) e.lastName = 'Required';
-    if (!form.email.includes('@')) e.email = 'Enter a valid institutional email';
+    if (!form.email.includes('@') || !form.email.includes('.')) e.email = 'Enter a valid email address';
     if (form.password.length < 8) e.password = 'Minimum 8 characters';
-    if (!form.programme) e.programme = 'Select a programme';
-    if (!form.level) e.level = 'Select your level';
+    if (!form.programmeId) e.programmeId = 'Select a programme';
     setErrors(e);
     return Object.keys(e).length === 0;
   };
@@ -42,8 +43,11 @@ export default function RegisterPage() {
     if (!validate()) return;
     setLoading(true);
     try {
-      await new Promise((r) => setTimeout(r, 1500));
+      await register(form);
       setSuccess(true);
+    } catch (err: unknown) {
+      const msg = (err as { response?: { data?: { message?: string } } })?.response?.data?.message;
+      setErrors({ email: msg ?? 'Registration failed. Please try again.' });
     } finally {
       setLoading(false);
     }
@@ -67,10 +71,10 @@ export default function RegisterPage() {
           <div className="w-16 h-16 rounded-full bg-emerald-500/10 border border-emerald-500/30 flex items-center justify-center mx-auto mb-6">
             <CheckCircle2 className="w-8 h-8 text-emerald-400" />
           </div>
-          <h2 className="text-2xl font-bold text-white mb-3">Check your email</h2>
+          <h2 className="text-2xl font-bold text-white mb-3">Account created!</h2>
           <p className="text-slate-400 text-sm mb-8">
-            A verification link has been sent to <span className="text-slate-200 font-medium">{form.email}</span>.
-            Click the link to activate your AESIS account.
+            Your account for <span className="text-slate-200 font-medium">{form.email}</span> is ready.
+            You can now sign in.
           </p>
           <Link
             to="/auth/login"
@@ -94,7 +98,7 @@ export default function RegisterPage() {
         </div>
 
         <h2 className="text-2xl font-bold text-white mb-1">Create account</h2>
-        <p className="text-slate-400 text-sm mb-8">CS Department students only. Use your institutional email.</p>
+        <p className="text-slate-400 text-sm mb-8">Create your AESIS account to track your internship placement.</p>
 
         <form onSubmit={handleSubmit} className="space-y-5">
           <div className="grid grid-cols-2 gap-4">
@@ -116,9 +120,9 @@ export default function RegisterPage() {
 
           <div>
             <label htmlFor="email" className="block text-sm font-medium text-slate-300 mb-1.5">
-              Institutional email
+              Email address
             </label>
-            <input id="email" type="email" placeholder="you@cs.edu.ng" autoComplete="email" {...field('email')} />
+            <input id="email" type="email" placeholder="you@example.com" autoComplete="email" {...field('email')} />
             {errors.email && <p className="mt-1 text-xs text-red-400">{errors.email}</p>}
           </div>
 
@@ -147,27 +151,15 @@ export default function RegisterPage() {
             {errors.password && <p className="mt-1 text-xs text-red-400">{errors.password}</p>}
           </div>
 
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <label htmlFor="programme" className="block text-sm font-medium text-slate-300 mb-1.5">
-                Programme
-              </label>
-              <select id="programme" {...field('programme')} className={field('programme').className}>
-                <option value="">Select programme</option>
-                {PROGRAMMES.map((p) => <option key={p} value={p}>{p}</option>)}
-              </select>
-              {errors.programme && <p className="mt-1 text-xs text-red-400">{errors.programme}</p>}
-            </div>
-            <div>
-              <label htmlFor="level" className="block text-sm font-medium text-slate-300 mb-1.5">
-                Level
-              </label>
-              <select id="level" {...field('level')} className={field('level').className}>
-                <option value="">Select level</option>
-                {LEVELS.map((l) => <option key={l} value={l}>{l} Level</option>)}
-              </select>
-              {errors.level && <p className="mt-1 text-xs text-red-400">{errors.level}</p>}
-            </div>
+          <div>
+            <label htmlFor="programmeId" className="block text-sm font-medium text-slate-300 mb-1.5">
+              Programme
+            </label>
+            <select id="programmeId" {...field('programmeId')} className={field('programmeId').className}>
+              <option value="">Select programme</option>
+              {programmes.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
+            </select>
+            {errors.programmeId && <p className="mt-1 text-xs text-red-400">{errors.programmeId}</p>}
           </div>
 
           <button

@@ -1,6 +1,8 @@
 import { useState } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { cn } from '@/lib/utils';
+import { useAuth } from '@/contexts/AuthContext';
+import { useUnreadCount } from '@/hooks/useNotifications';
 import {
   LayoutDashboard, BookOpen, Bell, MessageSquare, FileText,
   Users, ClipboardCheck, AlertTriangle, Building2, BarChart3,
@@ -53,7 +55,9 @@ interface AppShellProps {
   children: React.ReactNode;
 }
 
-export function AppShell({ role, user, notificationCount = 0, children }: AppShellProps) {
+export function AppShell({ role, user, children }: Omit<AppShellProps, 'notificationCount'>) {
+  const { logout } = useAuth();
+  const { data: unreadCount = 0 } = useUnreadCount();
   const [collapsed, setCollapsed] = useState(false);
   const location = useLocation();
   const navItems = navByRole[role];
@@ -104,9 +108,9 @@ export function AppShell({ role, user, notificationCount = 0, children }: AppShe
                 {!collapsed && (
                   <span className="text-sm font-medium truncate">{item.label}</span>
                 )}
-                {!collapsed && item.badge !== undefined && item.badge > 0 && (
-                  <span className="ml-auto bg-red-500 text-white text-xs rounded-full w-5 h-5 flex items-center justify-center font-mono shrink-0">
-                    {item.badge}
+                {!collapsed && item.href.includes('notification') && unreadCount > 0 && (
+                  <span className="ml-auto bg-blue-600 text-white text-xs rounded-full w-5 h-5 flex items-center justify-center font-mono shrink-0">
+                    {unreadCount > 99 ? '99+' : unreadCount}
                   </span>
                 )}
               </Link>
@@ -129,6 +133,7 @@ export function AppShell({ role, user, notificationCount = 0, children }: AppShe
           )}
           <div className="flex gap-1">
             <button
+              onClick={() => logout()}
               className="flex-1 flex items-center justify-center gap-2 py-2 rounded-lg text-slate-400 hover:text-red-400 hover:bg-red-500/10 transition-colors duration-150 cursor-pointer text-xs"
               title="Sign out"
             >

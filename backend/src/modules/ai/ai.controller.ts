@@ -1,0 +1,83 @@
+import { Request, Response } from 'express';
+import { z } from 'zod';
+import { AppError } from '../../middleware/errorHandler';
+
+const chatSchema = z.object({ message: z.string().min(1).max(1000) });
+
+// Contextual responses keyed by keyword match
+const KB: { keywords: string[]; answer: string }[] = [
+  {
+    keywords: ['minimum', 'hours', 'weekly', 'per week'],
+    answer: 'Students are required to complete a minimum of 40 hours of placement activity per week. This equates to a standard full-time working schedule aligned with the host company\'s working hours. Any deviation must be agreed in writing with the academic supervisor and reported to the coordinator.',
+  },
+  {
+    keywords: ['logbook', 'submit', 'submission', 'deadline', 'due'],
+    answer: 'Logbook entries must be submitted every Friday by 23:59 WAT for the preceding week. Late submissions are flagged in the system and affect your compliance score. If you anticipate a late submission, notify your academic supervisor before the deadline.',
+  },
+  {
+    keywords: ['miss', 'missed', 'skip', 'skipped', 'not submit'],
+    answer: 'Missing a logbook submission triggers an automatic risk flag. Your academic supervisor is notified immediately. Two consecutive missed submissions escalate your risk tier to High, which may result in a formal intervention meeting with the programme coordinator. Always communicate with your supervisor if you are unable to submit on time.',
+  },
+  {
+    keywords: ['quality', 'score', 'calculated', 'scored', 'nlp', 'rubric'],
+    answer: 'Quality scores are computed by our NLP analysis engine using four rubric dimensions: Task Description Depth (30 pts), Technical Vocabulary (25 pts), Reflection Quality (25 pts), and Temporal Consistency (20 pts). The engine also checks CS-domain relevance and plagiarism similarity against the cohort index. Scores above 75 are considered Good; 50–74 is Satisfactory; below 50 requires revision.',
+  },
+  {
+    keywords: ['mid-term', 'midterm', 'report', 'mid term'],
+    answer: 'The mid-term placement report is due at the end of Week 12. It must be submitted as a PDF through the AESIS portal and should cover your role, key responsibilities, technical contributions, and a self-assessment against your learning objectives. Your academic supervisor will review and grade it within 5 working days.',
+  },
+  {
+    keywords: ['risk', 'tier', 'high risk', 'low risk', 'medium'],
+    answer: 'Risk tiers are computed weekly by the XGBoost risk model using 18 behavioural signals including submission frequency, quality score trend, plagiarism flags, and supervisor feedback sentiment. Low (score < 0.3): on track. Medium (0.3–0.6): monitoring required. High (> 0.6): immediate intervention. Tiers reset each week as new data is processed.',
+  },
+  {
+    keywords: ['plagiarism', 'similarity', 'flagged', 'flag'],
+    answer: 'Plagiarism is detected by comparing your submission against all prior submissions in the cohort index using cosine similarity on TF-IDF vectors. A similarity score above 0.35 triggers a plagiarism flag. Flagged submissions are reviewed by your supervisor and may result in a zero score for that entry. Always write your own original entries.',
+  },
+  {
+    keywords: ['supervisor', 'feedback', 'feedback received'],
+    answer: 'Your academic supervisor reviews each submitted logbook entry and provides written feedback within 3 working days. Feedback can result in an Approved or Flagged outcome. Flagged entries must be revised and resubmitted. You will receive a notification in AESIS as soon as feedback is posted.',
+  },
+  {
+    keywords: ['extension', 'extend', 'extra time'],
+    answer: 'Extensions for logbook submissions are granted only in documented exceptional circumstances such as medical emergencies or bereavement. Requests must be submitted to your academic supervisor at least 24 hours before the deadline where possible. The supervisor forwards approved extensions to the coordinator for recording in AESIS.',
+  },
+  {
+    keywords: ['placement letter', 'approval', 'approve', 'pending'],
+    answer: 'Your placement letter must be uploaded to AESIS for coordinator approval before you begin your internship. The coordinator typically reviews submissions within 3–5 working days. You will receive an email notification once your placement is approved. You cannot submit logbook entries until your placement is marked Active.',
+  },
+];
+
+function findAnswer(message: string): string {
+  const lower = message.toLowerCase();
+  for (const entry of KB) {
+    if (entry.keywords.some((kw) => lower.includes(kw))) {
+      return entry.answer;
+    }
+  }
+  return 'I can help with questions about CS internship regulations, logbook requirements, deadlines, quality scoring, risk tiers, and programme procedures. Could you rephrase your question or ask about one of those topics? For urgent matters not covered here, contact your academic supervisor directly.';
+}
+
+async function streamText(res: Response, text: string) {
+  const words = text.split(' ');
+  for (const word of words) {
+    res.write(`data: ${word} \n\n`);
+    await new Promise((r) => setTimeout(r, 30));
+  }
+  res.write('data: [DONE]\n\n');
+  res.end();
+}
+
+export async function chatHandler(req: Request, res: Response) {
+  const parsed = chatSchema.safeParse(req.body);
+  if (!parsed.success) throw new AppError(400, 'Message is required');
+
+  const answer = findAnswer(parsed.data.message);
+
+  res.setHeader('Content-Type', 'text/event-stream');
+  res.setHeader('Cache-Control', 'no-cache');
+  res.setHeader('Connection', 'keep-alive');
+  res.flushHeaders();
+
+  await streamText(res, answer);
+}

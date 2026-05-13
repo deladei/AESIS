@@ -44,6 +44,8 @@ export async function register(input: RegisterInput) {
   const passwordHash       = await bcrypt.hash(password, env.BCRYPT_ROUNDS);
   const verificationToken  = generateSecureToken();
 
+  const isDevMode = env.NODE_ENV === 'development';
+
   const user = await prisma.user.create({
     data: {
       firstName,
@@ -53,17 +55,19 @@ export async function register(input: RegisterInput) {
       role:               'student',
       departmentId:       programme.departmentId,
       programmeId:        programme.id,
-      isVerified:         false,
-      verificationToken,
+      isVerified:         isDevMode, // auto-verify in development
+      verificationToken:  isDevMode ? null : verificationToken,
     },
     select: { id: true, email: true, firstName: true, lastName: true, role: true },
   });
 
-  await sendEmail({
-    to:      email,
-    subject: 'Verify your AESIS account',
-    html:    buildVerificationEmail(`${firstName} ${lastName}`, verificationToken),
-  });
+  if (!isDevMode) {
+    await sendEmail({
+      to:      email,
+      subject: 'Verify your AESIS account',
+      html:    buildVerificationEmail(`${firstName} ${lastName}`, verificationToken),
+    });
+  }
 
   return user;
 }

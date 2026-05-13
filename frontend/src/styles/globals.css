@@ -35,9 +35,6 @@
 }
 
 @layer base {
-  * {
-    @apply border-border;
-  }
   body {
     @apply bg-slate-950 text-slate-100 font-sans;
     font-family: 'Fira Sans', sans-serif;

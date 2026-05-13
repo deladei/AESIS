@@ -1,5 +1,6 @@
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect, useCallback } from 'react';
 import { Send, Loader2, Bot, User, Sparkles } from 'lucide-react';
+import { getAccessToken } from '@/lib/api';
 
 interface Message {
   id: string;
@@ -35,7 +36,7 @@ export default function ChatbotPanel() {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
 
-  const sendMessage = async (text: string) => {
+  const sendMessage = useCallback(async (text: string) => {
     if (!text.trim() || loading) return;
     const userMsg: Message = {
       id: Date.now().toString(),
@@ -53,27 +54,54 @@ export default function ChatbotPanel() {
       { id: assistantId, role: 'assistant', content: '', timestamp: new Date(), streaming: true },
     ]);
 
-    // Simulate streaming response
-    const response =
-      'According to the CS Department internship regulations, students are required to log a minimum of 35 working hours per week during active placement periods. This includes time spent on technical tasks, team meetings, and professional development activities. Any week where hours fall below this threshold should be documented with a reason in your logbook reflection section, and your academic supervisor may be automatically notified if this persists for two or more consecutive weeks.';
+    try {
+      const token = getAccessToken();
+      const resp = await fetch('/api/v1/ai/chat', {
+        method:  'POST',
+        headers: {
+          'Content-Type':  'application/json',
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+        body: JSON.stringify({ message: text.trim() }),
+      });
 
-    let i = 0;
-    const interval = setInterval(() => {
-      if (i < response.length) {
-        const chunk = response.slice(0, i + 3);
-        setMessages((prev) =>
-          prev.map((m) => (m.id === assistantId ? { ...m, content: chunk } : m))
-        );
-        i += 3;
-      } else {
-        clearInterval(interval);
-        setMessages((prev) =>
-          prev.map((m) => (m.id === assistantId ? { ...m, streaming: false } : m))
-        );
-        setLoading(false);
+      if (!resp.ok || !resp.body) throw new Error('Stream unavailable');
+
+      const reader = resp.body.getReader();
+      const decoder = new TextDecoder();
+      let accumulated = '';
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        const chunk = decoder.decode(value, { stream: true });
+        // SSE lines: "data: <token>\n\n"
+        for (const line of chunk.split('\n')) {
+          if (line.startsWith('data: ')) {
+            const token = line.slice(6);
+            if (token === '[DONE]') break;
+            accumulated += token;
+            setMessages((prev) =>
+              prev.map((m) => m.id === assistantId ? { ...m, content: accumulated } : m),
+            );
+          }
+        }
       }
-    }, 20);
-  };
+    } catch {
+      setMessages((prev) =>
+        prev.map((m) =>
+          m.id === assistantId
+            ? { ...m, content: 'Sorry, the assistant is temporarily unavailable. Please try again.' }
+            : m,
+        ),
+      );
+    } finally {
+      setMessages((prev) =>
+        prev.map((m) => m.id === assistantId ? { ...m, streaming: false } : m),
+      );
+      setLoading(false);
+    }
+  }, [loading]);
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
     if (e.key === 'Enter' && !e.shiftKey) {

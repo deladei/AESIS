@@ -29,7 +29,7 @@
 AISYSTEM/
 ├── HANDOFF.md                     ← THIS FILE — read first every session
 │
-├── backend/                       ← Node.js API (port 3000)
+├── backend/                       ← Node.js API (port 3001)
 │   ├── docker-compose.yml         ← PG + Mongo + Redis + AI Engine + Celery
 │   ├── prisma/schema.prisma       ← 14+ PostgreSQL models
 │   ├── .env                       ← real secrets (gitignored)
@@ -66,10 +66,12 @@ AISYSTEM/
 │           ├── placements/        ✅ DONE — placement CRUD, company CRUD,
 │           │                                approval workflow, 24-week schedule gen,
 │           │                                document upload (14 tests)
-│           └── logbook/           ✅ DONE — draft lifecycle, submission with late
-│                                            detection, RBAC reads, attachments,
-│                                            supervisor feedback in $transaction,
-│                                            real MongoDB write, real AI HTTP call (25 tests)
+│           ├── logbook/           ✅ DONE — draft lifecycle, submission with late
+│           │                                detection, RBAC reads, attachments,
+│           │                                supervisor feedback in $transaction,
+│           │                                real MongoDB write, real AI HTTP call (25 tests)
+│           └── ai/                ✅ DONE — SSE streaming chat with keyword KB
+│                                            ai.controller.ts, ai.router.ts
 │
 ├── ai/                            ← FastAPI AI Engine (port 8000)
 │   ├── .env                       ← AI service secrets (gitignored)
@@ -99,10 +101,16 @@ AISYSTEM/
 │       ├── risk.py                ← POST /ai/predict/risk + GET preview
 │       └── chat.py                ← POST /ai/chat (streaming SSE)
 │
-└── frontend/                      ← React app (port 5173) — UI scaffolds only
+└── frontend/                      ← React app (port 5173) — fully wired to API
     └── src/
+        ├── contexts/AuthContext.tsx   ← access token in-memory, refresh via cookie
+        ├── hooks/                     ← TanStack Query hooks (useLogbook, usePlacements…)
+        ├── lib/api.ts                 ← Axios instance + 401→refresh interceptor
+        ├── lib/queryClient.ts         ← TanStack QueryClient singleton
+        ├── lib/socket.ts              ← Socket.io client
+        ├── router.tsx                 ← React Router v6 nested routes + RequireAuth
         ├── components/
-        │   ├── layout/AppShell.tsx
+        │   ├── layout/AppShell.tsx    ← sidebar nav, role-aware
         │   └── shared/RiskBadge.tsx, StatusBadge.tsx
         ├── pages/
         │   ├── auth/         LoginPage.tsx, RegisterPage.tsx
@@ -126,11 +134,11 @@ AISYSTEM/
 | 4 | AI Engine (FastAPI) | ✅ Done | Python, no pytest yet |
 | 5 | Real-Time Notifications | ✅ Done | 13/13 |
 | 6 | Dashboards & Analytics | ✅ Done | 16/16 |
-| 7 | Frontend Integration | 🔜 **NEXT** | — |
-| 8 | Security Hardening & QA | ⬜ Pending | — |
+| 7 | Frontend Integration | ✅ Done | — |
+| 8 | Security Hardening & QA | 🔜 **NEXT** | — |
 | 9 | Deployment (Docker + Nginx + CI/CD) | ⬜ Pending | — |
 
-**Node.js: 87/87 tests passing. `tsc --noEmit` clean. Git: 4 commits on `main`.**
+**Node.js: 87/87 tests passing. `tsc --noEmit` clean. Git: 5 commits on `main`. Frontend fully wired to live API.**
 
 ---
 
@@ -138,6 +146,9 @@ AISYSTEM/
 
 | Commit | Message |
 |---|---|
+| `(Phase 7)` | feat(frontend): Phase 7 — Full frontend integration, AI chat, AppShell |
+| `f63d9c1` | feat(dashboards): Phase 6 — Coordinator & Supervisor analytics endpoints |
+| `7ec843a` | feat(notifications): Phase 5 — Real-Time Notifications via Socket.io + cron jobs |
 | `53fd251` | feat(ai): Phase 4 — FastAPI AI Engine, all free/local resources |
 | `b70e9fc` | feat(logbook): Phase 3 — Logbook submission, review & feedback system |
 | `688c376` | feat: initial commit — AESIS backend Phase 0-2 + frontend UI scaffolds |
@@ -173,7 +184,7 @@ npx prisma migrate dev --name init     # run migrations
 npm run db:seed                        # seed CS dept + academic year
 
 # ── Run backend dev server ────────────────────────────────────
-npm run dev                            # Express on port 3000
+npm run dev                            # Express on port 3001 (PORT=3001 in .env)
 
 # ── Ollama (free local LLM — do this NEXT SESSION) ───────────
 curl -fsSL https://ollama.com/install.sh | sh
@@ -392,10 +403,62 @@ app.use('/api/v1/notifications', notificationsRouter);
 
 ---
 
+### Session 6 — 2026-05-13
+
+**Work done** — Phase 7 (Frontend Integration) — complete
+
+| Area | What |
+|---|---|
+| `frontend/src/contexts/AuthContext.tsx` | Auth context — access token in memory, refresh via HttpOnly cookie, `login()` returns `AuthUser` directly (fixes stale-state nav bug) |
+| `frontend/src/lib/api.ts` | Axios instance with 401 → auto-refresh interceptor + `getAccessToken()` / `setAccessToken()` |
+| `frontend/src/lib/queryClient.ts` | TanStack Query v5 client singleton |
+| `frontend/src/lib/socket.ts` | Socket.io client for real-time notifications |
+| `frontend/src/router.tsx` | Full rewrite — React Router v6 nested routes; `RequireAuth` renders `AppShell` + `Outlet` so sidebar appears on all protected pages |
+| `frontend/src/hooks/useLogbook.ts` | TanStack Query hooks: `useSubmissions`, `useSubmission`, `useSaveDraft`, `useSubmitLogbook`, `useSubmitFeedback` |
+| `frontend/src/hooks/usePlacements.ts` | `useMyPlacements`, `useAllPlacements`, `useUpdatePlacementStatus` |
+| `frontend/src/hooks/useDashboard.ts` | `useSupervisorDashboard`, `useCoordinatorDashboard` |
+| `frontend/src/pages/student/StudentDashboard.tsx` | Full rewrite — compliance rate, avg quality, next deadline, quality trend chart, recent submissions via real API |
+| `frontend/src/pages/student/LogbookEditor.tsx` | Full rewrite — draft save + submit with week selector |
+| `frontend/src/pages/student/SubmissionHistory.tsx` | Full rewrite — all submissions with quality/plagiarism badges |
+| `frontend/src/pages/student/ChatbotPanel.tsx` | SSE streaming chat — `fetch()` + `ReadableStream` + word-by-word render |
+| `frontend/src/pages/supervisor/SupervisorDashboard.tsx` | Full rewrite — student table with 4-week quality sparklines |
+| `frontend/src/pages/supervisor/LogbookReview.tsx` | Full rewrite — submission detail + feedback submit |
+| `frontend/src/pages/coordinator/PlacementApproval.tsx` | Full rewrite — pending approvals list + approve/reject actions |
+| `backend/src/modules/ai/ai.controller.ts` | NEW — SSE streaming chat, keyword KB (10 topics), `chatHandler` |
+| `backend/src/modules/ai/ai.router.ts` | NEW — `POST /chat` behind `authenticate` |
+| `backend/src/app.ts` | Wired `aiRouter` at `/api/v1/ai` |
+| `backend/src/config/mongo.ts` | Made MongoDB optional — `connectMongo()` catches + returns null; `getMongo()` returns `Db \| null` |
+| `backend/src/modules/logbook/logbook.service.ts` | `upsertMongoLogbook` returns early if `getMongo()` is null |
+| `backend/src/middleware/rateLimiter.ts` | Split into `loginRateLimiter`, `registerRateLimiter`, `authRateLimiter` — each with correct message |
+| `backend/src/modules/auth/auth.router.ts` | `/programmes` has no rate limit; per-route limiters applied |
+| `backend/src/modules/auth/auth.service.ts` | Auto-verify accounts in `NODE_ENV=development` (no SendGrid needed) |
+| `backend/.env` | Changed `PORT=3000` → `PORT=3001` (old build occupying 3000 as root) |
+| `frontend/vite.config.ts` | All proxy targets updated to `http://localhost:3001` |
+| `frontend/src/styles/globals.css` | Removed `@apply border-border` (undefined Tailwind class causing CSS crash) |
+
+**Errors & fixes**
+
+| Error | Fix |
+|---|---|
+| MongoDB crash on startup — not installed | `connectMongo()` catches error and returns null; entire document store skipped gracefully |
+| `@apply border-border` CSS error in globals.css | Removed the `* { @apply border-border; }` block entirely |
+| Programme dropdown empty | `academic_programmes` table missing after schema change — ran `npx prisma db push --force-reset` + re-seeded |
+| Port 3000 occupied by root process (old `node dist/server.js`) | Changed backend `PORT` to 3001, updated Vite proxy — cannot kill root process without sudo terminal |
+| Rate limiter blocked `/programmes` — showed "Too many login attempts" on register page | Per-route limiters: `loginRateLimiter` / `registerRateLimiter` / `authRateLimiter`; `/programmes` exempt |
+| Login navigation used stale React state (`user?.role` null at navigate time) | `login()` returns `AuthUser` directly; `LoginPage` uses returned value, not state |
+| TypeScript errors (unused vars) blocked entire Vite app including unrelated pages | Removed unused `latestRisk` (StudentDashboard) and `RiskBadge` import (LogbookReview) |
+| AppShell / sidebar missing on all authenticated pages | Rewrote `router.tsx` — `RequireAuth` now renders `AppShell` + `Outlet` for nested routes |
+| Email verification blocking login in dev (SendGrid not configured) | Auto-verify (`isVerified: true`) when `NODE_ENV=development` |
+| `POST /api/v1/ai/chat` returned 404 | Created full AI module (`ai.controller.ts`, `ai.router.ts`), registered in `app.ts` |
+
+**Quality gate**: `tsc --noEmit` clean. 87/87 backend tests passing. All 10 pages tested in browser.
+
+---
+
 ### Next session should start with
 
 1. Read this file top to bottom
-2. Start Phase 7 — Frontend Integration
+2. Start Phase 8 — Security Hardening & QA
 
 ---
 

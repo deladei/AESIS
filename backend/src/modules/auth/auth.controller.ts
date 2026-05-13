@@ -14,14 +14,15 @@ import {
 import { created, ok } from '../../shared/utils/response';
 import { AppError } from '../../middleware/errorHandler';
 import { env } from '../../config/env';
+import { prisma } from '../../config/prisma';
 
 export async function registerHandler(req: Request, res: Response) {
   const input = registerSchema.parse(req.body);
   const user  = await authService.register(input);
-  return created(res, {
-    message: 'Account created. Check your email for a verification link.',
-    userId:  user.id,
-  });
+  const message = env.NODE_ENV === 'development'
+    ? 'Account created. You can now sign in.'
+    : 'Account created. Check your email for a verification link.';
+  return created(res, { message, userId: user.id });
 }
 
 export async function verifyEmailHandler(req: Request, res: Response) {
@@ -80,4 +81,12 @@ export async function resetPasswordConfirmHandler(req: Request, res: Response) {
   const input  = resetPasswordConfirmSchema.parse(req.body);
   const result = await authService.resetPasswordConfirm(input);
   return ok(res, result);
+}
+
+export async function programmesHandler(_req: Request, res: Response) {
+  const programmes = await prisma.academicProgramme.findMany({
+    select: { id: true, name: true, code: true },
+    orderBy: { name: 'asc' },
+  });
+  return ok(res, { programmes });
 }

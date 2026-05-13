@@ -1,5 +1,8 @@
-import { useState, useRef } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { Loader2, Upload, X, FileText, Sparkles, AlertCircle, CheckCircle2 } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
+import { useMyPlacements } from '@/hooks/usePlacements';
+import { useSubmissions, useSaveDraft, useSubmitLogbook } from '@/hooks/useLogbook';
 
 interface AIPreview {
   qualityScore: number;
@@ -15,20 +18,49 @@ const TECH_SUGGESTIONS = [
   'TypeScript', 'MongoDB', 'Redis', 'Git', 'Linux', 'REST API',
 ];
 
-export default function LogbookEditor() {
-  const [form, setForm] = useState({
-    technologiesUsed: [] as string[],
-    tasksCompleted: '',
-    technicalChallenges: '',
-    reflection: '',
-    rawText: '',
+function formatDeadline(iso: string) {
+  return new Date(iso).toLocaleDateString('en-GB', {
+    weekday: 'long', day: 'numeric', month: 'long', year: 'numeric',
   });
-  const [techInput, setTechInput] = useState('');
-  const [files, setFiles] = useState<File[]>([]);
-  const [submitting, setSubmitting] = useState(false);
-  const [analysing, setAnalysing] = useState(false);
-  const [aiPreview, setAiPreview] = useState<AIPreview | null>(null);
+}
+
+export default function LogbookEditor() {
+  const navigate = useNavigate();
+
+  const { data: placements, isLoading: placementsLoading } = useMyPlacements();
+  const activePlacement = placements?.find((p) => p.placementStatus === 'active') ?? placements?.[0];
+  const { data: submissions = [], isLoading: subsLoading } = useSubmissions(activePlacement?.id);
+
+  const currentSubmission = submissions
+    .filter((s) => s.submissionStatus === 'draft' || s.submissionStatus === 'not_submitted')
+    .sort((a, b) => new Date(a.deadline).getTime() - new Date(b.deadline).getTime())[0];
+
+  const [form, setForm] = useState({
+    technologiesUsed:    [] as string[],
+    tasksCompleted:      '',
+    technicalChallenges: '',
+    reflection:          '',
+  });
+  const [techInput, setTechInput]   = useState('');
+  const [files,     setFiles]       = useState<File[]>([]);
+  const [analysing, setAnalysing]   = useState(false);
+  const [aiPreview, setAiPreview]   = useState<AIPreview | null>(null);
+  const [saved,     setSaved]       = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
+
+  const saveDraft     = useSaveDraft();
+  const submitLogbook = useSubmitLogbook();
+
+  // Populate form from existing draft
+  useEffect(() => {
+    if (!currentSubmission) return;
+    setForm({
+      technologiesUsed:    currentSubmission.technologiesUsed ?? [],
+      tasksCompleted:      currentSubmission.tasksCompleted      ?? '',
+      technicalChallenges: currentSubmission.technicalChallenges ?? '',
+      reflection:          currentSubmission.reflection           ?? '',
+    });
+  }, [currentSubmission?.id]);
 
   const addTech = (tech: string) => {
     const t = tech.trim();
@@ -44,6 +76,21 @@ export default function LogbookEditor() {
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files) setFiles([...files, ...Array.from(e.target.files)]);
+  };
+
+  const handleSaveDraft = async () => {
+    if (!currentSubmission) return;
+    await saveDraft.mutateAsync({
+      submissionId: currentSubmission.id,
+      data: {
+        tasksCompleted:      form.tasksCompleted,
+        technicalChallenges: form.technicalChallenges,
+        reflection:          form.reflection,
+        technologiesUsed:    form.technologiesUsed,
+      },
+    });
+    setSaved(true);
+    setTimeout(() => setSaved(false), 3000);
   };
 
   const handleGetAIPreview = async () => {
@@ -68,23 +115,50 @@ export default function LogbookEditor() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    setSubmitting(true);
-    await new Promise((r) => setTimeout(r, 1500));
-    setSubmitting(false);
-    // navigate to /student/submissions
+    if (!currentSubmission) return;
+    await saveDraft.mutateAsync({
+      submissionId: currentSubmission.id,
+      data: {
+        tasksCompleted:      form.tasksCompleted,
+        technicalChallenges: form.technicalChallenges,
+        reflection:          form.reflection,
+        technologiesUsed:    form.technologiesUsed,
+      },
+    });
+    await submitLogbook.mutateAsync(currentSubmission.id);
+    navigate('/student/submissions');
   };
+
+  if (placementsLoading || subsLoading) {
+    return <div className="p-6 flex justify-center items-center h-64"><Loader2 className="w-6 h-6 animate-spin text-blue-400" /></div>;
+  }
+
+  if (!currentSubmission) {
+    return (
+      <div className="p-6 max-w-xl mx-auto text-center py-20">
+        <CheckCircle2 className="w-12 h-12 text-emerald-400 mx-auto mb-4" />
+        <h2 className="text-white font-semibold text-lg mb-2">All caught up!</h2>
+        <p className="text-slate-400 text-sm">No open logbook submission at the moment. Check back when the next week opens.</p>
+      </div>
+    );
+  }
+
+  const isSubmitting = submitLogbook.isPending || saveDraft.isPending;
 
   return (
     <div className="p-6 max-w-5xl mx-auto">
       <div className="mb-6">
-        <h1 className="text-xl font-bold text-white">Week 9 Logbook</h1>
-        <p className="text-slate-400 text-sm mt-0.5">Due Friday 16 May 2025, 23:59 · CS Internship Log</p>
+        <h1 className="text-xl font-bold text-white">Week {currentSubmission.weekNumber} Logbook</h1>
+        <p className="text-slate-400 text-sm mt-0.5">
+          Due {formatDeadline(currentSubmission.deadline)} · CS Internship Log
+          {currentSubmission.isLate && (
+            <span className="ml-2 text-xs px-1.5 py-0.5 rounded font-mono bg-red-500/10 border border-red-500/30 text-red-400">LATE</span>
+          )}
+        </p>
       </div>
 
       <div className="grid lg:grid-cols-5 gap-6">
-        {/* Editor — 3 cols */}
         <form onSubmit={handleSubmit} className="lg:col-span-3 space-y-5">
-
           {/* Technologies used */}
           <div className="bg-slate-900 border border-slate-800 rounded-xl p-5">
             <label className="block text-sm font-semibold text-white mb-3">Technologies Used</label>
@@ -122,7 +196,6 @@ export default function LogbookEditor() {
             </div>
           </div>
 
-          {/* Tasks completed */}
           <div className="bg-slate-900 border border-slate-800 rounded-xl p-5">
             <label htmlFor="tasks" className="block text-sm font-semibold text-white mb-1.5">
               Tasks Completed
@@ -133,12 +206,11 @@ export default function LogbookEditor() {
               rows={5}
               value={form.tasksCompleted}
               onChange={(e) => setForm({ ...form, tasksCompleted: e.target.value })}
-              placeholder="e.g. Implemented JWT authentication middleware in Node.js, integrated with Prisma ORM for user lookup. Fixed a race condition in the Redis session handler…"
+              placeholder="e.g. Implemented JWT authentication middleware in Node.js, integrated with Prisma ORM for user lookup…"
               className="w-full px-4 py-3 rounded-lg bg-slate-800 border border-slate-700 text-slate-100 placeholder-slate-500 text-sm focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-colors resize-none scrollbar-thin"
             />
           </div>
 
-          {/* Challenges */}
           <div className="bg-slate-900 border border-slate-800 rounded-xl p-5">
             <label htmlFor="challenges" className="block text-sm font-semibold text-white mb-1.5">
               Technical Challenges
@@ -149,12 +221,11 @@ export default function LogbookEditor() {
               rows={4}
               value={form.technicalChallenges}
               onChange={(e) => setForm({ ...form, technicalChallenges: e.target.value })}
-              placeholder="e.g. Encountered an N+1 query problem when fetching supervisor assignments. Resolved by refactoring with Prisma's include to eager-load relations in a single query…"
+              placeholder="e.g. Encountered an N+1 query problem. Resolved by refactoring with Prisma's include…"
               className="w-full px-4 py-3 rounded-lg bg-slate-800 border border-slate-700 text-slate-100 placeholder-slate-500 text-sm focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-colors resize-none scrollbar-thin"
             />
           </div>
 
-          {/* Reflection */}
           <div className="bg-slate-900 border border-slate-800 rounded-xl p-5">
             <label htmlFor="reflection" className="block text-sm font-semibold text-white mb-1.5">
               Reflection
@@ -165,12 +236,11 @@ export default function LogbookEditor() {
               rows={4}
               value={form.reflection}
               onChange={(e) => setForm({ ...form, reflection: e.target.value })}
-              placeholder="e.g. This week deepened my understanding of stateless authentication. I learned that access token size matters for network overhead and chose a minimal payload strategy…"
+              placeholder="e.g. This week deepened my understanding of stateless authentication…"
               className="w-full px-4 py-3 rounded-lg bg-slate-800 border border-slate-700 text-slate-100 placeholder-slate-500 text-sm focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-colors resize-none scrollbar-thin"
             />
           </div>
 
-          {/* Attachments */}
           <div className="bg-slate-900 border border-slate-800 rounded-xl p-5">
             <p className="text-sm font-semibold text-white mb-3">Attachments <span className="text-slate-500 font-normal">(optional)</span></p>
             <button
@@ -201,21 +271,29 @@ export default function LogbookEditor() {
           <div className="flex gap-3">
             <button
               type="button"
-              className="flex-1 px-4 py-2.5 rounded-lg border border-slate-700 text-slate-300 hover:text-white hover:border-slate-600 text-sm font-medium transition-colors cursor-pointer"
+              onClick={handleSaveDraft}
+              disabled={saveDraft.isPending}
+              className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg border border-slate-700 text-slate-300 hover:text-white hover:border-slate-600 text-sm font-medium transition-colors cursor-pointer disabled:opacity-60"
             >
-              Save draft
+              {saved ? (
+                <><CheckCircle2 className="w-4 h-4 text-emerald-400" /> Saved</>
+              ) : saveDraft.isPending ? (
+                <><Loader2 className="w-4 h-4 animate-spin" /> Saving…</>
+              ) : (
+                'Save draft'
+              )}
             </button>
             <button
               type="submit"
-              disabled={submitting}
+              disabled={isSubmitting}
               className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg bg-blue-600 hover:bg-blue-500 text-white font-semibold text-sm transition-colors cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed"
             >
-              {submitting ? <><Loader2 className="w-4 h-4 animate-spin" /> Submitting…</> : 'Submit logbook'}
+              {isSubmitting ? <><Loader2 className="w-4 h-4 animate-spin" /> Submitting…</> : 'Submit logbook'}
             </button>
           </div>
         </form>
 
-        {/* AI Preview panel — 2 cols */}
+        {/* AI Preview panel */}
         <div className="lg:col-span-2 space-y-4">
           <div className="bg-slate-900 border border-slate-800 rounded-xl p-5">
             <div className="flex items-center gap-2 mb-3">
@@ -238,7 +316,6 @@ export default function LogbookEditor() {
 
           {aiPreview && (
             <div className="bg-slate-900 border border-slate-800 rounded-xl p-5 space-y-5">
-              {/* Score */}
               <div className="text-center">
                 <div className="relative w-24 h-24 mx-auto mb-2">
                   <svg className="w-24 h-24 -rotate-90" viewBox="0 0 96 96">
@@ -257,7 +334,6 @@ export default function LogbookEditor() {
                 <p className="text-xs text-slate-400">Quality Score</p>
               </div>
 
-              {/* Rubric */}
               <div className="space-y-2.5">
                 {aiPreview.rubric.map((r) => (
                   <div key={r.label}>
@@ -275,7 +351,6 @@ export default function LogbookEditor() {
                 ))}
               </div>
 
-              {/* Badges */}
               <div className="flex flex-wrap gap-2">
                 <span className="inline-flex items-center gap-1 text-xs px-2.5 py-1 rounded-full bg-emerald-500/10 border border-emerald-500/30 text-emerald-400">
                   <CheckCircle2 className="w-3 h-3" /> CS Relevance {(aiPreview.relevanceScore * 100).toFixed(0)}%
@@ -291,7 +366,6 @@ export default function LogbookEditor() {
                 )}
               </div>
 
-              {/* AI feedback */}
               <div className="bg-slate-800/50 rounded-lg p-3">
                 <p className="text-xs text-slate-500 uppercase tracking-wide mb-1.5 font-semibold">AI Feedback</p>
                 <p className="text-xs text-slate-300 leading-relaxed">{aiPreview.aiFeedbackSummary}</p>
