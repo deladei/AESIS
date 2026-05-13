@@ -12,10 +12,10 @@ import placementsRouter    from './modules/placements/placements.router';
 import companiesRouter     from './modules/placements/companies.router';
 import logbookRouter       from './modules/logbook/logbook.router';
 import notificationsRouter from './modules/notifications/notifications.router';
+import coordinatorRouter   from './modules/coordinator/coordinator.router';
+import supervisorRouter    from './modules/supervisor/supervisor.router';
 // Future phases — uncomment as modules are built:
 // import usersRouter        from './modules/users/users.router';
-// import supervisorRouter   from './modules/supervisor/supervisor.router';
-// import coordinatorRouter  from './modules/coordinator/coordinator.router';
 
 export function createApp() {
   const app = express();
@@ -58,10 +58,10 @@ export function createApp() {
   app.use('/api/v1/companies',     companiesRouter);
   app.use('/api/v1/logbook',       logbookRouter);
   app.use('/api/v1/notifications', notificationsRouter);
+  app.use('/api/v1/coordinator',   coordinatorRouter);
+  app.use('/api/v1/supervisor',    supervisorRouter);
   // Future phases — uncomment as modules are built:
   // app.use('/api/v1/users',         usersRouter);
-  // app.use('/api/v1/supervisor',    supervisorRouter);
-  // app.use('/api/v1/coordinator',   coordinatorRouter);
 
   // ── 404 catch-all ─────────────────────────────────────────────
   app.use((_req, res) => {

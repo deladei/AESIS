@@ -19,7 +19,7 @@
 | **Infra** | Docker Compose — PG 16, Mongo 7, Redis 7, AI Engine, Celery Worker |
 | **Test runner** | Jest + ts-jest — run `npm test` inside `backend/` |
 | **Type check** | `npx tsc --noEmit` inside `backend/` |
-| **Current phase** | **Phase 5 complete → Phase 6 next (Dashboards & Analytics)** |
+| **Current phase** | **Phase 6 complete → Phase 7 next (Frontend Integration)** |
 
 ---
 
@@ -125,12 +125,12 @@ AISYSTEM/
 | 3 | Logbook System | ✅ Done | 25/25 |
 | 4 | AI Engine (FastAPI) | ✅ Done | Python, no pytest yet |
 | 5 | Real-Time Notifications | ✅ Done | 13/13 |
-| 6 | Dashboards & Analytics | 🔜 **NEXT** | — |
-| 7 | Frontend Integration | ⬜ Pending | — |
+| 6 | Dashboards & Analytics | ✅ Done | 16/16 |
+| 7 | Frontend Integration | 🔜 **NEXT** | — |
 | 8 | Security Hardening & QA | ⬜ Pending | — |
 | 9 | Deployment (Docker + Nginx + CI/CD) | ⬜ Pending | — |
 
-**Node.js: 71/71 tests passing. `tsc --noEmit` clean. Git: 3 commits on `main`.**
+**Node.js: 87/87 tests passing. `tsc --noEmit` clean. Git: 4 commits on `main`.**
 
 ---
 
@@ -367,10 +367,35 @@ app.use('/api/v1/notifications', notificationsRouter);
 
 ---
 
+### Session 5 — 2026-05-13
+
+**Work done** — Phase 6 (Dashboards & Analytics) — complete
+
+| File | What |
+|---|---|
+| `src/modules/coordinator/coordinator.service.ts` | `getCoordinatorDashboard()` — active placements, pending approvals, compliance rate, risk distribution (low/medium/high), per-week submission trends. `listStudents()` — paginated active student table with latest risk tier + last submission |
+| `src/modules/coordinator/coordinator.controller.ts` | `dashboard`, `students` handlers |
+| `src/modules/coordinator/coordinator.router.ts` | `GET /api/v1/coordinator/dashboard`, `GET /api/v1/coordinator/students` — coordinator + admin only |
+| `src/modules/supervisor/supervisor.service.ts` | `getSupervisorDashboard(supervisorId)` — assigned students with 4-week quality score sparkline data, pending review count, avg quality score |
+| `src/modules/supervisor/supervisor.controller.ts` | `dashboard` handler |
+| `src/modules/supervisor/supervisor.router.ts` | `GET /api/v1/supervisor/dashboard` — academic_supervisor + admin only |
+| `src/app.ts` | Wired `coordinatorRouter` + `supervisorRouter` |
+| `coordinator.service.test.ts` | 8 tests |
+| `supervisor.service.test.ts` | 8 tests |
+
+**Notes**
+- Company analytics (`GET /api/v1/companies/:id/analytics`) was already complete from Phase 2 — no changes needed
+- `recentWeeks` in supervisor dashboard is oldest-first so Recharts sparkline renders correctly
+- Risk distribution uses `studentRiskScore.groupBy` — only active placements considered
+
+**Quality gate**: `tsc --noEmit` — 0 errors. `npm test` — 87/87 passing.
+
+---
+
 ### Next session should start with
 
 1. Read this file top to bottom
-2. Start Phase 6 — Dashboards & Analytics
+2. Start Phase 7 — Frontend Integration
 
 ---
 
