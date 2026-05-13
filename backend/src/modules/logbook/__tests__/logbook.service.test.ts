@@ -37,6 +37,10 @@ jest.mock('../../../config/mongo', () => ({
   COLLECTIONS: { LOGBOOK_ENTRIES: 'logbook_entries', CHAT_SESSIONS: 'chat_sessions' },
 }));
 
+jest.mock('../../../shared/utils/socketEmitter', () => ({
+  emitToUser: jest.fn(),
+}));
+
 import { prisma } from '../../../config/prisma';
 import * as service from '../logbook.service';
 

@@ -6,6 +6,10 @@ import { logger } from './config/logger';
 import { prisma, disconnectPrisma } from './config/prisma';
 import { connectMongo, disconnectMongo } from './config/mongo';
 import { connectRedis, disconnectRedis } from './config/redis';
+import { setIo } from './config/socket';
+import { startDeadlineReminderJobs } from './jobs/deadlineReminder';
+import { startWeeklyReportJob } from './jobs/weeklyReport';
+import { startRiskAlertSubscriber } from './jobs/riskAlertSubscriber';
 
 async function bootstrap() {
   // ── Connect all data stores before accepting traffic ──────────
@@ -52,8 +56,13 @@ async function bootstrap() {
     });
   });
 
-  // Attach io to app locals so route handlers can emit events
-  app.locals.io = io;
+  // Register the io singleton so services/jobs can emit without circular deps
+  setIo(io);
+
+  // ── Background jobs ───────────────────────────────────────────
+  startDeadlineReminderJobs();
+  startWeeklyReportJob();
+  startRiskAlertSubscriber();
 
   // ── Start server ──────────────────────────────────────────────
   httpServer.listen(env.PORT, () => {

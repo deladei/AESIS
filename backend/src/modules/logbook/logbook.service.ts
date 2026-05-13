@@ -3,6 +3,7 @@ import { getMongo, COLLECTIONS } from '../../config/mongo';
 import { AppError } from '../../middleware/errorHandler';
 import { paginate, buildMeta } from '../../shared/utils/pagination';
 import { env } from '../../config/env';
+import { emitToUser } from '../../shared/utils/socketEmitter';
 import type { SaveDraftInput, FeedbackInput } from './logbook.schema';
 
 // ── Draft management ──────────────────────────────────────────
@@ -234,7 +235,7 @@ export async function submitFeedback(
     throw new AppError(409, 'Submission must be in submitted or under_review status to receive feedback');
   }
 
-  const [feedback] = await prisma.$transaction([
+  const [feedback, , notification] = await prisma.$transaction([
     prisma.supervisorFeedback.create({
       data: {
         submissionId,
@@ -267,6 +268,15 @@ export async function submitFeedback(
       },
     }),
   ]);
+
+  emitToUser(submission.placement.studentId, 'notification:new', {
+    id:        notification.id,
+    type:      notification.type,
+    title:     notification.title,
+    body:      notification.body,
+    link:      notification.link,
+    createdAt: notification.createdAt,
+  });
 
   return feedback;
 }

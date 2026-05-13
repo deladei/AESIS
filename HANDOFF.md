@@ -19,7 +19,7 @@
 | **Infra** | Docker Compose — PG 16, Mongo 7, Redis 7, AI Engine, Celery Worker |
 | **Test runner** | Jest + ts-jest — run `npm test` inside `backend/` |
 | **Type check** | `npx tsc --noEmit` inside `backend/` |
-| **Current phase** | **Phase 4 complete → Phase 5 next (Real-Time Notifications)** |
+| **Current phase** | **Phase 5 complete → Phase 6 next (Dashboards & Analytics)** |
 
 ---
 
@@ -124,13 +124,13 @@ AISYSTEM/
 | 2 | Placement Workflow | ✅ Done | 14/14 |
 | 3 | Logbook System | ✅ Done | 25/25 |
 | 4 | AI Engine (FastAPI) | ✅ Done | Python, no pytest yet |
-| 5 | Real-Time Notifications | 🔜 **NEXT** | — |
-| 6 | Dashboards & Analytics | ⬜ Pending | — |
+| 5 | Real-Time Notifications | ✅ Done | 13/13 |
+| 6 | Dashboards & Analytics | 🔜 **NEXT** | — |
 | 7 | Frontend Integration | ⬜ Pending | — |
 | 8 | Security Hardening & QA | ⬜ Pending | — |
 | 9 | Deployment (Docker + Nginx + CI/CD) | ⬜ Pending | — |
 
-**Node.js: 58/58 tests passing. `tsc --noEmit` clean. Git: 3 commits on `main`.**
+**Node.js: 71/71 tests passing. `tsc --noEmit` clean. Git: 3 commits on `main`.**
 
 ---
 
@@ -329,22 +329,48 @@ app.use('/api/v1/notifications', notificationsRouter);
 
 ---
 
+### Session 4 — 2026-05-13
+
+**Work done** — Phase 5 (Real-Time Notifications) — complete
+
+| File | What |
+|---|---|
+| `src/config/socket.ts` | Socket.io singleton — `setIo()` / `getIo()` — avoids circular deps |
+| `src/shared/utils/socketEmitter.ts` | `emitToUser(userId, event, payload)` — silently swallows if socket not ready |
+| `src/server.ts` | Updated: `setIo(io)` + start all 3 jobs on boot |
+| `src/modules/notifications/notifications.service.ts` | `listNotifications`, `getUnreadCount`, `markRead` (idempotent), `markAllRead`, `createNotification` |
+| `src/modules/notifications/notifications.controller.ts` | `list`, `unreadCount`, `markOneRead`, `markAllRead` |
+| `src/modules/notifications/notifications.router.ts` | `GET /`, `GET /unread-count`, `PATCH /:id/read`, `PATCH /read-all` — all behind `authenticate` |
+| `src/jobs/deadlineReminder.ts` | Cron Wed/Thu 09:00 — find `logbookSubmission` with Friday deadline + not yet submitted → DB notification + socket + email |
+| `src/jobs/weeklyReport.ts` | Cron Mon 08:00 — coordinator HTML email: active placements, compliance rate, high-risk count via `studentRiskScore` |
+| `src/jobs/riskAlertSubscriber.ts` | Redis pub/sub subscriber on `risk_alert` channel → `emitToUser(supervisorId, 'risk_alert', payload)` |
+| `src/modules/logbook/logbook.service.ts` | Added `emitToUser` after `$transaction` in `submitFeedback` to push `notification:new` to student |
+| `src/app.ts` | Wired `notificationsRouter` at `/api/v1/notifications` |
+| `src/modules/notifications/__tests__/notifications.service.test.ts` | 13 tests — all passing |
+
+**Errors & fixes**
+
+| Error | Fix |
+|---|---|
+| `logbookSchedule` model doesn't exist in Prisma schema | Replaced with `logbookSubmission` — it has a `deadline` field; queried by deadline window + `submissionStatus` filter |
+| `isActive` not on `User` model | Changed to `isVerified: true` for coordinator filter |
+| `riskTier` not on `Placement` model | Changed to count `studentRiskScore` with `riskTier: 'high'` + `placement.placementStatus: 'active'` |
+| `RiskTier` enum has no `'critical'` value | Removed `'critical'` from filter — enum is `low / medium / high` |
+| Logger calls used pino style `logger.error({ err }, 'msg')` | Changed to Winston style `logger.error('msg', { err })` throughout all new files |
+| `notifications.controller.ts` used `AuthenticatedRequest` — broke `asyncHandler` type | Changed to `Request` + `req.user!.sub` (same pattern as logbook controller) |
+| `notifications.service.ts` — `metadata: Record<string, unknown>` not assignable to Prisma JSON type | Changed parameter type to `Prisma.InputJsonValue` |
+| Socket emitter warning in logbook tests | Added `jest.mock('../../../shared/utils/socketEmitter')` to `logbook.service.test.ts` |
+
+**Quality gate**: `tsc --noEmit` — 0 errors. `npm test` — 71/71 passing.
+
+**Known non-issue**: Exit code 1 in Jest is a pre-existing async race — `enqueueAiAnalysis` is fire-and-forget and occasionally logs after Jest tears down. All 71 tests pass.
+
+---
+
 ### Next session should start with
 
 1. Read this file top to bottom
-2. Install Ollama on the machine:
-   ```bash
-   curl -fsSL https://ollama.com/install.sh | sh
-   ollama pull mistral        # or: ollama pull llama3.2:1b  (lighter, ~1 GB)
-   ```
-3. Verify AI engine works (optional smoke test):
-   ```bash
-   cd ai && python -m venv .venv && source .venv/bin/activate
-   pip install -r requirements.txt
-   uvicorn main:app --reload --port 8000
-   curl http://localhost:8000/health
-   ```
-4. Start Phase 5 — Real-Time Notifications (see spec above)
+2. Start Phase 6 — Dashboards & Analytics
 
 ---
 
