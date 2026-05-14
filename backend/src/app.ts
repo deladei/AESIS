@@ -23,8 +23,21 @@ export function createApp() {
 
   // ── Security headers ──────────────────────────────────────────
   app.use(helmet({
-    contentSecurityPolicy:    env.NODE_ENV === 'production',
+    contentSecurityPolicy: {
+      directives: {
+        defaultSrc:  ["'self'"],
+        scriptSrc:   ["'self'"],
+        styleSrc:    ["'self'", "'unsafe-inline'"],
+        imgSrc:      ["'self'", 'data:', 'blob:'],
+        connectSrc:  ["'self'"],
+        fontSrc:     ["'self'"],
+        objectSrc:   ["'none'"],
+        frameAncestors: ["'none'"],
+        upgradeInsecureRequests: env.NODE_ENV === 'production' ? [] : null,
+      },
+    },
     crossOriginEmbedderPolicy: false,
+    referrerPolicy: { policy: 'strict-origin-when-cross-origin' },
   }));
 
   // ── CORS ──────────────────────────────────────────────────────

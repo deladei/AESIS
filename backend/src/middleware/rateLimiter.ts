@@ -13,10 +13,10 @@ export const globalRateLimiter = rateLimit({
   },
 });
 
-// Login: 20 attempts / 15 min / IP
+// Login: 5 attempts / 15 min / IP
 export const loginRateLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
-  max: 20,
+  max: 5,
   standardHeaders: true,
   legacyHeaders: false,
   message: {
@@ -39,7 +39,20 @@ export const registerRateLimiter = rateLimit({
   },
 });
 
-// Other auth routes (refresh, reset-password): 30 / 15 min / IP
+// Password reset: 5 attempts / hour / IP
+export const resetPasswordRateLimiter = rateLimit({
+  windowMs: 60 * 60 * 1000,
+  max: 5,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: {
+    status: 'error',
+    code: 'RATE_LIMITED',
+    message: 'Too many password reset attempts. Please try again in an hour.',
+  },
+});
+
+// Other auth routes (refresh, logout): 30 / 15 min / IP
 export const authRateLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
   max: 30,

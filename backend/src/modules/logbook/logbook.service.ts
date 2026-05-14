@@ -4,6 +4,7 @@ import { AppError } from '../../middleware/errorHandler';
 import { paginate, buildMeta } from '../../shared/utils/pagination';
 import { env } from '../../config/env';
 import { emitToUser } from '../../shared/utils/socketEmitter';
+import { sanitizeLogbookText } from '../../shared/utils/sanitize';
 import type { SaveDraftInput, FeedbackInput } from './logbook.schema';
 
 // ── Draft management ──────────────────────────────────────────
@@ -38,16 +39,18 @@ export async function saveDraft(
     throw new AppError(409, 'Cannot edit a submission that has already been submitted');
   }
 
+  const sanitized = sanitizeLogbookText(input);
+
   // Store rich content in MongoDB; save a reference ID back to PG
   const mongoDocId = await upsertMongoLogbook(submission.mongoDocId, {
     submissionId,
     studentId,
     placementId:      submission.placementId,
     weekNumber:       submission.weekNumber,
-    tasksCompleted:   input.tasksCompleted,
-    technologiesUsed: input.technologiesUsed,
-    challenges:       input.challenges ?? '',
-    reflection:       input.reflection ?? '',
+    tasksCompleted:   sanitized.tasksCompleted,
+    technologiesUsed: sanitized.technologiesUsed,
+    challenges:       sanitized.challenges ?? '',
+    reflection:       sanitized.reflection ?? '',
     hoursWorked:      input.hoursWorked ?? 0,
     updatedAt:        new Date(),
   });

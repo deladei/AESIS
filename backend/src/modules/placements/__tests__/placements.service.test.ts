@@ -206,3 +206,133 @@ describe('service.createCompany', () => {
       .rejects.toMatchObject({ statusCode: 409 });
   });
 });
+
+// ─────────────────────────────────────────────────────────────
+describe('service.listPlacements', () => {
+  it('filters by status when provided', async () => {
+    (mp.placement.findMany as jest.Mock).mockResolvedValue([]);
+    (mp.placement.count as jest.Mock).mockResolvedValue(0);
+
+    await service.listPlacements({ status: 'active' });
+
+    expect(mp.placement.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({ where: expect.objectContaining({ placementStatus: 'active' }) }),
+    );
+  });
+
+  it('filters by academicYearId when provided', async () => {
+    (mp.placement.findMany as jest.Mock).mockResolvedValue([]);
+    (mp.placement.count as jest.Mock).mockResolvedValue(0);
+
+    await service.listPlacements({ academicYearId: 'ay-1' });
+
+    expect(mp.placement.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({ where: expect.objectContaining({ academicYearId: 'ay-1' }) }),
+    );
+  });
+
+  it('applies no filters when neither status nor academicYearId provided', async () => {
+    (mp.placement.findMany as jest.Mock).mockResolvedValue([]);
+    (mp.placement.count as jest.Mock).mockResolvedValue(0);
+
+    await service.listPlacements({});
+
+    expect(mp.placement.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({ where: {} }),
+    );
+  });
+});
+
+// ─────────────────────────────────────────────────────────────
+describe('service.getCompanyAnalytics', () => {
+  const baseCompany = {
+    id: 'co-1', name: 'TechBridge', industry: 'Technology',
+    placements: [],
+  };
+
+  it('throws 404 if company not found', async () => {
+    (mp.company.findUnique as jest.Mock).mockResolvedValue(null);
+    await expect(service.getCompanyAnalytics('bad-id'))
+      .rejects.toMatchObject({ statusCode: 404 });
+  });
+
+  it('returns null avgQualityScore when no submissions have scores', async () => {
+    (mp.company.findUnique as jest.Mock).mockResolvedValue({
+      ...baseCompany,
+      placements: [{ logbookSubmissions: [{ analysis: null }], _count: { logbookSubmissions: 1 } }],
+    });
+
+    const result = await service.getCompanyAnalytics('co-1');
+    expect(result.avgQualityScore).toBeNull();
+  });
+
+  it('calculates avgQualityScore when quality scores exist', async () => {
+    (mp.company.findUnique as jest.Mock).mockResolvedValue({
+      ...baseCompany,
+      placements: [{
+        logbookSubmissions: [
+          { analysis: { qualityScore: 80 } },
+          { analysis: { qualityScore: 60 } },
+        ],
+        _count: { logbookSubmissions: 2 },
+      }],
+    });
+
+    const result = await service.getCompanyAnalytics('co-1');
+    expect(result.avgQualityScore).toBe(70);
+  });
+});
+
+// ─────────────────────────────────────────────────────────────
+describe('service.addPlacementDocument', () => {
+  it('throws 404 if placement not found', async () => {
+    (mp.placement.findUnique as jest.Mock).mockResolvedValue(null);
+    await expect(service.addPlacementDocument('bad-id', 'stu-1', { url: 'u', name: 'n', size: 100, mimeType: 'application/pdf' }, 'placement_letter'))
+      .rejects.toMatchObject({ statusCode: 404 });
+  });
+
+  it('throws 403 if student is not the placement owner', async () => {
+    (mp.placement.findUnique as jest.Mock).mockResolvedValue({ ...fakePlacement, studentId: 'other-student' });
+    await expect(service.addPlacementDocument('pl-1', 'stu-1', { url: 'u', name: 'n', size: 100, mimeType: 'application/pdf' }, 'placement_letter'))
+      .rejects.toMatchObject({ statusCode: 403 });
+  });
+
+  it('creates document for the placement owner', async () => {
+    (mp.placement.findUnique as jest.Mock).mockResolvedValue(fakePlacement);
+    (mp.placementDocument.create as jest.Mock).mockResolvedValue({ id: 'doc-1' });
+
+    const result = await service.addPlacementDocument('pl-1', 'student-1', { url: 'u', name: 'report.pdf', size: 500, mimeType: 'application/pdf' }, 'final_report');
+    expect(result).toHaveProperty('id', 'doc-1');
+  });
+});
+
+// ─────────────────────────────────────────────────────────────
+describe('service.getPlacementDocuments', () => {
+  it('throws 404 if placement not found', async () => {
+    (mp.placement.findUnique as jest.Mock).mockResolvedValue(null);
+    await expect(service.getPlacementDocuments('bad-id', 'stu-1', 'student'))
+      .rejects.toMatchObject({ statusCode: 404 });
+  });
+
+  it('throws 403 when student requests another student placement documents', async () => {
+    (mp.placement.findUnique as jest.Mock).mockResolvedValue({ ...fakePlacement, studentId: 'owner' });
+    await expect(service.getPlacementDocuments('pl-1', 'other-stu', 'student'))
+      .rejects.toMatchObject({ statusCode: 403 });
+  });
+
+  it('returns documents for the placement owner', async () => {
+    (mp.placement.findUnique as jest.Mock).mockResolvedValue(fakePlacement);
+    (mp.placementDocument.findMany as jest.Mock).mockResolvedValue([{ id: 'doc-1' }]);
+
+    const result = await service.getPlacementDocuments('pl-1', 'student-1', 'student');
+    expect(result).toHaveLength(1);
+  });
+
+  it('allows coordinator to access any placement documents', async () => {
+    (mp.placement.findUnique as jest.Mock).mockResolvedValue(fakePlacement);
+    (mp.placementDocument.findMany as jest.Mock).mockResolvedValue([]);
+
+    const result = await service.getPlacementDocuments('pl-1', 'coord-1', 'coordinator');
+    expect(Array.isArray(result)).toBe(true);
+  });
+});
