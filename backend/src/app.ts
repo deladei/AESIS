@@ -33,7 +33,7 @@ export function createApp() {
         fontSrc:     ["'self'"],
         objectSrc:   ["'none'"],
         frameAncestors: ["'none'"],
-        upgradeInsecureRequests: env.NODE_ENV === 'production' ? [] : null,
+        ...(env.NODE_ENV === 'production' && { upgradeInsecureRequests: [] }),
       },
     },
     crossOriginEmbedderPolicy: false,
@@ -58,13 +58,13 @@ export function createApp() {
   // ── Logging ───────────────────────────────────────────────────
   app.use(requestLogger);
 
-  // ── Global rate limiter ───────────────────────────────────────
-  app.use(globalRateLimiter);
-
-  // ── Health check (unauthenticated) ────────────────────────────
+  // ── Health check (before rate limiter — must not be throttled by load balancers/Docker) ──
   app.get('/health', (_req, res) => {
     res.json({ status: 'ok', service: 'aesis-api', timestamp: new Date().toISOString() });
   });
+
+  // ── Global rate limiter ───────────────────────────────────────
+  app.use(globalRateLimiter);
 
   // ── API routes ────────────────────────────────────────────────
   app.use('/api/v1/auth',          authRouter);
