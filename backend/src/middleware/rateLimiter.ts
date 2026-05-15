@@ -1,5 +1,5 @@
 import rateLimit from 'express-rate-limit';
-import { RedisStore } from 'rate-limit-redis';
+import RedisStore from 'rate-limit-redis';
 import { getRedis } from '../config/redis';
 
 function makeStore(prefix: string) {
