@@ -74,7 +74,7 @@ async function seed() {
 
   const admin = await prisma.user.upsert({
     where: { email: 'admin@aesis.cs.edu' },
-    update: {},
+    update: { passwordHash, isVerified: true },
     create: {
       email:        'admin@aesis.cs.edu',
       passwordHash,
@@ -88,12 +88,13 @@ async function seed() {
   console.log(`✓ Admin: ${admin.email}`);
 
   // ── Coordinator account ───────────────────────────────────────
+  const coordHash = await bcrypt.hash('Coord@1234', 12);
   const coordinator = await prisma.user.upsert({
     where: { email: 'coordinator@aesis.cs.edu' },
-    update: {},
+    update: { passwordHash: coordHash, isVerified: true },
     create: {
       email:        'coordinator@aesis.cs.edu',
-      passwordHash: await bcrypt.hash('Coord@1234', 12),
+      passwordHash: coordHash,
       role:         'coordinator',
       firstName:    'CS Programme',
       lastName:     'Coordinator',
@@ -104,12 +105,13 @@ async function seed() {
   console.log(`✓ Coordinator: ${coordinator.email}`);
 
   // ── Sample supervisor ─────────────────────────────────────────
+  const superHash = await bcrypt.hash('Super@1234', 12);
   await prisma.user.upsert({
     where: { email: 'supervisor@aesis.cs.edu' },
-    update: {},
+    update: { passwordHash: superHash, isVerified: true },
     create: {
       email:        'supervisor@aesis.cs.edu',
-      passwordHash: await bcrypt.hash('Super@1234', 12),
+      passwordHash: superHash,
       role:         'academic_supervisor',
       firstName:    'Dr. Emeka',
       lastName:     'Obi',
