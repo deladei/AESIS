@@ -52,10 +52,10 @@ export const resetPasswordRateLimiter = rateLimit({
   },
 });
 
-// Other auth routes (refresh, logout): 30 / 15 min / IP
+// Other auth routes (refresh, logout): 120 / 15 min / IP
 export const authRateLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
-  max: 30,
+  max: 120,
   standardHeaders: true,
   legacyHeaders: false,
   message: {
