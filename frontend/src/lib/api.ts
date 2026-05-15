@@ -6,8 +6,12 @@ let _accessToken: string | null = null;
 export function setAccessToken(token: string | null) { _accessToken = token; }
 export function getAccessToken() { return _accessToken; }
 
+const API_BASE = import.meta.env.VITE_API_BASE_URL
+  ? `${import.meta.env.VITE_API_BASE_URL}/api/v1`
+  : '/api/v1';
+
 export const api = axios.create({
-  baseURL: '/api/v1',
+  baseURL: API_BASE,
   withCredentials: true, // send HttpOnly refresh cookie
   headers: { 'Content-Type': 'application/json' },
 });
@@ -32,7 +36,7 @@ api.interceptors.response.use(
     try {
       if (!refreshing) {
         refreshing = axios
-          .post<{ data: { accessToken: string } }>('/api/v1/auth/refresh', {}, { withCredentials: true })
+          .post<{ data: { accessToken: string } }>(`${API_BASE}/auth/refresh`, {}, { withCredentials: true })
           .then((r) => {
             const token = r.data.data.accessToken;
             setAccessToken(token);
