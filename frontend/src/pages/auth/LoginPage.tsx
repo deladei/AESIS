@@ -24,8 +24,17 @@ export default function LoginPage() {
         admin:               '/coordinator/dashboard',
       };
       navigate(redirects[loggedInUser.role] ?? '/student/dashboard', { replace: true });
-    } catch {
-      setError('Invalid email or password.');
+    } catch (err: any) {
+      const status = err?.response?.status;
+      if (status === 429) {
+        setError('Too many login attempts. Please wait 15 minutes and try again.');
+      } else if (status === 401 || status === 403) {
+        setError('Invalid email or password.');
+      } else if (!err?.response) {
+        setError('Server is starting up — please wait 30 seconds and try again.');
+      } else {
+        setError('Something went wrong. Please try again.');
+      }
     } finally {
       setLoading(false);
     }
