@@ -15,6 +15,10 @@ celery[redis]==5.4.0
 redis==5.0.7
 
 # NLP / ML — all free, all local
+# CPU-only torch (avoids 3–5 GB of CUDA wheels pulled by the default GPU build).
+# Must come before sentence-transformers so its torch dep resolves to the CPU build.
+--extra-index-url https://download.pytorch.org/whl/cpu
+torch==2.3.1+cpu
 sentence-transformers==3.0.1
 faiss-cpu==1.8.0
 xgboost==2.0.3
