@@ -88,6 +88,16 @@ async function bootstrap() {
   process.on('SIGINT',  () => shutdown('SIGINT'));
 }
 
+// Safety net: a single unhandled rejection (e.g. ioredis flushQueue on
+// reconnect) used to crash the whole process under Node ≥ 22's strict
+// unhandled-rejection mode. Logging instead keeps the server alive while we
+// still see the issue in logs.
+process.on('unhandledRejection', (reason) => {
+  logger.error('Unhandled promise rejection', {
+    reason: reason instanceof Error ? reason.message : String(reason),
+  });
+});
+
 bootstrap().catch((err) => {
   logger.error('Failed to start server', { error: err });
   process.exit(1);

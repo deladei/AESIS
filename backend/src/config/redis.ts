@@ -8,13 +8,17 @@ export function getRedis(): Redis {
   if (redis) return redis;
 
   redis = new Redis(env.REDIS_URL, {
-    maxRetriesPerRequest: 3,
-    retryStrategy: (times) => Math.min(times * 100, 3000),
+    // null = queue commands across reconnects instead of failing them after N retries.
+    // Avoids unhandled-rejection crashes when Upstash drops idle connections.
+    maxRetriesPerRequest: null,
+    retryStrategy: (times) => Math.min(times * 200, 5000),
     lazyConnect: true,
+    enableOfflineQueue: true,
   });
 
   redis.on('connect', () => logger.info('Redis connected'));
   redis.on('error', (err) => logger.error('Redis error', { error: err.message }));
+  redis.on('end', () => logger.warn('Redis connection ended'));
 
   return redis;
 }
