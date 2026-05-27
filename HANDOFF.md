@@ -630,6 +630,47 @@ Context: Session 9 left the AI container `(healthy)` and Ollama reachable, but a
 
 ---
 
+### Session 11 — 2026-05-27
+
+**Work done** — Register page programme dropdown fix + seed cleanup
+
+Bug: user reported the Programme `<select>` on `/auth/register` wouldn't open when clicked. Diagnosis ruled out the obvious causes (no `disabled`, no `pointer-events`, no overlay, no AuthContext re-render storm). Backend `/auth/programmes` was returning 6 rows correctly through the Vite proxy. Root cause was the native `<select>` being unreliable on a dark-styled form — the same class of issue the team had already patched once for iOS (`globals.css:47`). Replaced with a `<button>`-driven custom dropdown that's guaranteed clickable across browsers.
+
+Secondary finding while debugging: the API returned 6 programmes but `seed.ts` only defines 4. The DB had two stale rows from older seed versions — `BSC-CYB` (a duplicate "B.Sc. Cybersecurity" alongside the canonical `BSC-CY`, 0 users) and `BSC-DS` (B.Sc. Data Science, 1 real user). Cleaned both up: deleted the unreferenced duplicate, added `BSC-DS` to the canonical seed list, and added a defensive prune step so future drift can't recur.
+
+| File | What |
+|---|---|
+| `frontend/src/pages/auth/RegisterPage.tsx` | Replaced native `<select>` with custom dropdown: `<button>` shows selected name or "Select programme", `<ChevronDown>` rotates, floating `<ul role="listbox">` with click-outside + Escape handlers, selected option shown with blue tint + `<Check>`, "Loading programmes…" placeholder when list is empty. Same `form.programmeId` state binding, same Zod validation, no API contract change |
+| `backend/src/config/seed.ts` | Added `BSC-DS` (B.Sc. Data Science) as 5th canonical programme. Added prune block after the upserts: `findMany` for programmes whose `code` is not in the canonical list AND `users: { none: {} }`, then `deleteMany` the resulting IDs. FK-safe — won't delete any programme that has at least one student attached |
+
+**Investigation notes (no code change)**
+
+| Observation | Detail |
+|---|---|
+| Port 3000 still squatted by `node dist/server.js` (PID 3038) | Same root-owned zombie called out in Session 6. Can't kill without sudo. |
+| Port 3001 now squatted by smeapp's Next.js dev server | Caused initial confusion — `curl localhost:3001/api/v1/auth/programmes` returned a Next.js 404 HTML page. AESIS backend has shifted to **port 3002**; `backend/.env` and `frontend/vite.config.ts` are already aligned to 3002 |
+
+**Errors & fixes**
+
+| Error | Fix |
+|---|---|
+| User report: "select programme isn't working" — vague | Asked the user for the specific symptom; "can't click / won't open" pointed at native select reliability, not data |
+| Confirmed via curl that backend on `:3002` returned 6 programmes; Vite proxy on `:5173` also returned 200 — data path was fine | Pivoted from "is the API broken" to "is the select element broken" — went straight to the custom-dropdown rewrite |
+| Seed showed 4 programmes but DB had 6 | Stale rows left by older seed versions; current seed only ever upserts, never prunes. Added the prune block to make the seed authoritative |
+| Initial `psql` LEFT JOIN used `students` (no such table) | Schema has no `Student` model — `programmeId` lives on `User`. Re-ran join against `users.programme_id` |
+
+**Verified after fixes**
+- `npm run db:seed` output: `✓ Programmes: 5 created` + `✓ Pruned 1 orphan programme(s): BSC-CYB`
+- `GET /api/v1/auth/programmes` now returns exactly 5: BSC-CS, BSC-CY, BSC-DS, BSC-IT, BSC-SE
+- `npx tsc --noEmit` clean on both backend and frontend
+- Existing user previously linked to `BSC-DS` is untouched (the prune's `users: { none: {} }` guard worked)
+
+**Stopped here — next session should**
+1. Continue Phase 9 manual setup — MongoDB Atlas, Upstash Redis, Render Blueprint deploy, Vercel import (see Session 8 + Session 10 checklist). Nothing about the dropdown fix or seed change blocks deployment.
+2. Eventually reboot or `sudo kill 3038` to free port 3000 from the zombie `node dist/server.js`. Cosmetic on this dev box; irrelevant in prod.
+
+---
+
 ## Handoff Entry Template
 
 ```markdown

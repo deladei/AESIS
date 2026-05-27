@@ -39,8 +39,24 @@ async function seed() {
       update: {},
       create: { name: 'B.Sc. Cybersecurity', code: 'BSC-CY', departmentId: dept.id },
     }),
+    prisma.academicProgramme.upsert({
+      where: { code: 'BSC-DS' },
+      update: {},
+      create: { name: 'B.Sc. Data Science', code: 'BSC-DS', departmentId: dept.id },
+    }),
   ]);
   console.log(`✓ Programmes: ${programmes.length} created`);
+
+  // ── Prune orphan programmes from older seeds (only if unreferenced) ──
+  const canonicalCodes = programmes.map((p) => p.code);
+  const orphans = await prisma.academicProgramme.findMany({
+    where: { code: { notIn: canonicalCodes }, users: { none: {} } },
+    select: { id: true, code: true },
+  });
+  if (orphans.length) {
+    await prisma.academicProgramme.deleteMany({ where: { id: { in: orphans.map((o) => o.id) } } });
+    console.log(`✓ Pruned ${orphans.length} orphan programme(s): ${orphans.map((o) => o.code).join(', ')}`);
+  }
 
   // ── Academic Year ─────────────────────────────────────────────
   const academicYear = await prisma.academicYear.upsert({

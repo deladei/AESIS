@@ -1,6 +1,6 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Link } from 'react-router-dom';
-import { Eye, EyeOff, Loader2, CheckCircle2, GraduationCap, BookOpen, Briefcase } from 'lucide-react';
+import { Eye, EyeOff, Loader2, CheckCircle2, GraduationCap, BookOpen, Briefcase, ChevronDown, Check } from 'lucide-react';
 import { useAuth, type SelfRegisterRole } from '@/contexts/AuthContext';
 import { api } from '@/lib/api';
 
@@ -34,6 +34,8 @@ export default function RegisterPage() {
   const [loading, setLoading] = useState(false);
   const [success, setSuccess] = useState(false);
   const [programmes, setProgrammes] = useState<Programme[]>([]);
+  const [programmeOpen, setProgrammeOpen] = useState(false);
+  const programmeRef = useRef<HTMLDivElement>(null);
   const [form, setForm] = useState<FormState>({
     firstName:   '',
     lastName:    '',
@@ -49,6 +51,22 @@ export default function RegisterPage() {
       .then((r) => setProgrammes(r.data.data.programmes))
       .catch(() => {});
   }, []);
+
+  useEffect(() => {
+    if (!programmeOpen) return;
+    const onClickOutside = (e: MouseEvent) => {
+      if (programmeRef.current && !programmeRef.current.contains(e.target as Node)) {
+        setProgrammeOpen(false);
+      }
+    };
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') setProgrammeOpen(false); };
+    document.addEventListener('mousedown', onClickOutside);
+    document.addEventListener('keydown', onKey);
+    return () => {
+      document.removeEventListener('mousedown', onClickOutside);
+      document.removeEventListener('keydown', onKey);
+    };
+  }, [programmeOpen]);
 
   const validate = () => {
     const e: Partial<Record<keyof FormState, string>> = {};
@@ -233,21 +251,50 @@ export default function RegisterPage() {
           </div>
 
           {form.role === 'student' && (
-            <div>
-              <label htmlFor="programmeId" className="block text-sm font-medium text-slate-300 mb-1.5">Programme</label>
-              <select
-                id="programmeId"
-                value={form.programmeId}
-                onChange={(e) => setField('programmeId', e.target.value)}
-                className={fieldClass(!!errors.programmeId)}
-              >
-                <option value="" style={{ color: '#0f172a', backgroundColor: '#ffffff' }}>Select programme</option>
-                {programmes.map((p) => (
-                  <option key={p.id} value={p.id} style={{ color: '#0f172a', backgroundColor: '#ffffff' }}>
-                    {p.name}
-                  </option>
-                ))}
-              </select>
+            <div ref={programmeRef}>
+              <label className="block text-sm font-medium text-slate-300 mb-1.5">Programme</label>
+              <div className="relative">
+                <button
+                  type="button"
+                  onClick={() => setProgrammeOpen((o) => !o)}
+                  aria-haspopup="listbox"
+                  aria-expanded={programmeOpen}
+                  className={`${fieldClass(!!errors.programmeId)} flex items-center justify-between text-left cursor-pointer`}
+                >
+                  <span className={form.programmeId ? 'text-slate-100' : 'text-slate-500'}>
+                    {programmes.find((p) => p.id === form.programmeId)?.name ?? 'Select programme'}
+                  </span>
+                  <ChevronDown className={`w-4 h-4 text-slate-400 shrink-0 transition-transform duration-150 ${programmeOpen ? 'rotate-180' : ''}`} />
+                </button>
+                {programmeOpen && (
+                  <ul
+                    role="listbox"
+                    className="absolute z-20 mt-1.5 w-full max-h-60 overflow-auto rounded-lg bg-slate-800 border border-slate-700 shadow-xl scrollbar-thin py-1"
+                  >
+                    {programmes.length === 0 ? (
+                      <li className="px-4 py-2.5 text-sm text-slate-500">Loading programmes…</li>
+                    ) : (
+                      programmes.map((p) => {
+                        const selected = p.id === form.programmeId;
+                        return (
+                          <li key={p.id}>
+                            <button
+                              type="button"
+                              onClick={() => { setField('programmeId', p.id); setProgrammeOpen(false); }}
+                              className={`w-full flex items-center justify-between gap-2 text-left px-4 py-2.5 text-sm cursor-pointer transition-colors duration-100 ${
+                                selected ? 'bg-blue-600/15 text-blue-300' : 'text-slate-200 hover:bg-slate-700/60'
+                              }`}
+                            >
+                              <span className="truncate">{p.name}</span>
+                              {selected && <Check className="w-4 h-4 shrink-0" />}
+                            </button>
+                          </li>
+                        );
+                      })
+                    )}
+                  </ul>
+                )}
+              </div>
               {errors.programmeId && <p className="mt-1 text-xs text-red-400">{errors.programmeId}</p>}
             </div>
           )}
