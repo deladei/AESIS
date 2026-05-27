@@ -3,10 +3,13 @@ import { env } from '../config/env';
 import { logger } from '../config/logger';
 import { emitToUser } from '../shared/utils/socketEmitter';
 
-const CHANNEL = 'risk_alert';
+// Redis pub/sub channel is namespaced so this app can share a Redis instance
+// with other projects without cross-talk. The Socket.io event name pushed to
+// the frontend stays `risk_alert` — that contract is independent of Redis.
+const CHANNEL = 'aesis:risk_alert';
 
 /**
- * Subscribes to the Redis `risk_alert` pub/sub channel published by the
+ * Subscribes to the Redis `aesis:risk_alert` pub/sub channel published by the
  * Python AI Celery task and forwards each message to the relevant supervisor
  * via Socket.io.
  *

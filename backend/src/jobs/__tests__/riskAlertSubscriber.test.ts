@@ -42,9 +42,9 @@ describe('startRiskAlertSubscriber', () => {
     MockRedis.mockImplementation(() => mockInstance as unknown as Redis);
   });
 
-  it('creates a Redis subscriber and subscribes to risk_alert channel', () => {
+  it('creates a Redis subscriber and subscribes to the namespaced risk_alert channel', () => {
     startRiskAlertSubscriber();
-    expect(mockInstance.subscribe).toHaveBeenCalledWith('risk_alert', expect.any(Function));
+    expect(mockInstance.subscribe).toHaveBeenCalledWith('aesis:risk_alert', expect.any(Function));
   });
 
   it('logs when subscription is established', () => {
@@ -67,14 +67,14 @@ describe('startRiskAlertSubscriber', () => {
   it('forwards a valid risk_alert message to the supervisor via socket', () => {
     startRiskAlertSubscriber();
     const payload = { supervisorId: 'sup-1', studentId: 'stu-1', tier: 'high', factors: [] };
-    mockInstance._triggerMessage('risk_alert', JSON.stringify(payload));
+    mockInstance._triggerMessage('aesis:risk_alert', JSON.stringify(payload));
     expect(emitToUser).toHaveBeenCalledWith('sup-1', 'risk_alert', expect.objectContaining({ tier: 'high' }));
   });
 
   it('logs a warning and skips invalid JSON', () => {
     const { logger } = jest.requireMock('../../config/logger');
     startRiskAlertSubscriber();
-    mockInstance._triggerMessage('risk_alert', '{invalid json}');
+    mockInstance._triggerMessage('aesis:risk_alert', '{invalid json}');
     expect(logger.warn).toHaveBeenCalled();
     expect(emitToUser).not.toHaveBeenCalled();
   });
@@ -82,7 +82,7 @@ describe('startRiskAlertSubscriber', () => {
   it('logs a warning and skips messages with no supervisorId', () => {
     const { logger } = jest.requireMock('../../config/logger');
     startRiskAlertSubscriber();
-    mockInstance._triggerMessage('risk_alert', JSON.stringify({ studentId: 'stu-1', tier: 'low' }));
+    mockInstance._triggerMessage('aesis:risk_alert', JSON.stringify({ studentId: 'stu-1', tier: 'low' }));
     expect(logger.warn).toHaveBeenCalled();
     expect(emitToUser).not.toHaveBeenCalled();
   });

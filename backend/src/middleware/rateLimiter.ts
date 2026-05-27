@@ -15,7 +15,7 @@ export const globalRateLimiter = rateLimit({
   max: 100,
   standardHeaders: true,
   legacyHeaders: false,
-  store: makeStore('rl:global:'),
+  store: makeStore('aesis:rl:global:'),
   skip: (_req, res) => res.headersSent, // skip if already handled
   message: {
     status: 'error',
@@ -30,7 +30,7 @@ export const loginRateLimiter = rateLimit({
   max: 5,
   standardHeaders: true,
   legacyHeaders: false,
-  store: makeStore('rl:login:'),
+  store: makeStore('aesis:rl:login:'),
   message: {
     status: 'error',
     code: 'RATE_LIMITED',
@@ -44,7 +44,7 @@ export const registerRateLimiter = rateLimit({
   max: 10,
   standardHeaders: true,
   legacyHeaders: false,
-  store: makeStore('rl:register:'),
+  store: makeStore('aesis:rl:register:'),
   message: {
     status: 'error',
     code: 'RATE_LIMITED',
@@ -58,7 +58,7 @@ export const resetPasswordRateLimiter = rateLimit({
   max: 5,
   standardHeaders: true,
   legacyHeaders: false,
-  store: makeStore('rl:reset:'),
+  store: makeStore('aesis:rl:reset:'),
   message: {
     status: 'error',
     code: 'RATE_LIMITED',
@@ -72,7 +72,7 @@ export const authRateLimiter = rateLimit({
   max: 120,
   standardHeaders: true,
   legacyHeaders: false,
-  store: makeStore('rl:auth:'),
+  store: makeStore('aesis:rl:auth:'),
   message: {
     status: 'error',
     code: 'RATE_LIMITED',

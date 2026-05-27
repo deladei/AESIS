@@ -1,4 +1,3 @@
-# syntax=docker/dockerfile:1.6
 FROM python:3.11-slim
 
 WORKDIR /app
@@ -24,4 +23,4 @@ RUN touch config/__init__.py models/__init__.py services/__init__.py tasks/__ini
 
 EXPOSE 8000
 
-CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000", "--workers", "2"]
+CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000", "--workers", "1"]

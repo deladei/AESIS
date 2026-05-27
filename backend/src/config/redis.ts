@@ -28,13 +28,16 @@ export async function disconnectRedis() {
   if (redis) await redis.quit();
 }
 
-// Key builders — consistent naming across the app
+// Key builders — consistent naming across the app.
+// All keys are namespaced under `aesis:` so this app can share a Redis
+// instance with other projects without colliding on generic keys
+// (refresh:, session:, risk:, …).
 export const RedisKey = {
-  refreshToken:  (userId: string) => `refresh:${userId}`,
-  tfidfCache:    (submissionId: string) => `tfidf:${submissionId}`,
-  riskCache:     (studentId: string) => `risk:${studentId}`,
-  session:       (userId: string) => `session:${userId}`,
-  rateLimit:     (ip: string) => `rl:${ip}`,
+  refreshToken:  (userId: string) => `aesis:refresh:${userId}`,
+  tfidfCache:    (submissionId: string) => `aesis:tfidf:${submissionId}`,
+  riskCache:     (studentId: string) => `aesis:risk:${studentId}`,
+  session:       (userId: string) => `aesis:session:${userId}`,
+  rateLimit:     (ip: string) => `aesis:rl:${ip}`,
 } as const;
 
 export const TTL = {
