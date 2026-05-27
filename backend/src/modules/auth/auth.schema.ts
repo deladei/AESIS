@@ -1,12 +1,20 @@
 import { z } from 'zod';
 
+// Roles that may be picked at self-registration. `coordinator` and `admin`
+// are intentionally excluded — those must be seeded or invited.
+export const SELF_REGISTERABLE_ROLES = ['student', 'academic_supervisor', 'company_supervisor'] as const;
+
 export const registerSchema = z.object({
   firstName:   z.string().trim().min(2).max(50),
   lastName:    z.string().trim().min(2).max(50),
   email:       z.string().email().toLowerCase(),
   password:    z.string().min(8, 'Password must be at least 8 characters').max(128),
-  programmeId: z.string().uuid('Invalid programme ID'),
-});
+  role:        z.enum(SELF_REGISTERABLE_ROLES),
+  programmeId: z.string().uuid('Invalid programme ID').optional(),
+}).refine(
+  (data) => data.role !== 'student' || !!data.programmeId,
+  { message: 'Students must select a programme', path: ['programmeId'] },
+);
 
 export const loginSchema = z.object({
   email:    z.string().email().toLowerCase(),

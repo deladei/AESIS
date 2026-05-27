@@ -25,16 +25,27 @@ const PASSWORD_RESET_EXPIRY_MS = 60 * 60 * 1000; // 1 hour
 // ── Register ─────────────────────────────────────────────────
 
 export async function register(input: RegisterInput) {
-  const { firstName, lastName, email, password, programmeId } = input;
+  const { firstName, lastName, email, password, role, programmeId } = input;
 
-  // Verify programme exists and belongs to CS dept
-  const programme = await prisma.academicProgramme.findUnique({
-    where: { id: programmeId },
-    include: { department: true },
-  });
-  if (!programme) throw new AppError(400, 'Invalid programme selected');
-  if (programme.department.code !== 'CS') {
-    throw new AppError(400, 'AESIS is restricted to the Computer Science department');
+  // Students must pick a CS programme; supervisors are department-wide.
+  let departmentId: string | null = null;
+  let resolvedProgrammeId: string | null = null;
+  if (role === 'student') {
+    const programme = await prisma.academicProgramme.findUnique({
+      where: { id: programmeId! },
+      include: { department: true },
+    });
+    if (!programme) throw new AppError(400, 'Invalid programme selected');
+    if (programme.department.code !== 'CS') {
+      throw new AppError(400, 'AESIS is restricted to the Computer Science department');
+    }
+    departmentId = programme.departmentId;
+    resolvedProgrammeId = programme.id;
+  } else {
+    // Supervisors are attached to the CS department but not a specific programme.
+    const csDept = await prisma.department.findUnique({ where: { code: 'CS' } });
+    if (!csDept) throw new AppError(500, 'Computer Science department is not configured');
+    departmentId = csDept.id;
   }
 
   // Unique email check
@@ -52,9 +63,9 @@ export async function register(input: RegisterInput) {
       lastName,
       email,
       passwordHash,
-      role:               'student',
-      departmentId:       programme.departmentId,
-      programmeId:        programme.id,
+      role,
+      departmentId,
+      programmeId:        resolvedProgrammeId,
       isVerified:         isDevMode, // auto-verify in development
       verificationToken:  isDevMode ? null : verificationToken,
     },

@@ -42,6 +42,12 @@
   code, .font-mono {
     font-family: 'Fira Code', monospace;
   }
+  /* iOS Safari renders <option> with the system background — without explicit
+     colors, dark-themed selects show invisible white-on-white options. */
+  select option {
+    color: #0f172a;
+    background-color: #ffffff;
+  }
 }
 
 @layer utilities {

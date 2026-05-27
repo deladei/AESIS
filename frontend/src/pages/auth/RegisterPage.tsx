@@ -1,10 +1,32 @@
 import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import { Eye, EyeOff, Loader2, CheckCircle2 } from 'lucide-react';
-import { useAuth } from '@/contexts/AuthContext';
+import { Eye, EyeOff, Loader2, CheckCircle2, GraduationCap, BookOpen, Briefcase } from 'lucide-react';
+import { useAuth, type SelfRegisterRole } from '@/contexts/AuthContext';
 import { api } from '@/lib/api';
 
 interface Programme { id: string; name: string; code: string; }
+
+interface RoleChoice {
+  value: SelfRegisterRole;
+  label: string;
+  description: string;
+  icon: typeof GraduationCap;
+}
+
+const ROLE_CHOICES: RoleChoice[] = [
+  { value: 'student',             label: 'Student',            description: 'I am completing an internship placement', icon: GraduationCap },
+  { value: 'academic_supervisor', label: 'Academic Supervisor', description: 'I supervise students from the university', icon: BookOpen },
+  { value: 'company_supervisor',  label: 'Company Supervisor',  description: 'I mentor a student at my company',         icon: Briefcase },
+];
+
+interface FormState {
+  firstName: string;
+  lastName: string;
+  email: string;
+  password: string;
+  role: SelfRegisterRole;
+  programmeId: string;
+}
 
 export default function RegisterPage() {
   const { register } = useAuth();
@@ -12,14 +34,15 @@ export default function RegisterPage() {
   const [loading, setLoading] = useState(false);
   const [success, setSuccess] = useState(false);
   const [programmes, setProgrammes] = useState<Programme[]>([]);
-  const [form, setForm] = useState({
-    firstName: '',
-    lastName: '',
-    email: '',
-    password: '',
+  const [form, setForm] = useState<FormState>({
+    firstName:   '',
+    lastName:    '',
+    email:       '',
+    password:    '',
+    role:        'student',
     programmeId: '',
   });
-  const [errors, setErrors] = useState<Partial<Record<keyof typeof form, string>>>({});
+  const [errors, setErrors] = useState<Partial<Record<keyof FormState, string>>>({});
 
   useEffect(() => {
     api.get<{ data: { programmes: Programme[] } }>('/auth/programmes')
@@ -28,22 +51,30 @@ export default function RegisterPage() {
   }, []);
 
   const validate = () => {
-    const e: Partial<Record<keyof typeof form, string>> = {};
+    const e: Partial<Record<keyof FormState, string>> = {};
     if (!form.firstName.trim()) e.firstName = 'Required';
     if (!form.lastName.trim()) e.lastName = 'Required';
     if (!form.email.includes('@') || !form.email.includes('.')) e.email = 'Enter a valid email address';
     if (form.password.length < 8) e.password = 'Minimum 8 characters';
-    if (!form.programmeId) e.programmeId = 'Select a programme';
+    if (form.role === 'student' && !form.programmeId) e.programmeId = 'Select a programme';
     setErrors(e);
     return Object.keys(e).length === 0;
   };
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const handleSubmit = async (ev: React.FormEvent) => {
+    ev.preventDefault();
     if (!validate()) return;
     setLoading(true);
     try {
-      await register(form);
+      const payload = {
+        firstName: form.firstName,
+        lastName:  form.lastName,
+        email:     form.email,
+        password:  form.password,
+        role:      form.role,
+        ...(form.role === 'student' ? { programmeId: form.programmeId } : {}),
+      };
+      await register(payload);
       setSuccess(true);
     } catch (err: unknown) {
       const msg = (err as { response?: { data?: { message?: string } } })?.response?.data?.message;
@@ -53,16 +84,15 @@ export default function RegisterPage() {
     }
   };
 
-  const field = (id: keyof typeof form) => ({
-    value: form[id],
-    onChange: (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) =>
-      setForm({ ...form, [id]: e.target.value }),
-    className: `w-full px-4 py-2.5 rounded-lg bg-slate-800 border text-slate-100 placeholder-slate-500 text-sm focus:outline-none focus:ring-1 transition-colors duration-150 ${
-      errors[id]
+  const fieldClass = (hasError: boolean) =>
+    `w-full px-4 py-2.5 rounded-lg bg-slate-800 border text-slate-100 placeholder-slate-500 text-sm focus:outline-none focus:ring-1 transition-colors duration-150 ${
+      hasError
         ? 'border-red-500 focus:border-red-500 focus:ring-red-500'
         : 'border-slate-700 focus:border-blue-500 focus:ring-blue-500'
-    }`,
-  });
+    }`;
+
+  const setField = <K extends keyof FormState>(key: K, value: FormState[K]) =>
+    setForm((prev) => ({ ...prev, [key]: value }));
 
   if (success) {
     return (
@@ -88,9 +118,9 @@ export default function RegisterPage() {
   }
 
   return (
-    <div className="min-h-screen bg-slate-950 flex items-center justify-center p-8">
+    <div className="min-h-screen bg-slate-950 flex items-center justify-center p-4 sm:p-8">
       <div className="w-full max-w-lg">
-        <div className="flex items-center gap-3 mb-10">
+        <div className="flex items-center gap-3 mb-8 sm:mb-10">
           <div className="w-9 h-9 rounded-xl bg-blue-600 flex items-center justify-center">
             <span className="text-white font-bold font-mono">A</span>
           </div>
@@ -98,46 +128,97 @@ export default function RegisterPage() {
         </div>
 
         <h2 className="text-2xl font-bold text-white mb-1">Create account</h2>
-        <p className="text-slate-400 text-sm mb-8">Create your AESIS account to track your internship placement.</p>
+        <p className="text-slate-400 text-sm mb-6 sm:mb-8">Create your AESIS account to participate in the internship programme.</p>
 
         <form onSubmit={handleSubmit} className="space-y-5">
-          <div className="grid grid-cols-2 gap-4">
+          {/* Role selector */}
+          <div>
+            <label className="block text-sm font-medium text-slate-300 mb-2">I am a…</label>
+            <div className="grid gap-2">
+              {ROLE_CHOICES.map(({ value, label, description, icon: Icon }) => {
+                const selected = form.role === value;
+                return (
+                  <label
+                    key={value}
+                    className={`flex items-start gap-3 p-3 rounded-lg border cursor-pointer transition-colors duration-150 ${
+                      selected
+                        ? 'bg-blue-600/10 border-blue-500'
+                        : 'bg-slate-800 border-slate-700 hover:border-slate-600'
+                    }`}
+                  >
+                    <input
+                      type="radio"
+                      name="role"
+                      value={value}
+                      checked={selected}
+                      onChange={() => setField('role', value)}
+                      className="sr-only"
+                    />
+                    <Icon className={`w-5 h-5 mt-0.5 shrink-0 ${selected ? 'text-blue-400' : 'text-slate-400'}`} />
+                    <div className="min-w-0">
+                      <p className={`text-sm font-medium ${selected ? 'text-white' : 'text-slate-200'}`}>{label}</p>
+                      <p className="text-xs text-slate-400 mt-0.5">{description}</p>
+                    </div>
+                  </label>
+                );
+              })}
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
-              <label htmlFor="firstName" className="block text-sm font-medium text-slate-300 mb-1.5">
-                First name
-              </label>
-              <input id="firstName" type="text" placeholder="Ada" autoComplete="given-name" {...field('firstName')} />
+              <label htmlFor="firstName" className="block text-sm font-medium text-slate-300 mb-1.5">First name</label>
+              <input
+                id="firstName"
+                type="text"
+                placeholder="Ada"
+                autoComplete="given-name"
+                value={form.firstName}
+                onChange={(e) => setField('firstName', e.target.value)}
+                className={fieldClass(!!errors.firstName)}
+              />
               {errors.firstName && <p className="mt-1 text-xs text-red-400">{errors.firstName}</p>}
             </div>
             <div>
-              <label htmlFor="lastName" className="block text-sm font-medium text-slate-300 mb-1.5">
-                Last name
-              </label>
-              <input id="lastName" type="text" placeholder="Okonkwo" autoComplete="family-name" {...field('lastName')} />
+              <label htmlFor="lastName" className="block text-sm font-medium text-slate-300 mb-1.5">Last name</label>
+              <input
+                id="lastName"
+                type="text"
+                placeholder="Okonkwo"
+                autoComplete="family-name"
+                value={form.lastName}
+                onChange={(e) => setField('lastName', e.target.value)}
+                className={fieldClass(!!errors.lastName)}
+              />
               {errors.lastName && <p className="mt-1 text-xs text-red-400">{errors.lastName}</p>}
             </div>
           </div>
 
           <div>
-            <label htmlFor="email" className="block text-sm font-medium text-slate-300 mb-1.5">
-              Email address
-            </label>
-            <input id="email" type="email" placeholder="you@example.com" autoComplete="email" {...field('email')} />
+            <label htmlFor="email" className="block text-sm font-medium text-slate-300 mb-1.5">Email address</label>
+            <input
+              id="email"
+              type="email"
+              placeholder="you@example.com"
+              autoComplete="email"
+              value={form.email}
+              onChange={(e) => setField('email', e.target.value)}
+              className={fieldClass(!!errors.email)}
+            />
             {errors.email && <p className="mt-1 text-xs text-red-400">{errors.email}</p>}
           </div>
 
           <div>
-            <label htmlFor="password" className="block text-sm font-medium text-slate-300 mb-1.5">
-              Password
-            </label>
+            <label htmlFor="password" className="block text-sm font-medium text-slate-300 mb-1.5">Password</label>
             <div className="relative">
               <input
                 id="password"
                 type={showPassword ? 'text' : 'password'}
                 placeholder="Min. 8 characters"
                 autoComplete="new-password"
-                {...field('password')}
-                className={field('password').className + ' pr-11'}
+                value={form.password}
+                onChange={(e) => setField('password', e.target.value)}
+                className={`${fieldClass(!!errors.password)} pr-11`}
               />
               <button
                 type="button"
@@ -151,16 +232,25 @@ export default function RegisterPage() {
             {errors.password && <p className="mt-1 text-xs text-red-400">{errors.password}</p>}
           </div>
 
-          <div>
-            <label htmlFor="programmeId" className="block text-sm font-medium text-slate-300 mb-1.5">
-              Programme
-            </label>
-            <select id="programmeId" {...field('programmeId')} className={field('programmeId').className}>
-              <option value="">Select programme</option>
-              {programmes.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
-            </select>
-            {errors.programmeId && <p className="mt-1 text-xs text-red-400">{errors.programmeId}</p>}
-          </div>
+          {form.role === 'student' && (
+            <div>
+              <label htmlFor="programmeId" className="block text-sm font-medium text-slate-300 mb-1.5">Programme</label>
+              <select
+                id="programmeId"
+                value={form.programmeId}
+                onChange={(e) => setField('programmeId', e.target.value)}
+                className={fieldClass(!!errors.programmeId)}
+              >
+                <option value="" style={{ color: '#0f172a', backgroundColor: '#ffffff' }}>Select programme</option>
+                {programmes.map((p) => (
+                  <option key={p.id} value={p.id} style={{ color: '#0f172a', backgroundColor: '#ffffff' }}>
+                    {p.name}
+                  </option>
+                ))}
+              </select>
+              {errors.programmeId && <p className="mt-1 text-xs text-red-400">{errors.programmeId}</p>}
+            </div>
+          )}
 
           <button
             type="submit"

@@ -20,12 +20,15 @@ interface AuthState {
   register:        (input: RegisterInput) => Promise<void>;
 }
 
+export type SelfRegisterRole = 'student' | 'academic_supervisor' | 'company_supervisor';
+
 export interface RegisterInput {
-  firstName:   string;
-  lastName:    string;
-  email:       string;
-  password:    string;
-  programmeId: string;
+  firstName:    string;
+  lastName:     string;
+  email:        string;
+  password:     string;
+  role:         SelfRegisterRole;
+  programmeId?: string;
 }
 
 const AuthContext = createContext<AuthState | null>(null);
