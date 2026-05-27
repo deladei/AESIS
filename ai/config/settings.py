@@ -11,8 +11,11 @@ class Settings(BaseSettings):
     MONGO_URI: str = "mongodb://localhost:27017/aesis"
     REDIS_URL: str = "redis://localhost:6379/0"
 
-    OLLAMA_URL: str = "http://localhost:11434"
-    OLLAMA_MODEL: str = "mistral"
+    # Chatbot LLM — Groq (OpenAI-compatible). Free tier: ~14.4k req/day.
+    # Get a key at https://console.groq.com → leave blank to force fallback responses.
+    GROQ_API_KEY: str = ""
+    GROQ_BASE_URL: str = "https://api.groq.com/openai/v1"
+    GROQ_MODEL: str = "llama-3.1-8b-instant"
 
     EMBEDDING_MODEL: str = "all-MiniLM-L6-v2"
 

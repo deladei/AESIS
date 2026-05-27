@@ -77,6 +77,10 @@ services:
         sync: false
       - key: CELERY_BROKER_URL
         sync: false
+      - key: GROQ_API_KEY
+        sync: false
+      - key: GROQ_MODEL
+        value: llama-3.1-8b-instant
 
   # ── Celery Worker (background, same Docker image) ──────────────────────────
   - type: worker

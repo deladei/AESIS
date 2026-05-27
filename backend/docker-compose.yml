@@ -8,7 +8,7 @@ services:
       POSTGRES_PASSWORD: aisystem1234
       POSTGRES_DB:       aisystem_db
     ports:
-      - '5432:5432'
+      - '5433:5432'  # host 5433 → container 5432 (host 5432 is held by system postgres@18)
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:
@@ -18,7 +18,9 @@ services:
       retries: 5
 
   mongo:
-    image: mongo:7
+    # 4.4 is the last release that doesn't require AVX CPU instructions.
+    # Mongo 5+ crashes on this host's Celeron N4000.
+    image: mongo:4.4
     container_name: aesis_mongo
     restart: unless-stopped
     environment:
@@ -28,7 +30,8 @@ services:
     volumes:
       - mongo_data:/data/db
     healthcheck:
-      test: ['CMD', 'mongosh', '--eval', "db.adminCommand('ping')"]
+      # mongo 4.4 ships the legacy `mongo` shell, not `mongosh`.
+      test: ['CMD', 'mongo', '--quiet', '--eval', "db.adminCommand('ping')"]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -39,7 +42,7 @@ services:
     restart: unless-stopped
     command: redis-server --maxmemory 256mb --maxmemory-policy allkeys-lru
     ports:
-      - '6379:6379'
+      - '6380:6379'  # host 6380 → container 6379 (host 6379 is held by system redis-server)
     volumes:
       - redis_data:/data
     healthcheck:
@@ -67,7 +70,8 @@ services:
     volumes:
       - ai_models:/tmp  # cache downloaded models + FAISS indices
     healthcheck:
-      test: ['CMD-SHELL', 'curl -f http://localhost:8000/health || exit 1']
+      # python:3.11-slim has no curl — use urllib (always available).
+      test: ['CMD', 'python', '-c', 'import urllib.request,sys; sys.exit(0 if urllib.request.urlopen("http://localhost:8000/health", timeout=3).status == 200 else 1)']
       interval: 30s
       timeout: 10s
       retries: 5

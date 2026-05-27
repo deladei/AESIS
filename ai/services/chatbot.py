@@ -1,8 +1,8 @@
 """
 RAG chatbot — AESIS Assistant.
-Uses sentence-transformers for embeddings + FAISS for retrieval + Ollama for generation.
-Ollama is free and runs locally (https://ollama.com).
-Falls back to a template response if Ollama is not reachable.
+Embeddings via sentence-transformers + retrieval via FAISS + generation via Groq
+(OpenAI-compatible HTTP API). Falls back to a static response if Groq is unreachable
+or no API key is configured.
 """
 import os
 import json
@@ -26,11 +26,6 @@ SYSTEM_PROMPT = """You are AESIS Assistant, an academic internship support chatb
 - General questions about their placement and academic expectations
 
 Be concise, supportive, and academic in tone. If asked about specific marks or grades, explain you don't have access to that information. Never fabricate technical facts."""
-
-_FALLBACK_RESPONSES = [
-    "I'm having trouble connecting to my AI backend right now. Please try again in a moment.",
-    "It looks like the language model is currently unavailable. Check with your supervisor or coordinator if you need urgent assistance.",
-]
 
 
 class ChatbotService:
@@ -103,8 +98,8 @@ class ChatbotService:
 
     async def chat(self, session_id: str, user_message: str, history: list[dict]) -> AsyncIterator[str]:
         """
-        Stream a response token-by-token.
-        Falls back gracefully if Ollama is not running.
+        Stream a response token-by-token from Groq's OpenAI-compatible chat completions
+        endpoint. Falls back to a static message if no API key is set or the request fails.
         """
         context_passages = self._retrieve(user_message, k=5)
         context = "\n".join(f"- {p}" for p in context_passages)
@@ -120,37 +115,54 @@ class ChatbotService:
             messages.append({"role": turn["role"], "content": turn["content"]})
         messages.append({"role": "user", "content": user_message})
 
+        if not settings.GROQ_API_KEY:
+            yield (
+                "The chatbot is not configured yet — no GROQ_API_KEY is set. "
+                "Ask an administrator to add a free key from https://console.groq.com. "
+                "In the meantime, your supervisor and coordinator are available to help."
+            )
+            return
+
         try:
             async with httpx.AsyncClient(timeout=60.0) as client:
                 async with client.stream(
                     "POST",
-                    f"{settings.OLLAMA_URL}/api/chat",
+                    f"{settings.GROQ_BASE_URL}/chat/completions",
+                    headers={
+                        "Authorization": f"Bearer {settings.GROQ_API_KEY}",
+                        "Content-Type":  "application/json",
+                    },
                     json={
-                        "model":    settings.OLLAMA_MODEL,
+                        "model":    settings.GROQ_MODEL,
                         "messages": messages,
                         "stream":   True,
                     },
                 ) as resp:
                     resp.raise_for_status()
                     async for line in resp.aiter_lines():
-                        if not line:
+                        if not line or not line.startswith("data:"):
                             continue
+                        payload = line[len("data:"):].strip()
+                        if payload == "[DONE]":
+                            break
                         try:
-                            chunk = json.loads(line)
-                            token = chunk.get("message", {}).get("content", "")
+                            chunk = json.loads(payload)
+                            choices = chunk.get("choices") or []
+                            if not choices:
+                                continue
+                            token = choices[0].get("delta", {}).get("content", "")
                             if token:
                                 yield token
-                            if chunk.get("done"):
+                            if choices[0].get("finish_reason"):
                                 break
                         except json.JSONDecodeError:
                             continue
 
         except (httpx.ConnectError, httpx.TimeoutException, httpx.HTTPStatusError):
             yield (
-                "I'm currently unable to connect to the language model. "
-                "Please ensure Ollama is running (`ollama serve`) and that the "
-                f"`{settings.OLLAMA_MODEL}` model is available (`ollama pull {settings.OLLAMA_MODEL}`). "
-                "In the meantime, your supervisor and coordinator are available to help."
+                "I'm currently unable to reach the language model service. "
+                "Please try again in a moment. If the problem persists, "
+                "your supervisor and coordinator are available to help."
             )
 
 
