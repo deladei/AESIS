@@ -9,73 +9,16 @@ function makeStore(prefix: string) {
   });
 }
 
-// Global: 100 req / 15 min / IP
-export const globalRateLimiter = rateLimit({
+// AI chat / inference: 30 req / 15 min / IP — Groq free tier is 14.4k req/day.
+export const aiRateLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
-  max: 100,
+  max: 30,
   standardHeaders: true,
   legacyHeaders: false,
-  store: makeStore('aesis:rl:global:'),
-  skip: (_req, res) => res.headersSent, // skip if already handled
+  store: makeStore('aesis:rl:ai:'),
   message: {
     status: 'error',
     code: 'RATE_LIMITED',
-    message: 'Too many requests. Please try again later.',
-  },
-});
-
-// Login: 5 attempts / 15 min / IP
-export const loginRateLimiter = rateLimit({
-  windowMs: 15 * 60 * 1000,
-  max: 5,
-  standardHeaders: true,
-  legacyHeaders: false,
-  store: makeStore('aesis:rl:login:'),
-  message: {
-    status: 'error',
-    code: 'RATE_LIMITED',
-    message: 'Too many login attempts. Please try again in 15 minutes.',
-  },
-});
-
-// Register: 10 attempts / hour / IP
-export const registerRateLimiter = rateLimit({
-  windowMs: 60 * 60 * 1000,
-  max: 10,
-  standardHeaders: true,
-  legacyHeaders: false,
-  store: makeStore('aesis:rl:register:'),
-  message: {
-    status: 'error',
-    code: 'RATE_LIMITED',
-    message: 'Too many registration attempts. Please try again later.',
-  },
-});
-
-// Password reset: 5 attempts / hour / IP
-export const resetPasswordRateLimiter = rateLimit({
-  windowMs: 60 * 60 * 1000,
-  max: 5,
-  standardHeaders: true,
-  legacyHeaders: false,
-  store: makeStore('aesis:rl:reset:'),
-  message: {
-    status: 'error',
-    code: 'RATE_LIMITED',
-    message: 'Too many password reset attempts. Please try again in an hour.',
-  },
-});
-
-// Other auth routes (refresh, logout): 120 / 15 min / IP
-export const authRateLimiter = rateLimit({
-  windowMs: 15 * 60 * 1000,
-  max: 120,
-  standardHeaders: true,
-  legacyHeaders: false,
-  store: makeStore('aesis:rl:auth:'),
-  message: {
-    status: 'error',
-    code: 'RATE_LIMITED',
-    message: 'Too many requests. Please try again later.',
+    message: 'Too many AI requests. Please wait a few minutes and try again.',
   },
 });

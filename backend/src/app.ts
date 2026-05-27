@@ -2,7 +2,6 @@ import express from 'express';
 import cors from 'cors';
 import helmet from 'helmet';
 import cookieParser from 'cookie-parser';
-import { globalRateLimiter } from './middleware/rateLimiter';
 import { requestLogger } from './middleware/requestLogger';
 import { globalErrorHandler } from './middleware/errorHandler';
 import { env } from './config/env';
@@ -58,13 +57,10 @@ export function createApp() {
   // ── Logging ───────────────────────────────────────────────────
   app.use(requestLogger);
 
-  // ── Health check (before rate limiter — must not be throttled by load balancers/Docker) ──
+  // ── Health check ──────────────────────────────────────────────
   app.get('/health', (_req, res) => {
     res.json({ status: 'ok', service: 'aesis-api', timestamp: new Date().toISOString() });
   });
-
-  // ── Global rate limiter ───────────────────────────────────────
-  app.use(globalRateLimiter);
 
   // ── API routes ────────────────────────────────────────────────
   app.use('/api/v1/auth',          authRouter);
