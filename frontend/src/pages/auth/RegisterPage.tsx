@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { Link } from 'react-router-dom';
 import { Eye, EyeOff, Loader2, CheckCircle2, GraduationCap, BookOpen, Briefcase, ChevronDown, Check } from 'lucide-react';
 import { useAuth, type SelfRegisterRole } from '@/contexts/AuthContext';
@@ -38,7 +38,9 @@ export default function RegisterPage() {
   const [programmeOpen, setProgrammeOpen] = useState(false);
   const [programmeLoadError, setProgrammeLoadError] = useState(false);
   const [programmesLoading, setProgrammesLoading] = useState(true);
+  const [programmePlacement, setProgrammePlacement] = useState<'below' | 'above'>('below');
   const programmeRef = useRef<HTMLDivElement>(null);
+  const programmeButtonRef = useRef<HTMLButtonElement>(null);
   const [form, setForm] = useState<FormState>({
     firstName:   '',
     lastName:    '',
@@ -68,6 +70,16 @@ export default function RegisterPage() {
 
   useEffect(() => { loadProgrammes(); }, []);
 
+  const computeProgrammePlacement = useCallback(() => {
+    const btn = programmeButtonRef.current;
+    if (!btn) return;
+    const rect = btn.getBoundingClientRect();
+    const DROPDOWN_MAX_H = 240; // matches Tailwind max-h-60 (15rem)
+    const spaceBelow = window.innerHeight - rect.bottom;
+    const spaceAbove = rect.top;
+    setProgrammePlacement(spaceBelow < DROPDOWN_MAX_H && spaceAbove > spaceBelow ? 'above' : 'below');
+  }, []);
+
   useEffect(() => {
     if (!programmeOpen) return;
     const onClickOutside = (e: MouseEvent) => {
@@ -76,13 +88,18 @@ export default function RegisterPage() {
       }
     };
     const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') setProgrammeOpen(false); };
+    const onReposition = () => computeProgrammePlacement();
     document.addEventListener('mousedown', onClickOutside);
     document.addEventListener('keydown', onKey);
+    window.addEventListener('scroll', onReposition, true);
+    window.addEventListener('resize', onReposition);
     return () => {
       document.removeEventListener('mousedown', onClickOutside);
       document.removeEventListener('keydown', onKey);
+      window.removeEventListener('scroll', onReposition, true);
+      window.removeEventListener('resize', onReposition);
     };
-  }, [programmeOpen]);
+  }, [programmeOpen, computeProgrammePlacement]);
 
   const validate = () => {
     const e: Partial<Record<keyof FormState, string>> = {};
@@ -271,8 +288,12 @@ export default function RegisterPage() {
               <label className="block text-sm font-medium text-slate-300 mb-1.5">Programme</label>
               <div className="relative">
                 <button
+                  ref={programmeButtonRef}
                   type="button"
-                  onClick={() => setProgrammeOpen((o) => !o)}
+                  onClick={() => {
+                    if (!programmeOpen) computeProgrammePlacement();
+                    setProgrammeOpen((o) => !o);
+                  }}
                   aria-haspopup="listbox"
                   aria-expanded={programmeOpen}
                   className={`${fieldClass(!!errors.programmeId)} flex items-center justify-between text-left cursor-pointer`}
@@ -285,7 +306,9 @@ export default function RegisterPage() {
                 {programmeOpen && (
                   <ul
                     role="listbox"
-                    className="absolute z-20 mt-1.5 w-full max-h-60 overflow-auto rounded-lg bg-slate-800 border border-slate-700 shadow-xl scrollbar-thin py-1"
+                    className={`absolute z-20 w-full max-h-60 overflow-auto rounded-lg bg-slate-800 border border-slate-700 shadow-xl scrollbar-thin py-1 ${
+                      programmePlacement === 'above' ? 'bottom-full mb-1.5' : 'top-full mt-1.5'
+                    }`}
                   >
                     {programmesLoading ? (
                       <li className="flex items-center gap-2 px-4 py-2.5 text-sm text-slate-400">
