@@ -29,6 +29,14 @@ api.interceptors.response.use(
   (res) => res,
   async (err) => {
     const original = err.config as AxiosRequestConfig & { _retry?: boolean };
+
+    // A 401 from /auth/refresh just means "no valid session" (e.g. fresh visitor on
+    // /auth/register, or expired refresh cookie). Don't try to refresh-the-refresh
+    // and don't redirect — let the caller handle it.
+    if (typeof original.url === 'string' && original.url.includes('/auth/refresh')) {
+      return Promise.reject(err);
+    }
+
     if (err.response?.status !== 401 || original._retry) return Promise.reject(err);
 
     original._retry = true;
@@ -49,9 +57,11 @@ api.interceptors.response.use(
       if (original.headers) original.headers.Authorization = `Bearer ${token}`;
       return api(original);
     } catch {
-      // Refresh failed — force logout
       setAccessToken(null);
-      window.location.href = '/auth/login';
+      // Already on a public auth page (login/register/forgot)? Don't yank the user away.
+      if (!window.location.pathname.startsWith('/auth/')) {
+        window.location.href = '/auth/login';
+      }
       return Promise.reject(err);
     }
   },
