@@ -52,9 +52,14 @@ export default function RegisterPage() {
   const loadProgrammes = () => {
     setProgrammesLoading(true);
     setProgrammeLoadError(false);
-    // Public endpoint — use plain fetch without credentials so Brave/Safari
-    // strict cross-origin cookie policies don't block it.
-    fetch(PROGRAMMES_URL, { credentials: 'omit', headers: { Accept: 'application/json' } })
+    // Public endpoint — plain fetch, no credentials, no cache. Cache-busting
+    // param defeats any stale cached response from before the backend CORP fix.
+    fetch(`${PROGRAMMES_URL}?_=${Date.now()}`, {
+      credentials: 'omit',
+      cache: 'no-store',
+      mode: 'cors',
+      headers: { Accept: 'application/json' },
+    })
       .then((r) => { if (!r.ok) throw new Error(String(r.status)); return r.json(); })
       .then((body: { data: { programmes: Programme[] } }) => setProgrammes(body.data.programmes))
       .catch(() => setProgrammeLoadError(true))

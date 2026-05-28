@@ -88,5 +88,6 @@ export async function programmesHandler(_req: Request, res: Response) {
     select: { id: true, name: true, code: true },
     orderBy: { name: 'asc' },
   });
+  res.setHeader('Cache-Control', 'no-store');
   return ok(res, { programmes });
 }
