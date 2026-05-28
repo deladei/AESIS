@@ -35,6 +35,8 @@ export default function RegisterPage() {
   const [success, setSuccess] = useState(false);
   const [programmes, setProgrammes] = useState<Programme[]>([]);
   const [programmeOpen, setProgrammeOpen] = useState(false);
+  const [programmeLoadError, setProgrammeLoadError] = useState(false);
+  const [programmesLoading, setProgrammesLoading] = useState(true);
   const programmeRef = useRef<HTMLDivElement>(null);
   const [form, setForm] = useState<FormState>({
     firstName:   '',
@@ -46,11 +48,16 @@ export default function RegisterPage() {
   });
   const [errors, setErrors] = useState<Partial<Record<keyof FormState, string>>>({});
 
-  useEffect(() => {
+  const loadProgrammes = () => {
+    setProgrammesLoading(true);
+    setProgrammeLoadError(false);
     api.get<{ data: { programmes: Programme[] } }>('/auth/programmes')
       .then((r) => setProgrammes(r.data.data.programmes))
-      .catch(() => {});
-  }, []);
+      .catch(() => setProgrammeLoadError(true))
+      .finally(() => setProgrammesLoading(false));
+  };
+
+  useEffect(() => { loadProgrammes(); }, []);
 
   useEffect(() => {
     if (!programmeOpen) return;
@@ -271,8 +278,23 @@ export default function RegisterPage() {
                     role="listbox"
                     className="absolute z-20 mt-1.5 w-full max-h-60 overflow-auto rounded-lg bg-slate-800 border border-slate-700 shadow-xl scrollbar-thin py-1"
                   >
-                    {programmes.length === 0 ? (
-                      <li className="px-4 py-2.5 text-sm text-slate-500">Loading programmes…</li>
+                    {programmesLoading ? (
+                      <li className="flex items-center gap-2 px-4 py-2.5 text-sm text-slate-400">
+                        <Loader2 className="w-3.5 h-3.5 animate-spin" /> Loading programmes…
+                      </li>
+                    ) : programmeLoadError ? (
+                      <li className="px-4 py-2.5 text-sm">
+                        <p className="text-red-400 mb-1.5">Couldn't load programmes.</p>
+                        <button
+                          type="button"
+                          onClick={(e) => { e.stopPropagation(); loadProgrammes(); }}
+                          className="text-blue-400 hover:text-blue-300 underline underline-offset-2 cursor-pointer"
+                        >
+                          Try again
+                        </button>
+                      </li>
+                    ) : programmes.length === 0 ? (
+                      <li className="px-4 py-2.5 text-sm text-slate-500">No programmes available</li>
                     ) : (
                       programmes.map((p) => {
                         const selected = p.id === form.programmeId;
