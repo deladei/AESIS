@@ -2,7 +2,8 @@ import { useState, useEffect, useRef } from 'react';
 import { Link } from 'react-router-dom';
 import { Eye, EyeOff, Loader2, CheckCircle2, GraduationCap, BookOpen, Briefcase, ChevronDown, Check } from 'lucide-react';
 import { useAuth, type SelfRegisterRole } from '@/contexts/AuthContext';
-import { api } from '@/lib/api';
+
+const PROGRAMMES_URL = `${import.meta.env.VITE_API_BASE_URL ?? ''}/api/v1/auth/programmes`;
 
 interface Programme { id: string; name: string; code: string; }
 
@@ -51,8 +52,11 @@ export default function RegisterPage() {
   const loadProgrammes = () => {
     setProgrammesLoading(true);
     setProgrammeLoadError(false);
-    api.get<{ data: { programmes: Programme[] } }>('/auth/programmes')
-      .then((r) => setProgrammes(r.data.data.programmes))
+    // Public endpoint — use plain fetch without credentials so Brave/Safari
+    // strict cross-origin cookie policies don't block it.
+    fetch(PROGRAMMES_URL, { credentials: 'omit', headers: { Accept: 'application/json' } })
+      .then((r) => { if (!r.ok) throw new Error(String(r.status)); return r.json(); })
+      .then((body: { data: { programmes: Programme[] } }) => setProgrammes(body.data.programmes))
       .catch(() => setProgrammeLoadError(true))
       .finally(() => setProgrammesLoading(false));
   };
