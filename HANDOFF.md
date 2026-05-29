@@ -743,11 +743,21 @@ User report: a newly-registered account couldn't log in — backend kept returni
 |---|---|
 | User asked whether the system was rejecting non-`.edu` / non-`.ng` emails | Grepped `backend/src` — `institutionalEmail` is defined but unused; auth uses plain `z.string().email()`. No restriction. Documented in this entry so it doesn't get re-investigated next session |
 
+**Follow-up commit later in the same session** — first push only auto-verified NEW registrations. The user immediately reported that an account created BEFORE the fix still hit the "verify email" 403 wall. Second commit (`891ba52`) made `login()` skip the verification gate AND repair the row in-flight (`isVerified=true`, `verificationToken=null`) whenever `canSendEmail` is false. Now both new registrations and pre-existing locked-out accounts work — no DB intervention needed. Verification gate is still enforced when SendGrid IS configured.
+
+**Commits pushed to `origin/main`**
+
+| SHA | Message |
+|---|---|
+| `1df5408` | fix(auth): unblock fresh registrations from logging in on prod |
+| `891ba52` | fix(auth): auto-unlock pre-existing unverified accounts at login |
+
+**Verified on prod** — user reported the register → login flow works after the second deploy landed.
+
 **Stopped here — next session should**
-1. After Render finishes redeploying `aesis-backend` (auto-build from this push, ~3–5 min), re-test the register → login flow from the iPhone. New users should log in immediately without an email-verification step.
-2. **Existing locked-out users** (anyone who registered on prod before this commit) are still sitting in the DB with `is_verified=false`. One-time cleanup: open Render Shell on `aesis-backend` and run `npx prisma db execute --stdin <<< "UPDATE users SET is_verified = true WHERE is_verified = false;"` (or hit the existing `/auth/verify-email` endpoint per user if a token is recoverable from logs — unlikely).
-3. If you later actually configure SendGrid on Render, the auto-verify path turns off and the verification-email flow resumes automatically — no code change needed.
-4. Resume Phase 9 punch list (chatbot smoke-test, mark phase ✅).
+1. **Dashboards.** User flagged this as the next focus area. Start with the student dashboard (`frontend/src/pages/student/StudentDashboard.tsx`) — already wired to `useSupervisorDashboard`/`useCoordinatorDashboard` hooks. Confirm prod data shape matches the rendered components, then move on to Supervisor + Coordinator dashboards.
+2. If SendGrid ever gets configured on Render, the auto-verify path turns off automatically — no code change needed. Just be aware that newly registered users will then need to click the verification link before they can log in.
+3. Eventually mark Phase 9 ✅ once chatbot smoke-test from deployed `ChatbotPanel` is done (carryover from Session 10).
 
 ---
 
