@@ -671,6 +671,86 @@ Secondary finding while debugging: the API returned 6 programmes but `seed.ts` o
 
 ---
 
+### Session 12 — 2026-05-27
+
+**Work done** — Made programme-load failures visible on `/auth/register`, pushed Session 11 + 12 commits to `main`
+
+Context reset: user reported the programme dropdown was still empty after Session 11's fix. Drilling into their DevTools output revealed they were testing on **production** — `https://aesis.vercel.app/` calling `https://aesis.onrender.com/api/v1/auth/programmes` from Brave on iOS 18.5 — not the local dev box I'd been diagnosing all of Session 11. Phase 9 deploy did happen at some point (Vercel + Render are both live). So Session 11's local "native select won't open" theory was likely wrong-target: the iPhone user was almost certainly seeing the native select open into iOS's wheel picker with only "Select programme" inside because the `/auth/programmes` fetch had failed silently.
+
+Verified prod is healthy: `--resolve aesis.onrender.com:443:216.24.57.251` (had to bypass local `/etc/hosts` override that points `aesis.onrender.com → 127.0.0.1` on this box — source of the override is unknown, not in `/etc/hosts` directly) → backend returns 200 with **4** programmes (BSC-CS, BSC-CY, BSC-IT, BSC-SE) in <1s once warm. CORS headers correct: `access-control-allow-origin: https://aesis.vercel.app`, `access-control-allow-credentials: true`. So the failure on iPhone is almost certainly Render-free-tier cold-start (~30s on first hit after 15min idle) — `withCredentials: true` cross-origin from Brave Shields is a secondary suspect.
+
+| File | What |
+|---|---|
+| `frontend/src/pages/auth/RegisterPage.tsx` | Replaced silent `.catch(() => {})` with proper state: added `programmesLoading` + `programmeLoadError`, extracted `loadProgrammes()` so it can be re-invoked. Dropdown panel now branches: spinner + "Loading programmes…" while pending → red "Couldn't load programmes" with a "Try again" link on error (which re-runs `loadProgrammes()` — re-clicking after Render warms up should succeed without a full page reload) → "No programmes available" if the API genuinely returns `[]` → otherwise the list. The error link uses `e.stopPropagation()` so it doesn't trip the outside-click handler that closes the dropdown |
+
+**Commits pushed to `origin/main`**
+
+| SHA | Message |
+|---|---|
+| `3910a4f` | fix(register): custom programme dropdown + canonical seed cleanup (Session 11) |
+| `bbe4281` | fix(register): surface programme-load failures instead of swallowing them (Session 12) |
+
+Vercel auto-builds from `main` (~1–2 min); Render auto-builds (~3–5 min).
+
+**Investigation notes (no code change)**
+
+| Observation | Detail |
+|---|---|
+| Prod DB has only 4 programmes (BSC-CS, BSC-CY, BSC-IT, BSC-SE) | Session 11's seed change adds BSC-DS + prunes orphans, but `render.yaml` `startCommand` is only `npx prisma migrate deploy && node dist/server.js` — seeding is not part of deploy. Must be run manually via Render Shell after this deploy lands |
+| Local `aesis.onrender.com` resolves to `127.0.0.1` on this box | `grep` of `/etc/hosts` finds nothing; `getent hosts` still returns `127.0.0.1`. Likely systemd-resolved cache or another nsswitch source. Workaround: `curl --resolve aesis.onrender.com:443:<render-ip>`. Not blocking, but flag it if future debugging hits the same wall |
+| User's report "select isn't working" likely meant the iOS picker opened with only the placeholder | iOS native `<select>` always opens a wheel picker; "won't open" was probably "won't show choices" — easy to misread as a click issue. Lesson: when the user reports a UI symptom, ask if they're on local or prod **first** before diving into the wrong codebase |
+
+**Errors & fixes**
+
+| Error | Fix |
+|---|---|
+| Session 11 entire diagnosis aimed at local dev box (Brave on Linux) | Was wrong target. User had been testing iPhone/prod the whole time. Session 11's custom dropdown is still a useful UX upgrade on dark themes, but it didn't address the actual prod failure (silent fetch error) until this session's catch fix |
+| `curl https://aesis.onrender.com/health` returned `HTTP 000 — Could not connect` from this dev box | `aesis.onrender.com` resolves to `127.0.0.1` locally; nothing on local :443. Used `--resolve` flag with the Render-published GCP IP (216.24.57.251) to bypass |
+
+**Stopped here — next session should**
+1. **Manually re-seed prod DB.** After Render finishes redeploying `aesis-backend` (the push triggered an auto-build), open Render dashboard → `aesis-backend` → Shell → run `npm run db:seed` once. Expected output: `✓ Programmes: 5 created` and (if any orphans remain on prod, unlikely) `✓ Pruned N orphan programme(s): …`. Prod will then match local — 5 canonical programmes
+2. **Confirm prod dropdown works** on the iPhone after Vercel finishes redeploying. Full page reload (not just refresh). If it shows the spinner then 5 programmes, done. If it shows "Couldn't load programmes — Try again", tap retry once (Render should be warm by then). If still failing, the next hypothesis is Brave Shields blocking `withCredentials` cross-origin → test in Safari to isolate
+3. **Optional but recommended:** add a keep-warm pinger to avoid Render cold-starts hitting first-time visitors. Cheapest path: GitHub Actions cron hitting `/health` every 10min, or UptimeRobot free tier
+4. **Resume the rest of Phase 9 punch list** (see Session 10 entry) — smoke-test chatbot streaming from deployed `ChatbotPanel`, mark Phase 9 ✅ in the phase tracker once these dangling items close
+
+---
+
+### Session 13 — 2026-05-29
+
+**Work done** — Fixed "Invalid email or password" after fresh registration on prod
+
+User report: a newly-registered account couldn't log in — backend kept returning what the UI rendered as "Invalid email or password." The actual flow turned out to be two bugs stacked, not a credential mismatch.
+
+**Root cause**
+
+1. `auth.service.register` set `isVerified: isDevMode`, which is **false** in prod regardless of whether `SENDGRID_API_KEY` is actually configured. `render.yaml` has `SENDGRID_API_KEY` as `sync: false` (never set in the dashboard), so every prod registration was created with `isVerified: false` and no verification email was ever sent. Login then short-circuited with **403 — "Please verify your email"**.
+2. `LoginPage.tsx` collapsed `401 || 403` into a single `setError('Invalid email or password.')` branch, so the user saw a credential-mismatch message when the real problem was the verification gate.
+
+| File | What |
+|---|---|
+| `backend/src/modules/auth/auth.service.ts` | Replaced `const isDevMode = env.NODE_ENV === 'development'` with `canSendEmail = env.NODE_ENV === 'production' && !!env.SENDGRID_API_KEY` and `autoVerify = !canSendEmail`. Auto-verification now kicks in whenever the system can't reliably send mail — dev, or prod without a SendGrid key — so users can't get stranded between registration and an email that will never arrive. The verification-email path is unchanged for the case where SendGrid IS configured |
+| `backend/src/modules/auth/auth.schema.ts` | Extracted a shared `emailField = z.string().trim().toLowerCase().pipe(z.string().email())` used by register/login/reset-password. Defensive — paste-with-whitespace or mixed-case can never cause a register-stores-X / login-looks-up-Y mismatch again |
+| `frontend/src/pages/auth/LoginPage.tsx` | Split the 401 / 403 branches. 401 still reads "Invalid email or password." 403 surfaces the backend `message` field (so users see the real reason — "Please verify your email…" — instead of a misleading credential error) |
+| `backend/src/modules/auth/__tests__/*.test.ts` | Added `role: 'student'` to the register test inputs to match the now-required field on the schema |
+
+**No email-domain restriction exists.** `shared/validators/common.ts` exports an `institutionalEmail` validator (`email().refine(no '+')`), but it is not used anywhere in `auth/`. Register and login accept any valid email — `@gmail.com`, `@yahoo.com`, anything — confirmed by grep across `backend/src`.
+
+**Quality gate**: `tsc --noEmit` clean. 31/31 auth tests green. Full suite started but Celeron N4000 went into swap-thrash on the full run (same wall as Sessions 9/10) — only auth was touched, so the scoped pass is sufficient.
+
+**Errors & fixes**
+
+| Error | Fix |
+|---|---|
+| User asked whether the system was rejecting non-`.edu` / non-`.ng` emails | Grepped `backend/src` — `institutionalEmail` is defined but unused; auth uses plain `z.string().email()`. No restriction. Documented in this entry so it doesn't get re-investigated next session |
+
+**Stopped here — next session should**
+1. After Render finishes redeploying `aesis-backend` (auto-build from this push, ~3–5 min), re-test the register → login flow from the iPhone. New users should log in immediately without an email-verification step.
+2. **Existing locked-out users** (anyone who registered on prod before this commit) are still sitting in the DB with `is_verified=false`. One-time cleanup: open Render Shell on `aesis-backend` and run `npx prisma db execute --stdin <<< "UPDATE users SET is_verified = true WHERE is_verified = false;"` (or hit the existing `/auth/verify-email` endpoint per user if a token is recoverable from logs — unlikely).
+3. If you later actually configure SendGrid on Render, the auto-verify path turns off and the verification-email flow resumes automatically — no code change needed.
+4. Resume Phase 9 punch list (chatbot smoke-test, mark phase ✅).
+
+---
+
 ## Handoff Entry Template
 
 ```markdown

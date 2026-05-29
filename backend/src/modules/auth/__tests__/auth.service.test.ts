@@ -65,6 +65,7 @@ describe('authService.register', () => {
     lastName:    'Okonkwo',
     email:       'student@cs.edu',
     password:    'Password@123',
+    role:        'student' as const,
     programmeId: 'prog-uuid-1',
   };
 

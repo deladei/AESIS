@@ -63,6 +63,7 @@ describe('POST /auth/register', () => {
     password:    'Password@123',
     firstName:   'Ada',
     lastName:    'Okonkwo',
+    role:        'student',
     programmeId: '00000000-0000-0000-0000-000000000001',
   };
 

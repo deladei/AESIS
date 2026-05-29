@@ -55,7 +55,11 @@ export async function register(input: RegisterInput) {
   const passwordHash       = await bcrypt.hash(password, env.BCRYPT_ROUNDS);
   const verificationToken  = generateSecureToken();
 
-  const isDevMode = env.NODE_ENV === 'development';
+  // Auto-verify whenever we can't reliably send a verification email — i.e.
+  // dev (no SMTP) or prod without SENDGRID_API_KEY. Otherwise users would
+  // register, never get the email, and be stuck unable to log in.
+  const canSendEmail = env.NODE_ENV === 'production' && !!env.SENDGRID_API_KEY;
+  const autoVerify  = !canSendEmail;
 
   const user = await prisma.user.create({
     data: {
@@ -66,13 +70,13 @@ export async function register(input: RegisterInput) {
       role,
       departmentId,
       programmeId:        resolvedProgrammeId,
-      isVerified:         isDevMode, // auto-verify in development
-      verificationToken:  isDevMode ? null : verificationToken,
+      isVerified:         autoVerify,
+      verificationToken:  autoVerify ? null : verificationToken,
     },
     select: { id: true, email: true, firstName: true, lastName: true, role: true },
   });
 
-  if (!isDevMode) {
+  if (!autoVerify) {
     await sendEmail({
       to:      email,
       subject: 'Verify your AESIS account',

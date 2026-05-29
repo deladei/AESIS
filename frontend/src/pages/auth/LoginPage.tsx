@@ -25,15 +25,18 @@ export default function LoginPage() {
       };
       navigate(redirects[loggedInUser.role] ?? '/student/dashboard', { replace: true });
     } catch (err: any) {
-      const status = err?.response?.status;
+      const status     = err?.response?.status;
+      const apiMessage = err?.response?.data?.message;
       if (status === 429) {
         setError('Too many login attempts. Please wait 15 minutes and try again.');
-      } else if (status === 401 || status === 403) {
+      } else if (status === 401) {
         setError('Invalid email or password.');
+      } else if (status === 403) {
+        setError(apiMessage ?? 'Your account is not allowed to sign in.');
       } else if (!err?.response) {
         setError('Server is starting up — please wait 30 seconds and try again.');
       } else {
-        setError('Something went wrong. Please try again.');
+        setError(apiMessage ?? 'Something went wrong. Please try again.');
       }
     } finally {
       setLoading(false);
