@@ -116,8 +116,19 @@ export async function login(input: LoginInput, ipAddress?: string) {
   if (!user || !passwordMatch) {
     throw new AppError(401, 'Invalid email or password');
   }
+  // Only gate on email verification when SendGrid is actually configured.
+  // Otherwise users who registered before the auto-verify fix (or whose
+  // verification email never arrived) would be permanently locked out.
+  // On unlock-by-login, persist isVerified=true so the row stays clean.
+  const canSendEmail = env.NODE_ENV === 'production' && !!env.SENDGRID_API_KEY;
   if (!user.isVerified) {
-    throw new AppError(403, 'Please verify your email address before signing in');
+    if (canSendEmail) {
+      throw new AppError(403, 'Please verify your email address before signing in');
+    }
+    await prisma.user.update({
+      where: { id: user.id },
+      data:  { isVerified: true, verificationToken: null },
+    });
   }
 
   const accessToken               = signAccessToken({ sub: user.id, role: user.role });

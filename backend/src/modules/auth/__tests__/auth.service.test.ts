@@ -137,11 +137,47 @@ describe('authService.login', () => {
     ).rejects.toMatchObject({ statusCode: 401 });
   });
 
-  it('throws 403 if email not verified', async () => {
+  it('auto-unlocks an unverified user when SendGrid is not configured', async () => {
+    // env mock has NODE_ENV='test' + no SENDGRID_API_KEY → canSendEmail=false,
+    // so the verification gate is skipped and the row is repaired in-flight.
     (mockPrisma.user.findUnique as jest.Mock).mockResolvedValue(fakeUser({ isVerified: false }));
+    (mockPrisma.refreshToken.create as jest.Mock).mockResolvedValue({});
+    (mockPrisma.user.update as jest.Mock).mockResolvedValue({});
+
+    const result = await authService.login({ email: 'student@cs.edu', password: 'Password@123' });
+
+    expect(result).toHaveProperty('accessToken');
+    expect(mockPrisma.user.update).toHaveBeenCalledWith(
+      expect.objectContaining({ data: expect.objectContaining({ isVerified: true, verificationToken: null }) })
+    );
+  });
+
+  it('throws 403 for unverified user when SendGrid is configured (prod with mail)', async () => {
+    // Re-import the service against an env where the verification gate IS active.
+    jest.resetModules();
+    jest.doMock('../../../config/env', () => ({
+      env: {
+        NODE_ENV:                  'production',
+        SENDGRID_API_KEY:          'SG.fake-for-test',
+        BCRYPT_ROUNDS:             4,
+        REFRESH_TOKEN_EXPIRY_DAYS: 7,
+        JWT_SECRET:                'test_secret_at_least_32_characters_long',
+        JWT_EXPIRY:                '15m',
+        FRONTEND_URL:              'http://localhost:5173',
+        EMAIL_FROM:                'test@aesis.edu',
+        EMAIL_FROM_NAME:           'AESIS Test',
+      },
+    }));
+    const prodAuthService = await import('../auth.service');
+    const { prisma: prodPrisma } = await import('../../../config/prisma');
+    (prodPrisma.user.findUnique as jest.Mock).mockResolvedValue(fakeUser({ isVerified: false }));
+
     await expect(
-      authService.login({ email: 'student@cs.edu', password: 'Password@123' })
+      prodAuthService.login({ email: 'student@cs.edu', password: 'Password@123' })
     ).rejects.toMatchObject({ statusCode: 403 });
+
+    jest.dontMock('../../../config/env');
+    jest.resetModules();
   });
 });
 
