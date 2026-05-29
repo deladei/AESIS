@@ -32,10 +32,10 @@ export function useSubmissions(placementId: string | undefined) {
     queryKey: ['logbook', 'submissions', placementId],
     enabled:  !!placementId,
     queryFn:  async () => {
-      const r = await api.get<{ data: { submissions: LogbookSubmission[] } }>(
+      const r = await api.get<{ data: LogbookSubmission[] }>(
         `/logbook/placements/${placementId}/submissions`,
       );
-      return r.data.data.submissions;
+      return r.data.data;
     },
   });
 }

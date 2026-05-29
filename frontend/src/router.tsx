@@ -1,6 +1,7 @@
 import { Navigate, createBrowserRouter, Outlet } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 import { AppShell } from '@/components/layout/AppShell';
+import { StudentShell } from '@/components/layout/StudentShell';
 
 import LoginPage         from '@/pages/auth/LoginPage';
 import RegisterPage      from '@/pages/auth/RegisterPage';
@@ -23,9 +24,18 @@ function RequireAuth({ roles }: { roles?: UserRole[] }) {
   if (roles && !roles.includes(user.role as UserRole)) return <Navigate to="/" replace />;
 
   const initials = `${user.firstName[0]}${user.lastName[0]}`.toUpperCase();
+  const shellUser = { name: `${user.firstName} ${user.lastName}`, email: user.email, initials };
+
+  if (user.role === 'student') {
+    return (
+      <StudentShell user={shellUser}>
+        <Outlet />
+      </StudentShell>
+    );
+  }
 
   return (
-    <AppShell role={user.role as UserRole} user={{ name: `${user.firstName} ${user.lastName}`, email: user.email, initials }}>
+    <AppShell role={user.role as UserRole} user={shellUser}>
       <Outlet />
     </AppShell>
   );
