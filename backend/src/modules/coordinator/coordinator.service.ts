@@ -125,3 +125,13 @@ export async function listStudents(filters: StudentListFilters) {
 
   return { students, meta: buildMeta(total, page, limit) };
 }
+
+// ── Supervisors (for assignment dropdowns) ────────────────────
+
+export async function listSupervisors() {
+  return prisma.user.findMany({
+    where:   { role: 'academic_supervisor' },
+    select:  { id: true, firstName: true, lastName: true, email: true },
+    orderBy: [{ firstName: 'asc' }, { lastName: 'asc' }],
+  });
+}

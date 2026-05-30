@@ -5,6 +5,7 @@ import { encryptPII } from '../../shared/utils/crypto';
 import type {
   CreatePlacementInput,
   UpdatePlacementStatusInput,
+  AssignSupervisorInput,
   CreateCompanyInput,
 } from './placements.schema';
 
@@ -198,6 +199,47 @@ export async function updatePlacementStatus(
         from:   placement.placementStatus,
         to:     input.status,
         reason: input.rejectionReason ?? null,
+      },
+    },
+  });
+
+  return updated;
+}
+
+// ── Coordinator: assign / reassign academic supervisor ────────
+
+export async function assignSupervisor(
+  placementId: string,
+  coordinatorId: string,
+  input: AssignSupervisorInput,
+) {
+  const placement = await prisma.placement.findUnique({ where: { id: placementId } });
+  if (!placement) throw new AppError(404, 'Placement not found');
+
+  const supervisor = await prisma.user.findUnique({ where: { id: input.supervisorId } });
+  if (!supervisor || supervisor.role !== 'academic_supervisor') {
+    throw new AppError(400, 'Selected user is not an academic supervisor');
+  }
+
+  const updated = await prisma.placement.update({
+    where: { id: placementId },
+    data:  { academicSupervisorId: input.supervisorId },
+    include: {
+      student:            { select: { id: true, firstName: true, lastName: true, email: true } },
+      academicSupervisor: { select: { id: true, firstName: true, lastName: true } },
+    },
+  });
+
+  await prisma.auditLog.create({
+    data: {
+      userId:     coordinatorId,
+      action:     'placement_status_change',
+      entityType: 'placement',
+      entityId:   placementId,
+      metadata:   {
+        change:           'supervisor_assigned',
+        fromSupervisorId: placement.academicSupervisorId ?? null,
+        toSupervisorId:   input.supervisorId,
       },
     },
   });

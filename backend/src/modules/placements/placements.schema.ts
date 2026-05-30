@@ -21,6 +21,10 @@ export const updatePlacementStatusSchema = z.object({
   { message: 'Rejection reason is required when rejecting a placement', path: ['rejectionReason'] },
 );
 
+export const assignSupervisorSchema = z.object({
+  supervisorId: z.string().uuid(),
+});
+
 export const createCompanySchema = z.object({
   name:     z.string().trim().min(2).max(200),
   address:  z.string().trim().max(500).optional(),
@@ -30,4 +34,5 @@ export const createCompanySchema = z.object({
 
 export type CreatePlacementInput       = z.infer<typeof createPlacementSchema>;
 export type UpdatePlacementStatusInput = z.infer<typeof updatePlacementStatusSchema>;
+export type AssignSupervisorInput      = z.infer<typeof assignSupervisorSchema>;
 export type CreateCompanyInput         = z.infer<typeof createCompanySchema>;

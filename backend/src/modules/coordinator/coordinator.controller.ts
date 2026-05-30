@@ -19,3 +19,8 @@ export async function students(req: Request, res: Response) {
   const result = await service.listStudents({ page, limit, riskTier });
   ok(res, result);
 }
+
+export async function supervisors(_req: Request, res: Response) {
+  const data = await service.listSupervisors();
+  ok(res, data);
+}

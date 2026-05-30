@@ -830,9 +830,33 @@ Action (per user's choice — "wire the 4 real students" to `theowalls@gmail.com
 
 **Connectivity note:** this box was on a phone hotspot (resolver `172.20.10.1`) and DNS for the Render PG host intermittently SERVFAIL'd. Workarounds that worked: `psql "host=<fqdn> hostaddr=35.227.164.209 …"` (SNI from `host`, skips DNS), and for Prisma/ts-node a `DATABASE_URL` pointed straight at the IP with `?sslmode=require` (encrypts without hostname verification). Render PG external IP at the time: **35.227.164.209** (may change; re-resolve if it moves).
 
+**Follow-up (same session) — coordinator "Assign Supervisor" UI**
+
+Goal: stop relying on seed scripts — let a coordinator assign a supervisor to any placement through the app so any supervisor's dashboard populates. Found that the backend assign-on-approval already existed but two gaps: no endpoint to list supervisors for a dropdown, no reassign path for already-active placements, and a **latent bug** (the approve/reject hook sent `placementStatus` but the controller parses `status` via Zod → every approve/reject would have 400'd; never hit because placements were seeded directly).
+
+Backend:
+| File | What |
+|---|---|
+| `coordinator.service.ts` / `.controller.ts` / `.router.ts` | `listSupervisors()` → `GET /api/v1/coordinator/supervisors` (coordinator/admin) — returns all `academic_supervisor` users `{id,firstName,lastName,email}` for dropdowns. |
+| `placements.schema.ts` | New `assignSupervisorSchema` (`{ supervisorId: uuid }`). |
+| `placements.service.ts` | New `assignSupervisor(placementId, coordinatorId, {supervisorId})` — validates placement exists + target is an academic supervisor, sets `academicSupervisorId` (works on any status, so it **reassigns** active placements too), writes an audit log. Reused existing `placement_status_change` AuditAction enum (with `metadata.change='supervisor_assigned'`) to avoid a prod migration. |
+| `placements.controller.ts` / `.router.ts` | `assignSupervisorHandler` → `PATCH /api/v1/placements/:id/supervisor` (coordinator/admin). |
+| `placements.service.test.ts` | +3 tests (assign happy path / 404 / non-supervisor 400). |
+
+Frontend:
+| File | What |
+|---|---|
+| `hooks/usePlacements.ts` | **Fixed the `status` bug** in `useUpdatePlacementStatus` (now sends `status` + optional `supervisorId`). Added `useSupervisors()` and `useAssignSupervisor()`. Added `academicSupervisor` to the `Placement` type. |
+| `pages/coordinator/SupervisorAssignment.tsx` | NEW page — lists placements (Active/Pending/All filter), shows current supervisor or "Unassigned", per-row dropdown + Assign/Reassign with saved state. Dark coordinator theme, no ALL-CAPS labels per the polish bar. |
+| `pages/coordinator/PlacementApproval.tsx` | Now lets the coordinator pick a supervisor at approval time (optional). |
+| `router.tsx` + `AppShell.tsx` | Route `/coordinator/assignments` + nav item "Assignments" (UserCheck icon). |
+
+Quality gate: frontend `tsc --noEmit` clean; backend `tsc --noEmit` clean; `jest placements` 30/30 (was 27 + 3 new). Full suite not run (Celeron swap-thrash) — only placements/coordinator touched.
+
 **Stopped here — next session should**
-1. Confirm in-browser on `aesis.vercel.app`: (a) log in as `theowalls@gmail.com` → supervisor board shows the 4 real students; (b) log in as one of the 4 gmail students → student dashboard shows progress + avg quality. Render free-tier cold-start may need one retry. Demo interns + Ghanaian names still live under `supervisor@aesis.cs.edu`.
-2. 🔐 Verify the user rotated the prod Postgres password (pasted into chat this session).
+1. After Render+Vercel redeploy, verify in-browser: log in as a **coordinator** → Assignments page → assign a supervisor to a placement → that supervisor's dashboard populates. (Prod coordinator account: see `seed.ts` — `coordinator@aesis.cs.edu`-style; confirm the exact email before relying on it.)
+2. Confirm the real-data wiring still renders: `theowalls@gmail.com` (4 students) and the 4 gmail students' dashboards. Demo interns + Ghanaian names still under `supervisor@aesis.cs.edu`.
+3. 🔐 Verify the user rotated the prod Postgres password (pasted into chat this session).
 2. Verify the user rotated the prod DB password.
 3. Carryover: chatbot smoke-test from deployed `ChatbotPanel`, then mark Phase 9 ✅.
 

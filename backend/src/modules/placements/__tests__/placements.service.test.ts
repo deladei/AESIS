@@ -336,3 +336,40 @@ describe('service.getPlacementDocuments', () => {
     expect(Array.isArray(result)).toBe(true);
   });
 });
+
+// ─────────────────────────────────────────────────────────────
+describe('service.assignSupervisor', () => {
+  const supervisorUser = {
+    ...fakeCSupervisor, id: 'sup-9', email: 'theo@gmail.com', role: 'academic_supervisor',
+  };
+
+  it('assigns the supervisor and writes an audit log', async () => {
+    (mp.placement.findUnique as jest.Mock).mockResolvedValue(fakePlacement);
+    (mp.user.findUnique as jest.Mock).mockResolvedValue(supervisorUser);
+    (mp.placement.update as jest.Mock).mockResolvedValue({ ...fakePlacement, academicSupervisorId: 'sup-9' });
+
+    const res = await service.assignSupervisor('pl-1', 'coord-1', { supervisorId: 'sup-9' });
+
+    expect(mp.placement.update).toHaveBeenCalledWith(expect.objectContaining({
+      where: { id: 'pl-1' },
+      data:  { academicSupervisorId: 'sup-9' },
+    }));
+    expect(mp.auditLog.create).toHaveBeenCalled();
+    expect(res.academicSupervisorId).toBe('sup-9');
+  });
+
+  it('throws 404 when the placement does not exist', async () => {
+    (mp.placement.findUnique as jest.Mock).mockResolvedValue(null);
+    await expect(service.assignSupervisor('missing', 'coord-1', { supervisorId: 'sup-9' }))
+      .rejects.toThrow(AppError);
+    expect(mp.placement.update).not.toHaveBeenCalled();
+  });
+
+  it('throws 400 when the target user is not an academic supervisor', async () => {
+    (mp.placement.findUnique as jest.Mock).mockResolvedValue(fakePlacement);
+    (mp.user.findUnique as jest.Mock).mockResolvedValue({ ...fakeCSupervisor, role: 'student' });
+    await expect(service.assignSupervisor('pl-1', 'coord-1', { supervisorId: 'student-x' }))
+      .rejects.toThrow(AppError);
+    expect(mp.placement.update).not.toHaveBeenCalled();
+  });
+});

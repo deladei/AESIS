@@ -1,15 +1,29 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { api } from '@/lib/api';
 
+export interface PlacementSupervisor {
+  id:        string;
+  firstName: string;
+  lastName:  string;
+}
+
 export interface Placement {
-  id:              string;
-  placementStatus: string;
-  studentId:       string;
-  student?:        { firstName: string; lastName: string; email: string };
-  company?:        { name: string };
-  startDate:       string | null;
-  endDate:         string | null;
-  createdAt:       string;
+  id:                   string;
+  placementStatus:      string;
+  studentId:            string;
+  student?:             { firstName: string; lastName: string; email: string };
+  company?:             { name: string };
+  academicSupervisor?:  PlacementSupervisor | null;
+  startDate:            string | null;
+  endDate:              string | null;
+  createdAt:            string;
+}
+
+export interface Supervisor {
+  id:        string;
+  firstName: string;
+  lastName:  string;
+  email:     string;
 }
 
 export function useMyPlacements() {
@@ -36,15 +50,42 @@ export function useAllPlacements(page = 1, status?: string) {
   });
 }
 
+/** Academic supervisors available for assignment (coordinator/admin only). */
+export function useSupervisors() {
+  return useQuery({
+    queryKey: ['coordinator', 'supervisors'],
+    queryFn:  async () => {
+      const r = await api.get<{ data: Supervisor[] }>('/coordinator/supervisors');
+      return r.data.data;
+    },
+  });
+}
+
 export function useUpdatePlacementStatus() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: ({ id, placementStatus, rejectionReason }: {
-      id: string; placementStatus: string; rejectionReason?: string;
-    }) => api.patch(`/placements/${id}/status`, { placementStatus, rejectionReason }),
+    // Backend expects `status` (+ optional supervisorId on approval, rejectionReason on reject)
+    mutationFn: ({ id, status, supervisorId, rejectionReason }: {
+      id: string; status: string; supervisorId?: string; rejectionReason?: string;
+    }) => api.patch(`/placements/${id}/status`, { status, supervisorId, rejectionReason }),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['placements'] });
       qc.invalidateQueries({ queryKey: ['coordinator'] });
+      qc.invalidateQueries({ queryKey: ['supervisor'] });
+    },
+  });
+}
+
+/** Assign or reassign the academic supervisor on any placement. */
+export function useAssignSupervisor() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, supervisorId }: { id: string; supervisorId: string }) =>
+      api.patch(`/placements/${id}/supervisor`, { supervisorId }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['placements'] });
+      qc.invalidateQueries({ queryKey: ['coordinator'] });
+      qc.invalidateQueries({ queryKey: ['supervisor'] });
     },
   });
 }

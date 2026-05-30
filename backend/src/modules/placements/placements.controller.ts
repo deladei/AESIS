@@ -2,6 +2,7 @@ import { Request, Response } from 'express';
 import {
   createPlacementSchema,
   updatePlacementStatusSchema,
+  assignSupervisorSchema,
   createCompanySchema,
 } from './placements.schema';
 import * as service from './placements.service';
@@ -33,6 +34,13 @@ export async function updatePlacementStatusHandler(req: Request, res: Response) 
   const { id }  = uuidParam.parse(req.params);
   const input   = updatePlacementStatusSchema.parse(req.body);
   const updated = await service.updatePlacementStatus(id, req.user!.sub, input);
+  return ok(res, updated);
+}
+
+export async function assignSupervisorHandler(req: Request, res: Response) {
+  const { id }  = uuidParam.parse(req.params);
+  const input   = assignSupervisorSchema.parse(req.body);
+  const updated = await service.assignSupervisor(id, req.user!.sub, input);
   return ok(res, updated);
 }
 

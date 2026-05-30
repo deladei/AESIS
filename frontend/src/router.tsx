@@ -15,6 +15,7 @@ import SupervisorDashboard from '@/pages/supervisor/SupervisorDashboard';
 import LogbookReview       from '@/pages/supervisor/LogbookReview';
 import CoordinatorDashboard from '@/pages/coordinator/CoordinatorDashboard';
 import PlacementApproval    from '@/pages/coordinator/PlacementApproval';
+import SupervisorAssignment from '@/pages/coordinator/SupervisorAssignment';
 
 type UserRole = 'student' | 'academic_supervisor' | 'coordinator' | 'admin';
 
@@ -95,6 +96,7 @@ export const router = createBrowserRouter([
     children: [
       { path: '/coordinator/dashboard',  element: <CoordinatorDashboard /> },
       { path: '/coordinator/placements', element: <PlacementApproval /> },
+      { path: '/coordinator/assignments', element: <SupervisorAssignment /> },
     ],
   },
 

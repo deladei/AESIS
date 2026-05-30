@@ -6,7 +6,7 @@ import { useUnreadCount } from '@/hooks/useNotifications';
 import {
   LayoutDashboard, BookOpen, Bell, MessageSquare, FileText,
   Users, ClipboardCheck, AlertTriangle, Building2, BarChart3,
-  Shield, ChevronLeft, ChevronRight, LogOut, Settings,
+  Shield, ChevronLeft, ChevronRight, LogOut, Settings, UserCheck,
 } from 'lucide-react';
 
 type UserRole = 'student' | 'academic_supervisor' | 'coordinator' | 'admin';
@@ -37,6 +37,7 @@ const navByRole: Record<UserRole, NavItem[]> = {
     { label: 'Cohort Dashboard', href: '/coordinator/dashboard', icon: LayoutDashboard },
     { label: 'Risk Alerts',      href: '/coordinator/alerts',    icon: AlertTriangle },
     { label: 'Placements',       href: '/coordinator/placements',icon: FileText },
+    { label: 'Assignments',      href: '/coordinator/assignments', icon: UserCheck },
     { label: 'Companies',        href: '/coordinator/companies', icon: Building2 },
     { label: 'Reports',          href: '/coordinator/reports',   icon: BarChart3 },
   ],

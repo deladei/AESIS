@@ -51,6 +51,12 @@ router.patch(
   asyncHandler(ctrl.updatePlacementStatusHandler),
 );
 
+router.patch(
+  '/:id/supervisor',
+  authorize('coordinator', 'admin'),
+  asyncHandler(ctrl.assignSupervisorHandler),
+);
+
 // ── Shared (student + supervisor + coordinator) ───────────────
 router.get(
   '/:id',

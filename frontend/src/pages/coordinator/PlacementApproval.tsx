@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { CheckCircle2, XCircle, Clock, Loader2, ChevronDown, ChevronUp } from 'lucide-react';
-import { useAllPlacements, useUpdatePlacementStatus } from '@/hooks/usePlacements';
+import { useAllPlacements, useUpdatePlacementStatus, useSupervisors } from '@/hooks/usePlacements';
 
 function InfoBlock({ label, value, sub }: { label: string; value: string; sub?: string }) {
   return (
@@ -18,25 +18,28 @@ function formatDate(iso: string | null) {
 }
 
 export default function PlacementApproval() {
-  const { data, isLoading } = useAllPlacements(1, 'pending');
+  const { data, isLoading }    = useAllPlacements(1, 'pending');
+  const { data: supervisors = [] } = useSupervisors();
   const updateStatus = useUpdatePlacementStatus();
 
   const [expanded, setExpanded]               = useState<string | null>(null);
   const [rejectionReasons, setRejectionReasons] = useState<Record<string, string>>({});
   const [showRejectInput, setShowRejectInput]   = useState<Record<string, boolean>>({});
   const [processed, setProcessed]               = useState<Record<string, 'approved' | 'rejected'>>({});
+  const [selectedSupervisor, setSelectedSupervisor] = useState<Record<string, string>>({});
 
   const placements = data?.placements ?? [];
 
   const approve = async (id: string) => {
-    await updateStatus.mutateAsync({ id, placementStatus: 'active' });
+    const supervisorId = selectedSupervisor[id] || undefined;
+    await updateStatus.mutateAsync({ id, status: 'active', supervisorId });
     setProcessed((prev) => ({ ...prev, [id]: 'approved' }));
   };
 
   const reject = async (id: string) => {
     const reason = rejectionReasons[id]?.trim();
     if (!reason) return;
-    await updateStatus.mutateAsync({ id, placementStatus: 'rejected', rejectionReason: reason });
+    await updateStatus.mutateAsync({ id, status: 'rejected', rejectionReason: reason });
     setProcessed((prev) => ({ ...prev, [id]: 'rejected' }));
   };
 
@@ -113,6 +116,23 @@ export default function PlacementApproval() {
 
                 {!done && (
                   <div className="flex flex-col gap-3">
+                    <div>
+                      <label className="block text-xs text-slate-500 font-semibold mb-1.5">
+                        Academic supervisor <span className="font-normal text-slate-600">(optional — can assign later)</span>
+                      </label>
+                      <select
+                        value={selectedSupervisor[p.id] ?? ''}
+                        onChange={(e) => setSelectedSupervisor((prev) => ({ ...prev, [p.id]: e.target.value }))}
+                        className="w-full px-3 py-2.5 rounded-lg bg-slate-800 border border-slate-700 text-slate-100 text-sm focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-colors cursor-pointer"
+                      >
+                        <option value="">No supervisor yet</option>
+                        {supervisors.map((s) => (
+                          <option key={s.id} value={s.id}>
+                            {s.firstName} {s.lastName} — {s.email}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
                     <div className="flex gap-3">
                       <button
                         onClick={() => approve(p.id)}

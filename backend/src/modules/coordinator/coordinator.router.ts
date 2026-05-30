@@ -15,4 +15,7 @@ router.get('/dashboard', asyncHandler(ctrl.dashboard));
 // GET /api/v1/coordinator/students
 router.get('/students', asyncHandler(ctrl.students));
 
+// GET /api/v1/coordinator/supervisors
+router.get('/supervisors', asyncHandler(ctrl.supervisors));
+
 export default router;
