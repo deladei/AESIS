@@ -2,6 +2,7 @@ import { Link, useLocation } from 'react-router-dom';
 import { cn } from '@/lib/utils';
 import { useAuth } from '@/contexts/AuthContext';
 import { useUnreadCount } from '@/hooks/useNotifications';
+import { MobileNav } from './MobileNav';
 import {
   LayoutDashboard, Users, Sparkles, MessageSquareText, FolderOpen,
   FileBarChart, Search, Bell, Settings, HelpCircle, GraduationCap, LogOut,
@@ -116,6 +117,15 @@ export function SupervisorShell({ user, children }: SupervisorShellProps) {
           {/* Mobile brand + search */}
           <div className="flex items-center gap-3">
             <div className="flex items-center gap-2 md:hidden">
+              <MobileNav
+                items={navItems}
+                isActive={isActive}
+                user={user}
+                roleLabel="Academic Supervisor"
+                unreadCount={unreadCount}
+                onLogout={logout}
+                brandSubtitle="AI-Powered Mentorship"
+              />
               <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-[#15157d]">
                 <GraduationCap className="h-4 w-4 text-white" />
               </div>

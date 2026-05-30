@@ -2,6 +2,7 @@ import { Link, useLocation } from 'react-router-dom';
 import { cn } from '@/lib/utils';
 import { useAuth } from '@/contexts/AuthContext';
 import { useUnreadCount } from '@/hooks/useNotifications';
+import { MobileNav } from './MobileNav';
 import {
   LayoutDashboard, BookOpen, FileText, MessageSquare, MessageSquareText, Bell, LogOut, Sparkles,
 } from 'lucide-react';
@@ -102,8 +103,16 @@ export function StudentShell({ user, children }: StudentShellProps) {
       <div className="flex flex-1 flex-col overflow-hidden">
         {/* Topbar */}
         <header className="sticky top-0 z-30 flex h-16 shrink-0 items-center justify-between border-b border-[#c7c5d4]/30 bg-[#f8f9ff]/80 px-6 backdrop-blur-md">
-          {/* Mobile brand */}
+          {/* Mobile: menu + brand */}
           <div className="flex items-center gap-2 md:hidden">
+            <MobileNav
+              items={navItems}
+              isActive={(item) => location.pathname === item.href}
+              user={user}
+              unreadCount={unreadCount}
+              onLogout={logout}
+              brandSubtitle="AI-Powered Supervision"
+            />
             <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-[#15157d]">
               <span className="font-bold text-sm text-white">A</span>
             </div>

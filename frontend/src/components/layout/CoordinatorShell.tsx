@@ -2,6 +2,7 @@ import { Link, useLocation } from 'react-router-dom';
 import { cn } from '@/lib/utils';
 import { useAuth } from '@/contexts/AuthContext';
 import { useUnreadCount } from '@/hooks/useNotifications';
+import { MobileNav } from './MobileNav';
 import {
   LayoutDashboard, ClipboardList, UserCheck, Sparkles, Settings,
   Search, Bell, HelpCircle, GraduationCap, LogOut, Plus,
@@ -113,6 +114,15 @@ export function CoordinatorShell({ user, children }: CoordinatorShellProps) {
         <header className="sticky top-0 z-30 flex h-16 shrink-0 items-center justify-between border-b border-[#c4c5d5]/30 bg-white px-6">
           <div className="flex items-center gap-3">
             <div className="flex items-center gap-2 md:hidden">
+              <MobileNav
+                items={navItems}
+                isActive={isActive}
+                user={user}
+                roleLabel="Head Coordinator"
+                unreadCount={unreadCount}
+                onLogout={logout}
+                brandSubtitle="Nexus Oversight"
+              />
               <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-[#15157d]">
                 <GraduationCap className="h-4 w-4 text-white" />
               </div>
