@@ -21,7 +21,7 @@ export default function LoginPage() {
         student:             '/student/dashboard',
         academic_supervisor: '/supervisor/dashboard',
         coordinator:         '/coordinator/dashboard',
-        admin:               '/coordinator/dashboard',
+        admin:               '/admin/dashboard',
       };
       navigate(redirects[loggedInUser.role] ?? '/student/dashboard', { replace: true });
     } catch (err: any) {
