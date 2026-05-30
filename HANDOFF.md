@@ -812,8 +812,27 @@ User set a **standing rule**: AESIS deploys in **Ghana**, so every demo/seed/exa
 - Prod DB: since the seed upserts interns **by email** and the emails changed, re-running would have duplicated them. So on prod I (a) renamed the supervisor in place via SQL, (b) deleted the 4 old interns + dependents in FK order (risk scores → submissions [cascades analyses] → placements → users), (c) deleted the orphaned Nimbus company, (d) re-ran the updated seed. Verified: 4 Ghanaian interns with correct tiers (Akosua/Kwabena low, Abena medium, Yaw high), supervisor = Dr. Kofi Adjei, only Ananse company, zero stray Western demo names.
 - **Note for future:** `seed.ts` still has placeholder labels `System / Admin` and `CS Programme / Coordinator` — functional system accounts, not Ghanaian-ized yet. Convert if they ever surface as people in the UI.
 
+**Follow-up (same session) — wire real students + real supervisor to dashboards**
+
+User: "populate the student dash with actual prod data (no new dash); wire the supervisor dash to every supervisor, not just the seeded one; supervisors log in with their own non-institutional emails." Investigation showed **nothing was broken in code** — it was pure data assignment:
+
+- `SELF_REGISTERABLE_ROLES` already includes `academic_supervisor`; `emailField` is `trim→lowercase→.email()` with **no domain restriction** → supervisors can already self-register with any gmail. (req #3 already satisfied.)
+- `getSupervisorDashboard(req.user!.sub)` is already per-logged-in-supervisor, no hardcoding. (req #2 architecture already there.)
+- `StudentDashboard.tsx` already derives all metrics from live `useMyPlacements` + `useSubmissions`. (req #1 architecture already there.)
+- The real reason dashboards looked empty: prod had **2 supervisors** (`supervisor@aesis.cs.edu` w/ the 4 demo interns, and the user's real `theowalls@gmail.com` w/ **0** students) and **4 real student registrations** (`ginginger`, `jamescastle`, `naanana`, `okoaddo` @gmail) with **0 placements/logbook**.
+
+Action (per user's choice — "wire the 4 real students" to `theowalls@gmail.com`; demo interns left on the seeded supervisor):
+
+| File / Action | What |
+|---|---|
+| `backend/src/config/seed-real-students-demo.ts` | NEW. Looks up supervisor + students **by email** (never creates/renames real accounts), gives each an active placement under `SUPERVISOR_EMAIL` (default `theowalls@gmail.com`) at company **Sankofa Software Ltd.**, plus 6 weeks of logbook + a latest risk score. Varied spread (2 low / 1 medium / 1 high). Idempotent. Run: `SUPERVISOR_EMAIL=… npx ts-node src/config/seed-real-students-demo.ts`. |
+| Prod DB | Ran it. Verified: theowalls now has 4 assigned students, pending-review = 3, tiers 2 low / 1 medium / 1 high; each real student has 6 submissions + scored analyses so the student dash populates. |
+
+**Connectivity note:** this box was on a phone hotspot (resolver `172.20.10.1`) and DNS for the Render PG host intermittently SERVFAIL'd. Workarounds that worked: `psql "host=<fqdn> hostaddr=35.227.164.209 …"` (SNI from `host`, skips DNS), and for Prisma/ts-node a `DATABASE_URL` pointed straight at the IP with `?sslmode=require` (encrypts without hostname verification). Render PG external IP at the time: **35.227.164.209** (may change; re-resolve if it moves).
+
 **Stopped here — next session should**
-1. Confirm the prod supervisor dashboard renders the 4 interns / AI alerts / 3-item review queue after logging in as `supervisor@aesis.cs.edu` on `aesis.vercel.app` (Render free-tier cold-start may need one retry). Names should now all be Ghanaian.
+1. Confirm in-browser on `aesis.vercel.app`: (a) log in as `theowalls@gmail.com` → supervisor board shows the 4 real students; (b) log in as one of the 4 gmail students → student dashboard shows progress + avg quality. Render free-tier cold-start may need one retry. Demo interns + Ghanaian names still live under `supervisor@aesis.cs.edu`.
+2. 🔐 Verify the user rotated the prod Postgres password (pasted into chat this session).
 2. Verify the user rotated the prod DB password.
 3. Carryover: chatbot smoke-test from deployed `ChatbotPanel`, then mark Phase 9 ✅.
 
