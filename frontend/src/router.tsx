@@ -19,6 +19,7 @@ import CoordinatorDashboard from '@/pages/coordinator/CoordinatorDashboard';
 import PlacementApproval    from '@/pages/coordinator/PlacementApproval';
 import SupervisorAssignment from '@/pages/coordinator/SupervisorAssignment';
 import AdminDashboard       from '@/pages/admin/AdminDashboard';
+import FeedbackCenter       from '@/pages/shared/FeedbackCenter';
 
 type UserRole = 'student' | 'academic_supervisor' | 'coordinator' | 'admin';
 
@@ -124,6 +125,14 @@ export const router = createBrowserRouter([
     element: <RequireAuth roles={['admin']} />,
     children: [
       { path: '/admin/dashboard', element: <AdminDashboard /> },
+    ],
+  },
+
+  // Feedback Center — shared screen, rendered inside each role's own shell
+  {
+    element: <RequireAuth roles={['student', 'academic_supervisor', 'admin']} />,
+    children: [
+      { path: '/feedback', element: <FeedbackCenter /> },
     ],
   },
 

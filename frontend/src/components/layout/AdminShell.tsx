@@ -19,7 +19,7 @@ const navItems: NavItem[] = [
   { label: 'Dashboard',       href: '/admin/dashboard', icon: LayoutDashboard },
   { label: 'Interns',         href: '/admin/dashboard', icon: Users },
   { label: 'AI Insights',     href: '/admin/dashboard', icon: Sparkles },
-  { label: 'Feedback Center', href: '/admin/dashboard', icon: MessageSquareText },
+  { label: 'Feedback Center', href: '/feedback', icon: MessageSquareText },
   { label: 'Resources',       href: '/admin/dashboard', icon: FolderOpen },
 ];
 

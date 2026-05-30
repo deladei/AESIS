@@ -19,7 +19,7 @@ const navItems: NavItem[] = [
   { label: 'Dashboard',      href: '/supervisor/dashboard', icon: LayoutDashboard },
   { label: 'Interns',        href: '/supervisor/dashboard', icon: Users },
   { label: 'AI Insights',    href: '/supervisor/dashboard', icon: Sparkles },
-  { label: 'Feedback Center', href: '/supervisor/review',   icon: MessageSquareText },
+  { label: 'Feedback Center', href: '/feedback',            icon: MessageSquareText },
   { label: 'Resources',      href: '/supervisor/dashboard', icon: FolderOpen },
 ];
 

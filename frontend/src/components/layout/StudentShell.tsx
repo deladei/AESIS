@@ -3,7 +3,7 @@ import { cn } from '@/lib/utils';
 import { useAuth } from '@/contexts/AuthContext';
 import { useUnreadCount } from '@/hooks/useNotifications';
 import {
-  LayoutDashboard, BookOpen, FileText, MessageSquare, Bell, LogOut, Sparkles,
+  LayoutDashboard, BookOpen, FileText, MessageSquare, MessageSquareText, Bell, LogOut, Sparkles,
 } from 'lucide-react';
 
 interface NavItem {
@@ -17,6 +17,7 @@ const navItems: NavItem[] = [
   { label: 'Logbook',         href: '/student/logbook',       icon: BookOpen },
   { label: 'Submissions',     href: '/student/submissions',   icon: FileText },
   { label: 'AESIS Assistant', href: '/student/chatbot',       icon: MessageSquare },
+  { label: 'Feedback Center', href: '/feedback',              icon: MessageSquareText },
   { label: 'Notifications',   href: '/student/notifications', icon: Bell },
 ];
 
