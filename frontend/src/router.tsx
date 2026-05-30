@@ -3,6 +3,8 @@ import { useAuth } from '@/contexts/AuthContext';
 import { AppShell } from '@/components/layout/AppShell';
 import { StudentShell } from '@/components/layout/StudentShell';
 import { SupervisorShell } from '@/components/layout/SupervisorShell';
+import { CoordinatorShell } from '@/components/layout/CoordinatorShell';
+import { AdminShell } from '@/components/layout/AdminShell';
 
 import LoginPage         from '@/pages/auth/LoginPage';
 import RegisterPage      from '@/pages/auth/RegisterPage';
@@ -16,6 +18,7 @@ import LogbookReview       from '@/pages/supervisor/LogbookReview';
 import CoordinatorDashboard from '@/pages/coordinator/CoordinatorDashboard';
 import PlacementApproval    from '@/pages/coordinator/PlacementApproval';
 import SupervisorAssignment from '@/pages/coordinator/SupervisorAssignment';
+import AdminDashboard       from '@/pages/admin/AdminDashboard';
 
 type UserRole = 'student' | 'academic_supervisor' | 'coordinator' | 'admin';
 
@@ -44,6 +47,22 @@ function RequireAuth({ roles }: { roles?: UserRole[] }) {
     );
   }
 
+  if (user.role === 'coordinator') {
+    return (
+      <CoordinatorShell user={shellUser}>
+        <Outlet />
+      </CoordinatorShell>
+    );
+  }
+
+  if (user.role === 'admin') {
+    return (
+      <AdminShell user={shellUser}>
+        <Outlet />
+      </AdminShell>
+    );
+  }
+
   return (
     <AppShell role={user.role as UserRole} user={shellUser}>
       <Outlet />
@@ -59,7 +78,7 @@ function RootRedirect() {
     student:             '/student/dashboard',
     academic_supervisor: '/supervisor/dashboard',
     coordinator:         '/coordinator/dashboard',
-    admin:               '/coordinator/dashboard',
+    admin:               '/admin/dashboard',
   };
   return <Navigate to={redirects[user.role] ?? '/auth/login'} replace />;
 }
@@ -97,6 +116,14 @@ export const router = createBrowserRouter([
       { path: '/coordinator/dashboard',  element: <CoordinatorDashboard /> },
       { path: '/coordinator/placements', element: <PlacementApproval /> },
       { path: '/coordinator/assignments', element: <SupervisorAssignment /> },
+    ],
+  },
+
+  // Admin
+  {
+    element: <RequireAuth roles={['admin']} />,
+    children: [
+      { path: '/admin/dashboard', element: <AdminDashboard /> },
     ],
   },
 

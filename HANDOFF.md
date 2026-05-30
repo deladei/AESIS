@@ -853,8 +853,29 @@ Frontend:
 
 Quality gate: frontend `tsc --noEmit` clean; backend `tsc --noEmit` clean; `jest placements` 30/30 (was 27 + 3 new). Full suite not run (Celeron swap-thrash) — only placements/coordinator touched.
 
+**Follow-up (same session) — Admin + Coordinator dashboards built from Stitch**
+
+User reported the admin dashboard was missing and the coordinator dashboard "wasn't the one we designed." Verified via git: I never changed `CoordinatorDashboard.tsx` (last touched Phase 7), and an admin dashboard had **never** been committed — they existed only as **Stitch designs**, never coded. User clarified: the **admin** dashboard is the Stitch screen titled **"Supervisor Dashboard"**; the **coordinator** dashboard is **"Coordinator Dashboard – Nexus Oversight"**. Rules to honor: **Ghanaian names** + keep the **static dummy data** (to be wired to live data later).
+
+Pulled both Stitch HTML designs (project "AI Internship Monitor" `4927634583697300472`) and translated to React (lucide icons, Tailwind arbitrary hex from the Stitch palette, initials instead of stock avatars):
+
+| File | What |
+|---|---|
+| `components/layout/CoordinatorShell.tsx` | NEW light shell (Nexus Oversight sidebar/topbar), primary `#00288e`. Nav: Intern Overview / Placements / Assignments / Analytics / Settings. |
+| `pages/coordinator/CoordinatorDashboard.tsx` | REWRITTEN as Nexus content — 4 metric cards, Intern Status Monitor table, Placement Requests, AI Pulse Matching, Recent Activity feed. Ghanaian dummy data (Akosua Mensah, Kwabena Boateng, Yaw Asante; Univ. of Ghana / KNUST; Ananse Technologies). |
+| `components/layout/AdminShell.tsx` | NEW light shell (indigo `#15157d`/`#8a4cfc`), nav: Dashboard / Interns / AI Insights / Feedback Center / Resources. |
+| `pages/admin/AdminDashboard.tsx` | NEW — "Supervisor Overview" + 3 stat cards, Pulse Check Board (4 cards), AI Alerts (urgent + growth), Recent Submissions table. Ghanaian dummy data (Akua Sarpong, Kojo Mensah, Adwoa Agyeman, Kwame Appiah, Kwesi Boateng). |
+| `router.tsx` | `coordinator` role → `CoordinatorShell`; `admin` role → `AdminShell`; added `/admin/dashboard` route + admin RequireAuth group; admin redirect now `/admin/dashboard` (was `/coordinator/dashboard`). |
+
+Quality gate: `tsc --noEmit` clean; `npm run build` succeeds (1675 modules). Data is **static demo** — no API wiring yet, per the user's instruction.
+
+**Architecture note for next session:** chrome is now per-role — `student`→StudentShell, `academic_supervisor`→SupervisorShell, `coordinator`→CoordinatorShell, `admin`→AdminShell. The generic dark `AppShell` is now effectively unused (kept as fallback). Coordinator's other pages (PlacementApproval, SupervisorAssignment) now render inside the light CoordinatorShell — they still use their own dark-slate card styling internally, so a future pass should restyle them to the light Nexus palette for full consistency.
+
 **Stopped here — next session should**
-1. After Render+Vercel redeploy, verify in-browser: log in as a **coordinator** → Assignments page → assign a supervisor to a placement → that supervisor's dashboard populates. (Prod coordinator account: see `seed.ts` — `coordinator@aesis.cs.edu`-style; confirm the exact email before relying on it.)
+1. After Render+Vercel redeploy, verify in-browser: log in as **admin** (`admin@aesis.cs.edu`) → lands on the new `/admin/dashboard`; log in as **coordinator** (`coordinator@aesis.cs.edu` / `Coord@1234`) → Nexus Oversight dashboard. Both show Ghanaian static dummy data.
+2. Restyle PlacementApproval + SupervisorAssignment to the light Nexus palette (they're still dark-slate inside the new light coordinator shell).
+3. Wire the dashboards' dummy data to live endpoints when ready.
+4. Coordinator assign-supervisor flow: log in as coordinator → Assignments → assign a supervisor → that supervisor's dashboard populates. (Coordinator account confirmed working on prod: `coordinator@aesis.cs.edu` / `Coord@1234`.)
 2. Confirm the real-data wiring still renders: `theowalls@gmail.com` (4 students) and the 4 gmail students' dashboards. Demo interns + Ghanaian names still under `supervisor@aesis.cs.edu`.
 3. 🔐 Verify the user rotated the prod Postgres password (pasted into chat this session).
 2. Verify the user rotated the prod DB password.
