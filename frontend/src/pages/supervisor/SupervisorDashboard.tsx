@@ -40,13 +40,13 @@ function formatWhen(iso: string | null) {
 }
 
 const statusBadge: Record<string, { label: string; classes: string }> = {
-  approved:     { label: 'APPROVED',       classes: 'bg-emerald-100 text-emerald-800' },
-  submitted:    { label: 'PENDING REVIEW', classes: 'bg-amber-100 text-amber-800' },
-  under_review: { label: 'IN REVIEW',      classes: 'bg-[#e1e0ff] text-[#373a9b]' },
-  late:         { label: 'LATE',           classes: 'bg-[#ffdad6] text-[#93000a]' },
-  flagged:      { label: 'FLAGGED',        classes: 'bg-[#ffdad6] text-[#93000a]' },
-  draft:        { label: 'DRAFT',          classes: 'bg-[#e5eeff] text-[#464652]' },
-  pending:      { label: 'PENDING',        classes: 'bg-[#e5eeff] text-[#464652]' },
+  approved:     { label: 'Approved',       classes: 'bg-emerald-100 text-emerald-800' },
+  submitted:    { label: 'Pending review', classes: 'bg-amber-100 text-amber-800' },
+  under_review: { label: 'In review',      classes: 'bg-[#e1e0ff] text-[#373a9b]' },
+  late:         { label: 'Late',           classes: 'bg-[#ffdad6] text-[#93000a]' },
+  flagged:      { label: 'Flagged',        classes: 'bg-[#ffdad6] text-[#93000a]' },
+  draft:        { label: 'Draft',          classes: 'bg-[#e5eeff] text-[#464652]' },
+  pending:      { label: 'Pending',        classes: 'bg-[#e5eeff] text-[#464652]' },
 };
 
 const avatarTints = [
@@ -148,7 +148,7 @@ export default function SupervisorDashboard() {
                           <p className="text-xs text-[#464652]">Intern</p>
                         </div>
                       </div>
-                      <span className={`rounded-full px-2 py-1 text-[10px] font-bold uppercase tracking-wider ${badge.classes}`}>
+                      <span className={`rounded-full px-2.5 py-1 text-[11px] font-semibold ${badge.classes}`}>
                         {badge.label}
                       </span>
                     </div>
@@ -183,7 +183,7 @@ export default function SupervisorDashboard() {
               <AlertCard glow>
                 <div className="mb-1 flex items-center gap-2">
                   <AlertTriangle className="h-4 w-4 text-[#712ae2]" />
-                  <span className="text-xs font-bold uppercase tracking-widest text-[#712ae2]">Urgent Support Needed</span>
+                  <span className="text-sm font-semibold text-[#712ae2]">Urgent support needed</span>
                 </div>
                 <p className="text-base leading-tight text-[#0b1c30]">
                   <span className="font-bold text-[#15157d]">{fullName(highRisk[0])}</span> is flagged{' '}
@@ -208,7 +208,7 @@ export default function SupervisorDashboard() {
               <AlertCard glow>
                 <div className="mb-1 flex items-center gap-2">
                   <CheckCircle2 className="h-4 w-4 text-[#22c087]" />
-                  <span className="text-xs font-bold uppercase tracking-widest text-[#22c087]">All Clear</span>
+                  <span className="text-sm font-semibold text-[#22c087]">All clear</span>
                 </div>
                 <p className="text-base leading-tight text-[#0b1c30]">
                   No interns are currently flagged high risk. Keep up the proactive supervision.
@@ -220,7 +220,7 @@ export default function SupervisorDashboard() {
               <AlertCard glow>
                 <div className="mb-1 flex items-center gap-2">
                   <Zap className="h-4 w-4 text-[#22c087]" />
-                  <span className="text-xs font-bold uppercase tracking-widest text-[#22c087]">Growth Opportunity</span>
+                  <span className="text-sm font-semibold text-[#22c087]">Growth opportunity</span>
                 </div>
                 <p className="text-base leading-tight text-[#0b1c30]">
                   <span className="font-bold text-[#15157d]">{fullName(topPerformer)}</span> is leading the cohort
@@ -255,13 +255,14 @@ export default function SupervisorDashboard() {
             {pendingRows.length === 0 ? (
               <p className="px-6 py-10 text-center text-sm text-[#464652]">No submissions awaiting review.</p>
             ) : (
+              <div className="overflow-x-auto">
               <table className="w-full border-collapse text-left">
                 <thead className="border-b border-[#c7c5d4]/30 bg-[#eff4ff]">
                   <tr>
-                    {['Intern', 'Task Title', 'Submission Date', 'Status', 'Action'].map((h, i) => (
+                    {['Intern', 'Task title', 'Submission date', 'Status', 'Action'].map((h, i) => (
                       <th
                         key={h}
-                        className={`px-6 py-4 text-xs font-semibold uppercase tracking-wider text-[#464652] ${i === 4 ? 'text-right' : ''}`}
+                        className={`px-6 py-4 text-xs font-semibold tracking-wide text-[#464652] ${i === 4 ? 'text-right' : ''}`}
                       >
                         {h}
                       </th>
@@ -299,6 +300,7 @@ export default function SupervisorDashboard() {
                   })}
                 </tbody>
               </table>
+              </div>
             )}
             <div className="flex justify-center bg-[#eff4ff]/50 p-4">
               <Link to="/supervisor/review" className="flex items-center gap-2 text-sm font-semibold text-[#464652] transition-colors hover:text-[#15157d]">

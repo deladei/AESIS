@@ -117,15 +117,15 @@ export default function StudentDashboard() {
           <div className="col-span-1 flex flex-col justify-between rounded-xl bg-white p-8 md:col-span-2">
             <div className="mb-6 flex items-start justify-between">
               <div>
-                <h3 className="mb-1 text-sm font-bold uppercase tracking-widest text-[#424654]">
-                  Internship Completion
+                <h3 className="mb-1 text-sm font-semibold text-[#424654]">
+                  Internship completion
                 </h3>
                 <p className="text-3xl font-extrabold text-[#191c1e]">
                   Week {submitted.length} of {total}
                 </p>
               </div>
-              <span className="rounded-full bg-[#dae2ff] px-3 py-1 text-xs font-bold uppercase text-[#0040a1]">
-                {pct}% Done
+              <span className="rounded-full bg-[#dae2ff] px-3 py-1 text-xs font-semibold text-[#0040a1]">
+                {pct}% complete
               </span>
             </div>
             <div className="mb-4 h-4 w-full overflow-hidden rounded-full bg-[#e7e8eb]">
@@ -273,7 +273,7 @@ export default function StudentDashboard() {
                         </div>
                         <div>
                           <p className="text-sm font-bold text-[#191c1e]">{reviewer}</p>
-                          <p className="text-[10px] font-bold uppercase tracking-tight text-[#424654]">
+                          <p className="text-xs font-medium text-[#424654]">
                             Week {sub.weekNumber} · {flagged ? 'Flagged' : 'Approved'}
                           </p>
                         </div>

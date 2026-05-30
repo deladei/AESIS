@@ -50,16 +50,16 @@ export default function CoordinatorDashboard() {
       {/* Header */}
       <div className="mb-8 flex items-end justify-between">
         <div>
-          <p className="mb-1 text-[11px] font-bold uppercase tracking-wider text-[#00288e]">Dashboard</p>
+          <p className="mb-1 text-xs font-semibold tracking-wide text-[#00288e]">Dashboard</p>
           <h2 className="text-4xl font-bold tracking-tight text-[#0b1c30]">
             Nexus Oversight <span className="text-xl font-normal text-[#757684]">v4.2</span>
           </h2>
         </div>
         <div className="hidden gap-3 sm:flex">
-          <button className="rounded-lg border border-[#c4c5d5] px-4 py-2 text-xs font-bold uppercase tracking-wide text-[#0b1c30] transition-colors hover:bg-[#e5eeff]">
+          <button className="rounded-lg border border-[#c4c5d5] px-4 py-2 text-sm font-semibold text-[#0b1c30] transition-colors hover:bg-[#e5eeff]">
             Export report
           </button>
-          <button className="rounded-lg bg-[#00288e] px-4 py-2 text-xs font-bold uppercase tracking-wide text-white shadow-sm transition-opacity hover:opacity-90">
+          <button className="rounded-lg bg-[#00288e] px-4 py-2 text-sm font-semibold text-white shadow-sm transition-opacity hover:opacity-90">
             View live feed
           </button>
         </div>
@@ -72,7 +72,7 @@ export default function CoordinatorDashboard() {
           return (
             <div key={m.label} className="flex flex-col justify-between rounded-xl border border-[#c4c5d5]/60 bg-white p-6">
               <div className="flex items-start justify-between">
-                <span className="text-[11px] font-bold uppercase tracking-wider text-[#757684]">{m.label}</span>
+                <span className="text-xs font-semibold tracking-wide text-[#757684]">{m.label}</span>
                 <Icon className="h-5 w-5 text-[#00288e]" />
               </div>
               <div className="mt-4">
@@ -100,14 +100,16 @@ export default function CoordinatorDashboard() {
             <div className="flex items-center justify-between border-b border-[#c4c5d5]/60 bg-[#f8f9ff] px-6 py-4">
               <h3 className="text-lg font-semibold text-[#00288e]">Intern Status Monitor</h3>
               <div className="flex items-center gap-2">
-                <span className="rounded bg-[#00288e]/10 px-2 py-1 text-[10px] font-bold text-[#00288e]">Live update</span>
-                <Filter className="h-4 w-4 text-[#444653]" />
+                <span className="rounded bg-[#00288e]/10 px-2 py-1 text-[11px] font-semibold text-[#00288e]">Live</span>
+                <button aria-label="Filter interns" className="text-[#444653] transition-colors hover:text-[#00288e]">
+                  <Filter className="h-4 w-4" />
+                </button>
               </div>
             </div>
             <div className="overflow-x-auto">
               <table className="w-full text-left">
                 <thead className="bg-[#eff4ff]">
-                  <tr className="text-[11px] font-bold uppercase tracking-wider text-[#757684]">
+                  <tr className="text-xs font-semibold tracking-wide text-[#757684]">
                     <th className="px-6 py-3">Intern</th>
                     <th className="px-4 py-3">Department</th>
                     <th className="px-4 py-3">Supervisor</th>
@@ -141,7 +143,7 @@ export default function CoordinatorDashboard() {
                         </div>
                       </td>
                       <td className="px-6 py-3 text-right">
-                        <button className="text-[#757684] transition-colors hover:text-[#00288e]"><MoreVertical className="h-4 w-4" /></button>
+                        <button aria-label={`Actions for ${i.name}`} className="text-[#757684] transition-colors hover:text-[#00288e]"><MoreVertical className="h-4 w-4" /></button>
                       </td>
                     </tr>
                   ))}
@@ -149,7 +151,7 @@ export default function CoordinatorDashboard() {
               </table>
             </div>
             <div className="flex justify-center border-t border-[#c4c5d5]/60 bg-[#f8f9ff] py-4">
-              <button className="text-[11px] font-bold uppercase tracking-wide text-[#00288e] hover:underline">View all 1,284 interns</button>
+              <button className="text-sm font-semibold text-[#00288e] hover:underline">View all 1,284 interns</button>
             </div>
           </div>
 
@@ -174,8 +176,8 @@ export default function CoordinatorDashboard() {
                       </div>
                     </div>
                     <div className="flex gap-2">
-                      <button className="flex h-8 w-8 items-center justify-center rounded border border-[#c4c5d5]/60 transition-colors hover:bg-[#dce9ff]"><Eye className="h-[18px] w-[18px] text-[#444653]" /></button>
-                      <button className="flex h-8 w-8 items-center justify-center rounded bg-[#00288e] text-white transition-opacity hover:opacity-90"><Check className="h-[18px] w-[18px]" /></button>
+                      <button aria-label={`Review ${r.org} request`} className="flex h-8 w-8 items-center justify-center rounded border border-[#c4c5d5]/60 transition-colors hover:bg-[#dce9ff]"><Eye className="h-[18px] w-[18px] text-[#444653]" /></button>
+                      <button aria-label={`Approve ${r.org} request`} className="flex h-8 w-8 items-center justify-center rounded bg-[#00288e] text-white transition-opacity hover:opacity-90"><Check className="h-[18px] w-[18px]" /></button>
                     </div>
                   </div>
                 ))}
@@ -222,7 +224,7 @@ export default function CoordinatorDashboard() {
           <div className="flex h-full flex-col rounded-xl border border-[#c4c5d5]/60 bg-white">
             <div className="flex items-center justify-between border-b border-[#c4c5d5]/60 bg-[#f8f9ff] px-6 py-4">
               <h3 className="text-lg font-semibold text-[#00288e]">Recent Activity</h3>
-              <button className="text-[#757684] hover:text-[#00288e]"><RefreshCw className="h-[18px] w-[18px]" /></button>
+              <button aria-label="Refresh activity" className="text-[#757684] hover:text-[#00288e]"><RefreshCw className="h-[18px] w-[18px]" /></button>
             </div>
             <div className="flex-1 space-y-6 overflow-y-auto p-6">
               {activity.map((a, idx) => {
@@ -230,24 +232,24 @@ export default function CoordinatorDashboard() {
                 return (
                   <div key={idx} className="relative border-l border-[#c4c5d5]/60 pl-6">
                     <div className={`absolute -left-[5px] top-1 h-2.5 w-2.5 rounded-full ${a.dot} ring-4 ring-white`} />
-                    <p className="mb-1 text-[11px] font-bold uppercase tracking-wide text-[#757684]">{a.time}</p>
+                    <p className="mb-1 text-xs font-semibold tracking-wide text-[#757684]">{a.time}</p>
                     <div className="rounded-lg bg-[#eff4ff] p-3">
                       <p className="text-sm text-[#0b1c30]">{a.body}</p>
                       {a.badge && Badge && (
                         <div className={`mt-2 flex items-center gap-1.5 ${a.badge.tone}`}>
                           <Badge className="h-3.5 w-3.5" fill="currentColor" />
-                          <span className="text-[10px] font-bold uppercase">{a.badge.text}</span>
+                          <span className="text-xs font-semibold">{a.badge.text}</span>
                         </div>
                       )}
-                      {a.action && <button className="mt-2 text-[10px] font-bold uppercase text-[#00288e] underline">{a.action}</button>}
-                      {a.note && <p className="mt-1 text-[10px] font-bold uppercase text-[#00288e]">{a.note}</p>}
+                      {a.action && <button className="mt-2 text-xs font-semibold text-[#00288e] underline">{a.action}</button>}
+                      {a.note && <p className="mt-1 text-xs font-semibold text-[#00288e]">{a.note}</p>}
                     </div>
                   </div>
                 );
               })}
             </div>
             <div className="border-t border-[#c4c5d5]/60 p-4">
-              <button className="w-full rounded-lg border border-[#c4c5d5]/60 py-2 text-[11px] font-bold uppercase tracking-wide text-[#444653] transition-colors hover:text-[#00288e]">
+              <button className="w-full rounded-lg border border-[#c4c5d5]/60 py-2 text-sm font-semibold text-[#444653] transition-colors hover:text-[#00288e]">
                 View full audit log
               </button>
             </div>

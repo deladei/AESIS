@@ -48,6 +48,33 @@
     color: #0f172a;
     background-color: #ffffff;
   }
+
+  /* Interactive elements get a pointer cursor (Tailwind preflight resets it). */
+  button:not(:disabled),
+  [role='button']:not([aria-disabled='true']),
+  label[for],
+  summary {
+    cursor: pointer;
+  }
+
+  /* Visible keyboard focus across the app — only on keyboard nav, not on click. */
+  :focus-visible {
+    outline: 2px solid #15157d;
+    outline-offset: 2px;
+    border-radius: 3px;
+  }
+}
+
+/* Respect users who prefer reduced motion — disable animations/transitions. */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
 }
 
 @layer utilities {
