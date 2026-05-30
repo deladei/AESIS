@@ -1,300 +1,302 @@
 import { Link } from 'react-router-dom';
 import {
-  Sparkles, ArrowRight, Check, Circle, Loader2, BookOpen, AlertTriangle, CalendarClock,
+  NotebookPen, Gauge, ArrowRight, CalendarClock, CheckCircle2,
+  Star, GraduationCap, ExternalLink, Loader2, BookOpen,
 } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { useMyPlacements } from '@/hooks/usePlacements';
-import { useSubmissions, type LogbookSubmission } from '@/hooks/useLogbook';
-
-function greeting(): string {
-  const h = new Date().getHours();
-  if (h < 12) return 'Good morning';
-  if (h < 18) return 'Good afternoon';
-  return 'Good evening';
-}
+import { useSubmissions, useSubmission, type LogbookSubmission } from '@/hooks/useLogbook';
+import { useNotifications, type Notification } from '@/hooks/useNotifications';
 
 function formatDate(iso: string | null): string {
   if (!iso) return '—';
-  return new Date(iso).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
+  return new Date(iso).toLocaleDateString('en-US', { day: '2-digit', month: 'long', year: 'numeric' });
 }
 
-function timeAgo(iso: string | null): string {
-  if (!iso) return '';
+function timeAgo(iso: string): string {
   const mins = Math.floor((Date.now() - new Date(iso).getTime()) / 60_000);
   if (mins < 1) return 'just now';
   if (mins < 60) return `${mins}m ago`;
   const hrs = Math.floor(mins / 60);
   if (hrs < 24) return `${hrs}h ago`;
-  return `${Math.floor(hrs / 24)}d ago`;
-}
-
-function daysUntil(iso: string): number {
-  return Math.ceil((new Date(iso).getTime() - Date.now()) / 86_400_000);
+  const days = Math.floor(hrs / 24);
+  if (days < 14) return `${days}d ago`;
+  return `${Math.floor(days / 7)} weeks ago`;
 }
 
 const isPending = (s: LogbookSubmission) =>
   s.submissionStatus === 'not_submitted' || s.submissionStatus === 'draft';
 const isSubmitted = (s: LogbookSubmission) => !isPending(s);
 
+/**
+ * Student Dashboard — Stitch "Student Dashboard (Updated Profile)" layout,
+ * wired to live placement / logbook / notification / feedback data.
+ * Chrome (sidebar + topbar) is provided by StudentShell.
+ */
 export default function StudentDashboard() {
   const { user } = useAuth();
   const { data: placements, isLoading: placementsLoading } = useMyPlacements();
   const active = placements?.find((p) => p.placementStatus === 'active') ?? placements?.[0];
   const { data: submissions = [], isLoading: subsLoading } = useSubmissions(active?.id);
+  const { data: notifications = [] } = useNotifications();
+
+  // Most recent submissions that carry supervisor feedback — fetched in full
+  // (the list endpoint only returns a feedback count, not the text/reviewer).
+  const feedbackIds = [...submissions]
+    .filter((s) => (s._count?.feedback ?? 0) > 0)
+    .sort((a, b) => (b.submittedAt ?? '').localeCompare(a.submittedAt ?? ''))
+    .slice(0, 3)
+    .map((s) => s.id);
+  const fb0 = useSubmission(feedbackIds[0]);
+  const fb1 = useSubmission(feedbackIds[1]);
+  const fb2 = useSubmission(feedbackIds[2]);
 
   if (placementsLoading || subsLoading) {
     return (
       <div className="flex h-64 items-center justify-center">
-        <Loader2 className="h-6 w-6 animate-spin text-[#712ae2]" />
+        <Loader2 className="h-6 w-6 animate-spin text-[#0040a1]" />
       </div>
     );
   }
 
   if (!active) {
     return (
-      <div className="mx-auto max-w-7xl p-6 md:p-10">
-        <h1 className="text-3xl font-bold text-[#15157d]">{greeting()}, {user?.firstName}</h1>
-        <div className="mt-8 rounded-xl border border-[#c7c5d4]/40 bg-white p-10 text-center shadow-sm">
-          <BookOpen className="mx-auto mb-3 h-8 w-8 text-[#8a4cfc]" />
-          <p className="text-base font-semibold text-[#0b1c30]">No active placement yet</p>
-          <p className="mt-1 text-sm text-[#464652]">
-            Once your placement is approved, your logbook progress and AI feedback will appear here.
+      <div className="p-8">
+        <h1 className="text-4xl font-extrabold tracking-tight text-[#191c1e]">
+          Welcome back, {user?.firstName}
+        </h1>
+        <div className="mt-8 rounded-xl bg-white p-10 text-center">
+          <BookOpen className="mx-auto mb-3 h-8 w-8 text-[#0040a1]" />
+          <p className="text-base font-semibold text-[#191c1e]">No active placement yet</p>
+          <p className="mt-1 text-sm text-[#424654]">
+            Once your placement is approved, your internship progress and feedback will appear here.
           </p>
         </div>
       </div>
     );
   }
 
-  // ── Derived metrics ───────────────────────────────────────────
+  // ── Derived metrics ─────────────────────────────────────────────
   const total      = submissions.length;
   const submitted  = submissions.filter(isSubmitted);
-  const scored     = submissions
-    .filter((s) => s.analysis?.qualityScore != null)
-    .sort((a, b) => a.weekNumber - b.weekNumber);
+  const pct        = total > 0 ? Math.round((submitted.length / total) * 100) : 0;
+  const scored     = submissions.filter((s) => s.analysis?.qualityScore != null);
+  const avgQuality = scored.length
+    ? Math.round(scored.reduce((sum, s) => sum + (s.analysis!.qualityScore ?? 0), 0) / scored.length)
+    : null;
 
-  const pct = total > 0 ? Math.round((submitted.length / total) * 100) : 0;
+  // Flatten the latest supervisor feedback from each fetched submission
+  const feedbackCards = [fb0.data, fb1.data, fb2.data]
+    .filter((s): s is LogbookSubmission => !!s && !!s.feedback?.length)
+    .map((s) => {
+      const f = [...s.feedback!].sort((a, b) => b.createdAt.localeCompare(a.createdAt))[0];
+      return { sub: s, fb: f };
+    });
 
-  const latestInsight = [...submissions]
-    .filter((s) => s.analysis?.aiFeedbackSummary)
-    .sort((a, b) => b.weekNumber - a.weekNumber)[0];
+  const recentNotifications = notifications.slice(0, 3);
+  const hasUnread = notifications.some((n) => !n.isRead);
 
-  const maxScore = Math.max(100, ...scored.map((s) => s.analysis!.qualityScore!));
-  const bars     = scored.slice(-10);
-
-  // Checklist: pending weeks first (by deadline), then recently submitted
-  const pending = submissions
-    .filter(isPending)
-    .sort((a, b) => new Date(a.deadline).getTime() - new Date(b.deadline).getTime());
-  const recentDone = [...submitted].sort((a, b) => b.weekNumber - a.weekNumber);
-  const checklist  = [...pending, ...recentDone].slice(0, 5);
+  const companyName = active.company?.name;
 
   return (
-    <div className="mx-auto max-w-7xl space-y-8 p-6 md:p-10">
-      {/* Welcome */}
-      <div className="flex flex-col justify-between gap-4 md:flex-row md:items-end">
-        <div>
-          <h1 className="text-3xl font-bold tracking-tight text-[#15157d]">
-            {greeting()}, {user?.firstName}
-          </h1>
-          <p className="mt-1 text-base text-[#464652]">
-            Here's your placement progress {active.company?.name ? `at ${active.company.name}` : ''}.
-          </p>
-        </div>
-        {scored.length > 0 && (
-          <div className="flex items-center gap-2 rounded-lg bg-[#dce9ff] px-4 py-2">
-            <span className="h-2 w-2 animate-pulse rounded-full bg-[#22c087]" />
-            <span className="text-xs font-semibold text-[#0b1c30]">
-              AI analyzed {scored.length} {scored.length === 1 ? 'week' : 'weeks'}
-            </span>
-          </div>
-        )}
-      </div>
+    <div className="p-8">
+      {/* Header */}
+      <header className="mb-12">
+        <h1 className="mb-2 text-4xl font-extrabold tracking-tight text-[#191c1e]">
+          Welcome back, {user?.firstName}
+        </h1>
+        <p className="text-[#424654]">
+          {companyName ? `Intern @ ${companyName}` : 'Internship in progress'}
+        </p>
+      </header>
 
-      {/* Bento grid */}
-      <div className="grid grid-cols-12 gap-6">
-        {/* AI Coach */}
-        <div className="relative col-span-12 flex flex-col gap-4 overflow-hidden rounded-xl border border-[#712ae2]/20 bg-white/70 p-6 shadow-[0_4px_24px_-1px_rgba(113,42,226,0.1)] backdrop-blur-md lg:col-span-4">
-          <div className="flex items-center gap-3">
-            <div className="rounded-lg bg-[#712ae2]/10 p-2">
-              <Sparkles className="h-5 w-5 text-[#712ae2]" />
-            </div>
-            <h3 className="text-xl font-semibold text-[#15157d]">AI Coach</h3>
-          </div>
-          {latestInsight?.analysis?.aiFeedbackSummary ? (
-            <>
-              <p className="text-sm leading-relaxed text-[#464652]">
-                {latestInsight.analysis.aiFeedbackSummary}
-              </p>
-              <div className="mt-auto space-y-3">
-                <Link
-                  to="/student/submissions"
-                  className="flex w-full items-center justify-center gap-2 rounded-lg border border-[#712ae2] py-2 text-sm font-medium text-[#712ae2] transition-colors hover:bg-[#712ae2]/5"
-                >
-                  Review feedback <ArrowRight className="h-4 w-4" />
-                </Link>
-                <p className="text-[10px] font-bold uppercase tracking-wider text-[#777683]">
-                  Week {latestInsight.weekNumber} · {timeAgo(latestInsight.submittedAt)}
+      <div className="grid grid-cols-12 gap-8">
+        {/* ── Progress & Stats ─────────────────────────────────── */}
+        <div className="col-span-12 grid grid-cols-1 gap-8 md:grid-cols-2 lg:col-span-8">
+          {/* Internship Completion */}
+          <div className="col-span-1 flex flex-col justify-between rounded-xl bg-white p-8 md:col-span-2">
+            <div className="mb-6 flex items-start justify-between">
+              <div>
+                <h3 className="mb-1 text-sm font-bold uppercase tracking-widest text-[#424654]">
+                  Internship Completion
+                </h3>
+                <p className="text-3xl font-extrabold text-[#191c1e]">
+                  Week {submitted.length} of {total}
                 </p>
               </div>
-            </>
-          ) : (
-            <>
-              <p className="text-sm leading-relaxed text-[#464652]">
-                No AI feedback yet. Submit a logbook entry and AESIS will analyze your quality,
-                relevance and reflection automatically.
-              </p>
-              <div className="mt-auto">
-                <Link
-                  to="/student/logbook"
-                  className="flex w-full items-center justify-center gap-2 rounded-lg border border-[#712ae2] py-2 text-sm font-medium text-[#712ae2] transition-colors hover:bg-[#712ae2]/5"
-                >
-                  Start a logbook entry <ArrowRight className="h-4 w-4" />
-                </Link>
-              </div>
-            </>
-          )}
-          <div className="pointer-events-none absolute -bottom-10 -right-10 h-32 w-32 rounded-full bg-[#712ae2]/10 blur-3xl" />
-        </div>
+              <span className="rounded-full bg-[#dae2ff] px-3 py-1 text-xs font-bold uppercase text-[#0040a1]">
+                {pct}% Done
+              </span>
+            </div>
+            <div className="mb-4 h-4 w-full overflow-hidden rounded-full bg-[#e7e8eb]">
+              <div
+                className="h-full rounded-full transition-all"
+                style={{ width: `${pct}%`, background: 'linear-gradient(135deg,#0040a1 0%,#0056d2 100%)' }}
+              />
+            </div>
+            <div className="flex justify-between text-xs font-medium text-[#424654]">
+              <span>Started: {formatDate(active.startDate)}</span>
+              <span>Ends: {formatDate(active.endDate)}</span>
+            </div>
+          </div>
 
-        {/* Weekly quality */}
-        <div className="col-span-12 flex flex-col rounded-xl border border-[#c7c5d4]/30 bg-white p-6 shadow-sm lg:col-span-8">
-          <div className="mb-6 flex items-center justify-between">
+          {/* Logs Submitted */}
+          <div className="flex items-center gap-6 rounded-xl bg-[#f3f3f7] p-8">
+            <div className="flex h-12 w-12 items-center justify-center rounded-full bg-white text-[#0040a1]">
+              <NotebookPen className="h-6 w-6" />
+            </div>
             <div>
-              <h3 className="text-xl font-semibold text-[#15157d]">Quality Score</h3>
-              <p className="text-xs text-[#464652]">NLP-scored logbook quality per week</p>
+              <p className="text-sm font-medium text-[#424654]">Logs Submitted</p>
+              <p className="text-2xl font-extrabold text-[#191c1e]">{submitted.length} / {total}</p>
             </div>
-            <span className="font-mono text-xs text-[#777683]">0 – 100</span>
           </div>
-          {bars.length > 0 ? (
-            <div className="flex h-48 flex-1 items-end justify-between gap-2 px-1">
-              {bars.map((s) => {
-                const score = s.analysis!.qualityScore!;
-                const isTop = score === Math.max(...bars.map((b) => b.analysis!.qualityScore!));
-                return (
-                  <div key={s.id} className="group flex flex-1 flex-col items-center gap-2">
-                    <div className="flex w-full flex-1 items-end" title={`Week ${s.weekNumber}: ${score}/100`}>
+
+          {/* Avg Quality (AI) — replaces the un-tracked "Hours" tile */}
+          <div className="flex items-center gap-6 rounded-xl bg-[#f3f3f7] p-8">
+            <div className="flex h-12 w-12 items-center justify-center rounded-full bg-white text-[#0040a1]">
+              <Gauge className="h-6 w-6" />
+            </div>
+            <div>
+              <p className="text-sm font-medium text-[#424654]">Avg Quality Score</p>
+              <p className="text-2xl font-extrabold text-[#191c1e]">
+                {avgQuality != null ? `${avgQuality} / 100` : '—'}
+              </p>
+            </div>
+          </div>
+        </div>
+
+        {/* ── Quick Actions + Notifications ────────────────────── */}
+        <div className="col-span-12 space-y-8 lg:col-span-4">
+          {/* Quick Actions */}
+          <div className="rounded-xl bg-[#e7e8eb] p-6">
+            <h3 className="mb-4 font-bold text-[#191c1e]">Quick Actions</h3>
+            <div className="space-y-3">
+              {[
+                { label: 'New Logbook Entry', to: '/student/logbook' },
+                { label: 'View Submissions',  to: '/student/submissions' },
+                { label: 'AESIS Assistant',   to: '/student/chatbot' },
+              ].map((action) => (
+                <Link
+                  key={action.to}
+                  to={action.to}
+                  className="group flex w-full items-center justify-between rounded-lg bg-white px-4 py-3 text-left text-[#424654] transition-all hover:text-[#0040a1]"
+                >
+                  <span className="text-sm font-medium">{action.label}</span>
+                  <ArrowRight className="h-4 w-4 opacity-50 transition-transform group-hover:translate-x-1" />
+                </Link>
+              ))}
+            </div>
+          </div>
+
+          {/* Notifications */}
+          <div className="rounded-xl bg-white p-6">
+            <div className="mb-6 flex items-center justify-between">
+              <h3 className="font-bold text-[#191c1e]">Notifications</h3>
+              {hasUnread && <span className="h-2 w-2 rounded-full bg-[#ba1a1a]" />}
+            </div>
+            {recentNotifications.length === 0 ? (
+              <p className="py-6 text-center text-sm text-[#737785]">You're all caught up.</p>
+            ) : (
+              <div className="space-y-6">
+                {recentNotifications.map((n: Notification) => {
+                  const positive = n.type === 'feedback_received';
+                  return (
+                    <div key={n.id} className="flex gap-4">
                       <div
-                        className={`w-full rounded-t-sm transition-colors ${isTop ? 'bg-[#15157d]' : 'bg-[#8a4cfc]/40 group-hover:bg-[#8a4cfc]/70'}`}
-                        style={{ height: `${Math.max(4, (score / maxScore) * 100)}%` }}
-                      />
+                        className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full ${
+                          positive ? 'bg-[#dae2ff]' : 'bg-[#ffdbcf]'
+                        }`}
+                      >
+                        {positive ? (
+                          <CheckCircle2 className="h-4 w-4 text-[#0040a1]" />
+                        ) : (
+                          <CalendarClock className="h-4 w-4 text-[#812800]" />
+                        )}
+                      </div>
+                      <div className="min-w-0">
+                        <p className="text-sm font-semibold text-[#191c1e]">{n.title}</p>
+                        <p className="text-xs text-[#424654]">{n.body}</p>
+                      </div>
                     </div>
-                    <span className={`text-xs ${isTop ? 'font-bold text-[#15157d]' : 'text-[#777683]'}`}>
-                      W{s.weekNumber}
-                    </span>
-                  </div>
-                );
-              })}
-            </div>
-          ) : (
-            <div className="flex h-48 flex-1 items-center justify-center text-sm text-[#777683]">
-              No scored submissions yet
-            </div>
-          )}
-        </div>
-
-        {/* Logbook checklist */}
-        <div className="col-span-12 rounded-xl border border-[#c7c5d4]/30 bg-white p-6 shadow-sm md:col-span-6">
-          <div className="mb-5 flex items-center justify-between">
-            <h3 className="text-xl font-semibold text-[#15157d]">Logbook</h3>
-            <span className="rounded-full bg-[#dce9ff] px-3 py-1 text-xs font-semibold text-[#15157d]">
-              {submitted.length} / {total} done
-            </span>
+                  );
+                })}
+              </div>
+            )}
+            <Link
+              to="/student/notifications"
+              className="mt-6 block w-full rounded py-2 text-center text-xs font-bold text-[#0040a1] transition-colors hover:bg-[#f3f3f7]"
+            >
+              View All Notifications
+            </Link>
           </div>
-          {checklist.length === 0 ? (
-            <p className="py-6 text-center text-sm text-[#777683]">No logbook weeks scheduled.</p>
-          ) : (
-            <div className="space-y-1">
-              {checklist.map((s) => {
-                const done = isSubmitted(s);
-                const overdue = !done && daysUntil(s.deadline) < 0;
-                const dueSoon = !done && !overdue && daysUntil(s.deadline) <= 7;
-                return (
-                  <Link
-                    key={s.id}
-                    to={done ? '/student/submissions' : '/student/logbook'}
-                    className="group flex items-center gap-4 rounded-lg p-3 transition-colors hover:bg-[#eff4ff]"
-                  >
-                    {done ? (
-                      <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-[#22c087]">
-                        <Check className="h-3 w-3 text-white" />
-                      </span>
-                    ) : (
-                      <Circle className="h-5 w-5 shrink-0 text-[#c7c5d4]" />
-                    )}
-                    <div className="min-w-0 flex-1">
-                      <p className={`text-sm font-medium ${done ? 'text-[#777683] line-through' : 'text-[#0b1c30]'}`}>
-                        Week {s.weekNumber}
-                      </p>
-                      <p className="text-xs text-[#777683]">
-                        {done
-                          ? `Submitted ${formatDate(s.submittedAt)}`
-                          : `Due ${formatDate(s.deadline)}`}
-                      </p>
-                    </div>
-                    {overdue && (
-                      <span className="flex items-center gap-1 rounded-full bg-[#ffdad6] px-2 py-0.5 text-[11px] font-semibold text-[#ba1a1a]">
-                        <AlertTriangle className="h-3 w-3" /> Overdue
-                      </span>
-                    )}
-                    {dueSoon && (
-                      <span className="flex items-center gap-1 rounded-full bg-amber-100 px-2 py-0.5 text-[11px] font-semibold text-amber-700">
-                        <CalendarClock className="h-3 w-3" /> Due soon
-                      </span>
-                    )}
-                  </Link>
-                );
-              })}
-            </div>
-          )}
         </div>
 
-        {/* Milestones */}
-        <div className="col-span-12 rounded-xl border border-[#c7c5d4]/30 bg-white p-6 shadow-sm md:col-span-6">
-          <h3 className="mb-6 text-xl font-semibold text-[#15157d]">Milestones</h3>
-          <div className="relative space-y-8">
-            <div className="absolute bottom-2 left-[11px] top-2 w-[2px] bg-[#c7c5d4]/40" />
+        {/* ── Supervisor Feedback ──────────────────────────────── */}
+        <div className="col-span-12">
+          <div className="rounded-xl bg-[#f3f3f7] p-8">
+            <div className="mb-8 flex flex-col justify-between gap-4 md:flex-row md:items-center">
+              <div>
+                <h3 className="text-2xl font-extrabold text-[#191c1e]">Supervisor Feedback</h3>
+                <p className="text-sm text-[#424654]">Latest performance review and comments</p>
+              </div>
+              <Link
+                to="/student/submissions"
+                className="flex items-center gap-2 text-sm font-bold text-[#0040a1]"
+              >
+                Full History <ExternalLink className="h-4 w-4" />
+              </Link>
+            </div>
 
-            {/* Started */}
-            <div className="relative flex gap-4">
-              <span className="z-10 flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-[#22c087]">
-                <Check className="h-3.5 w-3.5 text-white" />
-              </span>
-              <div className="flex-1">
-                <h4 className="text-sm font-bold text-[#0b1c30]">Placement started</h4>
-                <p className="text-sm text-[#464652]">
-                  {active.startDate ? `Began ${formatDate(active.startDate)}` : 'In progress'}
+            {feedbackCards.length === 0 ? (
+              <div className="rounded-xl bg-white p-10 text-center">
+                <GraduationCap className="mx-auto mb-3 h-8 w-8 text-[#0040a1]" />
+                <p className="text-sm font-semibold text-[#191c1e]">No supervisor feedback yet</p>
+                <p className="mt-1 text-sm text-[#424654]">
+                  Once your supervisor reviews a submitted logbook, their comments will show here.
                 </p>
               </div>
-            </div>
-
-            {/* Logbook progress (current) */}
-            <div className="relative flex gap-4">
-              <span className="z-10 flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-[#15157d]">
-                <span className="h-2 w-2 animate-pulse rounded-full bg-white" />
-              </span>
-              <div className="flex-1">
-                <h4 className="text-sm font-bold text-[#15157d]">Logbook submissions</h4>
-                <p className="mb-2 text-sm text-[#464652]">{pct}% complete · {submitted.length} of {total} weeks</p>
-                <div className="h-2 w-full overflow-hidden rounded-full bg-[#eff4ff]">
-                  <div className="h-full rounded-full bg-[#15157d] transition-all" style={{ width: `${pct}%` }} />
-                </div>
+            ) : (
+              <div className="grid grid-cols-1 gap-6 md:grid-cols-3">
+                {feedbackCards.map(({ sub, fb }) => {
+                  const reviewer = fb.supervisor
+                    ? `${fb.supervisor.firstName} ${fb.supervisor.lastName}`
+                    : 'Academic Supervisor';
+                  const flagged = fb.outcome === 'flagged';
+                  return (
+                    <div
+                      key={fb.id}
+                      className={`rounded-xl bg-white p-6 ${flagged ? '' : 'border-l-4 border-[#0040a1]'}`}
+                    >
+                      <div className="mb-4 flex items-center gap-3">
+                        <div className="flex h-10 w-10 items-center justify-center rounded-full bg-[#e7e8eb]">
+                          <GraduationCap className="h-5 w-5 text-[#424654]" />
+                        </div>
+                        <div>
+                          <p className="text-sm font-bold text-[#191c1e]">{reviewer}</p>
+                          <p className="text-[10px] font-bold uppercase tracking-tight text-[#424654]">
+                            Week {sub.weekNumber} · {flagged ? 'Flagged' : 'Approved'}
+                          </p>
+                        </div>
+                      </div>
+                      <p className="mb-4 text-sm italic text-[#424654]">"{fb.feedbackText}"</p>
+                      {fb.rating != null ? (
+                        <div className="flex gap-1 text-[#0040a1]">
+                          {[1, 2, 3, 4, 5].map((i) => (
+                            <Star
+                              key={i}
+                              className="h-4 w-4"
+                              fill={i <= fb.rating! ? 'currentColor' : 'none'}
+                            />
+                          ))}
+                        </div>
+                      ) : (
+                        <p className="text-[10px] text-[#737785]">{timeAgo(fb.createdAt)}</p>
+                      )}
+                    </div>
+                  );
+                })}
               </div>
-            </div>
-
-            {/* Complete (upcoming) */}
-            <div className={`relative flex gap-4 ${pct >= 100 ? '' : 'opacity-50'}`}>
-              <span className={`z-10 flex h-6 w-6 shrink-0 items-center justify-center rounded-full ${pct >= 100 ? 'bg-[#22c087]' : 'bg-[#dce9ff]'}`}>
-                {pct >= 100
-                  ? <Check className="h-3.5 w-3.5 text-white" />
-                  : <span className="h-2 w-2 rounded-full bg-[#777683]" />}
-              </span>
-              <div className="flex-1">
-                <h4 className="text-sm font-bold text-[#0b1c30]">Placement complete</h4>
-                <p className="text-sm text-[#464652]">
-                  {active.endDate ? `Scheduled for ${formatDate(active.endDate)}` : 'End date pending'}
-                </p>
-              </div>
-            </div>
+            )}
           </div>
         </div>
       </div>

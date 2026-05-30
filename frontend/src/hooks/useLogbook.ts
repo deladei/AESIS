@@ -15,6 +15,15 @@ export interface LogbookSubmission {
   technologiesUsed:      string[];
   student?: { id: string; firstName: string; lastName: string; email: string };
   placement?: { company?: { name: string } };
+  _count?: { attachments: number; feedback: number };
+  feedback?: {
+    id:           string;
+    feedbackText: string;
+    rating:       number | null;
+    outcome:      string;
+    createdAt:    string;
+    supervisor?:  { id: string; firstName: string; lastName: string };
+  }[];
   analysis?: {
     qualityScore:           number | null;
     relevanceScore:         number | null;
