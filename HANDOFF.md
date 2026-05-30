@@ -883,6 +883,39 @@ Quality gate: `tsc --noEmit` clean; `npm run build` succeeds (1675 modules). Dat
 
 ---
 
+### Session 15 — 2026-05-30
+
+**Work done** — wired two shared Stitch screens (Feedback Center + AI Insights) into the role dashboards. Both are reachable from the nav now; both still render **static demo data** (Ghanaian names) pending live wiring.
+
+Context: prior session left `frontend/src/pages/shared/FeedbackCenter.tsx` built but **unreachable** — the three shells' "Feedback Center" nav pointed at `/feedback` but no such route existed, so every click fell through the `*` catch-all back to `/`.
+
+**Feedback Center** (commit `e772e7e`)
+| File | What |
+|---|---|
+| `router.tsx` | Imported `FeedbackCenter`; added `/feedback` route in a `RequireAuth roles={['student','academic_supervisor','admin']}` group. One route → renders inside whichever shell `RequireAuth` picks by role (no per-role duplication). Coordinator intentionally excluded (its shell never linked to it). |
+| (already staged from prior session) | `StudentShell` / `SupervisorShell` / `AdminShell` "Feedback Center" nav → `/feedback`; new `FeedbackCenter.tsx`. |
+
+**AI Insights & Analytics** (commit `6bab1ca`)
+- Pulled the Stitch screen **"AI Insights & Analytics"** (project "AI Internship Monitor" `4927634583697300472`, screen `939c79a7…`) and translated HTML → React (lucide icons, Tailwind arbitrary hex from the Stitch palette, Ghanaian names).
+
+| File | What |
+|---|---|
+| `pages/shared/AIInsights.tsx` | NEW shared screen. Five panels: Hiring Success Probability (bar chart), Weekly Sentiment heatmap, Skill Gap Analysis, Actionable Summaries, Real-time Performance Monitoring table. Ghanaian demo names (Akosua Mensah, Kwabena Boateng, Yaa Frimpong). Chrome comes from the per-role shell. |
+| `router.tsx` | `/ai-insights` route in a `RequireAuth roles={['academic_supervisor','coordinator','admin']}` group. |
+| `SupervisorShell` / `AdminShell` | "AI Insights" nav was a dead link to the dashboard → now `/ai-insights`. |
+| `CoordinatorShell` | Renamed dead "Analytics" item → **"AI Insights"** (BarChart3 → Sparkles icon), href `/ai-insights`. |
+
+**Errors & fixes** — none. `tsc --noEmit` clean after each screen.
+
+**Quality gate:** frontend `tsc --noEmit` clean (exit 0) before each commit. Both commits pushed to `origin/main` → Vercel auto-redeploy.
+
+**Stopped here — next session should**
+1. In-browser verify on prod after Vercel redeploy: each role's nav opens `/feedback` and `/ai-insights` inside its own shell (student/supervisor/admin for Feedback; supervisor/coordinator/admin for AI Insights).
+2. **Wire both shared screens to live data** — currently 100% static demo. Feedback Center → live logbook feedback + AI feedback generator (AI engine); AI Insights → AI-engine analytics (risk/quality/sentiment) + real intern table. This is the main remaining work for these screens.
+3. Carryover from Session 14: restyle PlacementApproval + SupervisorAssignment to the light Nexus palette; verify prod Postgres password was rotated; chatbot smoke-test then mark Phase 9 ✅.
+
+---
+
 ## Handoff Entry Template
 
 ```markdown
