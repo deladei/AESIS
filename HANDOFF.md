@@ -916,6 +916,42 @@ Context: prior session left `frontend/src/pages/shared/FeedbackCenter.tsx` built
 
 ---
 
+### Session 16 — 2026-05-30
+
+**Work done** — wired both shared screens (AI Insights + Feedback Center) to **live data**, full-stack. User chose: build the missing backend APIs; keep genuinely-unbacked panels rendering with a **"Sample"** badge (not hidden).
+
+**New backend module** — `backend/src/modules/insights/` (mounted `/api/v1/insights` in `app.ts`):
+| File | What |
+|---|---|
+| `insights.service.ts` | `getInsights({supervisorId?})` — aggregates real Postgres: performance-monitoring rows (engagement = submitted/expected, successScore = `(1-riskScore)*100` ?? avgQuality, status from risk tier), weekly cohort quality trend, weekly sentiment (avg `sentimentPolarity`, first negative week = anomaly), cohort rubric **skill profile** (taskDepth/techVocab/reflection/temporal averages), and derived **actionable summaries** (highest-risk→mentorship, weakest dim→resource, top performer→success signal). `listInternsForFeedback({supervisorId?})` — interns + latest submission (id, status, `canReceiveFeedback`, qualityScore, sentimentClass, `aiFeedbackSummary`). Sparse panels return `hasData` flags. |
+| `insights.controller.ts` | Scope by role: `academic_supervisor` → own placements; coordinator/admin → all. |
+| `insights.router.ts` | `GET /` + `GET /interns`, behind `authenticate` + `authorize('academic_supervisor','coordinator','admin')`. |
+| `__tests__/insights.service.test.ts` | 4 tests (aggregation math, sentiment anomaly, empty shape, interns list) — all passing. |
+
+**Frontend**
+| File | What |
+|---|---|
+| `hooks/useDashboard.ts` | Added `useInsights()` + `useFeedbackInterns()` (+ `InsightsData` / `FeedbackIntern` types). |
+| `pages/shared/AIInsights.tsx` | Driven by `useInsights()`. Real: header counts, quality-trend bars (with +/- pts-since-wk1 delta), skill profile, summaries, performance table. Sentiment heatmap shows real polarity when present, else a **"Sample"**-badged demo grid. Loading/error/empty states added. |
+| `pages/shared/FeedbackCenter.tsx` | **Role-aware.** Reviewer (supervisor/admin/coordinator): real intern `<select>`, shows engine `aiFeedbackSummary` + quality + tone for the latest submission, live Evaluations Status (reviewed % + awaiting-review count), Formal Evaluation (1–5 rating + text) posting real feedback via existing `useSubmitFeedback` → `/logbook/submissions/:id/feedback` with **Approve** / **Flag** outcomes (disabled unless `canReceiveFeedback`). Student: read-only "Your Feedback" from own submissions (AI summary + supervisor feedback). Collaborative chat kept as a **"Sample"**-badged placeholder (no messaging backend). |
+
+**Commit pushed:** `ee5960f` — `feat(insights): wire AI Insights + Feedback Center to live data`.
+
+**Errors & fixes**
+
+| Error | Fix |
+|---|---|
+| `ChevronRight` imported but unused in AIInsights after dropping the "View Details" button | Removed from the lucide import (would have tripped `noUnusedLocals`). |
+
+**Quality gate:** frontend `tsc --noEmit` clean, `npm run build` clean (538 kB chunk warning is pre-existing), backend `tsc --noEmit` clean, `jest insights` 4/4. Full Jest suite **not** run (this box's known swap-thrash) — only added an isolated module + one router mount in `app.ts`.
+
+**Stopped here — next session should**
+1. ⚠️ **Backend deploy dependency:** `/api/v1/insights` is NEW — until **Render** redeploys the backend, both screens hit 404 and render their error state. Confirm the Render build picked up `ee5960f`, then in-browser verify on prod: supervisor sees own cohort, admin/coordinator see all.
+2. Note: sentiment + skill panels only populate once analyses carry `sentimentPolarity` / rubric sub-scores (sentiment is written after supervisor feedback). On prod demo data these may show the **"Sample"** badge until more feedback exists — expected, not a bug.
+3. Carryover from Session 14: restyle PlacementApproval + SupervisorAssignment to the light Nexus palette; verify prod Postgres password rotated; chatbot smoke-test then mark Phase 9 ✅.
+
+---
+
 ## Handoff Entry Template
 
 ```markdown
