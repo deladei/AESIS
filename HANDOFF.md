@@ -761,6 +761,64 @@ User report: a newly-registered account couldn't log in — backend kept returni
 
 ---
 
+### Session 14 — 2026-05-30
+
+**Work done** — Supervisor dashboard + shell, demo seed script, and **prod DB populated**
+
+| File / Action | What |
+|---|---|
+| Supervisor dashboard + shell (frontend) | Pulse Board (4 interns), AI Alerts (high-risk on Alex Kim + Growth card on Sarah Jenkins), Recent Submissions review queue. Pushed → Vercel. |
+| `backend/src/config/seed-supervisor-demo.ts` | NEW demo seed — seeds Nimbus Technologies Ltd. + 4 interns (Sarah Jenkins, David Rivera — both low; Elena Kostas — medium; Alex Kim — high) under hardcoded `supervisor@aesis.cs.edu`, each with 6 weeks of logbook data. Idempotent (upsert by email). Pushed → Render. |
+| **Prod seed executed** | Ran `seed-supervisor-demo.ts` against the prod Render Postgres from this box (user pasted the External connection string; SSL `sslmode=require`). |
+
+**Commits pushed to `origin/main`**
+
+| SHA | Message |
+|---|---|
+| `5d5f8a7` | supervisor dashboard + shell (frontend → Vercel) |
+| `21f0d96` | demo seed script (backend → Render) |
+
+**Prod seed — how it was done**
+- Both seed scripts instantiate their own `PrismaClient` + `dotenv.config()` (no args), and do **not** import `config/env.ts` — so a prefixed `DATABASE_URL=` overrides the local `.env` and there's no Zod env-validation crash. Ran: `DATABASE_URL="postgresql://…render.com/aesis_postgres?sslmode=require" npx ts-node src/config/seed-supervisor-demo.ts`.
+- **Preconditions verified read-only first** (all present on prod): CS department, active academic year `2024/2025`, and `supervisor@aesis.cs.edu` (role `academic_supervisor`, verified). No demo interns existed → clean first run, base `seed.js` not needed.
+- **Verified after** via direct psql: 4 interns, 4 placements under the supervisor, risk tiers 2 low / 1 medium / 1 high, pending review queue = 3 (2 submitted + 1 under_review). Matches local.
+
+**Prod login for the populated dashboard**
+- `supervisor@aesis.cs.edu` / `Super@1234` — interns are attached to THIS account. Logging in as any other supervisor shows an empty board. Interns' own password (if logging in as a student): `Student@1234`.
+
+**Action still owed by user**
+- 🔐 **Rotate the prod Postgres password in Render** (`aesis-postgres` → it was pasted into chat). Until rotated, treat the credential as exposed.
+
+**Errors & fixes**
+
+| Error | Fix |
+|---|---|
+| `select … where role ilike '%supervisor%'` → `operator does not exist: "UserRole" ~~* unknown` | `role` is a Postgres enum, not text — `ilike` invalid. Cosmetic; the specific account `supervisor@aesis.cs.edu` was already confirmed present, so no cast needed. |
+
+**Follow-up (same session) — Ghana name localization**
+
+User set a **standing rule**: AESIS deploys in **Ghana**, so every demo/seed/example/placeholder name must be Ghanaian (Stitch screens already converted). Saved to memory as `feedback-ghana-names`. Applied to the supervisor dashboard data:
+
+| Role | Old | New (Ghanaian) |
+|---|---|---|
+| Academic supervisor | Dr. Emeka Obi | Dr. Kofi Adjei |
+| Top performer / low | Sarah Jenkins | Akosua Mensah |
+| Low | David Rivera | Kwabena Boateng |
+| Medium | Elena Kostas | Abena Owusu |
+| High / alert | Alex Kim | Yaw Asante |
+| Company | Nimbus Technologies Ltd. | Ananse Technologies Ltd. |
+
+- Code: renamed interns + company in `seed-supervisor-demo.ts`; renamed supervisor in `seed.ts` (also added `firstName`/`lastName` to the supervisor upsert **update** path so re-seeding repairs the name — previously update only touched password/verified).
+- Prod DB: since the seed upserts interns **by email** and the emails changed, re-running would have duplicated them. So on prod I (a) renamed the supervisor in place via SQL, (b) deleted the 4 old interns + dependents in FK order (risk scores → submissions [cascades analyses] → placements → users), (c) deleted the orphaned Nimbus company, (d) re-ran the updated seed. Verified: 4 Ghanaian interns with correct tiers (Akosua/Kwabena low, Abena medium, Yaw high), supervisor = Dr. Kofi Adjei, only Ananse company, zero stray Western demo names.
+- **Note for future:** `seed.ts` still has placeholder labels `System / Admin` and `CS Programme / Coordinator` — functional system accounts, not Ghanaian-ized yet. Convert if they ever surface as people in the UI.
+
+**Stopped here — next session should**
+1. Confirm the prod supervisor dashboard renders the 4 interns / AI alerts / 3-item review queue after logging in as `supervisor@aesis.cs.edu` on `aesis.vercel.app` (Render free-tier cold-start may need one retry). Names should now all be Ghanaian.
+2. Verify the user rotated the prod DB password.
+3. Carryover: chatbot smoke-test from deployed `ChatbotPanel`, then mark Phase 9 ✅.
+
+---
+
 ## Handoff Entry Template
 
 ```markdown

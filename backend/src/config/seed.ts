@@ -124,13 +124,13 @@ async function seed() {
   const superHash = await bcrypt.hash('Super@1234', 12);
   await prisma.user.upsert({
     where: { email: 'supervisor@aesis.cs.edu' },
-    update: { passwordHash: superHash, isVerified: true },
+    update: { passwordHash: superHash, isVerified: true, firstName: 'Dr. Kofi', lastName: 'Adjei' },
     create: {
       email:        'supervisor@aesis.cs.edu',
       passwordHash: superHash,
       role:         'academic_supervisor',
-      firstName:    'Dr. Emeka',
-      lastName:     'Obi',
+      firstName:    'Dr. Kofi',
+      lastName:     'Adjei',
       departmentId: dept.id,
       isVerified:   true,
     },

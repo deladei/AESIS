@@ -33,7 +33,7 @@ const D = SubmissionStatus.draft;
 
 const INTERNS: InternSpec[] = [
   {
-    first: 'Sarah', last: 'Jenkins', email: 'sarah.jenkins@student.aesis.cs.edu',
+    first: 'Akosua', last: 'Mensah', email: 'akosua.mensah@student.aesis.cs.edu',
     programmeCode: 'BSC-CS',
     weeks: [
       { status: A, quality: 90 }, { status: A, quality: 93 }, { status: A, quality: 91 },
@@ -42,7 +42,7 @@ const INTERNS: InternSpec[] = [
     risk: { tier: RiskTier.low, score: 0.12, factors: ['Consistent submissions', 'High reflection quality'] },
   },
   {
-    first: 'David', last: 'Rivera', email: 'david.rivera@student.aesis.cs.edu',
+    first: 'Kwabena', last: 'Boateng', email: 'kwabena.boateng@student.aesis.cs.edu',
     programmeCode: 'BSC-SE',
     weeks: [
       { status: A, quality: 78 }, { status: A, quality: 81 }, { status: A, quality: 80 },
@@ -51,7 +51,7 @@ const INTERNS: InternSpec[] = [
     risk: { tier: RiskTier.low, score: 0.30, factors: ['Steady engagement', 'On-time submissions'] },
   },
   {
-    first: 'Elena', last: 'Kostas', email: 'elena.kostas@student.aesis.cs.edu',
+    first: 'Abena', last: 'Owusu', email: 'abena.owusu@student.aesis.cs.edu',
     programmeCode: 'BSC-IT',
     weeks: [
       { status: A, quality: 72 }, { status: A, quality: 74 }, { status: A, quality: 73 },
@@ -60,7 +60,7 @@ const INTERNS: InternSpec[] = [
     risk: { tier: RiskTier.medium, score: 0.55, factors: ['Quality plateauing', 'One missed deadline'] },
   },
   {
-    first: 'Alex', last: 'Kim', email: 'alex.kim@student.aesis.cs.edu',
+    first: 'Yaw', last: 'Asante', email: 'yaw.asante@student.aesis.cs.edu',
     programmeCode: 'BSC-CY',
     weeks: [
       { status: A, quality: 52 }, { status: A, quality: 48 }, { status: F, quality: 41 },
@@ -82,9 +82,9 @@ async function main() {
   const progByCode = new Map(programmes.map((p) => [p.code, p.id]));
 
   const company = await prisma.company.upsert({
-    where: { name: 'Nimbus Technologies Ltd.' },
+    where: { name: 'Ananse Technologies Ltd.' },
     update: {},
-    create: { name: 'Nimbus Technologies Ltd.', industry: 'Software', website: 'https://nimbus.example.com' },
+    create: { name: 'Ananse Technologies Ltd.', industry: 'Software', website: 'https://ananse.example.com' },
   });
   console.log(`✓ Company: ${company.name}`);
 
