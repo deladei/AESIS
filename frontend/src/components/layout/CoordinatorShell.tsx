@@ -3,7 +3,7 @@ import { cn } from '@/lib/utils';
 import { useAuth } from '@/contexts/AuthContext';
 import { useUnreadCount } from '@/hooks/useNotifications';
 import {
-  LayoutDashboard, ClipboardList, UserCheck, BarChart3, Settings,
+  LayoutDashboard, ClipboardList, UserCheck, Sparkles, Settings,
   Search, Bell, HelpCircle, GraduationCap, LogOut, Plus,
 } from 'lucide-react';
 
@@ -19,7 +19,7 @@ const navItems: NavItem[] = [
   { label: 'Intern Overview', href: '/coordinator/dashboard',   icon: LayoutDashboard },
   { label: 'Placements',      href: '/coordinator/placements',  icon: ClipboardList },
   { label: 'Assignments',     href: '/coordinator/assignments', icon: UserCheck },
-  { label: 'Analytics',       href: '/coordinator/dashboard',   icon: BarChart3 },
+  { label: 'AI Insights',     href: '/ai-insights',             icon: Sparkles },
   { label: 'Settings',        href: '/coordinator/dashboard',   icon: Settings },
 ];
 

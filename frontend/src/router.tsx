@@ -20,6 +20,7 @@ import PlacementApproval    from '@/pages/coordinator/PlacementApproval';
 import SupervisorAssignment from '@/pages/coordinator/SupervisorAssignment';
 import AdminDashboard       from '@/pages/admin/AdminDashboard';
 import FeedbackCenter       from '@/pages/shared/FeedbackCenter';
+import AIInsights           from '@/pages/shared/AIInsights';
 
 type UserRole = 'student' | 'academic_supervisor' | 'coordinator' | 'admin';
 
@@ -133,6 +134,14 @@ export const router = createBrowserRouter([
     element: <RequireAuth roles={['student', 'academic_supervisor', 'admin']} />,
     children: [
       { path: '/feedback', element: <FeedbackCenter /> },
+    ],
+  },
+
+  // AI Insights & Analytics — shared screen, rendered inside each role's own shell
+  {
+    element: <RequireAuth roles={['academic_supervisor', 'coordinator', 'admin']} />,
+    children: [
+      { path: '/ai-insights', element: <AIInsights /> },
     ],
   },
 
