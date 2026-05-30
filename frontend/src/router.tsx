@@ -2,6 +2,7 @@ import { Navigate, createBrowserRouter, Outlet } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 import { AppShell } from '@/components/layout/AppShell';
 import { StudentShell } from '@/components/layout/StudentShell';
+import { SupervisorShell } from '@/components/layout/SupervisorShell';
 
 import LoginPage         from '@/pages/auth/LoginPage';
 import RegisterPage      from '@/pages/auth/RegisterPage';
@@ -31,6 +32,14 @@ function RequireAuth({ roles }: { roles?: UserRole[] }) {
       <StudentShell user={shellUser}>
         <Outlet />
       </StudentShell>
+    );
+  }
+
+  if (user.role === 'academic_supervisor') {
+    return (
+      <SupervisorShell user={shellUser}>
+        <Outlet />
+      </SupervisorShell>
     );
   }
 
