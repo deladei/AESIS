@@ -13,6 +13,7 @@ import logbookRouter       from './modules/logbook/logbook.router';
 import notificationsRouter from './modules/notifications/notifications.router';
 import coordinatorRouter   from './modules/coordinator/coordinator.router';
 import supervisorRouter    from './modules/supervisor/supervisor.router';
+import insightsRouter      from './modules/insights/insights.router';
 import aiRouter            from './modules/ai/ai.router';
 // Future phases — uncomment as modules are built:
 // import usersRouter        from './modules/users/users.router';
@@ -71,6 +72,7 @@ export function createApp() {
   app.use('/api/v1/notifications', notificationsRouter);
   app.use('/api/v1/coordinator',   coordinatorRouter);
   app.use('/api/v1/supervisor',    supervisorRouter);
+  app.use('/api/v1/insights',      insightsRouter);
   app.use('/api/v1/ai',            aiRouter);
   // Future phases — uncomment as modules are built:
   // app.use('/api/v1/users',         usersRouter);

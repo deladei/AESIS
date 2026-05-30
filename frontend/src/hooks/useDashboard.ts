@@ -76,3 +76,62 @@ export function useSupervisorDashboard() {
     },
   });
 }
+
+// ── AI Insights & Analytics ───────────────────────────────────
+
+export interface InsightsData {
+  overview: { activeInterns: number; flaggedCount: number };
+  performanceMonitoring: {
+    placementId:     string;
+    name:            string;
+    department:      string;
+    engagementPct:   number;
+    engagementLabel: string;
+    submittedCount:  number;
+    expectedWeeks:   number;
+    successScore:    number | null;
+    riskTier:        'low' | 'medium' | 'high' | null;
+    status:          string;
+    flagged:         boolean;
+  }[];
+  successTrend: { week: number; avgQuality: number }[];
+  sentiment: { hasData: boolean; weeks: { week: number; polarity: number }[]; anomalyWeek: number | null };
+  skillProfile: { hasData: boolean; dimensions: { dimension: string; avgScore: number | null }[] };
+  actionableSummaries: { hasData: boolean; items: { title: string; body: string }[] };
+}
+
+export function useInsights() {
+  return useQuery({
+    queryKey: ['insights'],
+    queryFn:  async () => {
+      const r = await api.get<{ data: InsightsData }>('/insights');
+      return r.data.data;
+    },
+  });
+}
+
+export interface FeedbackIntern {
+  placementId: string;
+  studentId:   string;
+  name:        string;
+  company:     string | null;
+  latestSubmission: {
+    id:                 string;
+    weekNumber:         number;
+    status:             string;
+    canReceiveFeedback: boolean;
+    qualityScore:       number | null;
+    sentimentClass:     string | null;
+    aiFeedbackSummary:  string | null;
+  } | null;
+}
+
+export function useFeedbackInterns() {
+  return useQuery({
+    queryKey: ['insights', 'interns'],
+    queryFn:  async () => {
+      const r = await api.get<{ data: FeedbackIntern[] }>('/insights/interns');
+      return r.data.data;
+    },
+  });
+}
