@@ -54,7 +54,7 @@ export default function StudentDashboard() {
   if (placementsLoading || subsLoading) {
     return (
       <div className="flex h-64 items-center justify-center">
-        <Loader2 className="h-6 w-6 animate-spin text-[#0040a1]" />
+        <Loader2 className="h-6 w-6 animate-spin text-[#15157d]" />
       </div>
     );
   }
@@ -66,7 +66,7 @@ export default function StudentDashboard() {
           Welcome back, {user?.firstName}
         </h1>
         <div className="mt-8 rounded-xl bg-white p-10 text-center">
-          <BookOpen className="mx-auto mb-3 h-8 w-8 text-[#0040a1]" />
+          <BookOpen className="mx-auto mb-3 h-8 w-8 text-[#15157d]" />
           <p className="text-base font-semibold text-[#191c1e]">No active placement yet</p>
           <p className="mt-1 text-sm text-[#424654]">
             Once your placement is approved, your internship progress and feedback will appear here.
@@ -124,14 +124,14 @@ export default function StudentDashboard() {
                   Week {submitted.length} of {total}
                 </p>
               </div>
-              <span className="rounded-full bg-[#dae2ff] px-3 py-1 text-xs font-semibold text-[#0040a1]">
+              <span className="rounded-full bg-[#e1e0ff] px-3 py-1 text-xs font-semibold text-[#15157d]">
                 {pct}% complete
               </span>
             </div>
             <div className="mb-4 h-4 w-full overflow-hidden rounded-full bg-[#e7e8eb]">
               <div
                 className="h-full rounded-full transition-all"
-                style={{ width: `${pct}%`, background: 'linear-gradient(135deg,#0040a1 0%,#0056d2 100%)' }}
+                style={{ width: `${pct}%`, background: 'linear-gradient(135deg,#15157d 0%,#2e3192 100%)' }}
               />
             </div>
             <div className="flex justify-between text-xs font-medium text-[#424654]">
@@ -142,7 +142,7 @@ export default function StudentDashboard() {
 
           {/* Logs Submitted */}
           <div className="flex items-center gap-6 rounded-xl bg-[#f3f3f7] p-8">
-            <div className="flex h-12 w-12 items-center justify-center rounded-full bg-white text-[#0040a1]">
+            <div className="flex h-12 w-12 items-center justify-center rounded-full bg-white text-[#15157d]">
               <NotebookPen className="h-6 w-6" />
             </div>
             <div>
@@ -153,7 +153,7 @@ export default function StudentDashboard() {
 
           {/* Avg Quality (AI) — replaces the un-tracked "Hours" tile */}
           <div className="flex items-center gap-6 rounded-xl bg-[#f3f3f7] p-8">
-            <div className="flex h-12 w-12 items-center justify-center rounded-full bg-white text-[#0040a1]">
+            <div className="flex h-12 w-12 items-center justify-center rounded-full bg-white text-[#15157d]">
               <Gauge className="h-6 w-6" />
             </div>
             <div>
@@ -179,7 +179,7 @@ export default function StudentDashboard() {
                 <Link
                   key={action.to}
                   to={action.to}
-                  className="group flex w-full items-center justify-between rounded-lg bg-white px-4 py-3 text-left text-[#424654] transition-all hover:text-[#0040a1]"
+                  className="group flex w-full items-center justify-between rounded-lg bg-white px-4 py-3 text-left text-[#424654] transition-all hover:text-[#15157d]"
                 >
                   <span className="text-sm font-medium">{action.label}</span>
                   <ArrowRight className="h-4 w-4 opacity-50 transition-transform group-hover:translate-x-1" />
@@ -204,11 +204,11 @@ export default function StudentDashboard() {
                     <div key={n.id} className="flex gap-4">
                       <div
                         className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full ${
-                          positive ? 'bg-[#dae2ff]' : 'bg-[#ffdbcf]'
+                          positive ? 'bg-[#e1e0ff]' : 'bg-[#ffdbcf]'
                         }`}
                       >
                         {positive ? (
-                          <CheckCircle2 className="h-4 w-4 text-[#0040a1]" />
+                          <CheckCircle2 className="h-4 w-4 text-[#15157d]" />
                         ) : (
                           <CalendarClock className="h-4 w-4 text-[#812800]" />
                         )}
@@ -224,7 +224,7 @@ export default function StudentDashboard() {
             )}
             <Link
               to="/student/notifications"
-              className="mt-6 block w-full rounded py-2 text-center text-xs font-bold text-[#0040a1] transition-colors hover:bg-[#f3f3f7]"
+              className="mt-6 block w-full rounded py-2 text-center text-xs font-bold text-[#15157d] transition-colors hover:bg-[#f3f3f7]"
             >
               View All Notifications
             </Link>
@@ -241,7 +241,7 @@ export default function StudentDashboard() {
               </div>
               <Link
                 to="/student/submissions"
-                className="flex items-center gap-2 text-sm font-bold text-[#0040a1]"
+                className="flex items-center gap-2 text-sm font-bold text-[#15157d]"
               >
                 Full History <ExternalLink className="h-4 w-4" />
               </Link>
@@ -249,7 +249,7 @@ export default function StudentDashboard() {
 
             {feedbackCards.length === 0 ? (
               <div className="rounded-xl bg-white p-10 text-center">
-                <GraduationCap className="mx-auto mb-3 h-8 w-8 text-[#0040a1]" />
+                <GraduationCap className="mx-auto mb-3 h-8 w-8 text-[#15157d]" />
                 <p className="text-sm font-semibold text-[#191c1e]">No supervisor feedback yet</p>
                 <p className="mt-1 text-sm text-[#424654]">
                   Once your supervisor reviews a submitted logbook, their comments will show here.
@@ -265,7 +265,7 @@ export default function StudentDashboard() {
                   return (
                     <div
                       key={fb.id}
-                      className={`rounded-xl bg-white p-6 ${flagged ? '' : 'border-l-4 border-[#0040a1]'}`}
+                      className={`rounded-xl bg-white p-6 ${flagged ? '' : 'border-l-4 border-[#15157d]'}`}
                     >
                       <div className="mb-4 flex items-center gap-3">
                         <div className="flex h-10 w-10 items-center justify-center rounded-full bg-[#e7e8eb]">
@@ -280,7 +280,7 @@ export default function StudentDashboard() {
                       </div>
                       <p className="mb-4 text-sm italic text-[#424654]">"{fb.feedbackText}"</p>
                       {fb.rating != null ? (
-                        <div className="flex gap-1 text-[#0040a1]">
+                        <div className="flex gap-1 text-[#15157d]">
                           {[1, 2, 3, 4, 5].map((i) => (
                             <Star
                               key={i}
