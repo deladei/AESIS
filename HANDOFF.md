@@ -984,6 +984,26 @@ Student (`#0040a1`) + Coordinator shell & dashboard (`#00288e`) → `#15157d`, m
 
 ---
 
+### Session 18 — 2026-05-30
+
+**Work done** — mobile navigation for every screen. One commit (`28ebf39`), pushed to `origin/main` (Vercel auto-deploy). Frontend only, no backend touched.
+
+Problem: all four active layouts (`StudentShell`, `SupervisorShell`, `CoordinatorShell`, `AdminShell`) hide their sidebar with `hidden md:flex` and never replaced it — on a phone the topbar showed logo + bell + avatar with **no way to navigate between pages**. (`AppShell.tsx` is only the router fallback; the four per-role shells are what render.)
+
+| File | What |
+|---|---|
+| `frontend/src/components/layout/MobileNav.tsx` | NEW. Shared hamburger → left slide-in drawer. Closes on nav-item tap (route change), backdrop, X, and **Escape**; locks body scroll while open. **Portal-rendered to `document.body`** — the topbars' `backdrop-blur` creates a containing block that would otherwise trap a `fixed` overlay inside the header. a11y: `aria-expanded`/`aria-controls` trigger, `role="dialog"`+`aria-modal` panel. Active style standardized to the `#8a4cfc` drawer treatment; sentence-case labels (SaaS-polish bar). |
+| 4 shells | Mounted `<MobileNav>` inside each existing `md:hidden` brand group, so the **desktop layout is unchanged**. Each passes its own `navItems`, `isActive`, and `roleLabel` (Academic Supervisor / Head Coordinator / Administrator; student falls back to email). |
+
+**Quality gate:** frontend `tsc --noEmit` clean, `npm run build` clean (543 kB chunk warning pre-existing). No backend changes.
+
+**Stopped here — next session should**
+1. Visually confirm the drawer at phone width on the Vercel deploy (couldn't run a mobile viewport locally this session).
+2. ⚠️ Still open from Session 17: **backend is DOWN on Render** (`no-server`) — user must check the dashboard; until then `/insights` etc. 404 on prod.
+3. Carryover (Session 14): restyle PlacementApproval + SupervisorAssignment to the light Nexus palette; verify prod Postgres password rotated; chatbot smoke-test → mark Phase 9 ✅.
+
+---
+
 ## Handoff Entry Template
 
 ```markdown
