@@ -952,6 +952,38 @@ Context: prior session left `frontend/src/pages/shared/FeedbackCenter.tsx` built
 
 ---
 
+### Session 17 — 2026-05-30
+
+**Work done** — frontend resilience + a full UI polish pass on the three dashboards. Four commits, all pushed to `origin/main` (Vercel auto-deploy). No backend changes.
+
+**1. Render free-tier cold-start hardening** (commit `4ccb2c7`)
+Context: probed prod backend `https://aesis-backend.onrender.com` — returns `x-render-routing: no-server` on **every** path (incl. `/health` and pre-existing routes), so `ee5960f` could NOT be verified: the Render service isn't serving at all. Likely free-plan suspension (month-end 750h cap) or a failed deploy — **needs the user's Render dashboard** (no `RENDER_API_KEY` locally). User chose **no upgrade**, so:
+| File | What |
+|---|---|
+| `frontend/src/lib/api.ts` | 65s axios timeout; retry-with-backoff (1/2/3/5s) on cold-start signals — `502/503/504` any method, network/timeout on **GET only** (avoids double-submitting non-idempotent calls). A suspended-service **404 is NOT retried** so a truly-down backend fails fast. Ref-counted `onBackendWaking()` signal. |
+| `frontend/src/components/shared/BackendWakingBanner.tsx` | NEW. Fixed top "Waking the server…" banner + `useBackendWaking()` hook; mounted in `App.tsx`. |
+
+Note for next session: the cold-start retry only triggers on `502/503/504`/network — the current prod state is a hard `404`/`no-server`, which fails fast by design.
+
+**2. Dashboard UI polish via `/ui-ux-pro-max`** (commit `6c5485a`)
+Skill confirmed target style = **Data-Dense Dashboard**. Applied across Student / Supervisor / Coordinator, honoring the SaaS-polish bar:
+- **Killed every ALL-CAPS label** (`uppercase tracking-*` micro-labels → sentence case; supervisor status strings `APPROVED`→`Approved`, `PENDING REVIEW`→`Pending review`, etc.). Verified 0 `uppercase` classes remain in the three dashboards.
+- `globals.css` **global a11y/interaction baseline**: `cursor-pointer` on interactive els, visible `:focus-visible` indigo ring, `prefers-reduced-motion` guard (applies app-wide).
+- Supervisor: submissions table now wrapped in `overflow-x-auto`.
+- Coordinator: `aria-label`s on all icon-only buttons (filter / row actions / review / approve / refresh).
+
+**3. Primary palette unified to `#15157d`** (commit `823b2cf`)
+Student (`#0040a1`) + Coordinator shell & dashboard (`#00288e`) → `#15157d`, matching supervisor/admin. Paired tints `dae2ff`/`dde1ff`→`e1e0ff`; student progress gradient → `#15157d→#2e3192`; de-uppercased a stray "Nexus Oversight" shell label. Left the secondary purple family (`#712ae2`/`#8a4cfc`/`#645efb`) intact on purpose (it's the AI/Sparkles accent, not the primary). Grep-verified no old-primary hexes remain.
+
+**Quality gate:** every commit — frontend `tsc --noEmit` clean + `npm run build` clean. No backend touched, so backend tests untouched.
+
+**Stopped here — next session should**
+1. ⚠️ **Backend is DOWN on Render** (`no-server`). User must check the dashboard (resume if suspended / read failed-deploy log). Until then `/insights` (Session 16) and everything else 404s on prod. Once live: confirm `ee5960f` → `/health` 200, `/api/v1/insights` 401.
+2. Obvious next feature: wire **Coordinator + Admin** dashboards to live data (still static demo) — Student & Supervisor already live.
+3. Carryover (Session 14): restyle PlacementApproval + SupervisorAssignment to the light Nexus palette; verify prod Postgres password rotated; chatbot smoke-test → mark Phase 9 ✅.
+
+---
+
 ## Handoff Entry Template
 
 ```markdown
