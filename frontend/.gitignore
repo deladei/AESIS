@@ -7,3 +7,8 @@ build/
 coverage/
 .DS_Store
 *.log
+
+# TS build-mode artifacts (emitted by `tsc -b` during `npm run build`)
+*.tsbuildinfo
+vite.config.js
+vite.config.d.ts
