@@ -1,5 +1,6 @@
-import { Navigate, createBrowserRouter, Outlet } from 'react-router-dom';
+import { Navigate, createBrowserRouter, Outlet, useLocation } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
+import { RouteErrorBoundary } from '@/components/shared/RouteErrorBoundary';
 import { AppShell } from '@/components/layout/AppShell';
 import { StudentShell } from '@/components/layout/StudentShell';
 import { SupervisorShell } from '@/components/layout/SupervisorShell';
@@ -26,6 +27,7 @@ type UserRole = 'student' | 'academic_supervisor' | 'coordinator' | 'admin';
 
 function RequireAuth({ roles }: { roles?: UserRole[] }) {
   const { isAuthenticated, isLoading, user } = useAuth();
+  const location = useLocation();
   if (isLoading) return <div className="min-h-screen bg-slate-950 flex items-center justify-center"><div className="w-6 h-6 border-2 border-blue-500 border-t-transparent rounded-full animate-spin" /></div>;
   if (!isAuthenticated || !user) return <Navigate to="/auth/login" replace />;
   if (roles && !roles.includes(user.role as UserRole)) return <Navigate to="/" replace />;
@@ -33,41 +35,34 @@ function RequireAuth({ roles }: { roles?: UserRole[] }) {
   const initials = `${user.firstName[0]}${user.lastName[0]}`.toUpperCase();
   const shellUser = { name: `${user.firstName} ${user.lastName}`, email: user.email, initials };
 
+  // Page content is wrapped in an error boundary so a crashing page renders a
+  // contained fallback inside the shell rather than unmounting the whole app.
+  // Keyed on pathname so navigating away auto-clears a previous page's error.
+  const content = (
+    <RouteErrorBoundary resetKey={location.pathname}>
+      <Outlet />
+    </RouteErrorBoundary>
+  );
+
   if (user.role === 'student') {
-    return (
-      <StudentShell user={shellUser}>
-        <Outlet />
-      </StudentShell>
-    );
+    return <StudentShell user={shellUser}>{content}</StudentShell>;
   }
 
   if (user.role === 'academic_supervisor') {
-    return (
-      <SupervisorShell user={shellUser}>
-        <Outlet />
-      </SupervisorShell>
-    );
+    return <SupervisorShell user={shellUser}>{content}</SupervisorShell>;
   }
 
   if (user.role === 'coordinator') {
-    return (
-      <CoordinatorShell user={shellUser}>
-        <Outlet />
-      </CoordinatorShell>
-    );
+    return <CoordinatorShell user={shellUser}>{content}</CoordinatorShell>;
   }
 
   if (user.role === 'admin') {
-    return (
-      <AdminShell user={shellUser}>
-        <Outlet />
-      </AdminShell>
-    );
+    return <AdminShell user={shellUser}>{content}</AdminShell>;
   }
 
   return (
     <AppShell role={user.role as UserRole} user={shellUser}>
-      <Outlet />
+      {content}
     </AppShell>
   );
 }

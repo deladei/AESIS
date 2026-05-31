@@ -30,8 +30,16 @@ export function useMyPlacements() {
   return useQuery({
     queryKey: ['placements', 'mine'],
     queryFn:  async () => {
-      const r = await api.get<{ data: Placement[] }>('/placements/mine');
-      return r.data.data;
+      const r = await api.get<{ data: Placement[] | { placements?: Placement[] } }>('/placements/mine');
+      // Normalize to an array regardless of payload shape: the endpoint returns
+      // a bare array, but tolerate a paginated `{ placements }` envelope or any
+      // unexpected/cold-start body so callers can always `.find`/`.map` safely.
+      const d = r.data?.data;
+      if (Array.isArray(d)) return d;
+      if (d && Array.isArray((d as { placements?: Placement[] }).placements)) {
+        return (d as { placements: Placement[] }).placements;
+      }
+      return [] as Placement[];
     },
   });
 }

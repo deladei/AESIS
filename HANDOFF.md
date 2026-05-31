@@ -1004,6 +1004,29 @@ Problem: all four active layouts (`StudentShell`, `SupervisorShell`, `Coordinato
 
 ---
 
+### Session 19 — 2026-05-31
+
+**Work done** — frontend crash containment + data-shape hardening. One commit, pushed to `origin/main` (Vercel auto-deploy). Frontend only, no backend touched.
+
+Problem: the student dashboard could crash on `placements?.find(...)`. The `?.` already guards null/undefined, so it only throws when `placements` is **truthy but not an array** (a paginated `{placements,meta}` object, or a cold-start/error body slipping through TanStack). There was **no error boundary anywhere**, so that thrown render error unmounted the entire React tree → blank screen, shell and all.
+
+| File | What |
+|---|---|
+| `frontend/src/hooks/usePlacements.ts` | `useMyPlacements` now normalizes the response to always return `Placement[]`: bare array → use it; `{placements:[…]}` envelope → unwrap; anything else (cold-start HTML, error body) → `[]`. Kills the crash trigger at the source and also protects `LogbookEditor` + `SubmissionHistory`, which share the hook. |
+| `frontend/src/components/shared/RouteErrorBoundary.tsx` | NEW class boundary. Renders a contained "This page hit a snag / Try again" fallback in the content area instead of letting a thrown render error blank the app. `componentDidCatch` logs to console; `resetKey` (pathname) auto-clears the error on navigation; a manual "Try again" button re-renders the children. |
+| `frontend/src/router.tsx` | `RequireAuth` wraps `<Outlet/>` in `<RouteErrorBoundary resetKey={location.pathname}>` *inside* whichever role shell it picks. So a page crash now shows the fallback in the content area while the sidebar/topbar stay alive — one boundary applied across all four roles (student/supervisor/coordinator/admin) + the `AppShell` fallback. |
+
+**Errors & fixes** — none. Clean first pass.
+
+**Quality gate:** frontend `tsc --noEmit` exit 0; `npm run build` clean (545 kB chunk warning pre-existing since Session 16). No backend changes.
+
+**Stopped here — next session should**
+1. After Vercel redeploy, sanity-check: log in as a student with a placement → dashboard renders; the boundary fallback only ever appears on a genuine page crash, never in the normal path.
+2. ⚠️ Still open from Session 17/18: **backend may be DOWN on Render** (`no-server`) — user must check the dashboard; until then `/insights` etc. 404 on prod.
+3. Carryover (Session 14): restyle PlacementApproval + SupervisorAssignment to the light Nexus palette; verify prod Postgres password rotated; chatbot smoke-test → mark Phase 9 ✅.
+
+---
+
 ## Handoff Entry Template
 
 ```markdown
