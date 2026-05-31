@@ -10,13 +10,30 @@ jest.mock('../../../config/prisma', () => ({
     logbookSubmission: {
       groupBy: jest.fn(),
     },
+    logbookAnalysis: {
+      aggregate: jest.fn(),
+    },
+    auditLog: {
+      findMany: jest.fn(),
+    },
   },
 }));
 
 import { prisma } from '../../../config/prisma';
-import { getCoordinatorDashboard, listStudents } from '../coordinator.service';
+import { getCoordinatorDashboard, listStudents, getRecentActivity } from '../coordinator.service';
 
 const mp = prisma as jest.Mocked<typeof prisma>;
+
+// Defaults so the two extra dashboard queries (avg quality + partner companies)
+// don't blow up tests that only assert on other fields.
+function stubDashboardExtras(opts: { avgQuality?: number | null; companies?: number } = {}) {
+  (mp.logbookAnalysis.aggregate as jest.Mock).mockResolvedValue({
+    _avg: { qualityScore: opts.avgQuality ?? null },
+  });
+  (mp.placement.findMany as jest.Mock).mockResolvedValue(
+    Array.from({ length: opts.companies ?? 0 }, (_, i) => ({ companyId: `c-${i}` })),
+  );
+}
 
 // ── getCoordinatorDashboard ───────────────────────────────────
 
@@ -44,6 +61,8 @@ describe('getCoordinatorDashboard', () => {
         { weekNumber: 2, _count: { _all: 32 } },
       ]);
 
+    stubDashboardExtras({ avgQuality: 87.25, companies: 24 });
+
     const result = await getCoordinatorDashboard();
 
     expect(result.overview.activePlacements).toBe(40);
@@ -51,6 +70,23 @@ describe('getCoordinatorDashboard', () => {
     expect(result.overview.highRiskCount).toBe(5);
     // (36 + 32) / (40 + 40) = 68 / 80 = 85%
     expect(result.overview.complianceRate).toBe(85);
+    // 87.25 rounded to 1 dp
+    expect(result.overview.avgPerformance).toBe(87.3);
+    expect(result.overview.partnerCompanies).toBe(24);
+  });
+
+  it('returns avgPerformance null when no analyses exist', async () => {
+    (mp.placement.count as jest.Mock).mockResolvedValue(0);
+    (mp.studentRiskScore.groupBy as jest.Mock).mockResolvedValue([]);
+    (mp.logbookSubmission.groupBy as jest.Mock)
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([]);
+    stubDashboardExtras({ avgQuality: null, companies: 0 });
+
+    const result = await getCoordinatorDashboard();
+
+    expect(result.overview.avgPerformance).toBeNull();
+    expect(result.overview.partnerCompanies).toBe(0);
   });
 
   it('returns complianceRate 100 when no submissions are scheduled', async () => {
@@ -59,6 +95,7 @@ describe('getCoordinatorDashboard', () => {
     (mp.logbookSubmission.groupBy as jest.Mock)
       .mockResolvedValueOnce([])   // scheduled
       .mockResolvedValueOnce([]);  // submitted
+    stubDashboardExtras();
 
     const result = await getCoordinatorDashboard();
 
@@ -71,6 +108,7 @@ describe('getCoordinatorDashboard', () => {
       { riskTier: 'high', _count: { _all: 3 } },
     ]);
     (mp.logbookSubmission.groupBy as jest.Mock).mockResolvedValue([]);
+    stubDashboardExtras();
 
     const result = await getCoordinatorDashboard();
 
@@ -89,6 +127,7 @@ describe('getCoordinatorDashboard', () => {
         { weekNumber: 1, _count: { _all: 8 } },
         // week 2 has no submitted entries
       ]);
+    stubDashboardExtras();
 
     const result = await getCoordinatorDashboard();
 
@@ -106,18 +145,26 @@ describe('listStudents', () => {
 
   const fakePlacement = {
     id:      'p-1',
-    student: { id: 'u-1', firstName: 'Ada', lastName: 'Lovelace', email: 'ada@uni.edu' },
+    student: {
+      id: 'u-1', firstName: 'Ada', lastName: 'Lovelace', email: 'ada@uni.edu',
+      programme: { name: 'Computer Science' },
+    },
+    academicSupervisor: { id: 's-1', firstName: 'Kofi', lastName: 'Adjei' },
     riskScores: [{ riskTier: 'medium', riskScore: { toNumber: () => 0.55 }, computedAt: new Date() }],
     logbookSubmissions: [{
       weekNumber:       3,
       submissionStatus: 'submitted',
       submittedAt:      new Date('2026-01-20'),
     }],
+    _count: { logbookSubmissions: 24 },
   };
 
   it('returns paginated student list', async () => {
     (mp.placement.findMany as jest.Mock).mockResolvedValue([fakePlacement]);
     (mp.placement.count   as jest.Mock).mockResolvedValue(1);
+    (mp.logbookSubmission.groupBy as jest.Mock).mockResolvedValue([
+      { placementId: 'p-1', _count: { _all: 6 } },
+    ]);
 
     const result = await listStudents({ page: 1, limit: 20 });
 
@@ -126,9 +173,29 @@ describe('listStudents', () => {
     expect(result.meta.total).toBe(1);
   });
 
+  it('maps department, supervisor and logbook progress', async () => {
+    (mp.placement.findMany as jest.Mock).mockResolvedValue([fakePlacement]);
+    (mp.placement.count   as jest.Mock).mockResolvedValue(1);
+    (mp.logbookSubmission.groupBy as jest.Mock).mockResolvedValue([
+      { placementId: 'p-1', _count: { _all: 6 } },
+    ]);
+
+    const result = await listStudents({ page: 1, limit: 20 });
+    const student = result.students[0];
+
+    expect(student.department).toBe('Computer Science');
+    expect(student.supervisor).toEqual({ id: 's-1', name: 'Kofi Adjei' });
+    expect(student.totalWeeks).toBe(24);
+    expect(student.submittedWeeks).toBe(6);
+    expect(student.progressPct).toBe(25); // 6 / 24
+  });
+
   it('maps riskTier and riskScore from the latest riskScore entry', async () => {
     (mp.placement.findMany as jest.Mock).mockResolvedValue([fakePlacement]);
     (mp.placement.count   as jest.Mock).mockResolvedValue(1);
+    (mp.logbookSubmission.groupBy as jest.Mock).mockResolvedValue([
+      { placementId: 'p-1', _count: { _all: 6 } },
+    ]);
 
     const result = await listStudents({ page: 1, limit: 20 });
     const student = result.students[0];
@@ -138,10 +205,18 @@ describe('listStudents', () => {
     expect(student.lastStatus).toBe('submitted');
   });
 
-  it('returns null for risk fields when no risk score exists', async () => {
-    const noRisk = { ...fakePlacement, riskScores: [], logbookSubmissions: [] };
+  it('returns null/zero for empty fields when no risk score or submissions exist', async () => {
+    const noRisk = {
+      ...fakePlacement,
+      academicSupervisor: null,
+      student: { ...fakePlacement.student, programme: null },
+      riskScores: [],
+      logbookSubmissions: [],
+      _count: { logbookSubmissions: 0 },
+    };
     (mp.placement.findMany as jest.Mock).mockResolvedValue([noRisk]);
     (mp.placement.count   as jest.Mock).mockResolvedValue(1);
+    (mp.logbookSubmission.groupBy as jest.Mock).mockResolvedValue([]);
 
     const result = await listStudents({ page: 1, limit: 20 });
     const student = result.students[0];
@@ -149,6 +224,9 @@ describe('listStudents', () => {
     expect(student.riskTier).toBeNull();
     expect(student.riskScore).toBeNull();
     expect(student.lastWeek).toBeNull();
+    expect(student.department).toBeNull();
+    expect(student.supervisor).toBeNull();
+    expect(student.progressPct).toBe(0);
   });
 
   it('passes riskTier filter to prisma when provided', async () => {
@@ -169,5 +247,51 @@ describe('listStudents', () => {
 
     const call = (mp.placement.findMany as jest.Mock).mock.calls[0][0];
     expect(call.where).not.toHaveProperty('riskScores');
+  });
+});
+
+// ── getRecentActivity ─────────────────────────────────────────
+
+describe('getRecentActivity', () => {
+  beforeEach(() => jest.clearAllMocks());
+
+  it('maps audit rows to actor + human summary', async () => {
+    (mp.auditLog.findMany as jest.Mock).mockResolvedValue([
+      {
+        id: 'a-1', action: 'placement_status_change', entityType: 'placement',
+        entityId: 'p-1', metadata: { change: 'supervisor_assigned' },
+        createdAt: new Date('2026-05-30T10:42:00Z'),
+        user: { firstName: 'Kofi', lastName: 'Adjei', role: 'coordinator' },
+      },
+      {
+        id: 'a-2', action: 'placement_status_change', entityType: 'placement',
+        entityId: 'p-2', metadata: { status: 'active' },
+        createdAt: new Date('2026-05-30T09:15:00Z'),
+        user: { firstName: 'Ama', lastName: 'Owusu', role: 'coordinator' },
+      },
+    ]);
+
+    const result = await getRecentActivity(8);
+
+    expect(result).toHaveLength(2);
+    expect(result[0]).toMatchObject({
+      id: 'a-1', actor: 'Kofi Adjei',
+      summary: 'Assigned an academic supervisor to a placement',
+    });
+    expect(result[1].summary).toBe('Changed a placement status to "active"');
+  });
+
+  it('falls back to a readable label for unknown actions', async () => {
+    (mp.auditLog.findMany as jest.Mock).mockResolvedValue([
+      {
+        id: 'a-3', action: 'data_export', entityType: 'report', entityId: 'r-1',
+        metadata: null, createdAt: new Date(),
+        user: { firstName: 'Yaa', lastName: 'Asante', role: 'admin' },
+      },
+    ]);
+
+    const result = await getRecentActivity();
+
+    expect(result[0].summary).toBe('Exported data');
   });
 });

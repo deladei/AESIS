@@ -20,6 +20,16 @@ export async function students(req: Request, res: Response) {
   ok(res, result);
 }
 
+const activityQuerySchema = z.object({
+  limit: z.coerce.number().int().min(1).max(50).default(8),
+});
+
+export async function activity(req: Request, res: Response) {
+  const { limit } = activityQuerySchema.parse(req.query);
+  const data = await service.getRecentActivity(limit);
+  ok(res, data);
+}
+
 export async function supervisors(_req: Request, res: Response) {
   const data = await service.listSupervisors();
   ok(res, data);

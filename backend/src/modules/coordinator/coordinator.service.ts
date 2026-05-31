@@ -10,6 +10,8 @@ export async function getCoordinatorDashboard() {
     pendingApprovals,
     riskRows,
     scheduledByWeek,
+    qualityAgg,
+    partnerCompanyRows,
   ] = await Promise.all([
     prisma.placement.count({ where: { placementStatus: 'active' } }),
     prisma.placement.count({ where: { placementStatus: 'pending' } }),
@@ -25,6 +27,17 @@ export async function getCoordinatorDashboard() {
       _count:  { _all: true },
       where:   { placement: { placementStatus: 'active' } },
       orderBy: { weekNumber: 'asc' },
+    }),
+    // Cohort-wide average logbook quality score (active placements only)
+    prisma.logbookAnalysis.aggregate({
+      _avg:  { qualityScore: true },
+      where: { submission: { placement: { placementStatus: 'active' } } },
+    }),
+    // Distinct companies hosting at least one active placement
+    prisma.placement.findMany({
+      where:    { placementStatus: 'active', companyId: { not: null } },
+      select:   { companyId: true },
+      distinct: ['companyId'],
     }),
   ]);
 
@@ -59,12 +72,19 @@ export async function getCoordinatorDashboard() {
     submitted: submittedMap.get(r.weekNumber) ?? 0,
   }));
 
+  // Cohort average performance (quality) — null when no analyses exist yet
+  const avgPerformance = qualityAgg._avg.qualityScore != null
+    ? Math.round(Number(qualityAgg._avg.qualityScore) * 10) / 10
+    : null;
+
   return {
     overview: {
       activePlacements,
       pendingApprovals,
       complianceRate,
-      highRiskCount: riskDistribution.high,
+      highRiskCount:    riskDistribution.high,
+      avgPerformance,
+      partnerCompanies: partnerCompanyRows.length,
     },
     riskDistribution,
     submissionTrends,
@@ -96,7 +116,13 @@ export async function listStudents(filters: StudentListFilters) {
       orderBy: { createdAt: 'desc' },
       select: {
         id:      true,
-        student: { select: { id: true, firstName: true, lastName: true, email: true } },
+        student: {
+          select: {
+            id: true, firstName: true, lastName: true, email: true,
+            programme: { select: { name: true } },
+          },
+        },
+        academicSupervisor: { select: { id: true, firstName: true, lastName: true } },
         riskScores: {
           orderBy: { computedAt: 'desc' },
           take:    1,
@@ -107,23 +133,94 @@ export async function listStudents(filters: StudentListFilters) {
           take:    1,
           select:  { weekNumber: true, submissionStatus: true, submittedAt: true },
         },
+        // Total scheduled weeks for this placement (the 24-week schedule)
+        _count: { select: { logbookSubmissions: true } },
       },
     }),
     prisma.placement.count({ where }),
   ]);
 
-  const students = placements.map(p => ({
-    placementId:    p.id,
-    student:        p.student,
-    riskTier:       p.riskScores[0]?.riskTier       ?? null,
-    riskScore:      p.riskScores[0]?.riskScore != null
-                      ? Number(p.riskScores[0].riskScore) : null,
-    lastWeek:       p.logbookSubmissions[0]?.weekNumber    ?? null,
-    lastStatus:     p.logbookSubmissions[0]?.submissionStatus ?? null,
-    lastSubmittedAt: p.logbookSubmissions[0]?.submittedAt  ?? null,
-  }));
+  // Submitted-week counts per placement, in one grouped query, for progress %
+  const placementIds = placements.map(p => p.id);
+  const submittedCounts = placementIds.length
+    ? await prisma.logbookSubmission.groupBy({
+        by:     ['placementId'],
+        _count: { _all: true },
+        where:  {
+          placementId:      { in: placementIds },
+          submissionStatus: { in: ['submitted', 'approved', 'under_review'] },
+        },
+      })
+    : [];
+  const submittedMap = new Map(submittedCounts.map(r => [r.placementId, r._count._all]));
+
+  const students = placements.map(p => {
+    const totalWeeks     = p._count.logbookSubmissions;
+    const submittedWeeks = submittedMap.get(p.id) ?? 0;
+    const sup            = p.academicSupervisor;
+    return {
+      placementId:    p.id,
+      student:        {
+        id: p.student.id, firstName: p.student.firstName,
+        lastName: p.student.lastName, email: p.student.email,
+      },
+      department:     p.student.programme?.name ?? null,
+      supervisor:     sup ? { id: sup.id, name: `${sup.firstName} ${sup.lastName}` } : null,
+      riskTier:       p.riskScores[0]?.riskTier       ?? null,
+      riskScore:      p.riskScores[0]?.riskScore != null
+                        ? Number(p.riskScores[0].riskScore) : null,
+      lastWeek:       p.logbookSubmissions[0]?.weekNumber    ?? null,
+      lastStatus:     p.logbookSubmissions[0]?.submissionStatus ?? null,
+      lastSubmittedAt: p.logbookSubmissions[0]?.submittedAt  ?? null,
+      totalWeeks,
+      submittedWeeks,
+      progressPct:    totalWeeks > 0 ? Math.round((submittedWeeks / totalWeeks) * 100) : 0,
+    };
+  });
 
   return { students, meta: buildMeta(total, page, limit) };
+}
+
+// ── Recent activity feed ──────────────────────────────────────
+
+/** Human-readable summary for an audit-log row, from action + metadata. */
+function summarizeAudit(action: string, metadata: unknown): string {
+  const meta = (metadata ?? {}) as Record<string, unknown>;
+  switch (action) {
+    case 'placement_status_change':
+      return meta.change === 'supervisor_assigned'
+        ? 'Assigned an academic supervisor to a placement'
+        : `Changed a placement status${meta.status ? ` to "${meta.status}"` : ''}`;
+    case 'role_change':       return 'Changed a user role';
+    case 'data_export':       return 'Exported data';
+    case 'ai_override':       return 'Overrode an AI assessment';
+    case 'escalation_created':  return 'Raised an escalation';
+    case 'escalation_resolved': return 'Resolved an escalation';
+    case 'logbook_override':  return 'Overrode a logbook entry';
+    default:                  return action.replace(/_/g, ' ');
+  }
+}
+
+export async function getRecentActivity(limit = 8) {
+  const logs = await prisma.auditLog.findMany({
+    orderBy: { createdAt: 'desc' },
+    take:    limit,
+    select: {
+      id: true, action: true, entityType: true, entityId: true,
+      metadata: true, createdAt: true,
+      user: { select: { firstName: true, lastName: true, role: true } },
+    },
+  });
+
+  return logs.map(l => ({
+    id:         l.id,
+    action:     l.action,
+    entityType: l.entityType,
+    actor:      `${l.user.firstName} ${l.user.lastName}`,
+    actorRole:  l.user.role,
+    summary:    summarizeAudit(l.action, l.metadata),
+    createdAt:  l.createdAt,
+  }));
 }
 
 // ── Supervisors (for assignment dropdowns) ────────────────────

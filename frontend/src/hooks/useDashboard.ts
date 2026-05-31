@@ -9,6 +9,8 @@ export interface CoordinatorDashboard {
     pendingApprovals: number;
     complianceRate:   number;
     highRiskCount:    number;
+    avgPerformance:   number | null;
+    partnerCompanies: number;
   };
   riskDistribution: { low: number; medium: number; high: number };
   submissionTrends: { week: number; scheduled: number; submitted: number }[];
@@ -27,11 +29,16 @@ export function useCoordinatorDashboard() {
 export interface CoordinatorStudent {
   placementId:     string;
   student:         { id: string; firstName: string; lastName: string; email: string };
+  department:      string | null;
+  supervisor:      { id: string; name: string } | null;
   riskTier:        'low' | 'medium' | 'high' | null;
   riskScore:       number | null;
   lastWeek:        number | null;
   lastStatus:      string | null;
   lastSubmittedAt: string | null;
+  totalWeeks:      number;
+  submittedWeeks:  number;
+  progressPct:     number;
 }
 
 export function useCoordinatorStudents(page = 1, riskTier?: 'low' | 'medium' | 'high') {
@@ -42,6 +49,28 @@ export function useCoordinatorStudents(page = 1, riskTier?: 'low' | 'medium' | '
       if (riskTier) params.set('riskTier', riskTier);
       const r = await api.get<{ data: { students: CoordinatorStudent[]; meta: unknown } }>(
         `/coordinator/students?${params}`,
+      );
+      return r.data.data;
+    },
+  });
+}
+
+export interface CoordinatorActivity {
+  id:         string;
+  action:     string;
+  entityType: string;
+  actor:      string;
+  actorRole:  string;
+  summary:    string;
+  createdAt:  string;
+}
+
+export function useCoordinatorActivity(limit = 8) {
+  return useQuery({
+    queryKey: ['coordinator', 'activity', limit],
+    queryFn:  async () => {
+      const r = await api.get<{ data: CoordinatorActivity[] }>(
+        `/coordinator/activity?limit=${limit}`,
       );
       return r.data.data;
     },

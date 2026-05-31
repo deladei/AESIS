@@ -15,6 +15,9 @@ router.get('/dashboard', asyncHandler(ctrl.dashboard));
 // GET /api/v1/coordinator/students
 router.get('/students', asyncHandler(ctrl.students));
 
+// GET /api/v1/coordinator/activity
+router.get('/activity', asyncHandler(ctrl.activity));
+
 // GET /api/v1/coordinator/supervisors
 router.get('/supervisors', asyncHandler(ctrl.supervisors));
 

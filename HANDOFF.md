@@ -1059,6 +1059,41 @@ So `ee5960f` and everything since **did** deploy. The local `aesis.onrender.com 
 
 ---
 
+### Session 20 — 2026-05-31
+
+**Work done** — closed the Coordinator dashboard's backend contract gaps, then wired the "Nexus Oversight" dashboard to live data. Full-stack. Backend + frontend.
+
+Context: the Coordinator dashboard (`CoordinatorDashboard.tsx`) was rebuilt from Stitch in Session 14 as **static demo data**. Before wiring, ran a full contract reconciliation of every Nexus panel against the backend. User decisions on the three un-modeled panels: **AI Pulse Matching → keep with "Sample" badge** (no candidate-matching feature exists); **"Open Project Slots" → reframe to "Partner Companies" count**; **intern "Project milestone/Phase" → 24-week logbook progress**.
+
+**Backend gaps closed** (`backend/src/modules/coordinator/`):
+| File | What |
+|---|---|
+| `coordinator.service.ts` | `getCoordinatorDashboard` overview now also returns **`avgPerformance`** (cohort avg of `LogbookAnalysis.qualityScore` across active placements, null when no analyses) + **`partnerCompanies`** (distinct companies with an active placement). `listStudents` now returns **`department`** (student→programme name), **`supervisor`** (`{id,name}` from `academicSupervisor`), and logbook-progress fields **`totalWeeks`** (`_count.logbookSubmissions`), **`submittedWeeks`** (one grouped query over the page's placementIds), **`progressPct`**. NEW **`getRecentActivity(limit)`** — reads `AuditLog` newest-first, maps each row to `{actor, summary, createdAt, …}` via a `summarizeAudit()` helper. |
+| `coordinator.controller.ts` + `.router.ts` | NEW `GET /api/v1/coordinator/activity?limit=` (coordinator/admin), Zod-validated limit (1–50, default 8). |
+| `__tests__/coordinator.service.test.ts` | Updated mocks (added `logbookAnalysis.aggregate`, `auditLog.findMany`, `_count`/programme/supervisor on the fake placement) + new assertions for avgPerformance/partnerCompanies, department/supervisor/progress, and 2 `getRecentActivity` tests. |
+
+**Frontend wiring** (`frontend/src/`):
+| File | What |
+|---|---|
+| `hooks/useDashboard.ts` | Extended `CoordinatorDashboard` (+avgPerformance,+partnerCompanies) and `CoordinatorStudent` (+department,+supervisor,+totalWeeks,+submittedWeeks,+progressPct) interfaces; added `CoordinatorActivity` type + **`useCoordinatorActivity()`** hook. |
+| `pages/coordinator/CoordinatorDashboard.tsx` | Full rewrite from static → live. 4 metric cards ← `overview` (Active Interns / Pending Placements / Avg Performance bar / Partner Companies). Intern Status Monitor ← `useCoordinatorStudents` (real name, dept, supervisor-or-"Unassigned", "Week X of Y" + progress bar tinted by risk tier). Placement Requests ← `useAllPlacements(1,'pending')` (company + student, Eye/Check → `/coordinator/placements`). Recent Activity ← `useCoordinatorActivity` (actor · summary, relative time, refresh button). **AI Pulse Matching kept static behind a "Sample" badge** with disabled Invite buttons. Loading / empty / error states throughout; header CTAs route to placements + assignments. No ALL-CAPS labels (polish bar). |
+
+**Quality gate:** backend `tsc --noEmit` exit 0; `jest coordinator` **22/22** (17 service + 5 controller) — note the full coordinator run took 640s on this Celeron and one controller test *timed out at 5s during swap-thrash*; re-run **in isolation it passed in 63ms** (env, not a real failure). Frontend `tsc --noEmit` exit 0; `npm run build` clean (548 kB chunk warning pre-existing).
+
+**Errors & fixes**
+| Error | Fix |
+|---|---|
+| First draft of the "Sample" badge used `uppercase tracking-wide` | Dropped `uppercase` — violates the SaaS-polish bar (no ALL-CAPS labels) |
+| `jest coordinator` reported 1 failure (`/coordinator/dashboard` 5s timeout) | Swap-thrash on the 640s full run, not a code bug — `dashboard` handler was untouched; isolated re-run green in 63ms |
+
+**Stopped here — next session should**
+1. ⚠️ **Backend deploy:** the `/coordinator/activity` endpoint + the enriched `/coordinator/dashboard` & `/coordinator/students` payloads are NEW — until **Render** redeploys `aesis` (the live service, **not** `aesis-backend`), the coordinator dashboard's new fields render as `—`/empty. Confirm the Render build picks up this commit, then log in as coordinator (`coordinator@aesis.cs.edu` / `Coord@1234`) and verify the board populates.
+2. **Admin dashboard** is the remaining static one — no backend exists for it. Same recipe: reconcile its "Supervisor Overview" panels, build the rollup endpoint, then wire. (It's a system-wide version of the supervisor/coordinator aggregates.)
+3. Interaction linkage polish: the intern-row "⋮" and Placement Requests buttons currently just route to `/coordinator/placements` or `/coordinator/assignments` — wire row-level actions (inline approve/assign) if desired.
+4. Carryover: restyle PlacementApproval + SupervisorAssignment to the light Nexus palette; verify prod Postgres password rotated; chatbot smoke-test → mark Phase 9 ✅.
+
+---
+
 ## Handoff Entry Template
 
 ```markdown

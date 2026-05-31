@@ -1,67 +1,134 @@
+import { Link } from 'react-router-dom';
 import {
   Users, Clock, BarChart3, Briefcase, TrendingUp, Filter, MoreVertical,
-  Landmark, Eye, Check, Sparkles, RefreshCw, Star,
+  Landmark, Eye, Check, Sparkles, RefreshCw, Loader2, AlertCircle, Inbox,
 } from 'lucide-react';
+import {
+  useCoordinatorDashboard, useCoordinatorStudents, useCoordinatorActivity,
+  type CoordinatorStudent,
+} from '@/hooks/useDashboard';
+import { useAllPlacements } from '@/hooks/usePlacements';
 
 /**
- * Coordinator Dashboard — "Nexus Oversight" Stitch design.
+ * Coordinator Dashboard — "Nexus Oversight" Stitch design, wired to live data.
+ * Chrome (sidebar + topbar) comes from CoordinatorShell.
  *
- * NOTE: static demo data for now (Ghanaian names) — to be wired to live
- * coordinator analytics later. Chrome (sidebar + topbar) comes from CoordinatorShell.
+ * Backed by: /coordinator/dashboard (metrics, risk, trends),
+ * /coordinator/students (intern table), /coordinator/activity (audit feed),
+ * and pending placements via /placements?status=pending (Placement Requests).
+ * The "AI Pulse Matching" panel has no backing feature and is marked Sample.
  */
-
-const metrics = [
-  { label: 'Active Interns',     value: '1,284', icon: Users,     sub: '+12% from last month',   tone: 'text-emerald-600', trend: true },
-  { label: 'Pending Placements', value: '42',    icon: Clock,     sub: '8 require urgent review', tone: 'text-amber-600' },
-  { label: 'Avg Performance',    value: '94.2',  icon: BarChart3, bar: 94 },
-  { label: 'Open Project Slots', value: '156',   icon: Briefcase, sub: 'Across 24 partner companies', tone: 'text-[#757684]' },
-];
-
-const interns = [
-  { name: 'Akosua Mensah',   id: '#INT-8902', dept: 'Data Engineering',   supervisor: 'Dr. Kofi Adjei', phase: 'Phase 2: Modeling', pct: 65, tone: 'text-[#15157d]',    bar: 'bg-[#15157d]' },
-  { name: 'Kwabena Boateng', id: '#INT-4421', dept: 'Product UX',         supervisor: 'Dr. Ama Owusu',  phase: 'Phase 4: Handoff',  pct: 92, tone: 'text-emerald-600',   bar: 'bg-emerald-500' },
-  { name: 'Yaw Asante',      id: '#INT-2109', dept: 'Cloud Architecture', supervisor: 'Dr. Yaw Darko',  phase: 'Phase 1: Research', pct: 28, tone: 'text-amber-600',     bar: 'bg-amber-500' },
-];
-
-const requests = [
-  { org: 'University of Ghana', detail: '12 Candidates · CS Dept' },
-  { org: 'KNUST',               detail: '8 Candidates · AI Lab' },
-];
-
-const matches = [
-  { name: 'Kojo Antwi', pct: 98 },
-  { name: 'Efua Adjei', pct: 94 },
-];
-
-const activity = [
-  { time: '10:42 AM',  dot: 'bg-[#15157d]', body: <><strong>Dr. Ama Owusu</strong> submitted a mid-term review for <strong>Kwabena Boateng</strong>.</>, badge: { icon: Star, text: 'Excellent rating', tone: 'text-emerald-600' } },
-  { time: '09:15 AM',  dot: 'bg-amber-500', body: <>System alert: <strong>KNUST</strong> requested profile revisions for 4 students.</>, action: 'Fix errors' },
-  { time: 'Yesterday', dot: 'bg-[#757684]', body: <>Project <strong>"Adinkra Mesh"</strong> has been marked 100% completed.</> },
-  { time: 'Yesterday', dot: 'bg-[#15157d]', body: <>New internship opening: <strong>FinTech AI Specialist</strong> at <strong>Korle Labs</strong>.</>, note: '14 matches found' },
-];
 
 function initials(name: string) {
   return name.split(' ').map((n) => n[0]).join('').slice(0, 2).toUpperCase();
 }
 
+function relativeTime(iso: string): string {
+  const mins = Math.floor((Date.now() - new Date(iso).getTime()) / 60_000);
+  if (mins < 1) return 'just now';
+  if (mins < 60) return `${mins}m ago`;
+  const hrs = Math.floor(mins / 60);
+  if (hrs < 24) return `${hrs}h ago`;
+  const days = Math.floor(hrs / 24);
+  if (days === 1) return 'Yesterday';
+  if (days < 14) return `${days}d ago`;
+  return `${Math.floor(days / 7)}w ago`;
+}
+
+const tierBar:  Record<string, string> = { low: 'bg-emerald-500', medium: 'bg-amber-500', high: 'bg-red-500' };
+const tierText: Record<string, string> = { low: 'text-emerald-600', medium: 'text-amber-600', high: 'text-red-600' };
+
+function SampleBadge() {
+  return (
+    <span className="rounded-full bg-amber-400/20 px-2 py-0.5 text-[10px] font-bold tracking-wide text-amber-300">
+      Sample
+    </span>
+  );
+}
+
+function InternRow({ s }: { s: CoordinatorStudent }) {
+  const name = `${s.student.firstName} ${s.student.lastName}`;
+  const tier = s.riskTier ?? '';
+  return (
+    <tr className="transition-colors hover:bg-[#eff4ff]">
+      <td className="px-6 py-3">
+        <div className="flex items-center gap-3">
+          <div className="flex h-8 w-8 items-center justify-center rounded-full bg-[#e1e0ff] text-[11px] font-bold text-[#15157d]">{initials(name)}</div>
+          <div>
+            <p className="text-sm font-bold leading-tight text-[#0b1c30]">{name}</p>
+            <p className="font-mono text-xs text-[#757684]">#{s.placementId.slice(0, 6).toUpperCase()}</p>
+          </div>
+        </div>
+      </td>
+      <td className="px-4 py-3 text-sm text-[#0b1c30]">{s.department ?? '—'}</td>
+      <td className="px-4 py-3 text-sm text-[#0b1c30]">{s.supervisor?.name ?? <span className="text-[#757684]">Unassigned</span>}</td>
+      <td className="px-4 py-3">
+        <div className="w-40">
+          <div className="mb-1 flex justify-between text-[10px]">
+            <span className={`font-bold ${tierText[tier] ?? 'text-[#15157d]'}`}>
+              Week {s.lastWeek ?? 0} of {s.totalWeeks || 24}
+            </span>
+            <span className="text-[#757684]">{s.progressPct}%</span>
+          </div>
+          <div className="h-1.5 w-full overflow-hidden rounded-full bg-[#e5eeff]">
+            <div className={`h-full ${tierBar[tier] ?? 'bg-[#15157d]'}`} style={{ width: `${s.progressPct}%` }} />
+          </div>
+        </div>
+      </td>
+      <td className="px-6 py-3 text-right">
+        <Link to="/coordinator/assignments" aria-label={`Manage ${name}`} className="inline-flex text-[#757684] transition-colors hover:text-[#15157d]">
+          <MoreVertical className="h-4 w-4" />
+        </Link>
+      </td>
+    </tr>
+  );
+}
+
 export default function CoordinatorDashboard() {
+  const { data: dash, isLoading: dashLoading, isError: dashError, refetch: refetchDash } = useCoordinatorDashboard();
+  const { data: studentsData, isLoading: studentsLoading } = useCoordinatorStudents(1);
+  const { data: pending } = useAllPlacements(1, 'pending');
+  const { data: activity, isLoading: activityLoading, refetch: refetchActivity } = useCoordinatorActivity(8);
+
+  const students       = studentsData?.students ?? [];
+  const totalInterns   = (studentsData?.meta as { total?: number } | undefined)?.total ?? students.length;
+  const pendingList    = pending?.placements ?? [];
+
+  const ov = dash?.overview;
+  const metrics = [
+    { label: 'Active Interns',    value: ov ? ov.activePlacements.toLocaleString() : '—', icon: Users,     sub: 'Currently on placement', tone: 'text-[#757684]' },
+    { label: 'Pending Placements', value: ov ? String(ov.pendingApprovals) : '—',         icon: Clock,     sub: ov?.pendingApprovals ? 'Awaiting your review' : 'All caught up', tone: 'text-amber-600' },
+    { label: 'Avg Performance',   value: ov?.avgPerformance != null ? ov.avgPerformance.toFixed(1) : '—', icon: BarChart3, bar: ov?.avgPerformance ?? 0 },
+    { label: 'Partner Companies', value: ov ? String(ov.partnerCompanies) : '—',          icon: Briefcase, sub: 'Hosting active placements', tone: 'text-[#757684]' },
+  ];
+
+  if (dashError) {
+    return (
+      <div className="flex min-h-[60vh] flex-col items-center justify-center gap-3 p-6 text-center">
+        <AlertCircle className="h-8 w-8 text-red-500" />
+        <p className="text-sm text-[#444653]">Couldn't load the coordinator dashboard.</p>
+        <button onClick={() => refetchDash()} className="rounded-lg bg-[#15157d] px-4 py-2 text-sm font-semibold text-white hover:opacity-90">
+          Try again
+        </button>
+      </div>
+    );
+  }
+
   return (
     <div className="p-6">
       {/* Header */}
       <div className="mb-8 flex items-end justify-between">
         <div>
           <p className="mb-1 text-xs font-semibold tracking-wide text-[#15157d]">Dashboard</p>
-          <h2 className="text-4xl font-bold tracking-tight text-[#0b1c30]">
-            Nexus Oversight <span className="text-xl font-normal text-[#757684]">v4.2</span>
-          </h2>
+          <h2 className="text-4xl font-bold tracking-tight text-[#0b1c30]">Nexus Oversight</h2>
         </div>
         <div className="hidden gap-3 sm:flex">
-          <button className="rounded-lg border border-[#c4c5d5] px-4 py-2 text-sm font-semibold text-[#0b1c30] transition-colors hover:bg-[#e5eeff]">
-            Export report
-          </button>
-          <button className="rounded-lg bg-[#15157d] px-4 py-2 text-sm font-semibold text-white shadow-sm transition-opacity hover:opacity-90">
-            View live feed
-          </button>
+          <Link to="/coordinator/placements" className="rounded-lg border border-[#c4c5d5] px-4 py-2 text-sm font-semibold text-[#0b1c30] transition-colors hover:bg-[#e5eeff]">
+            Review placements
+          </Link>
+          <Link to="/coordinator/assignments" className="rounded-lg bg-[#15157d] px-4 py-2 text-sm font-semibold text-white shadow-sm transition-opacity hover:opacity-90">
+            Manage assignments
+          </Link>
         </div>
       </div>
 
@@ -76,14 +143,14 @@ export default function CoordinatorDashboard() {
                 <Icon className="h-5 w-5 text-[#15157d]" />
               </div>
               <div className="mt-4">
-                <p className="text-4xl font-bold text-[#0b1c30]">{m.value}</p>
-                {m.bar != null ? (
+                <p className="text-4xl font-bold text-[#0b1c30]">{dashLoading ? '—' : m.value}</p>
+                {'bar' in m ? (
                   <div className="mt-2 h-1.5 w-full overflow-hidden rounded-full bg-[#e5eeff]">
                     <div className="h-full rounded-full bg-[#15157d]" style={{ width: `${m.bar}%` }} />
                   </div>
                 ) : (
                   <p className={`mt-1 flex items-center gap-1 text-xs font-medium ${m.tone}`}>
-                    {m.trend && <TrendingUp className="h-4 w-4" />}{m.sub}
+                    {m.label === 'Active Interns' && <TrendingUp className="h-4 w-4" />}{m.sub}
                   </p>
                 )}
               </div>
@@ -113,46 +180,28 @@ export default function CoordinatorDashboard() {
                     <th className="px-6 py-3">Intern</th>
                     <th className="px-4 py-3">Department</th>
                     <th className="px-4 py-3">Supervisor</th>
-                    <th className="px-4 py-3">Project milestone</th>
+                    <th className="px-4 py-3">Logbook progress</th>
                     <th className="px-6 py-3 text-right">Action</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-[#c4c5d5]/50">
-                  {interns.map((i) => (
-                    <tr key={i.id} className="transition-colors hover:bg-[#eff4ff]">
-                      <td className="px-6 py-3">
-                        <div className="flex items-center gap-3">
-                          <div className="flex h-8 w-8 items-center justify-center rounded-full bg-[#e1e0ff] text-[11px] font-bold text-[#15157d]">{initials(i.name)}</div>
-                          <div>
-                            <p className="text-sm font-bold leading-tight text-[#0b1c30]">{i.name}</p>
-                            <p className="font-mono text-xs text-[#757684]">{i.id}</p>
-                          </div>
-                        </div>
-                      </td>
-                      <td className="px-4 py-3 text-sm text-[#0b1c30]">{i.dept}</td>
-                      <td className="px-4 py-3 text-sm text-[#0b1c30]">{i.supervisor}</td>
-                      <td className="px-4 py-3">
-                        <div className="w-40">
-                          <div className="mb-1 flex justify-between text-[10px]">
-                            <span className={`font-bold ${i.tone}`}>{i.phase}</span>
-                            <span className="text-[#757684]">{i.pct}%</span>
-                          </div>
-                          <div className="h-1.5 w-full overflow-hidden rounded-full bg-[#e5eeff]">
-                            <div className={`h-full ${i.bar}`} style={{ width: `${i.pct}%` }} />
-                          </div>
-                        </div>
-                      </td>
-                      <td className="px-6 py-3 text-right">
-                        <button aria-label={`Actions for ${i.name}`} className="text-[#757684] transition-colors hover:text-[#15157d]"><MoreVertical className="h-4 w-4" /></button>
-                      </td>
-                    </tr>
-                  ))}
+                  {studentsLoading ? (
+                    <tr><td colSpan={5} className="px-6 py-10 text-center"><Loader2 className="mx-auto h-5 w-5 animate-spin text-[#15157d]" /></td></tr>
+                  ) : students.length === 0 ? (
+                    <tr><td colSpan={5} className="px-6 py-10 text-center text-sm text-[#757684]">No active interns yet.</td></tr>
+                  ) : (
+                    students.map((s) => <InternRow key={s.placementId} s={s} />)
+                  )}
                 </tbody>
               </table>
             </div>
-            <div className="flex justify-center border-t border-[#c4c5d5]/60 bg-[#f8f9ff] py-4">
-              <button className="text-sm font-semibold text-[#15157d] hover:underline">View all 1,284 interns</button>
-            </div>
+            {students.length > 0 && (
+              <div className="flex justify-center border-t border-[#c4c5d5]/60 bg-[#f8f9ff] py-4">
+                <Link to="/coordinator/assignments" className="text-sm font-semibold text-[#15157d] hover:underline">
+                  View all {totalInterns.toLocaleString()} interns
+                </Link>
+              </div>
+            )}
           </div>
 
           {/* Requests + AI matching */}
@@ -161,42 +210,55 @@ export default function CoordinatorDashboard() {
               <div className="mb-4 flex items-start justify-between">
                 <div>
                   <h3 className="text-lg font-semibold text-[#15157d]">Placement Requests</h3>
-                  <p className="text-xs text-[#757684]">New institutional applications</p>
+                  <p className="text-xs text-[#757684]">Awaiting approval</p>
                 </div>
-                <span className="rounded-full bg-[#15157d] px-2 py-0.5 text-[10px] font-bold text-white">4 new</span>
+                {pendingList.length > 0 && (
+                  <span className="rounded-full bg-[#15157d] px-2 py-0.5 text-[10px] font-bold text-white">{pendingList.length} new</span>
+                )}
               </div>
               <div className="space-y-4">
-                {requests.map((r) => (
-                  <div key={r.org} className="flex items-center justify-between rounded-lg border border-[#c4c5d5]/60 p-3 transition-colors hover:border-[#15157d]/40">
-                    <div className="flex items-center gap-3">
-                      <div className="flex h-10 w-10 items-center justify-center rounded bg-[#e5eeff]"><Landmark className="h-5 w-5 text-[#15157d]" /></div>
-                      <div>
-                        <p className="text-sm font-bold text-[#0b1c30]">{r.org}</p>
-                        <p className="text-xs text-[#757684]">{r.detail}</p>
+                {pendingList.length === 0 ? (
+                  <div className="flex flex-col items-center gap-2 py-6 text-center">
+                    <Inbox className="h-6 w-6 text-[#c4c5d5]" />
+                    <p className="text-sm text-[#757684]">No pending requests.</p>
+                  </div>
+                ) : pendingList.slice(0, 4).map((p) => {
+                  const studentName = p.student ? `${p.student.firstName} ${p.student.lastName}` : 'Unknown student';
+                  return (
+                    <div key={p.id} className="flex items-center justify-between rounded-lg border border-[#c4c5d5]/60 p-3 transition-colors hover:border-[#15157d]/40">
+                      <div className="flex items-center gap-3">
+                        <div className="flex h-10 w-10 items-center justify-center rounded bg-[#e5eeff]"><Landmark className="h-5 w-5 text-[#15157d]" /></div>
+                        <div>
+                          <p className="text-sm font-bold text-[#0b1c30]">{p.company?.name ?? 'Unassigned company'}</p>
+                          <p className="text-xs text-[#757684]">{studentName}</p>
+                        </div>
+                      </div>
+                      <div className="flex gap-2">
+                        <Link to="/coordinator/placements" aria-label={`Review ${studentName}'s placement`} className="flex h-8 w-8 items-center justify-center rounded border border-[#c4c5d5]/60 transition-colors hover:bg-[#dce9ff]"><Eye className="h-[18px] w-[18px] text-[#444653]" /></Link>
+                        <Link to="/coordinator/placements" aria-label={`Approve ${studentName}'s placement`} className="flex h-8 w-8 items-center justify-center rounded bg-[#15157d] text-white transition-opacity hover:opacity-90"><Check className="h-[18px] w-[18px]" /></Link>
                       </div>
                     </div>
-                    <div className="flex gap-2">
-                      <button aria-label={`Review ${r.org} request`} className="flex h-8 w-8 items-center justify-center rounded border border-[#c4c5d5]/60 transition-colors hover:bg-[#dce9ff]"><Eye className="h-[18px] w-[18px] text-[#444653]" /></button>
-                      <button aria-label={`Approve ${r.org} request`} className="flex h-8 w-8 items-center justify-center rounded bg-[#15157d] text-white transition-opacity hover:opacity-90"><Check className="h-[18px] w-[18px]" /></button>
-                    </div>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             </div>
 
-            {/* AI matching */}
+            {/* AI matching — no backing feature yet; clearly marked Sample */}
             <div className="relative overflow-hidden rounded-xl bg-[#15157d] p-6 text-white">
               <div className="absolute -right-4 -top-4 h-32 w-32 rounded-full bg-[#645efb] opacity-20 blur-3xl" />
               <div className="relative">
-                <div className="mb-4 flex items-center gap-2">
-                  <Sparkles className="h-5 w-5 text-[#89ceff]" />
-                  <h3 className="text-lg font-semibold">AI Pulse Matching</h3>
+                <div className="mb-4 flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <Sparkles className="h-5 w-5 text-[#89ceff]" />
+                    <h3 className="text-lg font-semibold">AI Pulse Matching</h3>
+                  </div>
+                  <SampleBadge />
                 </div>
                 <p className="mb-4 text-xs text-[#e1e0ff]">
-                  Highest-precision matches for the 'Senior Backend Intern' role at <span className="font-bold underline">Ananse Technologies</span>.
+                  Candidate–role matching is on the roadmap. The figures below are illustrative only.
                 </p>
                 <div className="space-y-2">
-                  {matches.map((m) => (
+                  {[{ name: 'Kojo Antwi', pct: 98 }, { name: 'Efua Adjei', pct: 94 }].map((m) => (
                     <div key={m.name} className="flex items-center justify-between rounded-lg border border-white/10 bg-white/10 p-3">
                       <div className="flex items-center gap-3">
                         <div className="flex h-8 w-8 items-center justify-center rounded-full bg-white/20 text-[11px] font-bold">{initials(m.name)}</div>
@@ -210,7 +272,7 @@ export default function CoordinatorDashboard() {
                           </div>
                         </div>
                       </div>
-                      <button className="rounded bg-white px-2 py-1 text-[10px] font-bold text-[#15157d]">Invite</button>
+                      <button disabled className="cursor-not-allowed rounded bg-white/60 px-2 py-1 text-[10px] font-bold text-[#15157d]">Invite</button>
                     </div>
                   ))}
                 </div>
@@ -224,34 +286,30 @@ export default function CoordinatorDashboard() {
           <div className="flex h-full flex-col rounded-xl border border-[#c4c5d5]/60 bg-white">
             <div className="flex items-center justify-between border-b border-[#c4c5d5]/60 bg-[#f8f9ff] px-6 py-4">
               <h3 className="text-lg font-semibold text-[#15157d]">Recent Activity</h3>
-              <button aria-label="Refresh activity" className="text-[#757684] hover:text-[#15157d]"><RefreshCw className="h-[18px] w-[18px]" /></button>
+              <button onClick={() => refetchActivity()} aria-label="Refresh activity" className="text-[#757684] hover:text-[#15157d]"><RefreshCw className="h-[18px] w-[18px]" /></button>
             </div>
             <div className="flex-1 space-y-6 overflow-y-auto p-6">
-              {activity.map((a, idx) => {
-                const Badge = a.badge?.icon;
-                return (
-                  <div key={idx} className="relative border-l border-[#c4c5d5]/60 pl-6">
-                    <div className={`absolute -left-[5px] top-1 h-2.5 w-2.5 rounded-full ${a.dot} ring-4 ring-white`} />
-                    <p className="mb-1 text-xs font-semibold tracking-wide text-[#757684]">{a.time}</p>
-                    <div className="rounded-lg bg-[#eff4ff] p-3">
-                      <p className="text-sm text-[#0b1c30]">{a.body}</p>
-                      {a.badge && Badge && (
-                        <div className={`mt-2 flex items-center gap-1.5 ${a.badge.tone}`}>
-                          <Badge className="h-3.5 w-3.5" fill="currentColor" />
-                          <span className="text-xs font-semibold">{a.badge.text}</span>
-                        </div>
-                      )}
-                      {a.action && <button className="mt-2 text-xs font-semibold text-[#15157d] underline">{a.action}</button>}
-                      {a.note && <p className="mt-1 text-xs font-semibold text-[#15157d]">{a.note}</p>}
-                    </div>
+              {activityLoading ? (
+                <div className="flex justify-center py-6"><Loader2 className="h-5 w-5 animate-spin text-[#15157d]" /></div>
+              ) : !activity || activity.length === 0 ? (
+                <div className="flex flex-col items-center gap-2 py-6 text-center">
+                  <Inbox className="h-6 w-6 text-[#c4c5d5]" />
+                  <p className="text-sm text-[#757684]">No recent activity.</p>
+                </div>
+              ) : activity.map((a) => (
+                <div key={a.id} className="relative border-l border-[#c4c5d5]/60 pl-6">
+                  <div className="absolute -left-[5px] top-1 h-2.5 w-2.5 rounded-full bg-[#15157d] ring-4 ring-white" />
+                  <p className="mb-1 text-xs font-semibold tracking-wide text-[#757684]">{relativeTime(a.createdAt)}</p>
+                  <div className="rounded-lg bg-[#eff4ff] p-3">
+                    <p className="text-sm text-[#0b1c30]"><strong>{a.actor}</strong> · {a.summary}</p>
                   </div>
-                );
-              })}
+                </div>
+              ))}
             </div>
             <div className="border-t border-[#c4c5d5]/60 p-4">
-              <button className="w-full rounded-lg border border-[#c4c5d5]/60 py-2 text-sm font-semibold text-[#444653] transition-colors hover:text-[#15157d]">
-                View full audit log
-              </button>
+              <Link to="/coordinator/placements" className="block w-full rounded-lg border border-[#c4c5d5]/60 py-2 text-center text-sm font-semibold text-[#444653] transition-colors hover:text-[#15157d]">
+                View placements
+              </Link>
             </div>
           </div>
         </div>
