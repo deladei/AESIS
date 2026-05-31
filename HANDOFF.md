@@ -1020,10 +1020,42 @@ Problem: the student dashboard could crash on `placements?.find(...)`. The `?.` 
 
 **Quality gate:** frontend `tsc --noEmit` exit 0; `npm run build` clean (545 kB chunk warning pre-existing since Session 16). No backend changes.
 
+**Follow-up (same session) — "backend is DOWN" was a wrong-hostname diagnosis**
+
+Sessions 17/18 concluded the prod backend was suspended because `https://aesis-backend.onrender.com` returns `x-render-routing: no-server`. **That was the wrong hostname** (same class of mistake as the Session 11→12 wrong-target lesson). The live service answers at **`aesis.onrender.com`** — the Render service was renamed to `aesis` in the dashboard at some point, which is why the `aesis-backend` name from `render.yaml` 404s.
+
+Verified live and **fully up to date**:
+- `GET https://aesis.onrender.com/health` → `200 {"status":"ok","service":"aesis-api"}` (no cold-start delay at the time)
+- `/api/v1/auth/programmes` → 200
+- `/api/v1/insights` (Session 16) → **401** (deployed, auth-gated — not 404)
+- `/api/v1/coordinator/supervisors` (Session 14) → **401** (deployed)
+
+So `ee5960f` and everything since **did** deploy. The local `aesis.onrender.com → 127.0.0.1` DNS override flagged in Session 12 is also gone — it now resolves to the real Render IP (216.24.57.251).
+
+**Stale hostname references fixed** (point at the dead `aesis-backend.onrender.com`):
+| File | Change |
+|---|---|
+| `frontend/.env.production.example` | `VITE_API_BASE_URL` + `VITE_SOCKET_URL` → `https://aesis.onrender.com` (+ note explaining the rename) |
+| `.github/workflows/ci.yml` | build-time `VITE_API_BASE_URL` + `VITE_SOCKET_URL` → `https://aesis.onrender.com` |
+
+**Deliberately NOT changed:**
+- `render.yaml` service `name: aesis-backend` — renaming a blueprint service `name:` can make Render recreate it on re-sync. The dashboard service is already named `aesis`; leave the blueprint be unless doing a clean re-provision.
+- `backend/.env.production.example` `AI_ENGINE_URL=https://aesis-ai-engine.onrender.com` — that host also 404s, but its real hostname is unknown (couldn't probe it). Flag for the user to confirm from the Render dashboard.
+
+**Action owed by user (can't be checked from here):**
+- 🔑 Confirm Vercel's `VITE_API_BASE_URL` env var = `https://aesis.onrender.com`, NOT `aesis-backend.onrender.com`. (Vercel → aesis project → Settings → Environment Variables.) If it's pointing at the dead host, that's the real prod-API-failure cause. The `.example` + CI fixes above don't change Vercel's actual env var.
+
+**Commits pushed to `origin/main`**
+| SHA | Message |
+|---|---|
+| `caf5d46` | fix(frontend): contain page crashes + harden placements data shape |
+| _(this session's 2nd)_ | fix(config): point prod hostname refs at live aesis.onrender.com |
+
 **Stopped here — next session should**
 1. After Vercel redeploy, sanity-check: log in as a student with a placement → dashboard renders; the boundary fallback only ever appears on a genuine page crash, never in the normal path.
-2. ⚠️ Still open from Session 17/18: **backend may be DOWN on Render** (`no-server`) — user must check the dashboard; until then `/insights` etc. 404 on prod.
-3. Carryover (Session 14): restyle PlacementApproval + SupervisorAssignment to the light Nexus palette; verify prod Postgres password rotated; chatbot smoke-test → mark Phase 9 ✅.
+2. Confirm the Vercel `VITE_API_BASE_URL` env var (see action owed above) — the backend is **live at `aesis.onrender.com`**, not down.
+3. Confirm the real `aesis-ai-engine` hostname from the Render dashboard and update `backend/.env.production.example` if it differs.
+4. Carryover (Session 14): restyle PlacementApproval + SupervisorAssignment to the light Nexus palette; verify prod Postgres password rotated; chatbot smoke-test → mark Phase 9 ✅.
 
 ---
 
