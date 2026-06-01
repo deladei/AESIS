@@ -1094,6 +1094,36 @@ Context: the Coordinator dashboard (`CoordinatorDashboard.tsx`) was rebuilt from
 
 ---
 
+### Session 21 — 2026-06-01
+
+**Work done** — finished the **Admin dashboard** end-to-end (last static dashboard → live data). Full-stack. The orphaned `backend/src/modules/admin/admin.service.ts` (system-wide rollup, written but uncommitted + unwired in a prior session — never referenced in the Session 20 handoff) was completed and shipped.
+
+**Backend** — new `/api/v1/admin` module (admin-only):
+| File | What |
+|---|---|
+| `admin.service.ts` | (pre-existing, kept as-is) `getAdminDashboard()` — system-wide rollup, no per-supervisor scoping. Returns `overview {activeInterns, pendingReviews, avgEngagement}`, `pulseBoard` (top-6 active placements ranked by engagement = submittedWeeks/totalWeeks, each with department/riskTier/feedbackCount), `recentSubmissions` (latest 6), `submissionCounts {pending, reviewed}`. Counts engagement consistently with the coordinator dashboard (`submitted/under_review/approved` = "submitted"). Skips the groupBy + feedback queries when there are no active placements. |
+| `admin.controller.ts` | NEW — single `dashboard` handler (mirrors supervisor controller). |
+| `admin.router.ts` | NEW — `GET /dashboard` behind `authenticate` + `authorize('admin')`. |
+| `app.ts` | Mounted `adminRouter` at `/api/v1/admin`. |
+| `__tests__/admin.service.test.ts` | NEW — 5 tests: overview/avgEngagement math, avgEngagement=100 fallback when nothing scheduled, pulse-board ranking + feedback-count attach, recent-submission mapping, empty shape (asserts groupBy + feedback queries are skipped). |
+
+**Frontend**
+| File | What |
+|---|---|
+| `hooks/useDashboard.ts` | Added `AdminDashboard` interface + `useAdminDashboard()` hook (`GET /admin/dashboard`). |
+| `pages/admin/AdminDashboard.tsx` | Rewritten static → live. Stats cards ← `overview`; Pulse Check Board ← `pulseBoard` (initials avatar, department, engagement bar, `submittedWeeks/totalWeeks` weeks, feedback count, risk-derived badge — Top Performer / On Track / Watch / Needs Support); Recent Submissions ← `recentSubmissions` with status pills + Review link to `/supervisor/review?submissionId=…` (admin shares that route group); pending/reviewed pills ← `submissionCounts`. Loading skeletons + empty + error states. **AI Alerts panel kept as Ghanaian demo content behind a "Sample" badge** (no candidate-alert backend feature exists). De-ALL-CAPS'd every label per the SaaS-polish bar. |
+
+**Errors & fixes** — none. `admin.service.ts` already compiled clean against the schema, so relations (`riskScores`, `_count.logbookSubmissions`, `supervisorFeedback.submission.placementId`) were all valid.
+
+**Quality gate:** backend `tsc --noEmit` clean; `jest admin` **5/5** (run `--runInBand --no-cache --max-old-space-size=512` — the box was swap-thrashing again, free RAM ~1 GiB with Brave open; full suite not run, only an isolated module + one router mount in `app.ts`). Frontend `tsc --noEmit` clean; `npm run build` clean (549 kB chunk warning pre-existing).
+
+**Stopped here — next session should**
+1. ⚠️ **Backend deploy dependency:** `/api/v1/admin/dashboard` is NEW — until **Render** redeploys `aesis` (the live service, **not** `aesis-backend`), the admin dashboard hits 404 → renders its error state. Confirm the Render build picks up this commit, then log in as **admin** (`admin@aesis.cs.edu`) and verify the board populates (note: admin dashboard is system-wide, so it reflects ALL placements — the demo data lives under `supervisor@aesis.cs.edu` + `theowalls@gmail.com`).
+2. All four role dashboards are now live-data. The remaining static surface is the **AI Alerts** panel on the admin board (Sample-badged) — needs a backend feature before wiring.
+3. Carryover: restyle PlacementApproval + SupervisorAssignment to the light Nexus palette; verify prod Postgres password rotated; chatbot smoke-test → mark Phase 9 ✅.
+
+---
+
 ## Handoff Entry Template
 
 ```markdown

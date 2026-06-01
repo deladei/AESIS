@@ -106,6 +106,44 @@ export function useSupervisorDashboard() {
   });
 }
 
+// ── Admin ─────────────────────────────────────────────────────
+
+export interface AdminDashboard {
+  overview: {
+    activeInterns:  number;
+    pendingReviews: number;
+    avgEngagement:  number;
+  };
+  pulseBoard: {
+    placementId:   string;
+    name:          string;
+    department:    string | null;
+    riskTier:      'low' | 'medium' | 'high' | null;
+    submittedWeeks: number;
+    totalWeeks:    number;
+    engagementPct: number;
+    feedbackCount: number;
+  }[];
+  recentSubmissions: {
+    id:          string;
+    internName:  string;
+    weekNumber:  number;
+    submittedAt: string | null;
+    status:      string;
+  }[];
+  submissionCounts: { pending: number; reviewed: number };
+}
+
+export function useAdminDashboard() {
+  return useQuery({
+    queryKey: ['admin', 'dashboard'],
+    queryFn:  async () => {
+      const r = await api.get<{ data: AdminDashboard }>('/admin/dashboard');
+      return r.data.data;
+    },
+  });
+}
+
 // ── AI Insights & Analytics ───────────────────────────────────
 
 export interface InsightsData {
