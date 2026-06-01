@@ -50,10 +50,22 @@ export function useAllPlacements(page = 1, status?: string) {
     queryFn:  async () => {
       const params = new URLSearchParams({ page: String(page), limit: '20' });
       if (status) params.set('status', status);
-      const r = await api.get<{ data: { placements: Placement[]; meta: unknown } }>(
-        `/placements?${params}`,
-      );
-      return r.data.data;
+      const r = await api.get<{
+        data: Placement[] | { placements?: Placement[]; meta?: unknown };
+        meta?: unknown;
+      }>(`/placements?${params}`);
+      // The endpoint returns a bare `data` array with `meta` as a sibling. Normalize
+      // to `{ placements, meta }` so callers can `?.placements` safely; also tolerate
+      // a nested `{ placements, meta }` envelope or any cold-start/error body.
+      const d = r.data?.data;
+      if (Array.isArray(d)) {
+        return { placements: d, meta: r.data?.meta };
+      }
+      if (d && Array.isArray((d as { placements?: Placement[] }).placements)) {
+        const env = d as { placements: Placement[]; meta?: unknown };
+        return { placements: env.placements, meta: env.meta };
+      }
+      return { placements: [] as Placement[], meta: undefined };
     },
   });
 }

@@ -1184,6 +1184,28 @@ Left `SupervisorAssignment.tsx`'s native `<select>` as-is (its row isn't inside 
 
 ---
 
+### Session 25 — 2026-06-01
+
+**Work done** — prod-verified the coordinator pickers via Playwright; found + fixed a **pre-existing `useAllPlacements` response-shape bug** that was rendering the Assignments + Placement Approval lists (and the dashboard's Placement Requests panel) empty on prod.
+
+**The bug (found during verification):** `/api/v1/placements` returns `{ status, data: [<array>], meta }` — `data` is a **bare array**, `meta` a sibling. But `useAllPlacements` did `return r.data.data` typed as `{ placements, meta }`, and every consumer read `data?.placements ?? []`. Since `data` was an array, `.placements` was always `undefined` → `[]`. So even though prod has an active placement (confirmed via captured API response, id `085ae816…`), the UI showed "No active placements found" / "0 pending review" and **no picker ever mounted** (it only renders inside a placement row). Same shape mismatch `useMyPlacements` was hardened against in Session 19; `useAllPlacements` never got it.
+
+| File | What |
+|---|---|
+| `frontend/src/hooks/usePlacements.ts` | `useAllPlacements` now normalizes: unwrap a bare `data` array → `{ placements: data, meta: r.data.meta }`; tolerate a nested `{ placements, meta }` envelope; fall back to `{ placements: [], meta: undefined }` on any cold-start/error body. Return shape `{ placements, meta }` is what all three consumers (`SupervisorAssignment`, `PlacementApproval`, `CoordinatorDashboard` Placement Requests) already read. |
+
+**Verification method:** Playwright (system Chromium, browsers in `~/.cache/ms-playwright`, lib in npx cache `~/.npm/_npx/e41f203b…/node_modules/playwright`) against `https://aesis.vercel.app`, login `coordinator@aesis.cs.edu` / `Coord@1234`, driving the real UI via the sidebar and capturing screenshots + the `/api/v1/placements` responses. Scripts in `/tmp/aesis-verify/`.
+
+**Errors & fixes** — Playwright `import { chromium }` failed (CJS module) → use default import + destructure. First login attempt screenshotted mid-"Signing in…" (3s wait < Render cold-start) → wait on the login POST + URL change instead.
+
+**Quality gate:** frontend `tsc --noEmit` clean; `npm run build` clean (≈549 kB chunk warning pre-existing). No backend touched.
+
+**Stopped here — next session should**
+1. (see below — re-verify result appended after Vercel redeploy)
+2. Remaining Phase 9 close-out: 🔐 verify prod Postgres password rotated; chatbot smoke-test → mark Phase 9 ✅.
+
+---
+
 ## Handoff Entry Template
 
 ```markdown
