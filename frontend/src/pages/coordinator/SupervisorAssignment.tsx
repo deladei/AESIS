@@ -6,6 +6,7 @@ import {
   useAssignSupervisor,
   type Placement,
 } from '@/hooks/usePlacements';
+import SupervisorPicker from '@/components/shared/SupervisorPicker';
 
 type StatusFilter = 'active' | 'pending' | 'all';
 
@@ -71,16 +72,13 @@ function AssignmentRow({ placement }: { placement: Placement }) {
       </div>
 
       <div className="flex shrink-0 items-center gap-2">
-        <select
+        <SupervisorPicker
+          supervisors={supervisors}
           value={choice}
-          onChange={(e) => { setChoice(e.target.value); setSavedAt(null); }}
-          className="min-w-[14rem] cursor-pointer rounded-lg border border-[#c4c5d5] bg-white px-3 py-2 text-sm text-[#0b1c30] transition-colors focus:border-[#15157d] focus:outline-none focus:ring-1 focus:ring-[#15157d]"
-        >
-          <option value="">Select supervisor…</option>
-          {supervisors.map((s) => (
-            <option key={s.id} value={s.id}>{s.firstName} {s.lastName}</option>
-          ))}
-        </select>
+          onChange={(id) => { setChoice(id); setSavedAt(null); }}
+          placeholder="Select supervisor…"
+          className="min-w-[14rem]"
+        />
 
         {savedAt ? (
           <span className="flex items-center gap-1.5 px-2 text-xs text-emerald-600">

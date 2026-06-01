@@ -1166,6 +1166,24 @@ Left `SupervisorAssignment.tsx`'s native `<select>` as-is (its row isn't inside 
 
 ---
 
+### Session 24 — 2026-06-01
+
+**Work done** — extracted the Session 23 `SupervisorPicker` into a shared component and reused it in `SupervisorAssignment` too (replacing its native `<select>`). Frontend only, no logic/backend change.
+
+| File | What |
+|---|---|
+| `components/shared/SupervisorPicker.tsx` | NEW shared component (moved out of PlacementApproval). Added props: `placeholder` (button text when nothing selected), `emptyLabel` (optional — renders a selectable reset row at top of the list, e.g. "No supervisor yet"; omit to hide), `className` (wrapper width constraints). Same internals: own open/placement state, click-outside, Escape, above/below flip, light Nexus palette, name + email option rows. |
+| `pages/coordinator/PlacementApproval.tsx` | Removed the local `SupervisorPicker` copy; now imports the shared one and passes `placeholder="No supervisor yet"` + `emptyLabel="No supervisor yet"` (preserves the reset option it had baked in). |
+| `pages/coordinator/SupervisorAssignment.tsx` | Replaced the native `<select>` (per `AssignmentRow`) with `<SupervisorPicker … placeholder="Select supervisor…" className="min-w-[14rem]" />`. No `emptyLabel` — assignment shouldn't offer "select nothing" (the Assign button is already disabled until a real supervisor is chosen). `choice`/`onChange` wiring unchanged. |
+
+**Errors & fixes** — none. `tsc --noEmit` clean, `npm run build` clean (≈549 kB chunk warning pre-existing). Each page still fetches `useSupervisors()` in its parent and passes the list down as a prop — no extra fetch introduced.
+
+**Stopped here — next session should**
+1. After Vercel redeploy, verify the custom picker on **both** coordinator pages as `coordinator@aesis.cs.edu` / `Coord@1234`: `/coordinator/placements` (expand a pending card) and `/coordinator/assignments` (per-row Assign/Reassign).
+2. Remaining Phase 9 close-out: 🔐 verify prod Postgres password rotated; chatbot smoke-test → mark Phase 9 ✅.
+
+---
+
 ## Handoff Entry Template
 
 ```markdown
