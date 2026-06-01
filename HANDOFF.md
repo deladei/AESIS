@@ -1146,6 +1146,26 @@ Palette vocabulary (lifted from `CoordinatorDashboard.tsx`): card `border border
 
 ---
 
+### Session 23 — 2026-06-01
+
+**Work done** — replaced the native `<select>` supervisor picker on **PlacementApproval** with a custom button-driven dropdown, matching the RegisterPage programme picker (Session 11) so it renders reliably across browsers / iOS. Frontend only, no logic/backend change.
+
+| File | What |
+|---|---|
+| `pages/coordinator/PlacementApproval.tsx` | NEW self-contained `SupervisorPicker` component: `<button>` trigger (selected supervisor name or "No supervisor yet") + rotating `ChevronDown`, floating `<ul role="listbox">` with a "No supervisor yet" reset option then one row per supervisor (name + email sub-line, `<Check>` on the selected). Each instance owns its own `open`/`placement` state, click-outside (mousedown), Escape, and scroll/resize **above/below flip** (`max-h-60` = 240px budget) — needed because there's one picker per pending-placement card. Light Nexus palette (`#15157d` accent, `#e5eeff` selected tint, `#eff4ff` hover). Wired via `value`/`onChange` to the existing `selectedSupervisor[p.id]` state — approve flow unchanged. |
+| same file | Removed `overflow-hidden` from the placement card (it would clip the absolute dropdown) and made the header-button corners conditional (`rounded-t-xl` when expanded, else `rounded-xl`) so the hover background still respects the card's rounded corners. |
+
+Left `SupervisorAssignment.tsx`'s native `<select>` as-is (its row isn't inside an `overflow-hidden` card and the user scoped this to PlacementApproval) — candidate to share `SupervisorPicker` later if desired.
+
+**Errors & fixes** — none. `tsc --noEmit` clean, `npm run build` clean (≈549 kB chunk warning pre-existing).
+
+**Stopped here — next session should**
+1. After Vercel redeploy, verify the picker opens/selects on prod as coordinator (`coordinator@aesis.cs.edu` / `Coord@1234`) at `/coordinator/placements` — expand a pending card, the supervisor dropdown should open below/above and selecting a name should approve with that supervisor attached.
+2. Optionally extract `SupervisorPicker` to a shared component and reuse it in `SupervisorAssignment.tsx` for consistency.
+3. Remaining Phase 9 close-out: 🔐 verify prod Postgres password rotated; chatbot smoke-test → mark Phase 9 ✅.
+
+---
+
 ## Handoff Entry Template
 
 ```markdown
