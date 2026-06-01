@@ -16,17 +16,17 @@ const FILTERS: { key: StatusFilter; label: string }[] = [
 ];
 
 const STATUS_STYLES: Record<string, string> = {
-  active:    'bg-emerald-500/10 text-emerald-300 border-emerald-500/30',
-  pending:   'bg-amber-500/10 text-amber-300 border-amber-500/30',
-  rejected:  'bg-red-500/10 text-red-300 border-red-500/30',
-  completed: 'bg-blue-500/10 text-blue-300 border-blue-500/30',
+  active:    'bg-emerald-50 text-emerald-700 border-emerald-200',
+  pending:   'bg-amber-50 text-amber-700 border-amber-200',
+  rejected:  'bg-red-50 text-red-700 border-red-200',
+  completed: 'bg-[#e5eeff] text-[#15157d] border-[#c4c5d5]',
 };
 
 function StatusBadge({ status }: { status: string }) {
-  const cls = STATUS_STYLES[status] ?? 'bg-slate-700/40 text-slate-300 border-slate-600';
+  const cls = STATUS_STYLES[status] ?? 'bg-[#f8f9ff] text-[#757684] border-[#c4c5d5]';
   const label = status.charAt(0).toUpperCase() + status.slice(1);
   return (
-    <span className={`px-2 py-0.5 rounded-full border text-xs font-medium ${cls}`}>{label}</span>
+    <span className={`rounded-full border px-2 py-0.5 text-xs font-medium ${cls}`}>{label}</span>
   );
 }
 
@@ -54,27 +54,27 @@ function AssignmentRow({ placement }: { placement: Placement }) {
   };
 
   return (
-    <div className="bg-slate-900 border border-slate-800 rounded-xl px-5 py-4 flex flex-col gap-4 lg:flex-row lg:items-center">
-      <div className="flex-1 min-w-0">
-        <div className="flex items-center gap-2 mb-1">
-          <span className="text-sm font-semibold text-slate-200 truncate">{studentName}</span>
+    <div className="flex flex-col gap-4 rounded-xl border border-[#c4c5d5]/60 bg-white px-5 py-4 lg:flex-row lg:items-center">
+      <div className="min-w-0 flex-1">
+        <div className="mb-1 flex items-center gap-2">
+          <span className="truncate text-sm font-semibold text-[#0b1c30]">{studentName}</span>
           <StatusBadge status={placement.placementStatus} />
         </div>
-        <p className="text-xs text-slate-400">
+        <p className="text-xs text-[#757684]">
           {placement.company?.name ?? 'No company'} ·{' '}
           {currentName ? (
-            <span className="text-slate-300">Supervisor: {currentName}</span>
+            <span className="text-[#444653]">Supervisor: {currentName}</span>
           ) : (
-            <span className="text-amber-400/90">Unassigned</span>
+            <span className="text-amber-600">Unassigned</span>
           )}
         </p>
       </div>
 
-      <div className="flex items-center gap-2 shrink-0">
+      <div className="flex shrink-0 items-center gap-2">
         <select
           value={choice}
           onChange={(e) => { setChoice(e.target.value); setSavedAt(null); }}
-          className="px-3 py-2 rounded-lg bg-slate-800 border border-slate-700 text-slate-100 text-sm focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-colors cursor-pointer min-w-[14rem]"
+          className="min-w-[14rem] cursor-pointer rounded-lg border border-[#c4c5d5] bg-white px-3 py-2 text-sm text-[#0b1c30] transition-colors focus:border-[#15157d] focus:outline-none focus:ring-1 focus:ring-[#15157d]"
         >
           <option value="">Select supervisor…</option>
           {supervisors.map((s) => (
@@ -83,18 +83,18 @@ function AssignmentRow({ placement }: { placement: Placement }) {
         </select>
 
         {savedAt ? (
-          <span className="flex items-center gap-1.5 text-xs text-emerald-400 px-2">
-            <Check className="w-4 h-4" /> Saved
+          <span className="flex items-center gap-1.5 px-2 text-xs text-emerald-600">
+            <Check className="h-4 w-4" /> Saved
           </span>
         ) : (
           <button
             onClick={save}
             disabled={!dirty || assign.isPending}
-            className="flex items-center justify-center gap-1.5 px-4 py-2 rounded-lg bg-blue-600 hover:bg-blue-500 text-white text-sm font-semibold transition-colors cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
+            className="flex cursor-pointer items-center justify-center gap-1.5 rounded-lg bg-[#15157d] px-4 py-2 text-sm font-semibold text-white transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-40"
           >
             {assign.isPending
-              ? <Loader2 className="w-4 h-4 animate-spin" />
-              : <UserCheck className="w-4 h-4" />}
+              ? <Loader2 className="h-4 w-4 animate-spin" />
+              : <UserCheck className="h-4 w-4" />}
             {currentName ? 'Reassign' : 'Assign'}
           </button>
         )}
@@ -110,24 +110,24 @@ export default function SupervisorAssignment() {
   const placements = data?.placements ?? [];
 
   return (
-    <div className="p-6 max-w-4xl mx-auto space-y-6">
+    <div className="mx-auto max-w-4xl space-y-6 p-6">
       <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
         <div>
-          <h1 className="text-xl font-bold text-white">Supervisor Assignments</h1>
-          <p className="text-slate-400 text-sm mt-0.5">
+          <h1 className="text-xl font-bold text-[#0b1c30]">Supervisor Assignments</h1>
+          <p className="mt-0.5 text-sm text-[#757684]">
             Assign an academic supervisor to each placement. The supervisor's dashboard
             populates as soon as they're assigned.
           </p>
         </div>
-        <div className="flex gap-1 bg-slate-900 border border-slate-800 rounded-lg p-1">
+        <div className="flex gap-1 rounded-lg border border-[#c4c5d5]/60 bg-white p-1">
           {FILTERS.map((f) => (
             <button
               key={f.key}
               onClick={() => setFilter(f.key)}
-              className={`px-3 py-1.5 rounded-md text-sm font-medium transition-colors cursor-pointer ${
+              className={`cursor-pointer rounded-md px-3 py-1.5 text-sm font-medium transition-colors ${
                 filter === f.key
-                  ? 'bg-slate-700 text-white'
-                  : 'text-slate-400 hover:text-slate-200'
+                  ? 'bg-[#15157d] text-white'
+                  : 'text-[#757684] hover:text-[#15157d]'
               }`}
             >
               {f.label}
@@ -137,13 +137,13 @@ export default function SupervisorAssignment() {
       </div>
 
       {isLoading ? (
-        <div className="flex justify-center items-center h-64">
-          <Loader2 className="w-6 h-6 animate-spin text-blue-400" />
+        <div className="flex h-64 items-center justify-center">
+          <Loader2 className="h-6 w-6 animate-spin text-[#15157d]" />
         </div>
       ) : placements.length === 0 ? (
-        <div className="bg-slate-900 border border-slate-800 rounded-xl p-10 text-center">
-          <GraduationCap className="w-10 h-10 text-slate-500 mx-auto mb-3" />
-          <p className="text-slate-400 text-sm">No {filter === 'all' ? '' : filter} placements found.</p>
+        <div className="rounded-xl border border-[#c4c5d5]/60 bg-white p-10 text-center">
+          <GraduationCap className="mx-auto mb-3 h-10 w-10 text-[#757684]" />
+          <p className="text-sm text-[#757684]">No {filter === 'all' ? '' : filter} placements found.</p>
         </div>
       ) : (
         <div className="space-y-3">

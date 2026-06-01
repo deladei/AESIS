@@ -1124,6 +1124,28 @@ Context: the Coordinator dashboard (`CoordinatorDashboard.tsx`) was rebuilt from
 
 ---
 
+### Session 22 — 2026-06-01
+
+**Work done** — restyled the two coordinator sub-pages from leftover **dark-slate** to the light **Nexus palette**, so they match the light `CoordinatorShell` they render inside (carryover open since Session 14). Frontend only, no logic/hooks/backend changed — pure className swap.
+
+Palette vocabulary (lifted from `CoordinatorDashboard.tsx`): card `border border-[#c4c5d5]/60 bg-white`; muted text `#757684`; body/heading `#0b1c30`; brand/accent `#15157d`; primary button `bg-[#15157d] text-white hover:opacity-90`; row hover / track tint `#eff4ff` / `#e5eeff`; avatar `bg-[#e1e0ff] text-[#15157d]`; risk/status tones use light tints (emerald/amber/red `-50/-200/-600/-700`).
+
+| File | What |
+|---|---|
+| `pages/coordinator/PlacementApproval.tsx` | Page title `text-white`→`#0b1c30`, subtitle→`#757684`. Cards `bg-slate-900 border-slate-800`→white Nexus cards; processed card border→`emerald-300`. Avatar→`#e1e0ff`/`#15157d`. Pending/Processed chips→amber-600/emerald-600. Approve/Reject buttons→light emerald/red tints (`-50` bg, `-200` border, `-700` text); Confirm-rejection kept as solid `bg-red-600`. Supervisor `<select>` + rejection `<textarea>`→white with `#15157d` focus ring. **Dropped the ALL-CAPS `InfoBlock` label** (`uppercase tracking-wide`→sentence-case `tracking-wide`) per the SaaS-polish bar; also de-capped "Student Email"→"Student email", etc. Loader `text-blue-400`→`#15157d`. |
+| `pages/coordinator/SupervisorAssignment.tsx` | Same treatment. `StatusBadge` tints→light (`active` emerald-50/700, `pending` amber, `rejected` red, `completed` `#e5eeff`/`#15157d`, default `#f8f9ff`/`#757684`). Row cards→white Nexus. Filter pill group→white bordered, active pill `bg-[#15157d] text-white`, inactive `text-[#757684] hover:text-[#15157d]`. Assign/Reassign button→primary `#15157d`. `<select>`→white with `#15157d` focus. Empty/loading icons + spinner→Nexus greys/`#15157d`. |
+
+**Errors & fixes** — none. Clean first pass.
+
+**Quality gate:** frontend `tsc --noEmit` exit 0; `npm run build` clean (≈549 kB chunk warning pre-existing). Grep confirmed no `bg-slate*/border-slate*/text-white` surfaces remain in the two files (the only `text-white` left are on the solid `#15157d` and `bg-red-600` buttons — intentional). No backend touched.
+
+**Stopped here — next session should**
+1. After Vercel redeploy, eyeball both pages logged in as coordinator (`coordinator@aesis.cs.edu` / `Coord@1234`): `/coordinator/placements` (Placement Approval) and `/coordinator/assignments` (Supervisor Assignments) should now read as light Nexus, consistent with the dashboard — no dark cards.
+2. Remaining Phase 9 close-out carryover: 🔐 verify prod Postgres password rotated (exposed Session 14); chatbot smoke-test from deployed `ChatbotPanel` → then mark Phase 9 ✅.
+3. Optional: the admin board's **AI Alerts** panel is still Sample-badged static (no backend feature) — only remaining non-live dashboard surface.
+
+---
+
 ## Handoff Entry Template
 
 ```markdown
