@@ -1208,11 +1208,10 @@ Left `SupervisorAssignment.tsx`'s native `<select>` as-is (its row isn't inside 
 
 **Placement Approval picker — also verified end-to-end on prod (✅ PASS).** Created real prod data to get a pending card: registered student **Esi Annan** (`aesis-demo-pending@gmail.com` / `Student@1234`, Ghanaian name per the standing rule) via `POST /auth/register` (201, auto-verified — no SendGrid on prod), then `POST /placements` as that student (Sankofa Software Ltd., 2026-06-15→12-15) → placement **`ec064d83-4ade-40aa-a1ef-c126e5db9ce3`**, status `pending`. Playwright (`/tmp/aesis-verify/approval.mjs`) as coordinator: Placement Approval showed "1 pending review"; expanded → **custom picker=1, native `<select>`=0**; opened → 3 options incl. the **"No supervisor yet" reset row** + Dr. Kofi Adjei + THEO WALLS; selected Dr. Kofi Adjei → **Approve placement** → `PATCH /placements/ec064d83…/status` → **200**, body `placementStatus: active` + `academicSupervisorId` set. Money shot `/tmp/aesis-verify/G3-picker-open.png`.
 
-⚠️ **Prod data left behind (cleanup pending user decision):** student `Esi Annan` (`aesis-demo-pending@gmail.com`) + now-**active** placement `ec064d83…` at Sankofa under Dr. Kofi Adjei (+ its auto-generated 24-week logbook schedule). No delete endpoint exists; retire via `PATCH /placements/ec064d83…/status {status:"withdrawn"}` if unwanted. Ghanaian names, so consistent with existing demo data if kept.
+**Cleanup done:** the verification placement `ec064d83…` was retired via `PATCH /placements/ec064d83…/status {status:"withdrawn"}` → confirmed `placementStatus: withdrawn`; active list back to 8, `ec064d83…` no longer in active/pending views. Residual on prod (harmless, no delete endpoint): the `Esi Annan` student account (`aesis-demo-pending@gmail.com`) + the withdrawn placement record + its 24-week logbook schedule. Full row-level deletion would need direct DB access with the prod `DATABASE_URL`.
 
 **Stopped here — next session should**
 1. Phase 9 close-out: 🔐 verify prod Postgres password rotated; chatbot smoke-test → mark Phase 9 ✅.
-2. Decide whether to keep or withdraw the `Esi Annan` / `ec064d83…` demo placement created during verification.
 
 ---
 
