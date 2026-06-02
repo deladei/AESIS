@@ -21,7 +21,10 @@ services:
       - key: MONGO_URI
         sync: false
       - key: REDIS_URL
-        sync: false
+        fromService:
+          name: aesis-redis
+          type: keyvalue
+          property: connectionString
       - key: JWT_SECRET
         generateValue: true
       - key: JWT_EXPIRY
@@ -72,11 +75,17 @@ services:
       - key: MONGO_URI
         sync: false
       - key: REDIS_URL
-        sync: false
+        fromService:
+          name: aesis-redis
+          type: keyvalue
+          property: connectionString
       - key: AI_ENGINE_API_KEY
         sync: false
       - key: CELERY_BROKER_URL
-        sync: false
+        fromService:
+          name: aesis-redis
+          type: keyvalue
+          property: connectionString
       - key: GROQ_API_KEY
         sync: false
       - key: GROQ_MODEL
@@ -99,11 +108,30 @@ services:
       - key: MONGO_URI
         sync: false
       - key: REDIS_URL
-        sync: false
+        fromService:
+          name: aesis-redis
+          type: keyvalue
+          property: connectionString
       - key: AI_ENGINE_API_KEY
         sync: false
       - key: CELERY_BROKER_URL
-        sync: false
+        fromService:
+          name: aesis-redis
+          type: keyvalue
+          property: connectionString
+
+  # ── Redis / Key Value (Render managed) ─────────────────────────────────────
+  # Declared as a first-class managed dependency so REDIS_URL is auto-wired to a
+  # real, reachable, same-region instance — instead of a dangling external URL
+  # (`sync: false`) that, when unreachable, hung the AI rate limiter. Backs the
+  # AI rate limiter, caches, and the Celery broker.
+  # ipAllowList: [] = private network only (no public access).
+  - type: keyvalue
+    name: aesis-redis
+    region: oregon
+    plan: free
+    maxmemoryPolicy: noeviction   # don't evict Celery broker messages / rate-limit keys
+    ipAllowList: []
 
 databases:
   # ── PostgreSQL 16 (Render managed) ────────────────────────────────────────
