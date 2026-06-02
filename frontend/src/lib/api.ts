@@ -6,7 +6,10 @@ let _accessToken: string | null = null;
 export function setAccessToken(token: string | null) { _accessToken = token; }
 export function getAccessToken() { return _accessToken; }
 
-const API_BASE = import.meta.env.VITE_API_BASE_URL
+// Exported so raw-fetch callers (e.g. the chatbot SSE stream, which can't use
+// the axios instance) hit the same backend origin instead of a relative path
+// that would resolve against the Vercel SPA origin and 405.
+export const API_BASE = import.meta.env.VITE_API_BASE_URL
   ? `${import.meta.env.VITE_API_BASE_URL}/api/v1`
   : '/api/v1';
 

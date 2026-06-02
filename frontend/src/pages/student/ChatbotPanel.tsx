@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
 import { Send, Loader2, Bot, User, Sparkles } from 'lucide-react';
-import { getAccessToken } from '@/lib/api';
+import { getAccessToken, API_BASE } from '@/lib/api';
 
 interface Message {
   id: string;
@@ -56,7 +56,7 @@ export default function ChatbotPanel() {
 
     try {
       const token = getAccessToken();
-      const resp = await fetch('/api/v1/ai/chat', {
+      const resp = await fetch(`${API_BASE}/ai/chat`, {
         method:  'POST',
         headers: {
           'Content-Type':  'application/json',
