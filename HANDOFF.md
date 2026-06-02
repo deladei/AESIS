@@ -1206,9 +1206,13 @@ Left `SupervisorAssignment.tsx`'s native `<select>` as-is (its row isn't inside 
 - Select `THEO WALLS → Dr. Kofi Adjei` updated the trigger; clicking **Reassign** fired `PATCH /api/v1/placements/085ae816…/supervisor` → **200** (persisted). Escape closes the listbox (1 → 0). Money shot: `/tmp/aesis-verify/F2-open.png`.
 - `/coordinator/placements` (Placement Approval) shows "0 pending review" — legitimately empty (prod has no pending placements), `0 native <select>`. Its picker is the **same shared component** just exercised on Assignments, so it's covered; it can't be driven through the real pending-card flow until a pending placement exists (didn't create one — prod write).
 
+**Placement Approval picker — also verified end-to-end on prod (✅ PASS).** Created real prod data to get a pending card: registered student **Esi Annan** (`aesis-demo-pending@gmail.com` / `Student@1234`, Ghanaian name per the standing rule) via `POST /auth/register` (201, auto-verified — no SendGrid on prod), then `POST /placements` as that student (Sankofa Software Ltd., 2026-06-15→12-15) → placement **`ec064d83-4ade-40aa-a1ef-c126e5db9ce3`**, status `pending`. Playwright (`/tmp/aesis-verify/approval.mjs`) as coordinator: Placement Approval showed "1 pending review"; expanded → **custom picker=1, native `<select>`=0**; opened → 3 options incl. the **"No supervisor yet" reset row** + Dr. Kofi Adjei + THEO WALLS; selected Dr. Kofi Adjei → **Approve placement** → `PATCH /placements/ec064d83…/status` → **200**, body `placementStatus: active` + `academicSupervisorId` set. Money shot `/tmp/aesis-verify/G3-picker-open.png`.
+
+⚠️ **Prod data left behind (cleanup pending user decision):** student `Esi Annan` (`aesis-demo-pending@gmail.com`) + now-**active** placement `ec064d83…` at Sankofa under Dr. Kofi Adjei (+ its auto-generated 24-week logbook schedule). No delete endpoint exists; retire via `PATCH /placements/ec064d83…/status {status:"withdrawn"}` if unwanted. Ghanaian names, so consistent with existing demo data if kept.
+
 **Stopped here — next session should**
 1. Phase 9 close-out: 🔐 verify prod Postgres password rotated; chatbot smoke-test → mark Phase 9 ✅.
-2. (Optional) to fully drive the Placement Approval picker end-to-end, create a pending placement on prod (or flip an existing one to pending) and re-run `/tmp/aesis-verify/verify.mjs`.
+2. Decide whether to keep or withdraw the `Esi Annan` / `ec064d83…` demo placement created during verification.
 
 ---
 
