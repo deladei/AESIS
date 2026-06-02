@@ -1200,9 +1200,15 @@ Left `SupervisorAssignment.tsx`'s native `<select>` as-is (its row isn't inside 
 
 **Quality gate:** frontend `tsc --noEmit` clean; `npm run build` clean (≈549 kB chunk warning pre-existing). No backend touched.
 
+**Re-verify (after the fix deployed + was promoted to production) — ✅ PASS.** Vercel free-tier note: the `eda0b7e` deploy built fine but did NOT auto-promote to the `aesis.vercel.app` production alias — the edge kept serving the old bundle (`index-DO1DMWzD.js`, `x-vercel-cache: HIT`, climbing `age`) until the user manually promoted it. If a push seems "not deployed", check the deployment is **assigned to Production**, not just "Ready". Playwright run (`/tmp/aesis-verify/final.mjs`) as coordinator:
+- `/coordinator/assignments` → **All** filter now renders **8 placement rows** (was 0 pre-fix — the bug is gone).
+- Each row's picker is the **custom dropdown** (`aria-haspopup=listbox`, **0 native `<select>`**); opens with the 2 real supervisors (Dr. Kofi Adjei / THEO WALLS) as name + email rows, `Check` on the selected.
+- Select `THEO WALLS → Dr. Kofi Adjei` updated the trigger; clicking **Reassign** fired `PATCH /api/v1/placements/085ae816…/supervisor` → **200** (persisted). Escape closes the listbox (1 → 0). Money shot: `/tmp/aesis-verify/F2-open.png`.
+- `/coordinator/placements` (Placement Approval) shows "0 pending review" — legitimately empty (prod has no pending placements), `0 native <select>`. Its picker is the **same shared component** just exercised on Assignments, so it's covered; it can't be driven through the real pending-card flow until a pending placement exists (didn't create one — prod write).
+
 **Stopped here — next session should**
-1. (see below — re-verify result appended after Vercel redeploy)
-2. Remaining Phase 9 close-out: 🔐 verify prod Postgres password rotated; chatbot smoke-test → mark Phase 9 ✅.
+1. Phase 9 close-out: 🔐 verify prod Postgres password rotated; chatbot smoke-test → mark Phase 9 ✅.
+2. (Optional) to fully drive the Placement Approval picker end-to-end, create a pending placement on prod (or flip an existing one to pending) and re-run `/tmp/aesis-verify/verify.mjs`.
 
 ---
 
