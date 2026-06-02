@@ -1230,6 +1230,8 @@ Left `SupervisorAssignment.tsx`'s native `<select>` as-is (its row isn't inside 
 
 **Verification method:** Playwright (system Chromium) against prod kept hitting Vercel's **"Security Checkpoint"** anti-bot interstitial after several automated hits (headless can't clear it; headed-under-xvfb failed to launch — full Chrome binary lacks display libs). Pivoted to **direct curl against the Render backend** (`aesis.onrender.com`, not behind Vercel's checkpoint): login → real student token (Esi Annan, `aesis-demo-pending@gmail.com` / `Student@1234`), then POST `/ai/chat` — this is what exposed the 0-byte hang and let me bisect it to the limiter. Scripts in `/tmp/aesis-verify/` (`chatbot{2,3,4}.mjs`, `chat_full.txt`).
 
+**Re-verify (after backend `624ba4b` redeployed) — ✅ PASS.** Fresh login → student token, then `POST https://aesis.onrender.com/api/v1/ai/chat {"message":"What is the minimum weekly hours for my placement?"}` → **HTTP 200 in 4.5s** (was 0 bytes / 240s hang). SSE streamed word-by-word `data: …` tokens → `[DONE]`; reconstructed answer (290 chars) = the KB's 40-hours-per-week response, exactly matching the `minimum/hours/weekly` keyword entry. The 4.5s = the 1.5s fail-open limiter timeout (Redis still unreachable) + the KB's 30ms/word stream — i.e. the fail-open path is doing exactly what it should. Stream format (`data: <token>` → `[DONE]`) matches what `ChatbotPanel` parses, so the frontend fix renders it correctly. (One transient `curl: (6) Could not resolve host` blip on the first attempt — local DNS, not the backend; `--retry` cleared it.) Raw capture in `/tmp/aesis-verify/chat_rerun.txt`.
+
 **Errors & fixes**
 
 | Error | Fix |
@@ -1242,7 +1244,7 @@ Left `SupervisorAssignment.tsx`'s native `<select>` as-is (its row isn't inside 
 1. 🔴 **Set a valid `REDIS_URL`** on the Render backend service (Settings → Environment). It's `sync: false` in `render.yaml` (no Redis in the blueprint) → external (likely Upstash) instance is unreachable/expired. Until fixed, the AI limiter is fail-open (no throttling). Other Redis features (caches/sessions) are also degraded.
 2. 🔐 **Rotate the exposed prod Postgres credential.** Render-managed *free* Postgres can't rotate in place → create a fresh `aesis-postgres-2`, repoint `DATABASE_URL` on `aesis-backend`/`aesis-ai-engine`/`aesis-celery-worker` (internal URL), let `prisma migrate deploy` rebuild on boot, re-seed demo accounts, **delete the old instance** (that's what kills the leak). Prod holds only demo data, so recreation is cheap.
 3. ⚠️ **Vercel promotion:** confirm deploy `eeaf135` is promoted to the `aesis.vercel.app` **Production** alias (free tier doesn't always auto-promote — Session 25 caveat). Otherwise the old bundle (relative-URL 405) keeps serving.
-4. Once Redis + promotion are done: re-run the chatbot smoke-test (curl against onrender is enough — should stream the KB answer for "minimum weekly hours"), then mark **Phase 9 ✅**.
+4. ✅ **Chatbot smoke-test re-run (this session) — PASS** (see "Re-verify" above): `/ai/chat` streams the KB answer over SSE, HTTP 200 in 4.5s. The chatbot backend is functional on prod. Phase 9 close-out now hinges only on items 1–3 (Redis URL, DB rotation, Vercel promotion) — none of which block the chatbot, but the security items (1, 2) should land before calling Phase 9 fully ✅.
 
 ---
 
