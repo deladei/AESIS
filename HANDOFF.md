@@ -1287,6 +1287,46 @@ Left `SupervisorAssignment.tsx`'s native `<select>` as-is (its row isn't inside 
 
 ---
 
+### Session 28 — 2026-06-05
+
+**Work done** — two threads: (A) **frontend — redesigned the login page** (committed); (B) operated the Phase-9 rotation watch while **the user ran the Render Manual Sync this session** (~02:59 UTC 2026-06-06), which had **NOT propagated by session end** — still on the old DB.
+
+**(A) Login page redesign — `frontend/src/pages/auth/LoginPage.tsx` (commit `7fafda1`).** User flagged the old page as dark-slate "AI slop." Used the `ui-ux-pro-max` skill (Flat Design + the app's existing Fira Sans/Fira Code — *not* the skill's Plus Jakarta suggestion, consistency wins). Markup/classes only — **all auth logic (login, redirects, error handling) untouched.**
+- Dark-slate → light **Nexus** palette: left brand panel `#15157d` (white text ≈13:1 AAA), white form, `#c4c5d5`/60 input borders, `#15157d` focus rings, light `red-50/200/700` error block (was dark `red-500/10`), `bg-[#15157d] hover:opacity-90` submit.
+- **Cut the AI slop:** removed the left-panel buzzword bullets (NLP / XGBoost / SHAP / "Real-Time Alerts") + stale "AY 2024/2025" + the jargon security string ("TLS 1.3 · AES-256-GCM · RBAC enforced"). Replaced with plain-language role framing (students log / supervisors give feedback / coordinators stay ahead), real lucide icons (no emoji), and a human security line ("Encrypted in transit and at rest · role-based access").
+- SaaS-polish bar: sentence-case labels, `cursor-pointer`, focus rings, 150ms color/opacity transitions. Ghanaian email placeholder `you@cs.edu.gh` per the standing rule.
+- Quality gate: frontend `tsc --noEmit` exit 0; `npm run build` clean (≈552 kB chunk warning pre-existing).
+
+**(B) Rotation watch probes this session (curl, prod `aesis.onrender.com`) — ALL `200/200`, never flipped:**
+- Session start ~02:56, immediately post-sync ~02:59, then ~03:04, ~03:09, ~03:18 — every probe coordinator **200** + Esi Annan **200** + `/health` **200**.
+
+So at session end the live backend is **still on the old `aesis-postgres`** (Esi Annan `aesis-demo-pending@gmail.com` still logs in 200 — she exists only on the old DB, never in `seed.ts`). By the ~03:18 tick it had been >20 min since the sync — long for a cold boot, so the **free-tier one-Postgres-per-workspace limit likely refused `aesis-postgres-2`**; next session may need **Order B** (delete old `aesis-postgres` first, then re-sync). Check the Render Blueprint sync log to confirm the new DB actually provisioned.
+
+**Git reconciliation (the "unlogged commits" flagged this session — RESOLVED, no code drift):** Session 27's entry recorded "HEAD = `9abfa43`," but the live `main` tip was `828c500`. Inspected `9abfa43..HEAD`: the only intervening commit is **`828c500` `docs: log Session 27 …` — HANDOFF.md only (+39 lines)**, i.e. the Session-27 entry *committing itself*. Session 27 wrote "HEAD `9abfa43`" because that was true *before* its own docs commit landed. So **`9abfa43` is still the last backend/code commit; `828c500` is docs-only; `7fafda1` (this session's login redesign) is the next code commit.** No backend changes were ever unlogged — the earlier worry (Session 27 vs 26 infra drift) does not recur here.
+
+**Flip logic refined this session (carry forward):** the rotation signal is **Esi Annan login → 401/404**, on its own. When the backend cuts to the empty `aesis-postgres-2`, **coordinator login may ALSO go 401 until re-seeded** — that's not a failure, it means "rotated but not yet seeded → run the re-seed first."
+- Esi 401/404 + coordinator 200 → rotated **and** seeded (best case).
+- Esi 401/404 + coordinator 401 → rotated, **new DB empty** → run `cd backend && DATABASE_URL='<new-external-url>?sslmode=require' npm run db:seed`.
+- both 200 → not flipped yet.
+- 5xx/timeout → mid-redeploy, not a flip.
+
+**Watch left ARMED across the session boundary:** a `ScheduleWakeup` is pending (~270s cadence, fires ~23:09 local / next tick). Its prompt is fully self-contained (carries the flip logic above) and will keep re-probing + re-arming until Esi Annan flips, then PushNotification + stop. The next session can either let it keep running or re-probe manually.
+
+**Errors & fixes** — `w-4.5`/`h-4.5` on the role-point icons aren't in Tailwind's default scale (silent no-op) → switched to `w-[18px] h-[18px]`.
+
+**Quality gate** — frontend `tsc --noEmit` clean + `npm run build` clean. Backend untouched (still 241/241 from Session 8). **`HEAD` = `7fafda1`** (`9abfa43` last *backend* commit → `828c500` Session-27 docs → `7fafda1` login redesign).
+
+**Stopped here — next session should**
+1. **Confirm the Vercel deploy of `7fafda1` is promoted to the `aesis.vercel.app` Production alias** (free tier doesn't always auto-promote — Session 25 caveat) so the new light login actually serves. Eyeball `/auth/login`.
+2. Re-probe prod (coordinator + Esi Annan login). If Esi flipped to 401/404, the cutover took. **If still 200/200 >20 min after a sync → the new DB likely never provisioned (free-tier 1-Postgres limit) → Order B: delete old `aesis-postgres` first, then re-sync.**
+3. If coordinator is 401 (new DB empty), **re-seed** against the new DB's External URL (command above), then confirm coordinator login returns to 200.
+4. Confirm `Redis PING ok` in the Render `aesis-backend` logs (the `9abfa43` boot self-test).
+5. 🔐 **DELETE the old `aesis-postgres`** — the action that actually kills the credential leak. Don't skip.
+6. Confirm the earlier Vercel deploy `eeaf135` (chatbot fix) is also on Production.
+7. Then Phase 9 is fully closeable — mark it ✅ in the Phase Tracker + snapshot.
+
+---
+
 ## Handoff Entry Template
 
 ```markdown

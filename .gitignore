@@ -44,3 +44,8 @@ backend/prisma/migrations/
 dist/
 .mypy_cache/
 .pytest_cache/
+
+# Local DB backups / dumps — never commit (contain prod data)
+backups/
+*.dump
+*.sql
