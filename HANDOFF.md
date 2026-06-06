@@ -1327,6 +1327,41 @@ So at session end the live backend is **still on the old `aesis-postgres`** (Esi
 
 ---
 
+### Session 29 — 2026-06-06
+
+**Work done** — three threads, all committed & pushed: (A) **proved the DB rotation actually took** and corrected the handoff's flawed verification premise; (B) **fixed the #1 deployment fragility** — committed a baseline Prisma migration; (C) **secret scan of git history** for the leak. `HEAD` = `adb1c14`.
+
+**(A) DB rotation — VERIFIED DONE (not assumed). The Session-26→28 sentinel was a red herring.** User ran **Order B** this session: deleted the old `aesis-postgres`, triggered the blueprint sync → `aesis-postgres-2` came up Available. Pasted its External URL (host `dpg-d83hburtqb8s73docod0-a.oregon-postgres.render.com`).
+- **The new DB was NOT blank** — it has the full schema (20 tables) + **all 15 accounts incl. `aesis-demo-pending` (Esi Annan)**. Newest row `created_at = 2026-06-02 00:34`, i.e. it was **restored from the `backups/aesis-prod-20260602` dump**, not freshly seeded. ⇒ **the handoff's sentinel ("Esi login → 401 = cutover") could NEVER fire** — the dump-restored DB contains Esi. That's why 4 sessions of `200/200` probes looked "stuck."
+- **Decisive test instead of the sentinel:** registered a throwaway `academic_supervisor` via prod `POST /auth/register` (HTTP 201, userId `4614e086`) → the row **appeared in `aesis-postgres-2`** (`created_at 14:25:24`). A live prod write landing in the new DB **proves prod is bound to `aesis-postgres-2`**. Then deleted the marker (refresh_tokens 0, users 1) → census back to 15 (10 student / 2 academic_sup / 1 company_sup / 1 coordinator / 1 admin).
+- ⇒ **Rotation complete:** new host + new password; **old `aesis-postgres` deleted = leaked credential dead**; all demo accounts present ⇒ **no re-seed was needed**. Lesson banked: *verify by causing & observing an effect (write-marker), not by inferring from a proxy (login sentinel).*
+
+**(B) Baseline Prisma migration `0_init` — committed (`adb1c14`).** Found that `startCommand`'s `npx prisma migrate deploy` was a **no-op**: `prisma/migrations/` was gitignored (in BOTH `.gitignore` and `backend/.gitignore`) with zero migrations, so the prod schema had no reproducible history (built via `db push`/dump-restore; `_prisma_migrations` was empty on prod).
+- Verified zero drift first: `prisma migrate diff --from-url <prod> --to-schema-datamodel` → *"empty migration"* (schema.prisma exactly matches live prod).
+- Generated `prisma/migrations/0_init/migration.sql` (`--from-empty --to-schema-datamodel`, 7 enums + 19 tables) + `migration_lock.toml`.
+- **Prod-safe baselining:** `prisma migrate resolve --applied 0_init` against `aesis-postgres-2` → wrote the `_prisma_migrations` row **without running the SQL**. `migrate status` → "1 migration found … up to date" ⇒ next deploy's `migrate deploy` is a clean **no-op**, not a `CREATE TABLE`-over-existing collision. Confirmed prod healthy post-push (health 200, coordinator 200).
+- Un-ignored migrations in both `.gitignore` files; also **tightened the Session-28 backups ignore** (`*.sql` was wrongly swallowing `migration.sql`) → scoped to `backups/`. Confirmed the prod dump stays ignored and no `.env`/secret was staged.
+
+**(C) Secret scan (no gitleaks/trufflehog installed → manual full-history sweep) — CLEAN.** `.env` was **never committed** on any branch; only `*.example` placeholder templates are tracked. `git log -p --all` swept for Postgres/Mongo/Redis creds, `gsk_`, `SG.`, `AKIA`, `sk-`, private keys, JWTs → **only template placeholders** (`USER:PASSWORD@HOST`, `SG.replace_with_…`), zero real values; working tree equally clean. ⇒ **the rotated credential did NOT leak via git**, so the new one isn't sitting in history. *Caveat: a repo scan can't clear non-git channels (logs/screenshots/transcripts/dashboard) — but the highest-probability vector is clean.*
+
+**Commits this session:** `6e421c2` (docs: Session 28 entry + gitignore local DB backups) → `adb1c14` (fix(prisma): baseline `0_init` + un-ignore migrations). Both on `origin/main`. (`7fafda1` login relight was the prior code commit.)
+
+**Errors & fixes**
+
+| Error | Fix |
+|---|---|
+| First prod register + psql both failed (HTTP 000 / `could not translate host`) | Local DNS blip (known from Session 26) — `curl --retry` + psql retry loop cleared it |
+| `git add` of migrations refused — "ignored" | TWO ignore rules: my Session-28 `*.sql` (root) **and** a pre-existing `backend/.gitignore:8 prisma/migrations/`. Fixed both |
+
+**Quality gate** — no TS/app code changed (only SQL migration + `.gitignore`), so backend stays **241/241** from Session 8; `0_init` verified zero-drift against live prod. Did not re-run Jest (SQL/config-only change; box thrashes on full runs).
+
+**Stopped here — next session should** (Phase 9 is down to **dashboard/log checks only** — no code left)
+1. ⚠️ Confirm **`Redis PING ok`** in the `aesis-backend` Render logs (the `9abfa43` boot self-test) ⇒ managed `aesis-redis` reachable, AI limiter no longer fail-open.
+2. ⚠️ Confirm Vercel **Production** alias serves `7fafda1` (light Nexus login) **and** `eeaf135` (chatbot fix) — free tier doesn't always auto-promote.
+3. Then mark **Phase 9 ✅** in the Phase Tracker + snapshot. (Rotation + baseline + secret-scan are all done; only these two eyeball checks remain.)
+
+---
+
 ## Handoff Entry Template
 
 ```markdown
