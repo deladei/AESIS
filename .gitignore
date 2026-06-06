@@ -36,8 +36,7 @@ Thumbs.db
 .idea/
 *.swp
 
-# Prisma generated (keep schema, ignore migrations until prod-ready)
-backend/prisma/migrations/
+# Prisma migrations are committed (baselined 0_init) — required for `migrate deploy`
 
 # Python
 *.egg-info/
@@ -46,6 +45,5 @@ dist/
 .pytest_cache/
 
 # Local DB backups / dumps — never commit (contain prod data)
+# Scoped to backups/ so it doesn't swallow Prisma's migration.sql files.
 backups/
-*.dump
-*.sql

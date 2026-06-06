@@ -5,4 +5,4 @@ dist/
 coverage/
 .DS_Store
 *.log
-prisma/migrations/
+# prisma/migrations/ are committed (baselined 0_init) — required for `migrate deploy`
