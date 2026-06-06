@@ -1248,6 +1248,45 @@ Left `SupervisorAssignment.tsx`'s native `<select>` as-is (its row isn't inside 
 
 ---
 
+### Session 27 — 2026-06-05
+
+**Work done** — no code changed. Reconciled the handoff with reality, verified prod rotation state, and set up an automated watch. **Key correction: three infra commits landed AFTER the Session 26 entry and were never logged here — Session 26's "next session should" list (Redis URL + DB rotation) is therefore stale at the *code* level (both are done & pushed) but accurate at the *dashboard* level (neither has been applied on Render).**
+
+**The unlogged post-Session-26 commits (all on `origin/main`, HEAD = `9abfa43`):**
+
+| Commit | Date | What |
+|---|---|---|
+| `f1aa5a3` | 06-02 | `fix(infra)`: declared a **managed Render Key Value** `aesis-redis` (`type: keyvalue`, free, `ipAllowList: []`, `maxmemoryPolicy: noeviction`); rewired `REDIS_URL` + `CELERY_BROKER_URL` on all 3 services from the dangling `sync:false` to `fromService: aesis-redis`. Fixes the Session-26 item-1 root cause (unreachable Redis → fail-open limiter) at the blueprint level. |
+| `78a0e3a` | 06-02 | `fix(infra)`: renamed DB `aesis-postgres` → **`aesis-postgres-2`** and repointed `DATABASE_URL` on all 3 services via `fromDatabase`. This is the rotation mechanism — a blueprint sync provisions a fresh PG instance (new host + new generated password); `prisma migrate deploy` (startCommand) rebuilds the schema on first boot. |
+| `9abfa43` | 06-03 | `diag(redis)`: `config/redis.ts` now logs URL-shape (scheme/host/port/hasPassword, no leak) + a boot **PING self-test** raced against a 3s timeout. So Render logs will show `Redis READY — commands can run` / `Redis PING ok` once Redis is reachable — the definitive readiness signal. |
+
+**Verified prod state (re-probed twice via curl this session — IDENTICAL both times):**
+- `coordinator@aesis.cs.edu` / `Coord@1234` → **HTTP 200**, role `coordinator`. Backend + DB alive.
+- `aesis-demo-pending@gmail.com` / `Student@1234` (the Session-25 ad-hoc "Esi Annan" account, **not** in `seed.ts` → exists only on the **old** `aesis-postgres`) → **HTTP 200 + token issued**. ⛔ **This proves the live backend is STILL on the old database — the blueprint sync has NOT been applied on Render.** Redis is almost certainly still the old unreachable `sync:false` URL too (the blueprint syncs as a unit, and the DB half clearly hasn't), so the AI limiter is still fail-open.
+- `GET /health` → `200 {"status":"ok"}`. `aesis-ai-engine` `/health` → "Not Found" (path 404, not a timeout — service responds; didn't chase, not in scope).
+
+**Automated watch set (ScheduleWakeup, ~270s cadence):** re-runs the two login probes each tick. Flip condition = Esi Annan login going `200+token` → `401/404`, which means `aesis-postgres-2` is live and rotation took. On flip the loop self-stops and reports; until then it keeps polling. (Polling because a Render dashboard "Manual Sync" is an external action the harness can't notify on.)
+
+**Remaining work is 100% Render/Vercel dashboard actions — no code left to write:**
+1. ⚠️ **Free-tier gotcha first:** Render free plan typically allows **one free Postgres per workspace**, so creating `aesis-postgres-2` while `aesis-postgres` still exists may be refused. **Order A** (preferred): sync → new DB alongside old → verify → delete old. **Order B** (if 2 DBs blocked): delete old `aesis-postgres` first → then sync. Prod holds only demo data (`seed.ts` recreates it), so B is cheap and kills the leak immediately.
+2. 🔴 **Trigger the blueprint sync:** Render → Blueprints → AESIS → **Manual Sync**. Provisions `aesis-redis` + `aesis-postgres-2`, repoints all 3 services, redeploys. (If services were created **manually** not from a connected blueprint, the sync button won't exist → repoint env per-service by hand instead.)
+3. **Re-seed the new DB** — seed is NOT in the startCommand, and free-tier web services have no Render Shell, so run locally against the new DB's **External** URL: `cd backend && DATABASE_URL='<external-url>?sslmode=require' npm run db:seed` (recreates admin/coordinator/supervisor; `db:seed` = `ts-node src/config/seed.ts`).
+4. **Verify** (watch does the login half automatically): coordinator login stays `200`; Esi Annan login flips to `401/404`; Render `aesis-backend` logs show `Redis PING ok`.
+5. 🔐 **Delete the old `aesis-postgres`** (Order A) — **this is the action that actually kills the credential leak.** Don't skip.
+6. Confirm `sync:false` env survived on `aesis-backend` (`MONGO_URI`, `AI_ENGINE_URL`, `AI_ENGINE_API_KEY`, `SENDGRID_API_KEY`, `FRONTEND_URL`).
+7. ⚠️ Carryover from Session 26: confirm Vercel deploy `eeaf135` is promoted to the `aesis.vercel.app` **Production** alias (free tier doesn't always auto-promote).
+
+**Errors & fixes** — none (no code changed this session).
+
+**Quality gate** — N/A (no code touched). Backend remains 241/241 from Session 8; `render.yaml` blueprint changes are config-only and unverifiable until applied on Render.
+
+**Stopped here — next session should**
+1. Check whether the watch caught the rotation flip (or whether the user applied the sync). If still unflipped, the blueprint sync (step 2 above) is the single blocker.
+2. After rotation verified: re-seed (step 3), confirm Redis readiness in logs, **delete old `aesis-postgres`** (step 5).
+3. Then Phase 9 is fully closeable — mark it ✅ in the Phase Tracker and update the snapshot.
+
+---
+
 ## Handoff Entry Template
 
 ```markdown
