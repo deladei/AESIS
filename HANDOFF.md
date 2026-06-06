@@ -19,7 +19,7 @@
 | **Infra** | Docker Compose — PG 16, Mongo 7, Redis 7, AI Engine, Celery Worker |
 | **Test runner** | Jest + ts-jest — run `npm test` inside `backend/` |
 | **Type check** | `npx tsc --noEmit` inside `backend/` |
-| **Current phase** | **Phase 9 — Deployment files created (Render + Vercel + GitHub Actions)** |
+| **Current phase** | **✅ Phase 9 COMPLETE (Session 29, 2026-06-06) — prod live on Render + Vercel; DB credential rotated & verified; Redis reachable; Prisma baselined; git-history secret scan clean** |
 
 ---
 
@@ -136,7 +136,7 @@ AISYSTEM/
 | 6 | Dashboards & Analytics | ✅ Done | 16/16 |
 | 7 | Frontend Integration | ✅ Done | — |
 | 8 | Security Hardening & QA | ✅ Done | 241/241 |
-| 9 | Deployment (Render + Vercel + GitHub Actions) | 🟡 **In Progress — files done, manual setup remains** | — |
+| 9 | Deployment (Render + Vercel + GitHub Actions) | ✅ **Done (Session 29)** — prod live; DB rotated & verified; Redis PING ok; Prisma baselined; secrets clean | — |
 
 **Node.js: 241/241 tests passing. `tsc --noEmit` clean. Coverage: 89.59% stmts / 76.22% branches / 83.43% funcs / 90.07% lines — all ≥75% threshold met.**
 
@@ -1355,10 +1355,15 @@ So at session end the live backend is **still on the old `aesis-postgres`** (Esi
 
 **Quality gate** — no TS/app code changed (only SQL migration + `.gitignore`), so backend stays **241/241** from Session 8; `0_init` verified zero-drift against live prod. Did not re-run Jest (SQL/config-only change; box thrashes on full runs).
 
-**Stopped here — next session should** (Phase 9 is down to **dashboard/log checks only** — no code left)
-1. ⚠️ Confirm **`Redis PING ok`** in the `aesis-backend` Render logs (the `9abfa43` boot self-test) ⇒ managed `aesis-redis` reachable, AI limiter no longer fail-open.
-2. ⚠️ Confirm Vercel **Production** alias serves `7fafda1` (light Nexus login) **and** `eeaf135` (chatbot fix) — free tier doesn't always auto-promote.
-3. Then mark **Phase 9 ✅** in the Phase Tracker + snapshot. (Rotation + baseline + secret-scan are all done; only these two eyeball checks remain.)
+**Phase 9 close-out — BOTH remaining checks passed later in Session 29 ⇒ Phase 9 ✅ DONE:**
+1. ✅ **`Redis PING ok`** confirmed by user in the `aesis-backend` Render logs ⇒ managed `aesis-redis` reachable, AI limiter no longer fail-open.
+2. ✅ **Vercel Production verified** — fetched the live `aesis.vercel.app` bundle (`index-Csrn0Mbf.js`); it contains `15157d` (the Nexus relit login `7fafda1`) **and** the absolute `onrender.com/api/v1` API base (the chatbot fix `eeaf135`). Since `7fafda1` post-dates `eeaf135`, both are promoted to the Production alias.
+3. ✅ Phase Tracker + snapshot updated to **Phase 9 ✅ Done**.
+
+**Stopped here — next session should**
+- Phase 9 is complete; AESIS is fully deployed and verified on prod. No deployment work remains.
+- Optional hardening backlog (senior-dev review, not blockers): (a) the AESIS "production" stack is all **free tier** — free Render Postgres ~90-day expiry, web-service cold starts (7–9s logins observed), no automated backups (only the manual `backups/aesis-prod-20260602` dump); move to paid if this is meant to be long-lived prod. (b) Leak root-cause: git history is clean, but the *original* exposure channel (non-git) was never positively identified — worth a moment's thought before trusting the new credential indefinitely.
+- Next feature work, if any, starts from a green Phase 9.
 
 ---
 
