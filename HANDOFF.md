@@ -1362,8 +1362,51 @@ So at session end the live backend is **still on the old `aesis-postgres`** (Esi
 
 **Stopped here — next session should**
 - Phase 9 is complete; AESIS is fully deployed and verified on prod. No deployment work remains.
+- 🎯 **NEXT SESSION = "Linkage & Functionality" — a full end-to-end verification pass on live prod** (user directive, Session 29). User confirmed all four scopes:
+  1. **End-to-end flow testing** — click/drive every role's flows on prod (student logbook draft→submit→AI analysis; supervisor feedback; coordinator placement approval + analytics) and confirm each *actually works*, not just that unit tests pass.
+  2. **Link/route audit** — every nav link, button, and React-Router route resolves (no dead links / 404s; role-aware nav wired correctly per role).
+  3. **API wiring audit** — every frontend call hits a real backend endpoint with the right shape; the Node→FastAPI AI calls (chatbot `/ai/chat`, analysis `/ai/analyze/logbook`, risk `/ai/predict/risk`) are all connected on prod.
+  4. **Cross-service data flow** — PG ↔ Mongo ↔ Redis ↔ AI engine end-to-end: a real logbook submission should write Mongo text + trigger Celery AI analysis + produce a risk score + fire a notification.
+  - **Method note (from this session's lesson):** verify by *causing and observing effects* on prod (real submits/writes, like the Session-29 write-marker), not by inferring from proxies. Watch for Vercel's anti-bot "Security Checkpoint" on automated browser hits (Session 26) → fall back to direct curl against `aesis.onrender.com`. Mind free-tier cold starts (first request 7–9s).
 - Optional hardening backlog (senior-dev review, not blockers): (a) the AESIS "production" stack is all **free tier** — free Render Postgres ~90-day expiry, web-service cold starts (7–9s logins observed), no automated backups (only the manual `backups/aesis-prod-20260602` dump); move to paid if this is meant to be long-lived prod. (b) Leak root-cause: git history is clean, but the *original* exposure channel (non-git) was never positively identified — worth a moment's thought before trusting the new credential indefinitely.
-- Next feature work, if any, starts from a green Phase 9.
+
+---
+
+### Session 30 — 2026-06-07
+
+**Work done — built the new "weekly logbook entry pipeline" (Postgres-only, no broker) per a detailed spec. ALL 5 stages now complete & verified.**
+
+Found a prior **undocumented, uncommitted** session had already scaffolded stages 1–3 (it added the "Linkage & Functionality" next-steps text to this file but never logged its code work). This session verified that foundation green, then built stages 4–5. The whole feature is **additive** — a NEW parallel subsystem (`modules/entries/` + `modules/finalization/`); the legacy logbook (`modules/logbook/`, Mongo, Celery, risk/plagiarism/sentiment) is **untouched**, and the migration only `CREATE`s — **zero `DROP`/`ALTER` on existing tables**, so prod data is safe.
+
+| Stage | What | Status |
+|---|---|---|
+| 1 — migrations + data model | `20260606205657_logbook_pipeline` (8 tables, enums, UNIQUE(placement,week), append-only `entry_event` trigger) + 8 Prisma models | ✅ (prior session) verified |
+| 2 — write path + state machine + event log | `entries.service.ts` (transactional-outbox enqueue, `FOR UPDATE` idempotent submit), `entry.stateMachine.ts`, `entry.dates.ts` (TZ-safe), controller/router/schema | ✅ (prior session) verified |
+| 3 — authz + isolation | `entries.policy.ts` (single decision point + DB-level scope filter) + cross-student isolation tests | ✅ (prior session) verified |
+| 4 — enrichment worker (fail-open) | **NEW:** `enrichment.client.ts` (Zod-validated FastAPI client), `enrichment.worker.ts` (table-as-queue polling, atomic `SKIP LOCKED` claim, backoff, give-up→`abandoned`, never touches `logbook_entry.status`); FastAPI `ai/routers/enrich.py` `POST /ai/enrich/entry` (2-stage classify→summarize, schema-validated); wired worker into `server.ts` | ✅ built & verified |
+| 5 — finalization + magic-link attestation | **NEW:** `modules/finalization/` — `finalization.service.ts` (assessment→`assessment_pending`; finalize requires all weeks acknowledged/waived + assessment; cross-week AI summary once, fail-open; `COMPANY_ATTESTATION_REQUIRED` gate), `attestation.token.ts` (sha256, store hash only), public+authed routers, `placement.summary.client.ts`, FastAPI `POST /ai/enrich/placement`; migration `20260607120000_finalization_waivers` (adds `placement_assessment.waivers` jsonb) | ✅ built & verified |
+
+**Verification:** `tsc --noEmit` clean. **66/66** new-pipeline tests pass (`npx jest src/modules/entries src/modules/finalization`) — unit (state machine, dates, client Zod, token) + real-Postgres integration (write path, locking/idempotency, append-only trigger, cross-student isolation, enrichment fail-open/retry/give-up, finalization with waiver + fail-open AI + authz + already-finalized 409 + attestation-required flag, attestation invite/hash-only/single-use/expired/authz). `app.test.ts` 3/3 (route wiring OK). FastAPI `py_compile` OK. README at `backend/src/modules/entries/README.md` documents the two assumption flags + how to flip them.
+
+**Errors & fixes**
+
+| Error | Fix |
+|---|---|
+| Adding a 2nd DB-truncating integration test file → 23 failures (suites raced each other's `TRUNCATE`; Jest parallelizes files) | Merged ALL DB-touching new-pipeline tests into the one `entries.integration.test.ts` (one file = one worker = sequential). Kept only no-DB unit tests as separate files. |
+| Enrichment `claimNext` never claimed due jobs (`next_run_at <= now()` always false) | **TZ bug:** DB session is `America/New_York` but Prisma writes UTC wall-clock into `timestamp` (no-tz) cols. Fixed by comparing naive-UTC↔naive-UTC: bind app time as `${pgUtc(d)}::timestamp` (session-tz-independent). `pgUtc()` helper in `enrichment.worker.ts`. |
+| `placement.orgName/roleTitle` don't exist | Org name comes from the `company` relation (`company.name`); no role-title field. Adjusted attestation context. |
+
+**Config flags (defaults = unconfirmed-regulation assumptions; in `config/env.ts`):** `COMPANY_ATTESTATION_REQUIRED_FOR_FINALIZATION`=false, `WEEKLY_BINDING_GRADES`=false, plus `BACKFILL_CUTOFF_DAYS` (unset/off) and `ATTESTATION_TOKEN_TTL_HOURS`=168.
+
+**State of the tree — IMPORTANT (uncommitted):**
+- Everything above is **uncommitted** (user said "run on auto"; did not ask to commit/push). `git status`: modified `HANDOFF.md`, `backend/prisma/schema.prisma`, `backend/src/app.ts`, `backend/src/config/env.ts`, `backend/src/server.ts`; untracked `backend/src/modules/entries/`, `backend/src/modules/finalization/`, `backend/prisma/migrations/{20260606205657_logbook_pipeline,20260607120000_finalization_waivers}`, `ai/routers/enrich.py` + `ai/main.py` edit.
+- **DBs:** the `waivers` column + pipeline tables exist on the **test** DB (`aesis_logbook_test`). The **dev** DB (`aisystem_db`) was historically built via `db push` and does **NOT** have the new pipeline tables — run `npx prisma db push` (or apply the two migrations) there before booting the server locally. **PROD/Render untouched** — these migrations have NOT been deployed.
+
+**Stopped here — next session should**
+1. If keeping this work: review the diff, then commit (suggest one commit for the pipeline + one `docs:` for this handoff) — NOT yet pushed. Decide whether to deploy the two new migrations to prod (`migrate deploy` — both are additive/safe).
+2. `prisma db push` the dev DB if you want to run the server locally and exercise the HTTP routes end-to-end.
+3. Optional: the legacy full suite (241 tests) wasn't re-run (box thrashes; only additive changes to `app.ts`/`server.ts`/`env.ts`, all typecheck-clean and `app.test.ts` green). Run it once before any prod deploy.
+4. The original "Linkage & Functionality" prod-verification pass (Session 29 directive) is still **open** if/when desired.
 
 ---
 
