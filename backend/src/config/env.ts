@@ -3,6 +3,14 @@ import dotenv from 'dotenv';
 
 dotenv.config();
 
+// Safe env boolean: z.coerce.boolean() treats any non-empty string ("false")
+// as true. Accept only explicit true/false/1/0; fall back to `def`.
+const envBool = (def: boolean) =>
+  z
+    .enum(['true', 'false', '1', '0'])
+    .optional()
+    .transform((v) => (v === undefined ? def : v === 'true' || v === '1'));
+
 const envSchema = z.object({
   NODE_ENV:                  z.enum(['development', 'test', 'production']).default('development'),
   PORT:                      z.coerce.number().default(3000),
@@ -33,6 +41,18 @@ const envSchema = z.object({
   FRONTEND_URL:              z.string().url().default('http://localhost:5173'),
 
   SENTRY_DSN:                z.string().optional(),
+
+  // ── Weekly logbook pipeline config flags ─────────────────────
+  // These two depend on the university's attachment regulations, which are
+  // unconfirmed. They default to the assumptions documented in the module
+  // README; flip via env when the regulations are known.
+  WEEKLY_BINDING_GRADES:                          envBool(false),
+  COMPANY_ATTESTATION_REQUIRED_FOR_FINALIZATION:  envBool(false),
+  // Backfill cutoff: reject weekly submissions more than N days after the
+  // period ends. Unset = OFF (default). Set a number to enable.
+  BACKFILL_CUTOFF_DAYS:                           z.coerce.number().int().nonnegative().optional(),
+  // Company attestation magic-link lifetime.
+  ATTESTATION_TOKEN_TTL_HOURS:                    z.coerce.number().int().positive().default(168),
 });
 
 const parsed = envSchema.safeParse(process.env);

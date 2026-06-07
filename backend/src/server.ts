@@ -10,6 +10,7 @@ import { setIo } from './config/socket';
 import { startDeadlineReminderJobs } from './jobs/deadlineReminder';
 import { startWeeklyReportJob } from './jobs/weeklyReport';
 import { startRiskAlertSubscriber } from './jobs/riskAlertSubscriber';
+import { startEnrichmentWorker } from './modules/entries/enrichment.worker';
 
 async function bootstrap() {
   // ── Connect all data stores before accepting traffic ──────────
@@ -63,6 +64,7 @@ async function bootstrap() {
   startDeadlineReminderJobs();
   startWeeklyReportJob();
   startRiskAlertSubscriber();
+  startEnrichmentWorker(); // Path 2 — polls enrichment_queue; fail-open, no broker
 
   // ── Start server ──────────────────────────────────────────────
   httpServer.listen(env.PORT, () => {

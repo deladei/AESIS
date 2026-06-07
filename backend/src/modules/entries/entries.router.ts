@@ -1,0 +1,27 @@
+import { Router } from 'express';
+import { authenticate } from '../../middleware/authenticate';
+import { asyncHandler } from '../../middleware/errorHandler';
+import {
+  saveDraftHandler,
+  submitHandler,
+  acknowledgeHandler,
+  returnHandler,
+  getEntryHandler,
+  listEntriesHandler,
+} from './entries.controller';
+
+// Weekly logbook entry pipeline. All routes require authentication; per-role
+// authorization is enforced in the policy layer (entries.policy.ts) + the state
+// machine, so the router stays thin and the rules live in one place.
+const router = Router();
+
+router.use(authenticate);
+
+router.get('/', asyncHandler(listEntriesHandler));
+router.post('/', asyncHandler(saveDraftHandler)); // create or update a draft
+router.get('/:id', asyncHandler(getEntryHandler));
+router.post('/:id/submit', asyncHandler(submitHandler));
+router.post('/:id/acknowledge', asyncHandler(acknowledgeHandler));
+router.post('/:id/return', asyncHandler(returnHandler));
+
+export default router;
