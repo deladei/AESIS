@@ -29,27 +29,35 @@ function addDaysYMD(start: Date, days: number): Date {
 }
 
 interface ScheduleWeek {
-  weekNumber:  number;
+  weekNumber:  number; // absolute index from the placement start — stable storage key
+  label:       number; // 1..12 position within the visible window — display only
   periodStart: string;
   periodEnd:   string;
 }
 
-// Derive the weekly schedule from the placement window, up to the current week.
-// The pipeline creates entries on demand, so the schedule is computed client-side
-// and overlaid with whatever entries already exist.
-function buildSchedule(startDate: string | null, endDate: string | null): ScheduleWeek[] {
+const SCHEDULE_WEEKS = 12;
+
+// Derive a rolling window of the most recent 12 weeks, ending on the week that
+// contains today, so the schedule always tracks real time (dates stay current).
+// Week boundaries keep the placement's weekday cadence, and `weekNumber` stays
+// anchored to the placement start so saved entries never collide as the window
+// rolls forward; `label` is the friendly 1..12 number shown in the UI.
+function buildSchedule(startDate: string | null): ScheduleWeek[] {
   if (!startDate) return [];
   const start = new Date(`${ymd(startDate)}T00:00:00Z`);
   const today = new Date(`${toYMD(new Date())}T00:00:00Z`);
-  const hardEnd = endDate ? new Date(`${ymd(endDate)}T00:00:00Z`) : null;
+  if (today.getTime() < start.getTime()) return []; // placement hasn't started yet
+
+  const weekMs = 7 * 86_400_000;
+  const currentOffset = Math.floor((today.getTime() - start.getTime()) / weekMs);
+  const firstOffset = Math.max(0, currentOffset - (SCHEDULE_WEEKS - 1));
+
   const weeks: ScheduleWeek[] = [];
-  // The placement logbook runs for a fixed 12 weeks.
-  for (let i = 0; i < 12; i++) {
-    const periodStart = addDaysYMD(start, i * 7);
-    if (periodStart.getTime() > today.getTime()) break; // week hasn't begun yet
-    if (hardEnd && periodStart.getTime() > hardEnd.getTime()) break;
+  for (let off = firstOffset; off <= currentOffset; off++) {
+    const periodStart = addDaysYMD(start, off * 7);
     weeks.push({
-      weekNumber:  i + 1,
+      weekNumber:  off + 1,
+      label:       off - firstOffset + 1,
       periodStart: toYMD(periodStart),
       periodEnd:   toYMD(addDaysYMD(periodStart, 6)),
     });
@@ -104,8 +112,8 @@ export default function LogbookEditor() {
   const { data: entries = [], isLoading: entriesLoading } = useEntries(activePlacement?.id);
 
   const schedule = useMemo(
-    () => buildSchedule(activePlacement?.startDate ?? null, activePlacement?.endDate ?? null),
-    [activePlacement?.startDate, activePlacement?.endDate],
+    () => buildSchedule(activePlacement?.startDate ?? null),
+    [activePlacement?.startDate],
   );
 
   // Index existing entries by week for overlay onto the schedule.
@@ -326,7 +334,7 @@ export default function LogbookEditor() {
                   >
                     <div className="min-w-0">
                       <p className={`text-sm font-semibold ${active ? 'text-[#15157d]' : 'text-[#0b1c30]'}`}>
-                        Week {w.weekNumber}
+                        Week {w.label}
                       </p>
                       <p className="truncate text-[11px] text-[#64748b]">{fmtRange(w.periodStart, w.periodEnd)}</p>
                     </div>
@@ -343,7 +351,7 @@ export default function LogbookEditor() {
           <section className="space-y-5">
             <div className="flex flex-wrap items-center justify-between gap-3">
               <div>
-                <h2 className="text-lg font-bold text-[#0b1c30]">Week {scheduleWeek.weekNumber}</h2>
+                <h2 className="text-lg font-bold text-[#0b1c30]">Week {scheduleWeek.label}</h2>
                 <p className="text-sm text-[#464652]">{fmtRange(scheduleWeek.periodStart, scheduleWeek.periodEnd)}</p>
               </div>
               <StatusPill status={status} />
