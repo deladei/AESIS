@@ -1438,6 +1438,44 @@ User decisions: (1) build the **student entry editor first**; (2) **replace** th
 
 ---
 
+### Session 32 — 2026-06-07
+
+**Work done — committed/shipped Session 31's student editor, built the supervisor review UI, made three editor/submission fixes, and (finally) got the new logbook pipeline LIVE on the prod frontend.**
+
+| Commit | What |
+|---|---|
+| `76d34d2` | `feat(frontend): student weekly-entry logbook editor (new pipeline)` — committed + pushed Session 31's previously-uncommitted work (`LogbookEditor.tsx` rewrite + `useEntries.ts`). |
+| `7e37389` | `feat(logbook): supervisor review UI + student editor refinements` — **supervisor review pipeline** (`pages/supervisor/EntryReview.tsx` acknowledge/return reading role-scoped `GET /entries?status=submitted`; `SupervisorShell` "Review Logbooks" nav; `router.tsx` swap legacy `LogbookReview`→`EntryReview`); `listEntries` now includes `placement.student` + `company` for the supervisor queue; **+ three requested fixes** (see below); **+ submit notifies the assigned academic supervisor** in-tx + socket emit (mirrors ack/return path, idempotent). |
+| `75aa024` | `fix(logbook): roll the weekly schedule to the current 12 weeks` — see "rolling dates" below. |
+
+**Three requested fixes (all in `frontend/src/pages/student/LogbookEditor.tsx` + 1 backend):**
+1. **Cap weeks to 12** — `buildSchedule` was `i < 104`.
+2. **Default activity date to today** — new `defaultActivityDate(week)` clamps today into the week; used for the fresh-week row + "Add activity".
+3. **Submit → assigned supervisor** — `entries.service.ts::submitEntry` now writes a `submission_reminder` notification to `placement.academicSupervisorId` inside the submit tx and `emitToUser`s it after commit. (`academicSupervisorId` IS "the admin you're assigned to" per `entries.policy.ts`.)
+
+**Rolling dates (`75aa024`) — user reported "we are in 2026 why is the date in 2025".** Root cause: the schedule was anchored to the *first* 12 weeks from `placement.startDate`, and the prod placement started in 2025, so every week + the clamped activity date sat in 2025. Fix (user chose "rolling current 12 weeks" from 3 options): `buildSchedule` now builds a **trailing window of the most recent 12 weeks ending on the week containing today** → dates track real time. `weekNumber` stays **absolute** (anchored to placement start = stable storage key so entries never collide as the window rolls); added a display-only `label` (1..12, 12 = current) shown in the rail/header. Dropped the unused `endDate` param.
+
+**Errors & fixes**
+
+| Error | Fix |
+|---|---|
+| `npx jest src/modules/entries` (parallel) → 37 failed: `company.create` unique violation on `'Hubtel Ghana'` in the attestation describe's `beforeAll` | **Stale test-DB data**, not a code bug. A leftover `'Hubtel Ghana'` from a Session-30 run (before `companies` was added to the global `TRUNCATE`) collided. Re-running in-band (truncate now clears it) → **66/66 green**. Always run the new-pipeline suite with `--runInBand`. |
+| Prod frontend served the OLD bundle for 15+ min after `git push` despite Vercel build = `success` | **Vercel was not auto-promoting the production alias.** Diagnosed via climbing `age` + persistent `x-vercel-cache: HIT` on `aesis.vercel.app` (a real new prod deploy purges the cache → `age 0`). GitHub deployments API confirmed builds succeeded as `Production` but the alias `aesis.vercel.app` stayed pinned to the prior deployment. **User promoted manually in the Vercel dashboard** → verified live (see below). NOTE: this box has **no Vercel CLI/token** and `vercel login` did not persist creds here — promotion must be done by the user (dashboard) or via an interactive `! npx vercel login` in-session. |
+
+**Verification:** `tsc --noEmit` clean (BE + FE); new-pipeline tests **66/66** (`npx jest src/modules/entries src/modules/finalization --runInBand`); `vite build` clean. **Prod LIVE confirmed**: after the user promoted, `aesis.vercel.app` bundle changed `index-d-Q1OyPj.js`→`index-CoLUHtHm.js`, `age: 0`, and the live JS contains the new-feature strings ("weekly entries", "Submit week", "Share this reflection with my company supervisor", "awaiting your supervisor", "Review Logbooks"). The backend entries/finalization API was already live since Session 30.
+
+**State of tree:** clean — everything committed and pushed to `origin/main` (HEAD `75aa024`).
+
+**Stopped here — next session should**
+- **Verify the rolling dates by eye** — it's logic-only (no string to grep), so log into prod as a student with an *active* placement and confirm Week 12 reads a June-2026 range + new activity defaults to today. If it still shows 2025, the placement may not be `active` (the editor picks `placementStatus === 'active'` first) or has a future/odd `startDate`.
+- **⚠️ Vercel auto-promotion is still not fixed at the project level** — the user promoted *this* deployment manually, but future `git push`es may again build-but-not-promote. Next session: have the user check **Vercel → project aesis → Settings → Domains** and ensure `aesis.vercel.app` follows **Production** (not pinned to a specific deployment), so pushes auto-deploy.
+- Finalization + company-attestation **frontend** screens (`modules/finalization`) — still no UI.
+- The `/logbook/entries/:id` deep-link route (used by ack/return notifications) still doesn't exist on the frontend.
+- `submission_reminder` was reused for the new supervisor "week submitted" notification (no enum value added — avoids a prod migration). Revisit if a dedicated `NotificationType` is wanted later.
+- Legacy full suite (241 tests) not re-run this session (additive changes only; the box thrashes). Run before any further prod-impacting backend change.
+
+---
+
 ## Handoff Entry Template
 
 ```markdown
