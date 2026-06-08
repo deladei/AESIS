@@ -15,7 +15,7 @@ import SubmissionHistory from '@/pages/student/SubmissionHistory';
 import NotificationInbox from '@/pages/student/NotificationInbox';
 import ChatbotPanel      from '@/pages/student/ChatbotPanel';
 import SupervisorDashboard from '@/pages/supervisor/SupervisorDashboard';
-import LogbookReview       from '@/pages/supervisor/LogbookReview';
+import EntryReview         from '@/pages/supervisor/EntryReview';
 import CoordinatorDashboard from '@/pages/coordinator/CoordinatorDashboard';
 import PlacementApproval    from '@/pages/coordinator/PlacementApproval';
 import SupervisorAssignment from '@/pages/coordinator/SupervisorAssignment';
@@ -102,7 +102,7 @@ export const router = createBrowserRouter([
     element: <RequireAuth roles={['academic_supervisor', 'admin']} />,
     children: [
       { path: '/supervisor/dashboard', element: <SupervisorDashboard /> },
-      { path: '/supervisor/review',    element: <LogbookReview /> },
+      { path: '/supervisor/review',    element: <EntryReview /> },
     ],
   },
 

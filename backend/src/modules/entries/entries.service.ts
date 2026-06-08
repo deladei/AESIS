@@ -168,8 +168,9 @@ export async function saveDraft(actor: Actor, input: SaveDraftInput) {
 export async function submitEntry(actor: Actor, entryId: string) {
   const loaded = await loadEntryWithOwnership(entryId);
   assertPlacementAccess(actor, loaded.placement, 'transition');
+  const supervisorId = loaded.placement.academicSupervisorId;
 
-  return prisma.$transaction(async (tx) => {
+  const result = await prisma.$transaction(async (tx) => {
     // Lock the row so concurrent double-submits serialize.
     await tx.$queryRaw`SELECT id FROM logbook_entry WHERE id = ${entryId} FOR UPDATE`;
 
@@ -179,9 +180,10 @@ export async function submitEntry(actor: Actor, entryId: string) {
     });
     const status = entry.status as EntryStatus;
 
-    // Idempotent no-op: already submitted -> return as-is, no duplicate event.
+    // Idempotent no-op: already submitted -> return as-is, no duplicate event/notification.
     if (status === 'submitted') {
-      return tx.logbookEntry.findUniqueOrThrow({ where: { id: entryId }, include: ENTRY_INCLUDE });
+      const e = await tx.logbookEntry.findUniqueOrThrow({ where: { id: entryId }, include: ENTRY_INCLUDE });
+      return { entry: e, notification: null };
     }
 
     resolveTransition(status, 'submit', actor.role); // 409 if not from draft
@@ -212,8 +214,44 @@ export async function submitEntry(actor: Actor, entryId: string) {
     // is never lost, yet the AI call itself stays off the write path.
     await tx.enrichmentQueue.create({ data: { entryId, status: 'pending' } });
 
-    return tx.logbookEntry.findUniqueOrThrow({ where: { id: entryId }, include: ENTRY_INCLUDE });
+    // Notify the assigned academic supervisor that a week is ready to review.
+    // Written in the same tx so the ping is never lost if the submit commits.
+    let notification = null;
+    if (supervisorId) {
+      notification = await tx.notification.create({
+        data: {
+          userId: supervisorId,
+          type: 'submission_reminder',
+          title: `Week ${entry.weekNumber} submitted for review`,
+          body: `A logbook week has been submitted and is ready for your review.`,
+          link: '/supervisor/review',
+          metadata: {
+            entryId,
+            weekNumber: entry.weekNumber,
+            placementId: loaded.placement.id,
+            studentId: loaded.placement.studentId,
+          },
+        },
+      });
+    }
+
+    const e = await tx.logbookEntry.findUniqueOrThrow({ where: { id: entryId }, include: ENTRY_INCLUDE });
+    return { entry: e, notification };
   });
+
+  // Real-time ping after commit (mirrors the acknowledge/return path).
+  if (result.notification && supervisorId) {
+    emitToUser(supervisorId, 'notification:new', {
+      id: result.notification.id,
+      type: result.notification.type,
+      title: result.notification.title,
+      body: result.notification.body,
+      link: result.notification.link,
+      createdAt: result.notification.createdAt,
+    });
+  }
+
+  return result.entry;
 }
 
 // ── HUMAN WORKFLOW (Path 3 — supervisor acknowledge / return) ──
@@ -341,6 +379,13 @@ export async function listEntries(actor: Actor, query: ListQuery) {
       include: {
         _count: { select: { activities: true } },
         assessments: { select: { relevance: true }, orderBy: { createdAt: 'desc' }, take: 1 },
+        placement: {
+          select: {
+            id: true,
+            student: { select: { id: true, firstName: true, lastName: true, email: true } },
+            company: { select: { name: true } },
+          },
+        },
       },
     }),
     prisma.logbookEntry.count({ where }),

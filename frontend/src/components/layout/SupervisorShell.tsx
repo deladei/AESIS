@@ -5,7 +5,7 @@ import { useUnreadCount } from '@/hooks/useNotifications';
 import { MobileNav } from './MobileNav';
 import {
   LayoutDashboard, Users, Sparkles, MessageSquareText, FolderOpen,
-  FileBarChart, Search, Bell, Settings, HelpCircle, GraduationCap, LogOut,
+  FileBarChart, Search, Bell, Settings, HelpCircle, GraduationCap, LogOut, ClipboardCheck,
 } from 'lucide-react';
 
 interface NavItem {
@@ -17,9 +17,10 @@ interface NavItem {
 // Full Stitch "Supervisor" nav. Items without a dedicated page yet land on the
 // dashboard, where their content (Pulse Check Board / AI Alerts) already lives.
 const navItems: NavItem[] = [
-  { label: 'Dashboard',      href: '/supervisor/dashboard', icon: LayoutDashboard },
-  { label: 'Interns',        href: '/supervisor/dashboard', icon: Users },
-  { label: 'AI Insights',    href: '/ai-insights',          icon: Sparkles },
+  { label: 'Dashboard',       href: '/supervisor/dashboard', icon: LayoutDashboard },
+  { label: 'Interns',         href: '/supervisor/dashboard', icon: Users },
+  { label: 'Review Logbooks', href: '/supervisor/review',    icon: ClipboardCheck },
+  { label: 'AI Insights',     href: '/ai-insights',          icon: Sparkles },
   { label: 'Feedback Center', href: '/feedback',            icon: MessageSquareText },
   { label: 'Resources',      href: '/supervisor/dashboard', icon: FolderOpen },
 ];

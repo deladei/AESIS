@@ -98,7 +98,7 @@ beforeAll(async () => {
 
   await prisma.$executeRawUnsafe(
     `TRUNCATE entry_event, entry_activity, entry_reflection, ai_assessment, enrichment_queue,
-     logbook_entry, placement_assessment, company_attestation, placements, notifications,
+     logbook_entry, placement_assessment, company_attestation, placements, companies, notifications,
      users, academic_years, departments RESTART IDENTITY CASCADE`,
   );
 

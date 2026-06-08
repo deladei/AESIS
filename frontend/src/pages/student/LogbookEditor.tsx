@@ -43,7 +43,8 @@ function buildSchedule(startDate: string | null, endDate: string | null): Schedu
   const today = new Date(`${toYMD(new Date())}T00:00:00Z`);
   const hardEnd = endDate ? new Date(`${ymd(endDate)}T00:00:00Z`) : null;
   const weeks: ScheduleWeek[] = [];
-  for (let i = 0; i < 104; i++) {
+  // The placement logbook runs for a fixed 12 weeks.
+  for (let i = 0; i < 12; i++) {
     const periodStart = addDaysYMD(start, i * 7);
     if (periodStart.getTime() > today.getTime()) break; // week hasn't begun yet
     if (hardEnd && periodStart.getTime() > hardEnd.getTime()) break;
@@ -54,6 +55,15 @@ function buildSchedule(startDate: string | null, endDate: string | null): Schedu
     });
   }
   return weeks;
+}
+
+// Default a new activity to today when today falls inside the week; otherwise
+// clamp to the week's bounds. (YMD strings compare correctly lexicographically.)
+function defaultActivityDate(week: ScheduleWeek): string {
+  const today = toYMD(new Date());
+  if (today < week.periodStart) return week.periodStart;
+  if (today > week.periodEnd) return week.periodEnd;
+  return today;
 }
 
 function fmtRange(start: string, end: string): string {
@@ -152,7 +162,7 @@ export default function LogbookEditor() {
     } else if (!existing) {
       // Fresh week — start blank with one activity row on the period start.
       setHours('');
-      setActivities([emptyActivity(scheduleWeek.periodStart)]);
+      setActivities([emptyActivity(defaultActivityDate(scheduleWeek))]);
       setLearning('');
       setChallenges('');
       setSupervisorVisible(true);
@@ -173,7 +183,7 @@ export default function LogbookEditor() {
   const updateActivity = (i: number, patch: Partial<EntryActivity>) =>
     setActivities((prev) => prev.map((a, j) => (j === i ? { ...a, ...patch } : a)));
   const addActivity = () =>
-    setActivities((prev) => [...prev, emptyActivity(scheduleWeek?.periodStart ?? toYMD(new Date()))]);
+    setActivities((prev) => [...prev, emptyActivity(scheduleWeek ? defaultActivityDate(scheduleWeek) : toYMD(new Date()))]);
   const removeActivity = (i: number) =>
     setActivities((prev) => prev.filter((_, j) => j !== i));
   const addTag = (i: number, raw: string) => {
