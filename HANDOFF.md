@@ -1411,6 +1411,33 @@ Found a prior **undocumented, uncommitted** session had already scaffolded stage
 
 ---
 
+### Session 31 — 2026-06-07
+
+**Work done — started the frontend UI for the new weekly-entry logbook pipeline (Session 30's `modules/entries`). Built the STUDENT entry editor; replaced the legacy `/student/logbook` page.**
+
+User decisions: (1) build the **student entry editor first**; (2) **replace** the legacy page (legacy `LogbookEditor`/`useLogbook` stay in repo but the route now serves the new UI).
+
+| File | What |
+|---|---|
+| `frontend/src/hooks/useEntries.ts` | NEW. TanStack Query hooks for the entries API: `useEntries(placementId)` (`GET /entries?placementId=&limit=104`), `useEntry(id)` (`GET /entries/:id` — full detail incl. activities/reflection/events/assessments), `useSaveEntryDraft` (`POST /entries`), `useSubmitEntry` (`POST /entries/:id/submit`). Types mirror the Prisma models (`LogbookEntry`, `EntryActivity`, `EntryReflection`, `EntryEvent`, `EntryAssessment`). |
+| `frontend/src/pages/student/LogbookEditor.tsx` | **Full rewrite** (was the legacy free-text tasks/challenges/tech form on `modules/logbook`). Now the new pipeline UI in the light Nexus palette to match `StudentShell`: left week-rail (status pill per week) + right editor. Per-week **activities** (date within period + description + competency-tag chips w/ suggestions) and **reflection** (learning, challenges, supervisor-visible toggle) + hours. Save draft / Submit (save-then-submit). State-aware: `submitted`→read-only "awaiting review" banner; `acknowledged`→locked banner; `returned`→shows supervisor return comment (from `events`) + allows resubmit; editable only in draft/returned/not-started. |
+
+**Design note — weekly schedule is client-derived.** Unlike the legacy logbook (24 weeks pre-generated at approval), the new pipeline creates entries on demand. So the editor computes the week list **client-side** from `placement.startDate`→today (capped at `endDate`, max 104, UTC-safe in `buildSchedule`) and overlays existing entries by `weekNumber`. Each schedule week supplies `periodStart`/`periodEnd` to the save payload. Empty states: no active placement / placement not started yet.
+
+**Verification:** `npx tsc --noEmit` clean (frontend); `npx vite build` succeeds (1682 modules). One fix during build: `status` const typed as `EntryStatus` (the `as EntryStatus` cast stripped `undefined` so `?? 'not_started'` was dead) → changed to `existing?.status ?? 'not_started'` typed `EntryStatus | 'not_started'`.
+
+**Not done / next:** supervisor review screen (acknowledge/return) for the new pipeline; finalization + company-attestation UI; no nav/route changes needed (route reused). Backend entries API was already deployed to prod in Session 30.
+
+**State of tree:** uncommitted — modified `HANDOFF.md`, `frontend/src/pages/student/LogbookEditor.tsx`; untracked `frontend/src/hooks/useEntries.ts`. User did not ask to commit/push.
+
+**Stopped here — next session should**
+- Build the **supervisor review UI** for the new pipeline (`POST /entries/:id/acknowledge` + `/return`) — likely a rewrite/parallel of `supervisor/LogbookReview.tsx` reading `GET /entries?placementId=&status=submitted`.
+- Then finalization/attestation screens (`modules/finalization`).
+- Wire the student `NotificationInbox`/links: acknowledge/return notifications use `link: /logbook/entries/:id` — that route doesn't exist on the frontend yet (consider a read-only entry detail page or deep-link into the week rail).
+- Commit + `git push origin main` when the user is ready (AESIS ships to prod via push).
+
+---
+
 ## Handoff Entry Template
 
 ```markdown

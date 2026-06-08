@@ -1,382 +1,531 @@
-import { useState, useRef, useEffect } from 'react';
-import { Loader2, Upload, X, FileText, Sparkles, AlertCircle, CheckCircle2 } from 'lucide-react';
+import { useState, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
+import {
+  Loader2, Plus, X, Trash2, CheckCircle2, Clock, RotateCcw, Lock,
+  Send, Calendar, AlertCircle, BookOpen,
+} from 'lucide-react';
 import { useMyPlacements } from '@/hooks/usePlacements';
-import { useSubmissions, useSaveDraft, useSubmitLogbook } from '@/hooks/useLogbook';
+import {
+  useEntries, useEntry, useSaveEntryDraft, useSubmitEntry,
+  type EntryStatus, type EntryActivity,
+} from '@/hooks/useEntries';
 
-interface AIPreview {
-  qualityScore: number;
-  relevanceScore: number;
-  plagiarismSimilarity: number;
-  isPlagiarismFlagged: boolean;
-  aiFeedbackSummary: string;
-  rubric: { label: string; score: number; max: number }[];
-}
-
-const TECH_SUGGESTIONS = [
-  'React', 'Node.js', 'PostgreSQL', 'Docker', 'Python', 'FastAPI',
-  'TypeScript', 'MongoDB', 'Redis', 'Git', 'Linux', 'REST API',
+const COMPETENCY_SUGGESTIONS = [
+  'Problem Solving', 'Teamwork', 'Communication', 'Technical Writing',
+  'Debugging', 'Version Control', 'Testing', 'Code Review', 'Time Management',
 ];
 
-function formatDeadline(iso: string) {
-  return new Date(iso).toLocaleDateString('en-GB', {
-    weekday: 'long', day: 'numeric', month: 'long', year: 'numeric',
-  });
+// ── Date helpers (UTC-safe; the API uses date-only YYYY-MM-DD) ──
+function toYMD(d: Date): string {
+  return d.toISOString().slice(0, 10);
 }
+function ymd(iso: string): string {
+  return iso.slice(0, 10);
+}
+function addDaysYMD(start: Date, days: number): Date {
+  const d = new Date(start);
+  d.setUTCDate(d.getUTCDate() + days);
+  return d;
+}
+
+interface ScheduleWeek {
+  weekNumber:  number;
+  periodStart: string;
+  periodEnd:   string;
+}
+
+// Derive the weekly schedule from the placement window, up to the current week.
+// The pipeline creates entries on demand, so the schedule is computed client-side
+// and overlaid with whatever entries already exist.
+function buildSchedule(startDate: string | null, endDate: string | null): ScheduleWeek[] {
+  if (!startDate) return [];
+  const start = new Date(`${ymd(startDate)}T00:00:00Z`);
+  const today = new Date(`${toYMD(new Date())}T00:00:00Z`);
+  const hardEnd = endDate ? new Date(`${ymd(endDate)}T00:00:00Z`) : null;
+  const weeks: ScheduleWeek[] = [];
+  for (let i = 0; i < 104; i++) {
+    const periodStart = addDaysYMD(start, i * 7);
+    if (periodStart.getTime() > today.getTime()) break; // week hasn't begun yet
+    if (hardEnd && periodStart.getTime() > hardEnd.getTime()) break;
+    weeks.push({
+      weekNumber:  i + 1,
+      periodStart: toYMD(periodStart),
+      periodEnd:   toYMD(addDaysYMD(periodStart, 6)),
+    });
+  }
+  return weeks;
+}
+
+function fmtRange(start: string, end: string): string {
+  const opts: Intl.DateTimeFormatOptions = { day: 'numeric', month: 'short' };
+  const s = new Date(`${start}T00:00:00Z`).toLocaleDateString('en-GB', { ...opts, timeZone: 'UTC' });
+  const e = new Date(`${end}T00:00:00Z`).toLocaleDateString('en-GB', { ...opts, year: 'numeric', timeZone: 'UTC' });
+  return `${s} – ${e}`;
+}
+
+const STATUS_META: Record<EntryStatus | 'not_started', { label: string; cls: string; Icon: React.ElementType }> = {
+  not_started:  { label: 'Not started',  cls: 'bg-[#eef0f5] text-[#64748b] border-[#d8dce6]', Icon: Calendar },
+  draft:        { label: 'Draft',        cls: 'bg-[#fff4e0] text-[#9a6700] border-[#f3d690]', Icon: Clock },
+  submitted:    { label: 'Submitted',    cls: 'bg-[#e1e8ff] text-[#15157d] border-[#bcc8ff]', Icon: Send },
+  returned:     { label: 'Returned',     cls: 'bg-[#ffe2dc] text-[#b3261e] border-[#f5b8ad]', Icon: RotateCcw },
+  acknowledged: { label: 'Acknowledged', cls: 'bg-[#dcf5e6] text-[#1b7a45] border-[#aee3c2]', Icon: CheckCircle2 },
+};
+
+function StatusPill({ status }: { status: EntryStatus | 'not_started' }) {
+  const { label, cls, Icon } = STATUS_META[status];
+  return (
+    <span className={`inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[11px] font-semibold ${cls}`}>
+      <Icon className="h-3 w-3" /> {label}
+    </span>
+  );
+}
+
+const emptyActivity = (date: string): EntryActivity => ({
+  activityDate: date, description: '', competencyTags: [],
+});
 
 export default function LogbookEditor() {
   const navigate = useNavigate();
 
   const { data: placements, isLoading: placementsLoading } = useMyPlacements();
-  const activePlacement = placements?.find((p) => p.placementStatus === 'active') ?? placements?.[0];
-  const { data: submissions = [], isLoading: subsLoading } = useSubmissions(activePlacement?.id);
+  const activePlacement =
+    placements?.find((p) => p.placementStatus === 'active') ?? placements?.[0];
 
-  const currentSubmission = submissions
-    .filter((s) => s.submissionStatus === 'draft' || s.submissionStatus === 'not_submitted')
-    .sort((a, b) => new Date(a.deadline).getTime() - new Date(b.deadline).getTime())[0];
+  const { data: entries = [], isLoading: entriesLoading } = useEntries(activePlacement?.id);
 
-  const [form, setForm] = useState({
-    technologiesUsed:    [] as string[],
-    tasksCompleted:      '',
-    technicalChallenges: '',
-    reflection:          '',
-  });
-  const [techInput, setTechInput]   = useState('');
-  const [files,     setFiles]       = useState<File[]>([]);
-  const [analysing, setAnalysing]   = useState(false);
-  const [aiPreview, setAiPreview]   = useState<AIPreview | null>(null);
-  const [saved,     setSaved]       = useState(false);
-  const fileRef = useRef<HTMLInputElement>(null);
+  const schedule = useMemo(
+    () => buildSchedule(activePlacement?.startDate ?? null, activePlacement?.endDate ?? null),
+    [activePlacement?.startDate, activePlacement?.endDate],
+  );
 
-  const saveDraft     = useSaveDraft();
-  const submitLogbook = useSubmitLogbook();
+  // Index existing entries by week for overlay onto the schedule.
+  const entryByWeek = useMemo(() => {
+    const m = new Map<number, (typeof entries)[number]>();
+    entries.forEach((e) => m.set(e.weekNumber, e));
+    return m;
+  }, [entries]);
 
-  // Populate form from existing draft
+  const [selectedWeek, setSelectedWeek] = useState<number | null>(null);
+
+  // Default to the latest week once the schedule is known.
   useEffect(() => {
-    if (!currentSubmission) return;
-    setForm({
-      technologiesUsed:    currentSubmission.technologiesUsed ?? [],
-      tasksCompleted:      currentSubmission.tasksCompleted      ?? '',
-      technicalChallenges: currentSubmission.technicalChallenges ?? '',
-      reflection:          currentSubmission.reflection           ?? '',
-    });
-  }, [currentSubmission?.id]);
-
-  const addTech = (tech: string) => {
-    const t = tech.trim();
-    if (t && !form.technologiesUsed.includes(t)) {
-      setForm({ ...form, technologiesUsed: [...form.technologiesUsed, t] });
+    if (selectedWeek === null && schedule.length > 0) {
+      setSelectedWeek(schedule[schedule.length - 1].weekNumber);
     }
-    setTechInput('');
-  };
+  }, [schedule, selectedWeek]);
 
-  const removeTech = (tech: string) => {
-    setForm({ ...form, technologiesUsed: form.technologiesUsed.filter((t) => t !== tech) });
-  };
+  const scheduleWeek = schedule.find((w) => w.weekNumber === selectedWeek);
+  const existing = selectedWeek != null ? entryByWeek.get(selectedWeek) : undefined;
+  const { data: detail } = useEntry(existing?.id);
 
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (e.target.files) setFiles([...files, ...Array.from(e.target.files)]);
-  };
+  // ── Form state for the selected week ──
+  const [hours, setHours] = useState('');
+  const [activities, setActivities] = useState<EntryActivity[]>([]);
+  const [learning, setLearning] = useState('');
+  const [challenges, setChallenges] = useState('');
+  const [supervisorVisible, setSupervisorVisible] = useState(true);
+  const [tagDrafts, setTagDrafts] = useState<Record<number, string>>({});
+  const [saved, setSaved] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
-  const handleSaveDraft = async () => {
-    if (!currentSubmission) return;
-    await saveDraft.mutateAsync({
-      submissionId: currentSubmission.id,
-      data: {
-        tasksCompleted:      form.tasksCompleted,
-        technicalChallenges: form.technicalChallenges,
-        reflection:          form.reflection,
-        technologiesUsed:    form.technologiesUsed,
-      },
-    });
-    setSaved(true);
-    setTimeout(() => setSaved(false), 3000);
-  };
+  const saveDraft = useSaveEntryDraft();
+  const submitEntry = useSubmitEntry();
 
-  const handleGetAIPreview = async () => {
-    setAnalysing(true);
-    await new Promise((r) => setTimeout(r, 2000));
-    setAiPreview({
-      qualityScore: 78,
-      relevanceScore: 0.91,
-      plagiarismSimilarity: 0.12,
-      isPlagiarismFlagged: false,
-      aiFeedbackSummary:
-        'Strong technical vocabulary with clear task descriptions. Reflection section could be deeper — consider elaborating on how challenges changed your approach. Temporal consistency is good; activities are sequential and plausible.',
-      rubric: [
-        { label: 'Task Description Depth', score: 24, max: 30 },
-        { label: 'Technical Vocabulary',   score: 21, max: 25 },
-        { label: 'Reflection Quality',     score: 18, max: 25 },
-        { label: 'Temporal Consistency',   score: 15, max: 20 },
-      ],
-    });
-    setAnalysing(false);
-  };
+  // Repopulate the form whenever the selected week (or its loaded detail) changes.
+  useEffect(() => {
+    if (!scheduleWeek) return;
+    setError(null);
+    setSaved(false);
+    setTagDrafts({});
+    if (detail && detail.weekNumber === selectedWeek) {
+      setHours(detail.hoursLogged != null ? String(detail.hoursLogged) : '');
+      setActivities(
+        (detail.activities ?? []).map((a) => ({
+          activityDate: ymd(a.activityDate),
+          description: a.description,
+          competencyTags: a.competencyTags ?? [],
+        })),
+      );
+      setLearning(detail.reflection?.learning ?? '');
+      setChallenges(detail.reflection?.challenges ?? '');
+      setSupervisorVisible(detail.reflection?.supervisorVisible ?? true);
+    } else if (!existing) {
+      // Fresh week — start blank with one activity row on the period start.
+      setHours('');
+      setActivities([emptyActivity(scheduleWeek.periodStart)]);
+      setLearning('');
+      setChallenges('');
+      setSupervisorVisible(true);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedWeek, detail?.id, detail?.version]);
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!currentSubmission) return;
-    await saveDraft.mutateAsync({
-      submissionId: currentSubmission.id,
-      data: {
-        tasksCompleted:      form.tasksCompleted,
-        technicalChallenges: form.technicalChallenges,
-        reflection:          form.reflection,
-        technologiesUsed:    form.technologiesUsed,
-      },
-    });
-    await submitLogbook.mutateAsync(currentSubmission.id);
-    navigate('/student/submissions');
-  };
+  const status: EntryStatus | 'not_started' = existing?.status ?? 'not_started';
+  const editable = status === 'not_started' || status === 'draft' || status === 'returned';
 
-  if (placementsLoading || subsLoading) {
-    return <div className="p-6 flex justify-center items-center h-64"><Loader2 className="w-6 h-6 animate-spin text-blue-400" /></div>;
+  const returnComment = useMemo(() => {
+    if (status !== 'returned' || !detail?.events) return null;
+    const ev = [...detail.events].reverse().find((e) => e.toStatus === 'returned');
+    return ev?.comment ?? null;
+  }, [status, detail?.events]);
+
+  // ── Activity row mutations ──
+  const updateActivity = (i: number, patch: Partial<EntryActivity>) =>
+    setActivities((prev) => prev.map((a, j) => (j === i ? { ...a, ...patch } : a)));
+  const addActivity = () =>
+    setActivities((prev) => [...prev, emptyActivity(scheduleWeek?.periodStart ?? toYMD(new Date()))]);
+  const removeActivity = (i: number) =>
+    setActivities((prev) => prev.filter((_, j) => j !== i));
+  const addTag = (i: number, raw: string) => {
+    const tag = raw.trim();
+    if (!tag) return;
+    setActivities((prev) =>
+      prev.map((a, j) =>
+        j === i && !a.competencyTags.includes(tag)
+          ? { ...a, competencyTags: [...a.competencyTags, tag] }
+          : a,
+      ),
+    );
+    setTagDrafts((d) => ({ ...d, [i]: '' }));
+  };
+  const removeTag = (i: number, tag: string) =>
+    updateActivity(i, { competencyTags: activities[i].competencyTags.filter((t) => t !== tag) });
+
+  function buildPayload() {
+    if (!activePlacement || !scheduleWeek) return null;
+    const cleanActivities = activities
+      .filter((a) => a.description.trim().length > 0)
+      .map((a) => ({
+        activityDate: a.activityDate,
+        description: a.description.trim(),
+        competencyTags: a.competencyTags,
+      }));
+    return {
+      placementId: activePlacement.id,
+      weekNumber: scheduleWeek.weekNumber,
+      periodStart: scheduleWeek.periodStart,
+      periodEnd: scheduleWeek.periodEnd,
+      hoursLogged: hours.trim() ? Number(hours) : undefined,
+      activities: cleanActivities,
+      reflection:
+        learning.trim() || challenges.trim()
+          ? { learning: learning.trim(), challenges: challenges.trim(), supervisorVisible }
+          : undefined,
+    };
   }
 
-  if (!currentSubmission) {
+  const apiErr = (e: unknown) =>
+    ((e as { response?: { data?: { message?: string } } })?.response?.data?.message) ??
+    'Something went wrong. Please try again.';
+
+  const handleSave = async () => {
+    const payload = buildPayload();
+    if (!payload) return;
+    setError(null);
+    try {
+      await saveDraft.mutateAsync(payload);
+      setSaved(true);
+      setTimeout(() => setSaved(false), 2500);
+    } catch (e) {
+      setError(apiErr(e));
+    }
+  };
+
+  const handleSubmit = async () => {
+    const payload = buildPayload();
+    if (!payload) return;
+    if (payload.activities.length === 0) {
+      setError('Add at least one activity before submitting this week.');
+      return;
+    }
+    setError(null);
+    try {
+      const entry = await saveDraft.mutateAsync(payload); // upsert first, get id
+      await submitEntry.mutateAsync(entry.id);
+      navigate('/student/submissions');
+    } catch (e) {
+      setError(apiErr(e));
+    }
+  };
+
+  // ── Loading / empty states ──
+  if (placementsLoading || entriesLoading) {
     return (
-      <div className="p-6 max-w-xl mx-auto text-center py-20">
-        <CheckCircle2 className="w-12 h-12 text-emerald-400 mx-auto mb-4" />
-        <h2 className="text-white font-semibold text-lg mb-2">All caught up!</h2>
-        <p className="text-slate-400 text-sm">No open logbook submission at the moment. Check back when the next week opens.</p>
+      <div className="flex h-64 items-center justify-center">
+        <Loader2 className="h-6 w-6 animate-spin text-[#8a4cfc]" />
       </div>
     );
   }
 
-  const isSubmitting = submitLogbook.isPending || saveDraft.isPending;
+  if (!activePlacement) {
+    return (
+      <div className="mx-auto max-w-xl px-6 py-20 text-center">
+        <BookOpen className="mx-auto mb-4 h-12 w-12 text-[#8a4cfc]" />
+        <h2 className="mb-1 text-lg font-bold text-[#0b1c30]">No active placement</h2>
+        <p className="text-sm text-[#464652]">
+          Your logbook opens once your placement is approved. Check back after coordinator approval.
+        </p>
+      </div>
+    );
+  }
+
+  if (schedule.length === 0) {
+    return (
+      <div className="mx-auto max-w-xl px-6 py-20 text-center">
+        <Calendar className="mx-auto mb-4 h-12 w-12 text-[#8a4cfc]" />
+        <h2 className="mb-1 text-lg font-bold text-[#0b1c30]">Your placement hasn't started yet</h2>
+        <p className="text-sm text-[#464652]">
+          The first logbook week opens on the placement start date.
+        </p>
+      </div>
+    );
+  }
+
+  const busy = saveDraft.isPending || submitEntry.isPending;
+  const inputCls =
+    'w-full rounded-lg border border-[#d8dce6] bg-white px-3 py-2 text-sm text-[#0b1c30] placeholder-[#94a3b8] transition-colors focus:border-[#8a4cfc] focus:outline-none focus:ring-1 focus:ring-[#8a4cfc]';
 
   return (
-    <div className="p-6 max-w-5xl mx-auto">
+    <div className="mx-auto max-w-6xl px-6 py-6">
       <div className="mb-6">
-        <h1 className="text-xl font-bold text-white">Week {currentSubmission.weekNumber} Logbook</h1>
-        <p className="text-slate-400 text-sm mt-0.5">
-          Due {formatDeadline(currentSubmission.deadline)} · CS Internship Log
-          {currentSubmission.isLate && (
-            <span className="ml-2 text-xs px-1.5 py-0.5 rounded font-mono bg-red-500/10 border border-red-500/30 text-red-400">LATE</span>
-          )}
+        <h1 className="text-xl font-bold text-[#0b1c30]">Logbook</h1>
+        <p className="mt-0.5 text-sm text-[#464652]">
+          {activePlacement.company?.name ?? 'Your placement'} · weekly entries
         </p>
       </div>
 
-      <div className="grid lg:grid-cols-5 gap-6">
-        <form onSubmit={handleSubmit} className="lg:col-span-3 space-y-5">
-          {/* Technologies used */}
-          <div className="bg-slate-900 border border-slate-800 rounded-xl p-5">
-            <label className="block text-sm font-semibold text-white mb-3">Technologies Used</label>
-            <div className="flex flex-wrap gap-2 mb-3">
-              {form.technologiesUsed.map((t) => (
-                <span key={t} className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-blue-600/20 border border-blue-600/30 text-blue-300 text-xs font-mono">
-                  {t}
-                  <button type="button" onClick={() => removeTech(t)} className="text-blue-400 hover:text-blue-200 cursor-pointer" aria-label={`Remove ${t}`}>
-                    <X className="w-3 h-3" />
+      <div className="grid gap-6 lg:grid-cols-[260px_1fr]">
+        {/* Week rail */}
+        <aside className="lg:sticky lg:top-6 lg:self-start">
+          <div className="overflow-hidden rounded-xl border border-[#e2e6ef] bg-white">
+            <div className="border-b border-[#e2e6ef] px-4 py-3 text-xs font-semibold uppercase tracking-wide text-[#64748b]">
+              Weeks
+            </div>
+            <div className="max-h-[60vh] overflow-y-auto">
+              {[...schedule].reverse().map((w) => {
+                const e = entryByWeek.get(w.weekNumber);
+                const st: EntryStatus | 'not_started' = (e?.status as EntryStatus) ?? 'not_started';
+                const active = w.weekNumber === selectedWeek;
+                return (
+                  <button
+                    key={w.weekNumber}
+                    onClick={() => setSelectedWeek(w.weekNumber)}
+                    className={`flex w-full items-center justify-between gap-2 border-b border-[#f0f2f7] px-4 py-3 text-left transition-colors last:border-0 ${
+                      active ? 'bg-[#f1ecff]' : 'hover:bg-[#f8f9ff]'
+                    }`}
+                  >
+                    <div className="min-w-0">
+                      <p className={`text-sm font-semibold ${active ? 'text-[#15157d]' : 'text-[#0b1c30]'}`}>
+                        Week {w.weekNumber}
+                      </p>
+                      <p className="truncate text-[11px] text-[#64748b]">{fmtRange(w.periodStart, w.periodEnd)}</p>
+                    </div>
+                    <StatusPill status={st} />
                   </button>
-                </span>
-              ))}
-            </div>
-            <div className="flex gap-2">
-              <input
-                type="text"
-                value={techInput}
-                onChange={(e) => setTechInput(e.target.value)}
-                onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); addTech(techInput); } }}
-                placeholder="Type and press Enter…"
-                className="flex-1 px-3 py-2 rounded-lg bg-slate-800 border border-slate-700 text-slate-100 placeholder-slate-500 text-sm focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-colors"
-              />
-            </div>
-            <div className="flex flex-wrap gap-1.5 mt-3">
-              {TECH_SUGGESTIONS.filter((t) => !form.technologiesUsed.includes(t)).map((t) => (
-                <button
-                  key={t}
-                  type="button"
-                  onClick={() => addTech(t)}
-                  className="px-2 py-0.5 rounded text-xs text-slate-400 bg-slate-800 border border-slate-700 hover:border-blue-500 hover:text-blue-400 transition-colors cursor-pointer"
-                >
-                  + {t}
-                </button>
-              ))}
+                );
+              })}
             </div>
           </div>
+        </aside>
 
-          <div className="bg-slate-900 border border-slate-800 rounded-xl p-5">
-            <label htmlFor="tasks" className="block text-sm font-semibold text-white mb-1.5">
-              Tasks Completed
-              <span className="ml-2 text-xs text-slate-500 font-normal">Describe what you built or contributed to this week</span>
-            </label>
-            <textarea
-              id="tasks"
-              rows={5}
-              value={form.tasksCompleted}
-              onChange={(e) => setForm({ ...form, tasksCompleted: e.target.value })}
-              placeholder="e.g. Implemented JWT authentication middleware in Node.js, integrated with Prisma ORM for user lookup…"
-              className="w-full px-4 py-3 rounded-lg bg-slate-800 border border-slate-700 text-slate-100 placeholder-slate-500 text-sm focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-colors resize-none scrollbar-thin"
-            />
-          </div>
+        {/* Editor */}
+        {scheduleWeek && (
+          <section className="space-y-5">
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <div>
+                <h2 className="text-lg font-bold text-[#0b1c30]">Week {scheduleWeek.weekNumber}</h2>
+                <p className="text-sm text-[#464652]">{fmtRange(scheduleWeek.periodStart, scheduleWeek.periodEnd)}</p>
+              </div>
+              <StatusPill status={status} />
+            </div>
 
-          <div className="bg-slate-900 border border-slate-800 rounded-xl p-5">
-            <label htmlFor="challenges" className="block text-sm font-semibold text-white mb-1.5">
-              Technical Challenges
-              <span className="ml-2 text-xs text-slate-500 font-normal">Problems encountered and how you addressed them</span>
-            </label>
-            <textarea
-              id="challenges"
-              rows={4}
-              value={form.technicalChallenges}
-              onChange={(e) => setForm({ ...form, technicalChallenges: e.target.value })}
-              placeholder="e.g. Encountered an N+1 query problem. Resolved by refactoring with Prisma's include…"
-              className="w-full px-4 py-3 rounded-lg bg-slate-800 border border-slate-700 text-slate-100 placeholder-slate-500 text-sm focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-colors resize-none scrollbar-thin"
-            />
-          </div>
-
-          <div className="bg-slate-900 border border-slate-800 rounded-xl p-5">
-            <label htmlFor="reflection" className="block text-sm font-semibold text-white mb-1.5">
-              Reflection
-              <span className="ml-2 text-xs text-slate-500 font-normal">What did you learn? How did this week affect your professional development?</span>
-            </label>
-            <textarea
-              id="reflection"
-              rows={4}
-              value={form.reflection}
-              onChange={(e) => setForm({ ...form, reflection: e.target.value })}
-              placeholder="e.g. This week deepened my understanding of stateless authentication…"
-              className="w-full px-4 py-3 rounded-lg bg-slate-800 border border-slate-700 text-slate-100 placeholder-slate-500 text-sm focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-colors resize-none scrollbar-thin"
-            />
-          </div>
-
-          <div className="bg-slate-900 border border-slate-800 rounded-xl p-5">
-            <p className="text-sm font-semibold text-white mb-3">Attachments <span className="text-slate-500 font-normal">(optional)</span></p>
-            <button
-              type="button"
-              onClick={() => fileRef.current?.click()}
-              className="w-full flex flex-col items-center justify-center gap-2 py-6 rounded-lg border border-dashed border-slate-700 hover:border-blue-500 hover:bg-blue-500/5 transition-colors cursor-pointer"
-            >
-              <Upload className="w-5 h-5 text-slate-400" />
-              <span className="text-sm text-slate-400">Click to upload or drag files here</span>
-              <span className="text-xs text-slate-600">PDF, PNG, JPG up to 10MB each</span>
-            </button>
-            <input ref={fileRef} type="file" multiple className="hidden" onChange={handleFileChange} accept=".pdf,.png,.jpg,.jpeg" />
-            {files.length > 0 && (
-              <div className="mt-3 space-y-2">
-                {files.map((f, i) => (
-                  <div key={i} className="flex items-center gap-3 px-3 py-2 rounded-lg bg-slate-800 border border-slate-700">
-                    <FileText className="w-4 h-4 text-slate-400 shrink-0" />
-                    <span className="text-sm text-slate-300 truncate flex-1">{f.name}</span>
-                    <button type="button" onClick={() => setFiles(files.filter((_, j) => j !== i))} className="text-slate-500 hover:text-red-400 transition-colors cursor-pointer">
-                      <X className="w-4 h-4" />
-                    </button>
-                  </div>
-                ))}
+            {/* Status banners */}
+            {status === 'submitted' && (
+              <div className="flex items-start gap-2 rounded-lg border border-[#bcc8ff] bg-[#eef1ff] px-4 py-3 text-sm text-[#15157d]">
+                <Send className="mt-0.5 h-4 w-4 shrink-0" />
+                <span>This week is submitted and awaiting your supervisor's review. It's read-only until they respond.</span>
               </div>
             )}
-          </div>
-
-          <div className="flex gap-3">
-            <button
-              type="button"
-              onClick={handleSaveDraft}
-              disabled={saveDraft.isPending}
-              className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg border border-slate-700 text-slate-300 hover:text-white hover:border-slate-600 text-sm font-medium transition-colors cursor-pointer disabled:opacity-60"
-            >
-              {saved ? (
-                <><CheckCircle2 className="w-4 h-4 text-emerald-400" /> Saved</>
-              ) : saveDraft.isPending ? (
-                <><Loader2 className="w-4 h-4 animate-spin" /> Saving…</>
-              ) : (
-                'Save draft'
-              )}
-            </button>
-            <button
-              type="submit"
-              disabled={isSubmitting}
-              className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg bg-blue-600 hover:bg-blue-500 text-white font-semibold text-sm transition-colors cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed"
-            >
-              {isSubmitting ? <><Loader2 className="w-4 h-4 animate-spin" /> Submitting…</> : 'Submit logbook'}
-            </button>
-          </div>
-        </form>
-
-        {/* AI Preview panel */}
-        <div className="lg:col-span-2 space-y-4">
-          <div className="bg-slate-900 border border-slate-800 rounded-xl p-5">
-            <div className="flex items-center gap-2 mb-3">
-              <Sparkles className="w-4 h-4 text-blue-400" />
-              <h3 className="text-sm font-semibold text-white">AI Quality Preview</h3>
-            </div>
-            <p className="text-xs text-slate-500 mb-4 leading-relaxed">
-              Get instant AI feedback before your supervisor reviews your entry.
-              This uses the same NLP engine as the final analysis.
-            </p>
-            <button
-              type="button"
-              onClick={handleGetAIPreview}
-              disabled={analysing}
-              className="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg bg-blue-600/20 border border-blue-600/40 text-blue-300 hover:bg-blue-600/30 text-sm font-medium transition-colors cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed"
-            >
-              {analysing ? <><Loader2 className="w-4 h-4 animate-spin" /> Analysing…</> : 'Analyse my entry'}
-            </button>
-          </div>
-
-          {aiPreview && (
-            <div className="bg-slate-900 border border-slate-800 rounded-xl p-5 space-y-5">
-              <div className="text-center">
-                <div className="relative w-24 h-24 mx-auto mb-2">
-                  <svg className="w-24 h-24 -rotate-90" viewBox="0 0 96 96">
-                    <circle cx="48" cy="48" r="40" fill="none" stroke="#1e293b" strokeWidth="8" />
-                    <circle
-                      cx="48" cy="48" r="40" fill="none"
-                      stroke="#3b82f6" strokeWidth="8"
-                      strokeDasharray={`${2 * Math.PI * 40 * (aiPreview.qualityScore / 100)} ${2 * Math.PI * 40}`}
-                      strokeLinecap="round"
-                    />
-                  </svg>
-                  <div className="absolute inset-0 flex items-center justify-center">
-                    <span className="text-2xl font-bold text-white font-mono">{aiPreview.qualityScore}</span>
-                  </div>
+            {status === 'acknowledged' && (
+              <div className="flex items-start gap-2 rounded-lg border border-[#aee3c2] bg-[#e9f9ef] px-4 py-3 text-sm text-[#1b7a45]">
+                <Lock className="mt-0.5 h-4 w-4 shrink-0" />
+                <span>Your supervisor acknowledged this week. It's finalized and locked.</span>
+              </div>
+            )}
+            {status === 'returned' && (
+              <div className="rounded-lg border border-[#f5b8ad] bg-[#fff1ee] px-4 py-3 text-sm text-[#b3261e]">
+                <div className="flex items-center gap-2 font-semibold">
+                  <RotateCcw className="h-4 w-4" /> Returned for revision
                 </div>
-                <p className="text-xs text-slate-400">Quality Score</p>
+                {returnComment && <p className="mt-1 pl-6 text-[#7a2018]">"{returnComment}"</p>}
+                <p className="mt-1 pl-6 text-[#7a2018]/80">Edit your entry below and resubmit.</p>
+              </div>
+            )}
+
+            <fieldset disabled={!editable || busy} className="space-y-5 disabled:opacity-70">
+              {/* Hours */}
+              <div className="rounded-xl border border-[#e2e6ef] bg-white p-5">
+                <label htmlFor="hours" className="mb-1.5 block text-sm font-semibold text-[#0b1c30]">
+                  Hours logged
+                  <span className="ml-2 text-xs font-normal text-[#64748b]">Total hours worked this week</span>
+                </label>
+                <input
+                  id="hours" type="number" min={0} max={168} step="0.5"
+                  value={hours} onChange={(e) => setHours(e.target.value)}
+                  placeholder="e.g. 40" className={`${inputCls} max-w-[160px]`}
+                />
               </div>
 
-              <div className="space-y-2.5">
-                {aiPreview.rubric.map((r) => (
-                  <div key={r.label}>
-                    <div className="flex justify-between mb-1">
-                      <span className="text-xs text-slate-400">{r.label}</span>
-                      <span className="text-xs font-mono text-slate-300">{r.score}/{r.max}</span>
-                    </div>
-                    <div className="w-full bg-slate-800 rounded-full h-1.5">
-                      <div
-                        className="bg-blue-500 h-1.5 rounded-full transition-all duration-500"
-                        style={{ width: `${(r.score / r.max) * 100}%` }}
-                      />
-                    </div>
+              {/* Activities */}
+              <div className="rounded-xl border border-[#e2e6ef] bg-white p-5">
+                <div className="mb-3 flex items-center justify-between">
+                  <div>
+                    <h3 className="text-sm font-semibold text-[#0b1c30]">Activities</h3>
+                    <p className="text-xs text-[#64748b]">What you worked on, day by day</p>
                   </div>
-                ))}
+                  <button
+                    type="button" onClick={addActivity}
+                    className="inline-flex items-center gap-1 rounded-lg bg-[#f1ecff] px-3 py-1.5 text-sm font-medium text-[#712ae2] transition-colors hover:bg-[#e6dcff] disabled:opacity-50"
+                  >
+                    <Plus className="h-4 w-4" /> Add activity
+                  </button>
+                </div>
+
+                <div className="space-y-4">
+                  {activities.length === 0 && (
+                    <p className="rounded-lg border border-dashed border-[#d8dce6] py-6 text-center text-sm text-[#94a3b8]">
+                      No activities yet — add one to describe your week.
+                    </p>
+                  )}
+                  {activities.map((a, i) => (
+                    <div key={i} className="rounded-lg border border-[#e8ebf2] bg-[#fbfcfe] p-4">
+                      <div className="mb-2 flex items-center justify-between gap-3">
+                        <input
+                          type="date" value={a.activityDate}
+                          min={scheduleWeek.periodStart} max={scheduleWeek.periodEnd}
+                          onChange={(e) => updateActivity(i, { activityDate: e.target.value })}
+                          className={`${inputCls} max-w-[180px]`}
+                        />
+                        <button
+                          type="button" onClick={() => removeActivity(i)}
+                          className="rounded-md p-1.5 text-[#94a3b8] transition-colors hover:bg-[#ffe2dc] hover:text-[#b3261e]"
+                          aria-label="Remove activity"
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </button>
+                      </div>
+                      <textarea
+                        rows={2} value={a.description}
+                        onChange={(e) => updateActivity(i, { description: e.target.value })}
+                        placeholder="Describe what you did…"
+                        className={`${inputCls} resize-none`}
+                      />
+                      {/* Competency tags */}
+                      <div className="mt-2 flex flex-wrap items-center gap-1.5">
+                        {a.competencyTags.map((t) => (
+                          <span key={t} className="inline-flex items-center gap-1 rounded-full bg-[#e1e8ff] px-2 py-0.5 text-xs font-medium text-[#15157d]">
+                            {t}
+                            <button type="button" onClick={() => removeTag(i, t)} aria-label={`Remove ${t}`}>
+                              <X className="h-3 w-3" />
+                            </button>
+                          </span>
+                        ))}
+                        <input
+                          type="text" value={tagDrafts[i] ?? ''}
+                          onChange={(e) => setTagDrafts((d) => ({ ...d, [i]: e.target.value }))}
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter') { e.preventDefault(); addTag(i, tagDrafts[i] ?? ''); }
+                          }}
+                          placeholder="+ competency"
+                          className="min-w-[120px] flex-1 rounded-md border border-transparent bg-transparent px-1.5 py-0.5 text-xs text-[#0b1c30] placeholder-[#94a3b8] focus:border-[#d8dce6] focus:outline-none"
+                        />
+                      </div>
+                      <div className="mt-1.5 flex flex-wrap gap-1">
+                        {COMPETENCY_SUGGESTIONS.filter((s) => !a.competencyTags.includes(s)).slice(0, 5).map((s) => (
+                          <button
+                            key={s} type="button" onClick={() => addTag(i, s)}
+                            className="rounded px-1.5 py-0.5 text-[11px] text-[#64748b] transition-colors hover:text-[#712ae2]"
+                          >
+                            + {s}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  ))}
+                </div>
               </div>
 
-              <div className="flex flex-wrap gap-2">
-                <span className="inline-flex items-center gap-1 text-xs px-2.5 py-1 rounded-full bg-emerald-500/10 border border-emerald-500/30 text-emerald-400">
-                  <CheckCircle2 className="w-3 h-3" /> CS Relevance {(aiPreview.relevanceScore * 100).toFixed(0)}%
-                </span>
-                {aiPreview.isPlagiarismFlagged ? (
-                  <span className="inline-flex items-center gap-1 text-xs px-2.5 py-1 rounded-full bg-red-500/10 border border-red-500/30 text-red-400">
-                    <AlertCircle className="w-3 h-3" /> Plagiarism flagged
-                  </span>
-                ) : (
-                  <span className="inline-flex items-center gap-1 text-xs px-2.5 py-1 rounded-full bg-emerald-500/10 border border-emerald-500/30 text-emerald-400">
-                    <CheckCircle2 className="w-3 h-3" /> No plagiarism
-                  </span>
-                )}
+              {/* Reflection */}
+              <div className="rounded-xl border border-[#e2e6ef] bg-white p-5 space-y-4">
+                <h3 className="text-sm font-semibold text-[#0b1c30]">Reflection</h3>
+                <div>
+                  <label htmlFor="learning" className="mb-1.5 block text-sm font-medium text-[#0b1c30]">
+                    What did you learn?
+                  </label>
+                  <textarea
+                    id="learning" rows={3} value={learning}
+                    onChange={(e) => setLearning(e.target.value)}
+                    placeholder="Key takeaways and skills gained this week…"
+                    className={`${inputCls} resize-none`}
+                  />
+                </div>
+                <div>
+                  <label htmlFor="challenges" className="mb-1.5 block text-sm font-medium text-[#0b1c30]">
+                    Challenges faced
+                  </label>
+                  <textarea
+                    id="challenges" rows={3} value={challenges}
+                    onChange={(e) => setChallenges(e.target.value)}
+                    placeholder="Problems you ran into and how you handled them…"
+                    className={`${inputCls} resize-none`}
+                  />
+                </div>
+                <label className="flex items-center gap-2 text-sm text-[#464652]">
+                  <input
+                    type="checkbox" checked={supervisorVisible}
+                    onChange={(e) => setSupervisorVisible(e.target.checked)}
+                    className="h-4 w-4 rounded border-[#d8dce6] text-[#8a4cfc] focus:ring-[#8a4cfc]"
+                  />
+                  Share this reflection with my company supervisor
+                </label>
               </div>
+            </fieldset>
 
-              <div className="bg-slate-800/50 rounded-lg p-3">
-                <p className="text-xs text-slate-500 uppercase tracking-wide mb-1.5 font-semibold">AI Feedback</p>
-                <p className="text-xs text-slate-300 leading-relaxed">{aiPreview.aiFeedbackSummary}</p>
+            {error && (
+              <div className="flex items-start gap-2 rounded-lg border border-[#f5b8ad] bg-[#fff1ee] px-4 py-3 text-sm text-[#b3261e]">
+                <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" /> {error}
               </div>
+            )}
 
-              <p className="text-xs text-slate-600 text-center">
-                AI scores are advisory. Supervisor review is final.
-              </p>
-            </div>
-          )}
-        </div>
+            {/* Actions */}
+            {editable && (
+              <div className="flex flex-wrap gap-3">
+                <button
+                  type="button" onClick={handleSave} disabled={busy}
+                  className="inline-flex flex-1 items-center justify-center gap-2 rounded-lg border border-[#d8dce6] bg-white px-4 py-2.5 text-sm font-medium text-[#464652] transition-colors hover:border-[#b9c0d0] hover:text-[#0b1c30] disabled:opacity-60"
+                >
+                  {saved ? (
+                    <><CheckCircle2 className="h-4 w-4 text-[#1b7a45]" /> Saved</>
+                  ) : saveDraft.isPending ? (
+                    <><Loader2 className="h-4 w-4 animate-spin" /> Saving…</>
+                  ) : (
+                    'Save draft'
+                  )}
+                </button>
+                <button
+                  type="button" onClick={handleSubmit} disabled={busy}
+                  className="inline-flex flex-1 items-center justify-center gap-2 rounded-lg bg-[#15157d] px-4 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-[#1f1fa0] disabled:cursor-not-allowed disabled:opacity-60"
+                >
+                  {submitEntry.isPending ? (
+                    <><Loader2 className="h-4 w-4 animate-spin" /> Submitting…</>
+                  ) : (
+                    <><Send className="h-4 w-4" /> {status === 'returned' ? 'Resubmit week' : 'Submit week'}</>
+                  )}
+                </button>
+              </div>
+            )}
+          </section>
+        )}
       </div>
     </div>
   );
