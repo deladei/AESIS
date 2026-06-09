@@ -57,6 +57,10 @@ services:
         sync: false
       - key: SENTRY_DSN
         sync: false
+      # Weekly logbook grades are binding: a 0–100 score is required to
+      # acknowledge each submitted week (confirmed regulation, 2026-06-09).
+      - key: WEEKLY_BINDING_GRADES
+        value: "true"
 
   # ── AI Engine (FastAPI via Docker) ─────────────────────────────────────────
   - type: web
