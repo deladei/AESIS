@@ -48,6 +48,7 @@ export default function EntryReview() {
 
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [comment, setComment] = useState('');
+  const [score, setScore] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [doneMsg, setDoneMsg] = useState<string | null>(null);
 
@@ -66,7 +67,7 @@ export default function EntryReview() {
   const busy = acknowledge.isPending || returnEntry.isPending;
 
   // Reset the form when switching entries.
-  useEffect(() => { setComment(''); setError(null); setDoneMsg(null); }, [selectedId]);
+  useEffect(() => { setComment(''); setScore(''); setError(null); setDoneMsg(null); }, [selectedId]);
 
   const aiSummary = useMemo<AiSummary | null>(() => {
     const s = detail?.assessments?.[0]?.summary;
@@ -80,9 +81,15 @@ export default function EntryReview() {
   const handleAcknowledge = async () => {
     if (!selectedId) return;
     setError(null);
+    const raw = score.trim();
+    if (raw === '') { setError('A score (0–100) is required to acknowledge a week.'); return; }
+    const n = Number(raw);
+    if (!Number.isFinite(n) || n < 0 || n > 100) {
+      setError('Score must be a number between 0 and 100.'); return;
+    }
     try {
-      await acknowledge.mutateAsync({ entryId: selectedId, comment: comment.trim() || undefined });
-      setDoneMsg('Week acknowledged. The student has been notified.');
+      await acknowledge.mutateAsync({ entryId: selectedId, comment: comment.trim() || undefined, score: n });
+      setDoneMsg('Week acknowledged and scored. The student has been notified.');
     } catch (e) { setError(apiErr(e)); }
   };
 
@@ -274,6 +281,9 @@ export default function EntryReview() {
                               {ev.fromStatus ? `${STATUS_LABEL[ev.fromStatus]} → ` : ''}{STATUS_LABEL[ev.toStatus]}
                             </span>
                             <span className="text-[#94a3b8]"> · {fmtDate(ev.createdAt, true)}</span>
+                            {ev.score != null && (
+                              <span className="mt-0.5 block font-semibold text-[#15157d]">Score: {Number(ev.score)}/100</span>
+                            )}
                             {ev.comment && <span className="mt-0.5 block italic text-[#64748b]">"{ev.comment}"</span>}
                           </span>
                         </li>
@@ -334,6 +344,16 @@ export default function EntryReview() {
                     </div>
                   ) : (
                     <>
+                      <label htmlFor="score" className="mb-1.5 block text-sm font-semibold text-[#0b1c30]">
+                        Score
+                        <span className="ml-2 text-xs font-normal text-[#64748b]">Out of 100 · required to acknowledge</span>
+                      </label>
+                      <input
+                        id="score" type="number" min={0} max={100} step={1} value={score}
+                        onChange={(e) => setScore(e.target.value)}
+                        placeholder="0–100"
+                        className={`${inputCls} mb-4`}
+                      />
                       <label htmlFor="comment" className="mb-1.5 block text-sm font-semibold text-[#0b1c30]">
                         Feedback
                         <span className="ml-2 text-xs font-normal text-[#64748b]">Required to return</span>
