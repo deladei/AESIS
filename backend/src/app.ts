@@ -16,6 +16,7 @@ import attestPublicRouter  from './modules/finalization/attestation.public.route
 import notificationsRouter from './modules/notifications/notifications.router';
 import coordinatorRouter   from './modules/coordinator/coordinator.router';
 import supervisorRouter    from './modules/supervisor/supervisor.router';
+import studentRouter       from './modules/student/student.router';
 import insightsRouter      from './modules/insights/insights.router';
 import adminRouter         from './modules/admin/admin.router';
 import aiRouter            from './modules/ai/ai.router';
@@ -79,6 +80,7 @@ export function createApp() {
   app.use('/api/v1/notifications', notificationsRouter);
   app.use('/api/v1/coordinator',   coordinatorRouter);
   app.use('/api/v1/supervisor',    supervisorRouter);
+  app.use('/api/v1/student',       studentRouter);
   app.use('/api/v1/insights',      insightsRouter);
   app.use('/api/v1/admin',         adminRouter);
   app.use('/api/v1/ai',            aiRouter);

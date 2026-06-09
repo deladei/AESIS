@@ -63,6 +63,22 @@ def analyze_logbook(self, submission_id: str, student_id: str, placement_id: str
         # ── 5. Sentiment analysis ──────────────────────────────
         s_result = sentiment_analyser.analyse(full_text)
 
+        # ── 5b. Validate/normalise the quality score before persisting ──
+        # Never write an out-of-range or non-numeric score to the DB — a corrupt
+        # value would otherwise poison every downstream average.
+        quality_score, q_out_of_range = quality_scorer.clamp_quality_score(
+            q_result.quality_score
+        )
+        if q_out_of_range:
+            logger.warning(
+                "Quality score out of range for %s — raw=%r clamped=%r",
+                submission_id, q_result.quality_score, quality_score,
+            )
+        if quality_score is None:
+            raise ValueError(
+                f"Non-numeric quality score for {submission_id}: {q_result.quality_score!r}"
+            )
+
         # ── 6. Write to logbook_analyses ──────────────────────
         cur.execute(
             """
@@ -105,7 +121,7 @@ def analyze_logbook(self, submission_id: str, student_id: str, placement_id: str
             """,
             (
                 submission_id,
-                q_result.quality_score,  q_result.task_depth_score, q_result.tech_vocab_score,
+                quality_score,  q_result.task_depth_score, q_result.tech_vocab_score,
                 q_result.reflection_score, q_result.temporal_consistency_score,
                 q_result.relevance_score, q_result.is_relevance_flagged,
                 p_result.plagiarism_similarity, p_result.is_plagiarism_flagged,
@@ -126,7 +142,7 @@ def analyze_logbook(self, submission_id: str, student_id: str, placement_id: str
         # ── 8. Add to plagiarism index for future checks ───────
         pdet.detector.add_document(submission_id, full_text)
 
-        logger.info(f"Analysis complete for {submission_id} — quality={q_result.quality_score}")
+        logger.info(f"Analysis complete for {submission_id} — quality={quality_score}")
 
         # ── 9. Trigger risk recomputation ──────────────────────
         compute_risk.delay(student_id, placement_id)

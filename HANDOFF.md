@@ -1476,6 +1476,43 @@ User decisions: (1) build the **student entry editor first**; (2) **replace** th
 
 ---
 
+### Session 33 — 2026-06-09
+
+**Work done — fixed the intern dashboard "Avg Quality Score" reading `151565326582 / 100`, plus the "Week 6 of 6 vs Jan–Jun (24wk) dates" contradiction. Added a validated, server-computed student-dashboard endpoint + ingestion guard + backfill.**
+
+**Root cause (confirmed, not guessed):** `LogbookAnalysis.qualityScore` is a Prisma `Decimal` (`schema.prisma:346`) → serializes to a JSON **string**. The dashboard's client-side reduce `0 + "75" + "82" + …` (`StudentDashboard.tsx:85`) **string-concatenated** the scores into a digit string, which a single later `/ length` coerced into the giant number. It was **string concatenation**, NOT a sum-vs-mean or an unvalidated-AI value — the backend's other avg sites already coerce via `Number(...)` / Prisma `_avg`, so only the frontend was affected. The "Week N of M" bug was independent: `M = submissions.length` (rows that exist), not the configured/derived internship length.
+
+> Note: this dashboard reads the **legacy** `modules/logbook` analysis path. The new `modules/entries` `EntryAssessment.score` (supervisor-entered 0–100, `WEEKLY_BINDING_GRADES`) is a separate path and is **not** what this tile renders — left untouched.
+
+| File | What |
+|---|---|
+| `backend/src/shared/utils/quality.ts` | **NEW.** Pure, unit-tested helpers: `toQualityNumber`/`isValidQualityScore`/`clampQualityScore`; `meanQualityScore(raw[])` — numeric mean rounded to **1 dp**, excludes null/unscored **and** out-of-range from both numerator & denominator, clamps result to [0,100], `null` when nothing scored; `weeksBetween`/`expectedWeeks`/`weekProgress` — week count **derived from the placement's real start/end dates** (dates override a contradictory cohort `totalWeeks`; fall back to config, then 24), `current` capped at `total`. |
+| `backend/src/modules/student/{student.service,student.controller,student.router}.ts` | **NEW.** `GET /api/v1/student/dashboard` (authorize `student`,`admin`) — mirrors the supervisor/coordinator dashboard pattern. Returns validated `{ week:{current,total}, logsSubmitted, expectedLogs, completionPct, avgQualityScore }`. Single server-side source of truth so an out-of-range aggregate can never reach the UI. |
+| `backend/src/app.ts` | Wired `studentRouter` at `/api/v1/student`. |
+| `ai/services/quality_scorer.py` | **NEW** `clamp_quality_score(raw)` → `(clamped, was_out_of_range)`; `None` when non-numeric. |
+| `ai/tasks/analysis_tasks.py` | Validate/normalise the score **before the INSERT**: clamp to 0–100, `logger.warning` the raw value when out of range, **raise** (don't persist) on non-numeric. Never writes an unvalidated score. |
+| `backend/src/config/backfill-quality-scores.ts` + `package.json` `db:backfill-quality` | **NEW.** Idempotent one-off: clamps any already-stored `quality_score` outside [0,100] back into range so recomputed averages are correct. |
+| `frontend/src/hooks/useStudentDashboard.ts` | **NEW.** TanStack hook for the endpoint. |
+| `frontend/src/pages/student/StudentDashboard.tsx` | Removed the buggy client-side reduce + `submissions.length` denominator. Avg / week / logs / completion now come from the endpoint; renders **"—"** when unscored or still loading. |
+| `backend/src/shared/utils/__tests__/quality.test.ts` + `backend/src/modules/student/__tests__/student.service.test.ts` | **NEW.** Cover: normal average, single log, zero scored logs, an out-of-range AI value (excluded → never inflates / never reaches UI), and the week/date invariant (dates win over a wrong config; current capped at total). |
+
+**Verification:** `tsc --noEmit` clean (BE + FE); Python `py_compile` OK. New suites **19/19** pass. **Full suite 343/343 green run `--runInBand`.**
+
+**Errors & fixes**
+
+| Error | Fix |
+|---|---|
+| Parallel `npx jest` → 2 DB-integration suites (`app.test.ts`, `entries.integration.test.ts`) failed on their 5 s `reachable()` hook | **Parallel-load contention on this weak box, NOT a code bug.** Proved: baseline-parallel = 324/324 green, mine-**serial** = 343/343 green. Adding 2 more suites tipped the worker count past what the Celeron N4000/3.6 GB box handles within the 5 s hook. CI (real PG service) is unaffected. Always run the full suite `--runInBand` here. |
+
+**There is no "Gemini" in this system** — quality scores come from the local rule-based `ai/services/quality_scorer.py`; the chatbot uses Groq. The ingestion guard was placed at the real persistence boundary (`analysis_tasks.py`). If Gemini is ever swapped in for scoring, that clamp hook is already the right place.
+
+**Stopped here — next session should**
+1. **Run the prod backfill once** — like the seed, `npm run db:backfill-quality` must be run via the Render Shell against `aesis-postgres-2` to sanitize any already-corrupted rows on prod. (Local dev DB too if it has bad data.)
+2. **Verify by eye on prod** — log in as a student with an active placement; the Avg Quality tile should read a sane `NN / 100` or "—", and the completion card should read "Week X of 24" matching the date range (no longer "of 6").
+3. Watch for Vercel auto-promotion (Session 32 caveat) after this push — confirm `aesis.vercel.app` serves the new bundle.
+
+---
+
 ## Handoff Entry Template
 
 ```markdown

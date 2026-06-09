@@ -6,6 +6,7 @@ import {
 import { useAuth } from '@/contexts/AuthContext';
 import { useMyPlacements } from '@/hooks/usePlacements';
 import { useSubmissions, useSubmission, type LogbookSubmission } from '@/hooks/useLogbook';
+import { useStudentDashboard } from '@/hooks/useStudentDashboard';
 import { useNotifications, type Notification } from '@/hooks/useNotifications';
 
 function formatDate(iso: string | null): string {
@@ -38,6 +39,9 @@ export default function StudentDashboard() {
   const { data: placements, isLoading: placementsLoading } = useMyPlacements();
   const active = placements?.find((p) => p.placementStatus === 'active') ?? placements?.[0];
   const { data: submissions = [], isLoading: subsLoading } = useSubmissions(active?.id);
+  // Stats (avg quality + week progress) are computed server-side — validated,
+  // numeric, and derived from the placement dates — never on the raw list here.
+  const { data: stats } = useStudentDashboard(!!active);
   const { data: notifications = [] } = useNotifications();
 
   // Most recent submissions that carry supervisor feedback — fetched in full
@@ -76,14 +80,17 @@ export default function StudentDashboard() {
     );
   }
 
-  // ── Derived metrics ─────────────────────────────────────────────
-  const total      = submissions.length;
-  const submitted  = submissions.filter(isSubmitted);
-  const pct        = total > 0 ? Math.round((submitted.length / total) * 100) : 0;
-  const scored     = submissions.filter((s) => s.analysis?.qualityScore != null);
-  const avgQuality = scored.length
-    ? Math.round(scored.reduce((sum, s) => sum + (s.analysis!.qualityScore ?? 0), 0) / scored.length)
-    : null;
+  // ── Server-computed metrics (see useStudentDashboard) ───────────
+  // `total` is the expected week count derived from the placement dates; the
+  // average is a validated numeric mean. Both fall back to the local list only
+  // for the submitted/total tile while stats are still loading.
+  const submitted    = submissions.filter(isSubmitted);
+  const weekTotal    = stats?.week?.total ?? null;
+  const weekCurrent  = stats?.week?.current ?? submitted.length;
+  const logsSubmitted = stats?.logsSubmitted ?? submitted.length;
+  const expectedLogs  = stats?.expectedLogs ?? weekTotal;
+  const pct          = stats?.completionPct ?? 0;
+  const avgQuality   = stats?.avgQualityScore ?? null;
 
   // Flatten the latest supervisor feedback from each fetched submission
   const feedbackCards = [fb0.data, fb1.data, fb2.data]
@@ -121,7 +128,7 @@ export default function StudentDashboard() {
                   Internship completion
                 </h3>
                 <p className="text-3xl font-extrabold text-[#191c1e]">
-                  Week {submitted.length} of {total}
+                  {weekTotal != null ? `Week ${weekCurrent} of ${weekTotal}` : '—'}
                 </p>
               </div>
               <span className="rounded-full bg-[#e1e0ff] px-3 py-1 text-xs font-semibold text-[#15157d]">
@@ -147,7 +154,9 @@ export default function StudentDashboard() {
             </div>
             <div>
               <p className="text-sm font-medium text-[#424654]">Logs Submitted</p>
-              <p className="text-2xl font-extrabold text-[#191c1e]">{submitted.length} / {total}</p>
+              <p className="text-2xl font-extrabold text-[#191c1e]">
+                {logsSubmitted} {expectedLogs != null ? `/ ${expectedLogs}` : ''}
+              </p>
             </div>
           </div>
 

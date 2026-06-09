@@ -23,6 +23,28 @@ CS_RELEVANCE_KEYWORDS = {
     *CS_VOCABULARY,
 }
 
+QUALITY_MIN = 0.0
+QUALITY_MAX = 100.0
+
+
+def clamp_quality_score(raw):
+    """
+    Normalise a quality score to the valid [0, 100] range before it is persisted.
+
+    Returns (clamped_value, was_out_of_range). `clamped_value` is None only when
+    `raw` cannot be coerced to a number — callers must never write a non-numeric
+    or out-of-range score to the database. The raw value should be logged by the
+    caller whenever `was_out_of_range` is True.
+    """
+    try:
+        n = float(raw)
+    except (TypeError, ValueError):
+        return None, True
+    if n != n or n in (float("inf"), float("-inf")):  # NaN / inf
+        return None, True
+    clamped = max(QUALITY_MIN, min(QUALITY_MAX, n))
+    return clamped, clamped != n
+
 
 def _score_task_depth(tasks: str, challenges: str) -> float:
     """
