@@ -7,11 +7,14 @@ export interface PlacementSupervisor {
   lastName:  string;
 }
 
+export type FinalizationStatus = 'active' | 'assessment_pending' | 'finalized';
+
 export interface Placement {
   id:                   string;
   placementStatus:      string;
+  finalizationStatus?:  FinalizationStatus;
   studentId:            string;
-  student?:             { firstName: string; lastName: string; email: string };
+  student?:             { id?: string; firstName: string; lastName: string; email: string };
   company?:             { name: string };
   academicSupervisor?:  PlacementSupervisor | null;
   startDate:            string | null;
@@ -34,6 +37,22 @@ export function useMyPlacements() {
       // Normalize to an array regardless of payload shape: the endpoint returns
       // a bare array, but tolerate a paginated `{ placements }` envelope or any
       // unexpected/cold-start body so callers can always `.find`/`.map` safely.
+      const d = r.data?.data;
+      if (Array.isArray(d)) return d;
+      if (d && Array.isArray((d as { placements?: Placement[] }).placements)) {
+        return (d as { placements: Placement[] }).placements;
+      }
+      return [] as Placement[];
+    },
+  });
+}
+
+/** Placements assigned to the logged-in academic supervisor. */
+export function useAssignedPlacements() {
+  return useQuery({
+    queryKey: ['placements', 'assigned'],
+    queryFn:  async () => {
+      const r = await api.get<{ data: Placement[] | { placements?: Placement[] } }>('/placements/assigned');
       const d = r.data?.data;
       if (Array.isArray(d)) return d;
       if (d && Array.isArray((d as { placements?: Placement[] }).placements)) {

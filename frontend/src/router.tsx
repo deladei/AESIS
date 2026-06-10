@@ -16,12 +16,14 @@ import NotificationInbox from '@/pages/student/NotificationInbox';
 import ChatbotPanel      from '@/pages/student/ChatbotPanel';
 import SupervisorDashboard from '@/pages/supervisor/SupervisorDashboard';
 import EntryReview         from '@/pages/supervisor/EntryReview';
+import PlacementFinalization from '@/pages/supervisor/PlacementFinalization';
 import CoordinatorDashboard from '@/pages/coordinator/CoordinatorDashboard';
 import PlacementApproval    from '@/pages/coordinator/PlacementApproval';
 import SupervisorAssignment from '@/pages/coordinator/SupervisorAssignment';
 import AdminDashboard       from '@/pages/admin/AdminDashboard';
 import FeedbackCenter       from '@/pages/shared/FeedbackCenter';
 import AIInsights           from '@/pages/shared/AIInsights';
+import Attestation          from '@/pages/public/Attestation';
 
 type UserRole = 'student' | 'academic_supervisor' | 'coordinator' | 'admin';
 
@@ -85,6 +87,9 @@ export const router = createBrowserRouter([
   { path: '/auth/login',     element: <LoginPage /> },
   { path: '/auth/register',  element: <RegisterPage /> },
 
+  // Public company attestation (magic link — no account, no shell)
+  { path: '/attest/:token',  element: <Attestation /> },
+
   // Student
   {
     element: <RequireAuth roles={['student']} />,
@@ -103,6 +108,7 @@ export const router = createBrowserRouter([
     children: [
       { path: '/supervisor/dashboard', element: <SupervisorDashboard /> },
       { path: '/supervisor/review',    element: <EntryReview /> },
+      { path: '/supervisor/finalize',  element: <PlacementFinalization /> },
     ],
   },
 
@@ -122,6 +128,7 @@ export const router = createBrowserRouter([
     children: [
       { path: '/admin/dashboard', element: <AdminDashboard /> },
       { path: '/admin/review',    element: <EntryReview /> },
+      { path: '/admin/finalize',  element: <PlacementFinalization /> },
     ],
   },
 
