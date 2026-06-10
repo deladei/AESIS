@@ -2,7 +2,9 @@ import { Link } from 'react-router-dom';
 import {
   NotebookPen, Gauge, ArrowRight, CalendarClock, CheckCircle2,
   Star, GraduationCap, ExternalLink, Loader2, BookOpen,
+  Building2, Mail, Phone,
 } from 'lucide-react';
+import type { DashboardSupervisor } from '@/hooks/useStudentDashboard';
 import { useAuth } from '@/contexts/AuthContext';
 import { useMyPlacements } from '@/hooks/usePlacements';
 import { useSubmissions, useSubmission, type LogbookSubmission } from '@/hooks/useLogbook';
@@ -28,6 +30,49 @@ function timeAgo(iso: string): string {
 const isPending = (s: LogbookSubmission) =>
   s.submissionStatus === 'not_submitted' || s.submissionStatus === 'draft';
 const isSubmitted = (s: LogbookSubmission) => !isPending(s);
+
+function SupervisorRow({
+  label, icon, supervisor,
+}: {
+  label: string;
+  icon: React.ReactNode;
+  supervisor: DashboardSupervisor | null;
+}) {
+  return (
+    <div>
+      <div className="mb-2 flex items-center gap-2">
+        <div className="flex h-8 w-8 items-center justify-center rounded-full bg-[#e1e0ff] text-[#15157d]">
+          {icon}
+        </div>
+        <p className="text-sm font-bold text-[#191c1e]">{label}</p>
+      </div>
+      {supervisor ? (
+        <div className="pl-10 text-sm">
+          <p className="font-semibold text-[#191c1e]">{supervisor.name}</p>
+          {supervisor.organization && (
+            <p className="text-xs text-[#424654]">{supervisor.organization}</p>
+          )}
+          <a
+            href={`mailto:${supervisor.email}`}
+            className="mt-1 flex items-center gap-1.5 text-xs text-[#15157d] hover:underline"
+          >
+            <Mail className="h-3.5 w-3.5" /> {supervisor.email}
+          </a>
+          {supervisor.phone && (
+            <a
+              href={`tel:${supervisor.phone}`}
+              className="mt-0.5 flex items-center gap-1.5 text-xs text-[#15157d] hover:underline"
+            >
+              <Phone className="h-3.5 w-3.5" /> {supervisor.phone}
+            </a>
+          )}
+        </div>
+      ) : (
+        <p className="pl-10 text-xs text-[#737785]">Not yet assigned</p>
+      )}
+    </div>
+  );
+}
 
 /**
  * Student Dashboard — Stitch "Student Dashboard (Updated Profile)" layout,
@@ -194,6 +239,23 @@ export default function StudentDashboard() {
                   <ArrowRight className="h-4 w-4 opacity-50 transition-transform group-hover:translate-x-1" />
                 </Link>
               ))}
+            </div>
+          </div>
+
+          {/* Your supervisors */}
+          <div className="rounded-xl bg-white p-6">
+            <h3 className="mb-5 font-bold text-[#191c1e]">Your Supervisors</h3>
+            <div className="space-y-5">
+              <SupervisorRow
+                label="Academic Supervisor"
+                icon={<GraduationCap className="h-4 w-4" />}
+                supervisor={stats?.supervisors?.academic ?? null}
+              />
+              <SupervisorRow
+                label="Company Supervisor"
+                icon={<Building2 className="h-4 w-4" />}
+                supervisor={stats?.supervisors?.company ?? null}
+              />
             </div>
           </div>
 

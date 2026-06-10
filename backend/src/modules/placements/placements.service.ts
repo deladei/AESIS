@@ -206,7 +206,12 @@ export async function updatePlacementStatus(
   return updated;
 }
 
-// ── Coordinator: assign / reassign academic supervisor ────────
+// ── Coordinator: assign / reassign a supervisor ──────────────
+// Handles both supervisor slots. `kind` selects which: 'academic' →
+// academicSupervisorId (faculty oversight), 'company' → companySupervisorId
+// (the host-org supervisor). Each slot validates that the user actually holds
+// the matching role, then records an append-only audit row capturing the slot
+// and the from/to ids.
 
 export async function assignSupervisor(
   placementId: string,
@@ -217,16 +222,33 @@ export async function assignSupervisor(
   if (!placement) throw new AppError(404, 'Placement not found');
 
   const supervisor = await prisma.user.findUnique({ where: { id: input.supervisorId } });
-  if (!supervisor || supervisor.role !== 'academic_supervisor') {
-    throw new AppError(400, 'Selected user is not an academic supervisor');
+
+  const slot =
+    input.kind === 'company'
+      ? {
+          requiredRole: 'company_supervisor' as const,
+          column:       'companySupervisorId' as const,
+          currentId:    placement.companySupervisorId,
+          rejectMsg:    'Selected user is not a company supervisor',
+        }
+      : {
+          requiredRole: 'academic_supervisor' as const,
+          column:       'academicSupervisorId' as const,
+          currentId:    placement.academicSupervisorId,
+          rejectMsg:    'Selected user is not an academic supervisor',
+        };
+
+  if (!supervisor || supervisor.role !== slot.requiredRole) {
+    throw new AppError(400, slot.rejectMsg);
   }
 
   const updated = await prisma.placement.update({
     where: { id: placementId },
-    data:  { academicSupervisorId: input.supervisorId },
+    data:  { [slot.column]: input.supervisorId },
     include: {
       student:            { select: { id: true, firstName: true, lastName: true, email: true } },
       academicSupervisor: { select: { id: true, firstName: true, lastName: true } },
+      companySupervisor:  { select: { id: true, firstName: true, lastName: true } },
     },
   });
 
@@ -238,7 +260,8 @@ export async function assignSupervisor(
       entityId:   placementId,
       metadata:   {
         change:           'supervisor_assigned',
-        fromSupervisorId: placement.academicSupervisorId ?? null,
+        kind:             input.kind,
+        fromSupervisorId: slot.currentId ?? null,
         toSupervisorId:   input.supervisorId,
       },
     },

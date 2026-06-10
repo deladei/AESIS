@@ -23,6 +23,9 @@ export const updatePlacementStatusSchema = z.object({
 
 export const assignSupervisorSchema = z.object({
   supervisorId: z.string().uuid(),
+  // Which supervisor slot to assign. Defaults to 'academic' so the existing
+  // coordinator UI (which sends only supervisorId) keeps working unchanged.
+  kind:         z.enum(['academic', 'company']).default('academic'),
 });
 
 export const createCompanySchema = z.object({
@@ -34,5 +37,7 @@ export const createCompanySchema = z.object({
 
 export type CreatePlacementInput       = z.infer<typeof createPlacementSchema>;
 export type UpdatePlacementStatusInput = z.infer<typeof updatePlacementStatusSchema>;
-export type AssignSupervisorInput      = z.infer<typeof assignSupervisorSchema>;
+// z.input (not infer): `kind` is optional on the wire — the schema defaults it
+// to 'academic', and the service treats an absent kind as the academic slot.
+export type AssignSupervisorInput      = z.input<typeof assignSupervisorSchema>;
 export type CreateCompanyInput         = z.infer<typeof createCompanySchema>;

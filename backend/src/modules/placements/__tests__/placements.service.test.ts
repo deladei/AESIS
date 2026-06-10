@@ -372,4 +372,32 @@ describe('service.assignSupervisor', () => {
       .rejects.toThrow(AppError);
     expect(mp.placement.update).not.toHaveBeenCalled();
   });
+
+  it('assigns the company supervisor slot when kind=company', async () => {
+    (mp.placement.findUnique as jest.Mock).mockResolvedValue({ ...fakePlacement, companySupervisorId: null });
+    (mp.user.findUnique as jest.Mock).mockResolvedValue({ ...fakeCSupervisor, id: 'csu-2', role: 'company_supervisor' });
+    (mp.placement.update as jest.Mock).mockResolvedValue({ ...fakePlacement, companySupervisorId: 'csu-2' });
+
+    const res = await service.assignSupervisor('pl-1', 'coord-1', { supervisorId: 'csu-2', kind: 'company' });
+
+    expect(mp.placement.update).toHaveBeenCalledWith(expect.objectContaining({
+      where: { id: 'pl-1' },
+      data:  { companySupervisorId: 'csu-2' },
+    }));
+    expect(mp.auditLog.create).toHaveBeenCalledWith(expect.objectContaining({
+      data: expect.objectContaining({
+        action:   'placement_status_change',
+        metadata: expect.objectContaining({ change: 'supervisor_assigned', kind: 'company', toSupervisorId: 'csu-2' }),
+      }),
+    }));
+    expect(res.companySupervisorId).toBe('csu-2');
+  });
+
+  it('throws 400 when kind=company but the target user is an academic supervisor', async () => {
+    (mp.placement.findUnique as jest.Mock).mockResolvedValue(fakePlacement);
+    (mp.user.findUnique as jest.Mock).mockResolvedValue({ ...fakeCSupervisor, role: 'academic_supervisor' });
+    await expect(service.assignSupervisor('pl-1', 'coord-1', { supervisorId: 'asu-1', kind: 'company' }))
+      .rejects.toThrow(AppError);
+    expect(mp.placement.update).not.toHaveBeenCalled();
+  });
 });

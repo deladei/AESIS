@@ -1,6 +1,13 @@
 import { useQuery } from '@tanstack/react-query';
 import { api } from '@/lib/api';
 
+export interface DashboardSupervisor {
+  name:         string;
+  email:        string;
+  phone:        string | null;
+  organization: string | null;
+}
+
 export interface StudentDashboard {
   hasActivePlacement: boolean;
   week:               { current: number; total: number } | null;
@@ -8,6 +15,10 @@ export interface StudentDashboard {
   expectedLogs:       number;
   completionPct:      number;
   avgQualityScore:    number | null;
+  supervisors: {
+    academic: DashboardSupervisor | null;
+    company:  DashboardSupervisor | null;
+  };
 }
 
 /**

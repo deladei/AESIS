@@ -1,8 +1,37 @@
 import { prisma } from '../../config/prisma';
 import { meanQualityScore, weekProgress } from '../../shared/utils/quality';
+import { decryptPII } from '../../shared/utils/crypto';
 
 // Statuses that count as a submitted logbook for completion progress.
 const SUBMITTED_STATUSES = ['submitted', 'approved', 'under_review'];
+
+// Phone numbers are AES-256-GCM encrypted at rest; decryptPII throws on any
+// malformed/legacy-plaintext value, so never let it break the dashboard.
+function safeDecryptPhone(stored: string | null): string | null {
+  if (!stored) return null;
+  try {
+    return decryptPII(stored);
+  } catch {
+    return null;
+  }
+}
+
+type SupervisorRow = {
+  firstName: string;
+  lastName:  string;
+  email:     string;
+  phone:     string | null;
+} | null;
+
+function shapeSupervisor(s: SupervisorRow, organization: string | null) {
+  if (!s) return null;
+  return {
+    name:         `${s.firstName} ${s.lastName}`.trim(),
+    email:        s.email,
+    phone:        safeDecryptPhone(s.phone),
+    organization,
+  };
+}
 
 /**
  * Stats for the intern (student) dashboard.
@@ -22,6 +51,13 @@ export async function getStudentDashboard(studentId: string) {
       placementStatus: true,
       academicYear: {
         select: { cohortConfigs: { select: { totalWeeks: true }, take: 1 } },
+      },
+      company: { select: { name: true } },
+      academicSupervisor: {
+        select: { firstName: true, lastName: true, email: true, phone: true },
+      },
+      companySupervisor: {
+        select: { firstName: true, lastName: true, email: true, phone: true },
       },
       logbookSubmissions: {
         select: {
@@ -44,6 +80,7 @@ export async function getStudentDashboard(studentId: string) {
       expectedLogs:       0,
       completionPct:      0,
       avgQualityScore:    null,
+      supervisors:        { academic: null, company: null },
     };
   }
 
@@ -69,5 +106,11 @@ export async function getStudentDashboard(studentId: string) {
     expectedLogs:    week.total,
     completionPct,
     avgQualityScore,                   // number (1 dp) within [0, 100], or null
+    supervisors: {
+      // Academic supervisor is faculty — no host org. Company supervisor's org
+      // is the placement's host company.
+      academic: shapeSupervisor(placement.academicSupervisor, null),
+      company:  shapeSupervisor(placement.companySupervisor, placement.company?.name ?? null),
+    },
   };
 }

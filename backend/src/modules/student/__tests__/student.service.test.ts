@@ -6,6 +6,15 @@ jest.mock('../../../config/prisma', () => ({
   },
 }));
 
+jest.mock('../../../shared/utils/crypto', () => ({
+  encryptPII: jest.fn((v: string) => `enc:${v}`),
+  // Mirror the real "throws on malformed input" contract so safeDecryptPhone is exercised.
+  decryptPII: jest.fn((v: string) => {
+    if (!v.startsWith('enc:')) throw new Error('malformed');
+    return v.replace('enc:', '');
+  }),
+}));
+
 import { prisma } from '../../../config/prisma';
 import { getStudentDashboard } from '../student.service';
 
@@ -89,5 +98,41 @@ describe('getStudentDashboard', () => {
     expect(result.week).toBeNull();
     expect(result.avgQualityScore).toBeNull();
     expect(result.logsSubmitted).toBe(0);
+    expect(result.supervisors).toEqual({ academic: null, company: null });
+  });
+
+  it('surfaces both supervisors with org and a decrypted phone', async () => {
+    (mp.placement.findMany as jest.Mock).mockResolvedValue([
+      makePlacement({
+        company:            { name: 'Adinkra Microfinance' },
+        academicSupervisor: { firstName: 'Kwame', lastName: 'Mensah', email: 'k.mensah@knust.edu.gh', phone: 'enc:+233201234567' },
+        companySupervisor:  { firstName: 'Akosua', lastName: 'Boateng', email: 'akosua@adinkra.com', phone: null },
+      }),
+    ]);
+
+    const result = await getStudentDashboard('stu-1');
+
+    // Academic supervisor: faculty — no org; phone decrypted.
+    expect(result.supervisors.academic).toEqual({
+      name: 'Kwame Mensah', email: 'k.mensah@knust.edu.gh', phone: '+233201234567', organization: null,
+    });
+    // Company supervisor: org from the placement company; no phone on file.
+    expect(result.supervisors.company).toEqual({
+      name: 'Akosua Boateng', email: 'akosua@adinkra.com', phone: null, organization: 'Adinkra Microfinance',
+    });
+  });
+
+  it('returns null phone (not a throw) when the stored phone is unreadable', async () => {
+    (mp.placement.findMany as jest.Mock).mockResolvedValue([
+      makePlacement({
+        academicSupervisor: { firstName: 'Yaa', lastName: 'Asante', email: 'yaa@knust.edu.gh', phone: 'corrupt-not-json' },
+        companySupervisor:  null,
+      }),
+    ]);
+
+    const result = await getStudentDashboard('stu-1');
+
+    expect(result.supervisors.academic?.phone).toBeNull();
+    expect(result.supervisors.company).toBeNull();
   });
 });
