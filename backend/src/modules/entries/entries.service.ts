@@ -26,6 +26,41 @@ const ENTRY_INCLUDE = {
 
 // ── Helpers ───────────────────────────────────────────────────
 
+// A normalized snapshot of the author-editable fields, stored in the audit
+// trail's before/after JSON so an edit's exact change is reconstructable.
+type EntryFieldSnapshot = {
+  hoursLogged: number | null;
+  activities: { activityDate: string; description: string; competencyTags: string[] }[];
+  reflection: { learning: string; challenges: string; supervisorVisible: boolean } | null;
+};
+
+async function snapshotEntry(
+  tx: Prisma.TransactionClient,
+  entryId: string,
+): Promise<EntryFieldSnapshot> {
+  const e = await tx.logbookEntry.findUniqueOrThrow({
+    where: { id: entryId },
+    select: {
+      hoursLogged: true,
+      activities: {
+        select: { activityDate: true, description: true, competencyTags: true },
+        orderBy: { activityDate: 'asc' },
+      },
+      reflection: { select: { learning: true, challenges: true, supervisorVisible: true } },
+    },
+  });
+  return {
+    // Decimal -> number so the snapshot is plain JSON and diff-comparable.
+    hoursLogged: e.hoursLogged == null ? null : Number(e.hoursLogged),
+    activities: e.activities.map((a) => ({
+      activityDate: a.activityDate.toISOString().slice(0, 10),
+      description: a.description,
+      competencyTags: a.competencyTags,
+    })),
+    reflection: e.reflection ?? null,
+  };
+}
+
 // Load an entry together with the placement-ownership fields needed for authz.
 async function loadEntryWithOwnership(entryId: string) {
   const entry = await prisma.logbookEntry.findUnique({
@@ -84,6 +119,10 @@ export async function saveDraft(actor: Actor, input: SaveDraftInput) {
     });
 
     let entryId: string;
+    // When a plain draft edit happens we capture the pre-edit snapshot here and
+    // emit the audit `edited` event after the activity/reflection writes below,
+    // so before/after reflect the real persisted change.
+    let editBefore: EntryFieldSnapshot | null = null;
 
     if (!existing) {
       // Genesis: create the entry in draft and log the null -> draft event.
@@ -99,7 +138,10 @@ export async function saveDraft(actor: Actor, input: SaveDraftInput) {
       });
       entryId = created.id;
       await tx.entryEvent.create({
-        data: { entryId, actorId: actor.id, fromStatus: null, toStatus: 'draft' },
+        data: {
+          entryId, actorId: actor.id, actorRole: actor.role,
+          eventType: 'created', fromStatus: null, toStatus: 'draft',
+        },
       });
     } else {
       const status = existing.status as EntryStatus;
@@ -127,10 +169,14 @@ export async function saveDraft(actor: Actor, input: SaveDraftInput) {
           },
         });
         await tx.entryEvent.create({
-          data: { entryId, actorId: actor.id, fromStatus: 'returned', toStatus: 'draft' },
+          data: {
+            entryId, actorId: actor.id, actorRole: actor.role,
+            eventType: 'transitioned', fromStatus: 'returned', toStatus: 'draft',
+          },
         });
       } else {
-        // Plain draft edit — no transition.
+        // Plain draft edit — no transition, but it is audited as `edited`.
+        editBefore = await snapshotEntry(tx, entryId);
         await tx.logbookEntry.update({
           where: { id: entryId },
           data: { periodStart, periodEnd, hoursLogged: input.hoursLogged },
@@ -152,6 +198,19 @@ export async function saveDraft(actor: Actor, input: SaveDraftInput) {
         where: { entryId },
         create: { entryId, ...input.reflection },
         update: { ...input.reflection },
+      });
+    }
+
+    // Audit a plain draft edit with the persisted before/after snapshot.
+    if (editBefore) {
+      const editAfter = await snapshotEntry(tx, entryId);
+      await tx.entryEvent.create({
+        data: {
+          entryId, actorId: actor.id, actorRole: actor.role,
+          eventType: 'edited', fromStatus: null, toStatus: null,
+          before: editBefore as Prisma.InputJsonObject,
+          after: editAfter as Prisma.InputJsonObject,
+        },
       });
     }
 
@@ -207,7 +266,10 @@ export async function submitEntry(actor: Actor, entryId: string) {
       data: { status: 'submitted', submittedAt: new Date() },
     });
     await tx.entryEvent.create({
-      data: { entryId, actorId: actor.id, fromStatus: status, toStatus: 'submitted' },
+      data: {
+        entryId, actorId: actor.id, actorRole: actor.role,
+        eventType: 'transitioned', fromStatus: status, toStatus: 'submitted',
+      },
     });
 
     // Transactional outbox: enqueue enrichment atomically with the submit so it
@@ -290,6 +352,9 @@ async function applySupervisorTransition(
       data: {
         entryId,
         actorId: actor.id,
+        actorRole: actor.role,
+        // A grade write is recorded as `scored`; an unscored move is `transitioned`.
+        eventType: score !== undefined ? 'scored' : 'transitioned',
         fromStatus: status,
         toStatus: to,
         comment: opts.comment ?? null,
@@ -360,6 +425,40 @@ export async function getEntry(actor: Actor, entryId: string) {
     entry.reflection = null;
   }
   return entry;
+}
+
+/**
+ * The append-only audit trail for a single entry, oldest first. Same read
+ * authorization as the entry itself (student/own, assigned academic + company
+ * supervisor, coordinator/admin) — no new rule, reuses assertPlacementAccess.
+ */
+export async function getEntryTrail(actor: Actor, entryId: string) {
+  const loaded = await loadEntryWithOwnership(entryId);
+  assertPlacementAccess(actor, loaded.placement, 'read');
+
+  const events = await prisma.entryEvent.findMany({
+    where: { entryId },
+    orderBy: { createdAt: 'asc' },
+    include: { actor: { select: { firstName: true, lastName: true, role: true } } },
+  });
+
+  return events.map((e) => ({
+    id: e.id,
+    eventType: e.eventType,
+    actor: {
+      id: e.actorId,
+      name: `${e.actor.firstName} ${e.actor.lastName}`.trim(),
+      // Prefer the role recorded at event time; fall back to the actor's current role.
+      role: e.actorRole ?? e.actor.role,
+    },
+    fromStatus: e.fromStatus,
+    toStatus: e.toStatus,
+    comment: e.comment,
+    score: e.score == null ? null : Number(e.score),
+    before: e.before,
+    after: e.after,
+    createdAt: e.createdAt,
+  }));
 }
 
 export async function listEntries(actor: Actor, query: ListQuery) {

@@ -7,6 +7,7 @@ import {
   acknowledgeHandler,
   returnHandler,
   getEntryHandler,
+  getTrailHandler,
   listEntriesHandler,
 } from './entries.controller';
 
@@ -20,6 +21,7 @@ router.use(authenticate);
 router.get('/', asyncHandler(listEntriesHandler));
 router.post('/', asyncHandler(saveDraftHandler)); // create or update a draft
 router.get('/:id', asyncHandler(getEntryHandler));
+router.get('/:id/trail', asyncHandler(getTrailHandler)); // append-only audit trail
 router.post('/:id/submit', asyncHandler(submitHandler));
 router.post('/:id/acknowledge', asyncHandler(acknowledgeHandler));
 router.post('/:id/return', asyncHandler(returnHandler));

@@ -101,6 +101,15 @@ enum EntryStatus {
   acknowledged
 }
 
+// Audit-trail event categories on entry_event. `transitioned` is a state-machine
+// move; `created`/`edited` capture authoring; `scored` is a grade write.
+enum EntryEventType {
+  created
+  edited
+  transitioned
+  scored
+}
+
 // Placement finalization, separate from weekly review:
 //   active -> assessment_pending -> finalized
 enum FinalizationStatus {
@@ -587,16 +596,22 @@ model EntryReflection {
 // `score` is populated only when the weekly_binding_grades flag is on
 // (recorded on the acknowledge transition).
 model EntryEvent {
-  id         String       @id @default(uuid())
-  entryId    String       @map("entry_id")
-  entry      LogbookEntry @relation(fields: [entryId], references: [id])
-  actorId    String       @map("actor_id")
-  actor      User         @relation("EntryEventActor", fields: [actorId], references: [id])
-  fromStatus EntryStatus? @map("from_status")
-  toStatus   EntryStatus  @map("to_status")
+  id         String          @id @default(uuid())
+  entryId    String          @map("entry_id")
+  entry      LogbookEntry    @relation(fields: [entryId], references: [id])
+  actorId    String          @map("actor_id")
+  actor      User            @relation("EntryEventActor", fields: [actorId], references: [id])
+  actorRole  UserRole?       @map("actor_role")
+  eventType  EntryEventType? @map("event_type")
+  // to_status is null for non-transition events (created/edited/scored).
+  fromStatus EntryStatus?    @map("from_status")
+  toStatus   EntryStatus?    @map("to_status")
   comment    String?
-  score      Decimal?     @db.Decimal(5, 2)
-  createdAt  DateTime     @default(now()) @map("created_at")
+  score      Decimal?        @db.Decimal(5, 2)
+  // Field-level snapshots (e.g. activities/reflection/hours) for edit events.
+  before     Json?
+  after      Json?
+  createdAt  DateTime        @default(now()) @map("created_at")
 
   @@index([entryId])
   @@map("entry_event")

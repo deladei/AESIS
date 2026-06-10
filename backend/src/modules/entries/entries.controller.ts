@@ -13,6 +13,7 @@ import {
   acknowledgeEntry,
   returnEntry,
   getEntry,
+  getEntryTrail,
   listEntries,
 } from './entries.service';
 import type { Actor } from './entries.policy';
@@ -55,6 +56,12 @@ export async function getEntryHandler(req: Request, res: Response) {
   const { id } = idParam.parse(req.params);
   const entry = await getEntry(actorOf(req), id);
   return ok(res, entry);
+}
+
+export async function getTrailHandler(req: Request, res: Response) {
+  const { id } = idParam.parse(req.params);
+  const trail = await getEntryTrail(actorOf(req), id);
+  return ok(res, trail);
 }
 
 export async function listEntriesHandler(req: Request, res: Response) {

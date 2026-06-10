@@ -25,6 +25,7 @@ import {
   acknowledgeEntry,
   returnEntry,
   getEntry,
+  getEntryTrail,
   listEntries,
 } from '../entries.service';
 import { processOne } from '../enrichment.worker';
@@ -266,6 +267,77 @@ describe('append-only event log', () => {
     await expect(
       prisma.$executeRawUnsafe(`DELETE FROM entry_event WHERE id='${ev.id}'`),
     ).rejects.toThrow();
+  });
+});
+
+// ── Audit trail (actor role, event type, before/after) ────────
+describe('audit trail', () => {
+  itdb('records actor role + event type across the lifecycle, scoring on graded ack', async () => {
+    const wasBinding = env.WEEKLY_BINDING_GRADES;
+    (env as { WEEKLY_BINDING_GRADES: boolean }).WEEKLY_BINDING_GRADES = true;
+    try {
+      const draft = await saveDraft(studentA, { ...week(40), placementId: placementA });
+      await submitEntry(studentA, draft.id);
+      await acknowledgeEntry(supervisorA, draft.id, { score: 88 });
+
+      const ev = await eventsFor(draft.id);
+      expect(ev.map((e) => e.eventType)).toEqual(['created', 'transitioned', 'scored']);
+      // created + submit were the student; the graded ack was the supervisor.
+      expect(ev.map((e) => e.actorRole)).toEqual([
+        'student', 'student', 'academic_supervisor',
+      ]);
+      expect(Number(ev[2].score)).toBe(88);
+    } finally {
+      (env as { WEEKLY_BINDING_GRADES: boolean }).WEEKLY_BINDING_GRADES = wasBinding;
+    }
+  });
+
+  itdb('a plain draft edit emits an `edited` event with before/after snapshots', async () => {
+    await saveDraft(studentA, { ...week(41), placementId: placementA }); // genesis: 1 activity
+    const edited = await saveDraft(studentA, {
+      ...week(41),
+      placementId: placementA,
+      hoursLogged: 35,
+      activities: [
+        { activityDate: '2026-03-04', description: 'Wrote tests', competencyTags: ['qa'] },
+        { activityDate: '2026-03-05', description: 'Code review', competencyTags: ['review'] },
+      ],
+    });
+
+    const ev = await eventsFor(edited.id);
+    expect(ev.map((e) => e.eventType)).toEqual(['created', 'edited']);
+
+    const editEvent = ev[1];
+    expect(editEvent.fromStatus).toBeNull();
+    expect(editEvent.toStatus).toBeNull();
+    const before = editEvent.before as { activities: unknown[]; hoursLogged: number };
+    const after = editEvent.after as { activities: unknown[]; hoursLogged: number };
+    expect(before.activities).toHaveLength(1);
+    expect(after.activities).toHaveLength(2);
+    expect(before.hoursLogged).toBe(40);
+    expect(after.hoursLogged).toBe(35);
+  });
+
+  itdb('getEntryTrail returns the events oldest-first with actor name + role', async () => {
+    const draft = await saveDraft(studentA, { ...week(42), placementId: placementA });
+    await submitEntry(studentA, draft.id);
+    await returnEntry(supervisorA, draft.id, { comment: 'add detail' });
+
+    const trail = await getEntryTrail(studentA, draft.id);
+    expect(trail.map((t) => t.eventType)).toEqual(['created', 'transitioned', 'transitioned']);
+    expect(trail[0].actor.role).toBe('student');
+    expect(trail[0].actor.name).toContain('studentA');
+    expect(trail[2].actor.role).toBe('academic_supervisor');
+    expect(trail[2].comment).toBe('add detail');
+    // oldest-first ordering
+    for (let i = 1; i < trail.length; i++) {
+      expect(trail[i].createdAt.getTime()).toBeGreaterThanOrEqual(trail[i - 1].createdAt.getTime());
+    }
+  });
+
+  itdb('getEntryTrail denies a student reading another student’s trail (403)', async () => {
+    const draft = await saveDraft(studentA, { ...week(43), placementId: placementA });
+    await expect(getEntryTrail(studentB, draft.id)).rejects.toMatchObject({ statusCode: 403 });
   });
 });
 
