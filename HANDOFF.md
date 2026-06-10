@@ -1546,6 +1546,41 @@ User decisions: (1) build the **student entry editor first**; (2) **replace** th
 
 ---
 
+### Session 35 — 2026-06-10
+
+**Work done — BATCH 1 (supervision foundation), shipped as two feature-scoped PRs.**
+
+Plan approved before coding (per the batch spec): extend `entry_event` (not a new table); extend `/student/dashboard`; supervisor contact = email **+ phone**; PR1 first, commit+push each.
+
+**PR1 — `d9371e0` `feat(placements): dual-slot supervisor assignment + supervisors on intern dashboard`** (7 files, +223/−6)
+- `assignSupervisor` now handles both slots via `kind` ('academic'|'company', default 'academic' so the existing coordinator UI is unchanged). Each slot validates the user's role matches and writes an audit row capturing slot + from/to ids. (Committed the previously-stray `placements.schema.ts` `kind` field — its open question from S34 is now resolved/wired.)
+- `getStudentDashboard` returns `supervisors: { academic, company }` (name, email, **decrypted phone**, org). Phone decrypt is fail-safe (`safeDecryptPhone` → null on malformed/legacy value, never throws).
+- Frontend: "Your Supervisors" card on `StudentDashboard.tsx` (mailto/tel links, "Not yet assigned" zero state) + `useStudentDashboard` type.
+- No migration (FK columns already existed).
+
+**PR2 — `5ce039a` `feat(entries): full append-only audit trail on entry_event`** (6 files, +253/−13)
+- Migration `20260610120000_entry_event_audit_trail`: new `EntryEventType` enum; add `actor_role`, `event_type`, `before`, `after`; widen `to_status` → nullable; **trigger-safe backfill** (disable `entry_event_no_update`, backfill role + event_type, re-enable). Additive only.
+- Service: genesis→`created`, submit/return/reopen→`transitioned`, graded ack→`scored`; the previously-silent **plain draft edit now emits `edited`** with before/after snapshots (activities+reflection+hours).
+- New `GET /api/v1/entries/:id/trail` (oldest-first, actor name+role); authz reuses `assertPlacementAccess(...,'read')`.
+
+**Verification:** placements+student 39/39; entries+finalization 70/70; backend `tsc --noEmit` clean; frontend `tsc` + `vite build` clean. Local DBs use `db push` (no `_prisma_migrations`); migration applied to `aesis_logbook_test` via `prisma db execute` for the integration run.
+
+**Errors & fixes**
+
+| Error | Fix |
+|---|---|
+| `z.infer<assignSupervisorSchema>` made `kind` required → broke 2 pre-existing service tests that omit it | Changed the exported type to `z.input<>` (kind optional on the wire; schema defaults it; service treats absent as academic) |
+| New audit tests reused weeks 30–33 → collided with the enrichment block (acknowledged week locked) | Moved the new audit-trail tests to weeks 40–43 |
+| `npx jest` (full suite) **hangs** on this box (CPU frozen ~1:28, wall-clock 25 min+) — some unrelated integration suite blocks under `--runInBand` | Ran the relevant suites instead (`src/modules/entries src/modules/finalization` = 70/70, plus placements+student 39/39). **Full-suite total NOT re-confirmed this session.** |
+
+**Stopped here — next session should**
+1. **Confirm full-suite green / the authoritative test count** — the full `npx jest` run hung (not a failure of the new code; the changed modules all pass). Identify & fix the hanging suite, then update the running total (was 343/343 at S34).
+2. **`migrate deploy` on prod** picks up `20260610220000`-style migration automatically on the next Render deploy — watch that `prisma migrate deploy` applies `entry_event_audit_trail` cleanly against prod data (the backfill toggles the append-only trigger; needs table-owner privilege).
+3. **Eyeball on prod:** assign a company supervisor (`PATCH /placements/:id/supervisor` with `kind:'company'`), confirm both supervisors render on the student dashboard, and hit `GET /entries/:id/trail`.
+4. Optional follow-on (not in BATCH 1 scope): a frontend view for the entry trail; older open items from S34 still stand.
+
+---
+
 ## Handoff Entry Template
 
 ```markdown
