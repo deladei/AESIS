@@ -1513,6 +1513,39 @@ User decisions: (1) build the **student entry editor first**; (2) **replace** th
 
 ---
 
+### Session 34 — 2026-06-09
+
+**Work done — built the two remaining unbuilt frontend pieces of the new entries pipeline: the supervisor placement-finalization UI and the public company-attestation page. Frontend-only, additive; wired to the `modules/finalization` backend that's been live on prod since Session 30.** Committed + pushed: `HEAD` = `1fcada4`.
+
+| File | What |
+|---|---|
+| `frontend/src/hooks/useFinalization.ts` | **NEW.** `useRecordAssessment` (`POST /placements/:id/assessment`), `useFinalizePlacement` (`POST /placements/:id/finalize` with `waivers[]`), `useInviteAttestation` (`POST /placements/:id/attestation/invite` → `{token,url,expiresAt}`); plus public `useAttestationContext` (`GET /attest/:token`, `retry:false` — a 404/410 is definitive) + `useSubmitAttestation` (`POST /attest/:token`). |
+| `frontend/src/pages/supervisor/PlacementFinalization.tsx` | **NEW.** Mounted at `/supervisor/finalize` + `/admin/finalize`. Left rail = assigned placements (finalizationStatus pill); right = weekly-entry checklist (from `useEntries`), assessment form (grade + optional narrative), attestation invite (copyable magic link + expiry), finalize button. **State-aware on `finalizationStatus`**: `active` → must record assessment first; non-acknowledged weeks each require a waiver reason; `finalized` → fully locked/read-only. Finalize is gated client-side (`hasAssessment && allWaived`) to mirror the server's 409s. |
+| `frontend/src/pages/public/Attestation.tsx` | **NEW.** Standalone public page at `/attest/:token` — **no shell, no auth** (the single-use magic-link token IS the authorization). Renders placement context (student/org/dates), confirm checkbox + optional comment, submit. Distinct states for invalid (404) vs expired/used (410) vs post-submit thank-you. |
+| `frontend/src/hooks/usePlacements.ts` | Added `FinalizationStatus` type + `finalizationStatus?` and `student.id?` on `Placement`; **`useAssignedPlacements`** (`GET /placements/assigned`). No backend change needed — `finalizationStatus` already returns as a scalar on that endpoint. |
+| `frontend/src/router.tsx` | Public `/attest/:token` (outside `RequireAuth`); `/supervisor/finalize` + `/admin/finalize` inside the existing role guards. |
+| `frontend/src/components/layout/SupervisorShell.tsx` | New "Finalize" nav item (Award icon) between "Review Logbooks" and "AI Insights". |
+
+**Verification:** `npx tsc --noEmit` clean (frontend); `npx vite build` succeeds (1686 modules, +4 vs Session 33's 1682). No backend/TS-API changes, so backend stays **343/343** from Session 33 (not re-run — frontend-only change). Logic-verified only — **not yet eyeballed on live prod**.
+
+**Commit:** `1fcada4` (`feat(finalization): supervisor finalize UI + public company attestation page`) — 6 files, +733/−2 — on `origin/main`.
+
+**Errors & fixes**
+
+| Error | Fix |
+|---|---|
+| First `Edit` to `usePlacements.ts` failed ("File has not been read yet") | Had only `cat`-ed it via Bash; the editor requires a real `Read` first. Re-read, then edited. |
+
+**Left out deliberately — uncommitted in the tree (NOT mine):** `backend/src/modules/placements/placements.schema.ts` has a pre-existing uncommitted edit adding `kind: z.enum(['academic','company']).default('academic')` to `assignSupervisorSchema` (likely an undocumented prior session). It references a `'company'` supervisor slot whose **service-side handling I did not verify**, and it's unrelated to finalization — so per the feature-scoped-commit rule I did **not** stage it. Still sitting modified in the working tree; someone should confirm whether the controller/service actually consume `kind` before committing it.
+
+**Stopped here — next session should**
+1. **Eyeball the finalize→attest loop on prod** (logic-only, no string to grep): log in as an academic supervisor with an assigned placement → `/supervisor/finalize` → record a grade, generate an attestation link, open it in an incognito tab (`/attest/:token`), submit, then finalize. Watch Vercel auto-promotion (Session 32 caveat) — confirm `aesis.vercel.app` serves the new bundle (the manual dashboard promote may again be needed).
+2. **Decide on the stray `placements.schema.ts` `kind` change** (see above) — wire/commit it or discard it.
+3. Still-open older items: the `/logbook/entries/:id` deep-link route (ack/return notifications point at it, doesn't exist yet); Session 33's prod `npm run db:backfill-quality` via Render Shell; the broader Session-29 "Linkage & Functionality" end-to-end prod pass.
+4. **Note:** `COMPANY_ATTESTATION_REQUIRED_FOR_FINALIZATION` is still `false` by default, so attestation is invitable but **not** required to finalize. The finalize UI doesn't block on it — flip the env flag if regulation requires a confirmed attestation first.
+
+---
+
 ## Handoff Entry Template
 
 ```markdown
