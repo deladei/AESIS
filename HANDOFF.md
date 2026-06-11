@@ -1581,6 +1581,36 @@ Plan approved before coding (per the batch spec): extend `entry_event` (not a ne
 
 ---
 
+### Session 36 — 2026-06-11
+
+**Work done — fixed the hanging full `npx jest` run (S35 open item #1). Authoritative count recovered: full suite = 37 suites / 378 tests, all green, ~40 s, exit 0 (no hang).**
+
+Root cause was a single deterministic **open-handle leak**, not a flaky/slow integration suite:
+- `src/modules/ai/__tests__/ai.controller.test.ts` mounted the **real `aiRateLimiter`** (`middleware/rateLimiter.ts`), whose Redis-backed store calls `getRedis()` and issues a store command on the first request. Against the unreachable local Redis, ioredis (`enableOfflineQueue`, `maxRetriesPerRequest: null`, infinite `retryStrategy`) **reconnects forever** → permanent open handle + reconnect timers → Jest can't exit. All 7 tests *passed*, then the process wedged at the end — which is why a full `--runInBand` run appeared to "hang ~25 min". `app.test.ts` avoided this only because it already mocks `ai.router`.
+- **Fix (test-only, 1 file):** `jest.mock('../../../middleware/rateLimiter', () => ({ aiRateLimiter: pass-through }))` at the top of `ai.controller.test.ts` — no real Redis client is ever created. Mirrors the existing `app.test.ts` router-mock pattern. Isolated re-run: 7/7, exits clean.
+
+**How it was diagnosed:** isolation sweep (each suite, 70 s cap). Four suites tripped the cap — but only `ai.controller` was a *real* leak (reproduced EXIT 124 every time). `placements.service` (32/32), `student.service` (10/10), `authorize` (5/5) all **pass and exit cleanly** on a direct run — their sweep "hangs" were cold ts-jest compile + CPU contention crossing the 70 s cutoff, not handle leaks. Winston Console transport ruled out via a `process._getActiveHandles()` probe (exits clean).
+
+**Count math:** 343 (S34) → 378 now. The +35 = BATCH 1 audit-trail/dual-slot/finalization tests **plus** the uncommitted `cohort_min_weekly_hours` WIP in the tree (new `hours.test.ts`). The 378 reflects the **current working tree**, not a clean HEAD — see below.
+
+**Errors & fixes**
+
+| Error | Fix |
+|---|---|
+| Isolation sweep flagged 4 suites as hangs | Only 1 (`ai.controller`) was real; verified the other 3 pass+exit directly. Avoided a false "fix" on innocent suites. |
+
+**⚠️ Tree state — NOT mine, left untouched (per feature-scoped-commit rule):**
+- HEAD = `29a6b02` (`feat(entries): per-log status surface + reject terminal state`) — committed **after** the S35 docs commit but has **no HANDOFF entry**. Undocumented session; reconcile it.
+- Uncommitted WIP for a **`cohort_min_weekly_hours`** feature: `prisma/schema.prisma` (M), new migration `20260610140000_cohort_min_weekly_hours/`, new `shared/utils/hours.ts` + `hours.test.ts`, and `modules/student/student.service.ts` + its test (M). This is someone's in-progress feature — I did not stage or commit it.
+- **My only change:** `modules/ai/__tests__/ai.controller.test.ts` — committed feature-scoped as **`838cef5`** (`test(ai): stub rate limiter…`) and **pushed to `main` → prod** (test-only; no runtime/migration change). This docs entry committed separately.
+
+**Stopped here — next session should**
+1. ✅ DONE — hang fixed, `838cef5` committed + pushed, full suite **378/378**.
+2. **Reconcile the undocumented `cohort_min_weekly_hours` WIP + commit `29a6b02`** — finish/commit or document them; then the running total stabilizes. (Being looked at this session.)
+3. Remaining S35 items still open: watch `prisma migrate deploy` (`entry_event_audit_trail`) on the next Render deploy; eyeball company-supervisor assignment + `GET /entries/:id/trail` on prod.
+
+---
+
 ## Handoff Entry Template
 
 ```markdown
