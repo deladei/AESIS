@@ -5,6 +5,16 @@ jest.mock('../../../config/env', () => ({
   },
 }));
 
+// aiRouter mounts the real aiRateLimiter, whose Redis-backed store opens an
+// ioredis client (offline queue + infinite retryStrategy) on the first request.
+// Against an unreachable Redis that client reconnects forever, leaving an open
+// handle that prevents Jest from exiting (hangs the whole --runInBand run).
+// The limiter isn't under test here — stub it to a pass-through so no real
+// Redis connection is ever opened.
+jest.mock('../../../middleware/rateLimiter', () => ({
+  aiRateLimiter: (_req: unknown, _res: unknown, next: () => void) => next(),
+}));
+
 import request from 'supertest';
 import express from 'express';
 import jwt from 'jsonwebtoken';
