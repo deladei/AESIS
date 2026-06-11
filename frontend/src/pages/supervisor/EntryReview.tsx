@@ -1,10 +1,10 @@
 import { useState, useEffect, useMemo } from 'react';
 import {
   Loader2, CheckCircle2, RotateCcw, Sparkles, Clock, Inbox, AlertCircle,
-  CalendarDays, Tag, FileText,
+  CalendarDays, Tag, FileText, XCircle,
 } from 'lucide-react';
 import {
-  useReviewQueue, useEntry, useAcknowledgeEntry, useReturnEntry,
+  useReviewQueue, useEntry, useAcknowledgeEntry, useReturnEntry, useRejectEntry,
   type LogbookEntry, type EntryStatus,
 } from '@/hooks/useEntries';
 
@@ -40,7 +40,8 @@ interface AiSummary {
 }
 
 const STATUS_LABEL: Record<EntryStatus, string> = {
-  draft: 'Draft', submitted: 'Submitted', returned: 'Returned', acknowledged: 'Acknowledged',
+  draft: 'Draft', submitted: 'Submitted', returned: 'Returned',
+  acknowledged: 'Acknowledged', rejected: 'Rejected',
 };
 
 export default function EntryReview() {
@@ -64,7 +65,8 @@ export default function EntryReview() {
 
   const acknowledge = useAcknowledgeEntry();
   const returnEntry = useReturnEntry();
-  const busy = acknowledge.isPending || returnEntry.isPending;
+  const rejectEntry = useRejectEntry();
+  const busy = acknowledge.isPending || returnEntry.isPending || rejectEntry.isPending;
 
   // Reset the form when switching entries.
   useEffect(() => { setComment(''); setScore(''); setError(null); setDoneMsg(null); }, [selectedId]);
@@ -100,6 +102,16 @@ export default function EntryReview() {
     try {
       await returnEntry.mutateAsync({ entryId: selectedId, comment: comment.trim() });
       setDoneMsg('Week returned for revision. The student has been notified.');
+    } catch (e) { setError(apiErr(e)); }
+  };
+
+  const handleReject = async () => {
+    if (!selectedId) return;
+    if (!comment.trim()) { setError('A reason is required to reject a week.'); return; }
+    setError(null);
+    try {
+      await rejectEntry.mutateAsync({ entryId: selectedId, comment: comment.trim() });
+      setDoneMsg('Week rejected. The student has been notified.');
     } catch (e) { setError(apiErr(e)); }
   };
 
@@ -387,6 +399,15 @@ export default function EntryReview() {
                             ? <Loader2 className="h-4 w-4 animate-spin" />
                             : <RotateCcw className="h-4 w-4" />}
                           Return for revision
+                        </button>
+                        <button
+                          type="button" onClick={handleReject} disabled={busy}
+                          className="inline-flex w-full items-center justify-center gap-2 rounded-lg px-4 py-2.5 text-sm font-semibold text-[#b3261e] transition-colors hover:bg-[#fff1ee] disabled:cursor-not-allowed disabled:opacity-60"
+                        >
+                          {rejectEntry.isPending
+                            ? <Loader2 className="h-4 w-4 animate-spin" />
+                            : <XCircle className="h-4 w-4" />}
+                          Reject week
                         </button>
                       </div>
                     </>

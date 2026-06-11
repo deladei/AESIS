@@ -2,7 +2,7 @@ import { useState, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   Loader2, Plus, X, Trash2, CheckCircle2, Clock, RotateCcw, Lock,
-  Send, Calendar, AlertCircle, BookOpen,
+  Send, Calendar, AlertCircle, BookOpen, XCircle,
 } from 'lucide-react';
 import { useMyPlacements } from '@/hooks/usePlacements';
 import {
@@ -87,6 +87,7 @@ const STATUS_META: Record<EntryStatus | 'not_started', { label: string; cls: str
   submitted:    { label: 'Submitted',    cls: 'bg-[#e1e8ff] text-[#15157d] border-[#bcc8ff]', Icon: Send },
   returned:     { label: 'Returned',     cls: 'bg-[#ffe2dc] text-[#b3261e] border-[#f5b8ad]', Icon: RotateCcw },
   acknowledged: { label: 'Acknowledged', cls: 'bg-[#dcf5e6] text-[#1b7a45] border-[#aee3c2]', Icon: CheckCircle2 },
+  rejected:     { label: 'Rejected',     cls: 'bg-[#fde7e7] text-[#8a1c1c] border-[#f1b4b4]', Icon: XCircle },
 };
 
 function StatusPill({ status }: { status: EntryStatus | 'not_started' }) {
@@ -184,6 +185,12 @@ export default function LogbookEditor() {
   const returnComment = useMemo(() => {
     if (status !== 'returned' || !detail?.events) return null;
     const ev = [...detail.events].reverse().find((e) => e.toStatus === 'returned');
+    return ev?.comment ?? null;
+  }, [status, detail?.events]);
+
+  const rejectComment = useMemo(() => {
+    if (status !== 'rejected' || !detail?.events) return null;
+    const ev = [...detail.events].reverse().find((e) => e.toStatus === 'rejected');
     return ev?.comment ?? null;
   }, [status, detail?.events]);
 
@@ -377,6 +384,15 @@ export default function LogbookEditor() {
                 </div>
                 {returnComment && <p className="mt-1 pl-6 text-[#7a2018]">"{returnComment}"</p>}
                 <p className="mt-1 pl-6 text-[#7a2018]/80">Edit your entry below and resubmit.</p>
+              </div>
+            )}
+            {status === 'rejected' && (
+              <div className="rounded-lg border border-[#f1b4b4] bg-[#fde7e7] px-4 py-3 text-sm text-[#8a1c1c]">
+                <div className="flex items-center gap-2 font-semibold">
+                  <XCircle className="h-4 w-4" /> This week was rejected
+                </div>
+                {rejectComment && <p className="mt-1 pl-6 text-[#6f1717]">"{rejectComment}"</p>}
+                <p className="mt-1 pl-6 text-[#6f1717]/80">This week is closed and can no longer be edited.</p>
               </div>
             )}
 

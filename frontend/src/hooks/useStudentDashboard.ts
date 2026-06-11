@@ -8,6 +8,15 @@ export interface DashboardSupervisor {
   organization: string | null;
 }
 
+export interface StatusBreakdown {
+  approved:          number; // acknowledged
+  pendingReview:     number; // submitted
+  revisionRequested: number; // returned
+  rejected:          number; // rejected
+  inProgress:        number; // draft
+  total:             number;
+}
+
 export interface StudentDashboard {
   hasActivePlacement: boolean;
   week:               { current: number; total: number } | null;
@@ -15,6 +24,7 @@ export interface StudentDashboard {
   expectedLogs:       number;
   completionPct:      number;
   avgQualityScore:    number | null;
+  statusBreakdown:    StatusBreakdown;
   supervisors: {
     academic: DashboardSupervisor | null;
     company:  DashboardSupervisor | null;

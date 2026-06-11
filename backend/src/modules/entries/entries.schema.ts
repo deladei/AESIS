@@ -33,6 +33,11 @@ export const returnSchema = z.object({
   comment: z.string().trim().min(1).max(5000),
 });
 
+// Reject declines a week outright (terminal). A reason is required.
+export const rejectSchema = z.object({
+  comment: z.string().trim().min(1).max(5000),
+});
+
 export const acknowledgeSchema = z.object({
   comment: z.string().trim().max(5000).optional(),
   // Only honored when WEEKLY_BINDING_GRADES is on; required in that mode.
@@ -41,12 +46,13 @@ export const acknowledgeSchema = z.object({
 
 export const listQuerySchema = z.object({
   placementId: z.string().uuid().optional(),
-  status: z.enum(['draft', 'submitted', 'returned', 'acknowledged']).optional(),
+  status: z.enum(['draft', 'submitted', 'returned', 'acknowledged', 'rejected']).optional(),
   page: z.coerce.number().int().min(1).default(1),
   limit: z.coerce.number().int().min(1).max(100).default(24),
 });
 
 export type SaveDraftInput = z.infer<typeof saveDraftSchema>;
 export type ReturnInput = z.infer<typeof returnSchema>;
+export type RejectInput = z.infer<typeof rejectSchema>;
 export type AcknowledgeInput = z.infer<typeof acknowledgeSchema>;
 export type ListQuery = z.infer<typeof listQuerySchema>;

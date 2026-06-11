@@ -99,6 +99,7 @@ enum EntryStatus {
   submitted
   returned
   acknowledged
+  rejected
 }
 
 // Audit-trail event categories on entry_event. `transitioned` is a state-machine

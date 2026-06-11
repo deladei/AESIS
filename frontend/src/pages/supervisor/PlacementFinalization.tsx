@@ -41,9 +41,11 @@ const WEEK_PILL: Record<EntryStatus, string> = {
   submitted:    'bg-[#e1e8ff] text-[#15157d]',
   returned:     'bg-[#fff1ee] text-[#b3261e]',
   acknowledged: 'bg-[#dcf5e6] text-[#1b7a45]',
+  rejected:     'bg-[#fde7e7] text-[#8a1c1c]',
 };
 const WEEK_LABEL: Record<EntryStatus, string> = {
-  draft: 'Draft', submitted: 'Submitted', returned: 'Returned', acknowledged: 'Acknowledged',
+  draft: 'Draft', submitted: 'Submitted', returned: 'Returned',
+  acknowledged: 'Acknowledged', rejected: 'Rejected',
 };
 
 const apiErr = (e: unknown) =>

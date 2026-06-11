@@ -136,6 +136,8 @@ export default function StudentDashboard() {
   const expectedLogs  = stats?.expectedLogs ?? weekTotal;
   const pct          = stats?.completionPct ?? 0;
   const avgQuality   = stats?.avgQualityScore ?? null;
+  const breakdown    = stats?.statusBreakdown
+    ?? { approved: 0, pendingReview: 0, revisionRequested: 0, rejected: 0, inProgress: 0, total: 0 };
 
   // Flatten the latest supervisor feedback from each fetched submission
   const feedbackCards = [fb0.data, fb1.data, fb2.data]
@@ -192,16 +194,34 @@ export default function StudentDashboard() {
             </div>
           </div>
 
-          {/* Logs Submitted */}
-          <div className="flex items-center gap-6 rounded-xl bg-[#f3f3f7] p-8">
-            <div className="flex h-12 w-12 items-center justify-center rounded-full bg-white text-[#15157d]">
-              <NotebookPen className="h-6 w-6" />
-            </div>
-            <div>
-              <p className="text-sm font-medium text-[#424654]">Logs Submitted</p>
-              <p className="text-2xl font-extrabold text-[#191c1e]">
-                {logsSubmitted} {expectedLogs != null ? `/ ${expectedLogs}` : ''}
+          {/* Logbook status breakdown — driven by the entries state machine */}
+          <div className="col-span-1 rounded-xl bg-[#f3f3f7] p-8 md:col-span-2">
+            <div className="mb-4 flex items-center gap-3">
+              <div className="flex h-10 w-10 items-center justify-center rounded-full bg-white text-[#15157d]">
+                <NotebookPen className="h-5 w-5" />
+              </div>
+              <p className="text-sm font-medium text-[#424654]">
+                Logbook status
+                {expectedLogs != null && (
+                  <span className="ml-2 text-xs text-[#737785]">
+                    {logsSubmitted} of {expectedLogs} weeks logged
+                  </span>
+                )}
               </p>
+            </div>
+            <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
+              {([
+                { label: 'Approved',  value: breakdown.approved,          cls: 'bg-[#e9f9ef] text-[#1b7a45]' },
+                { label: 'In review', value: breakdown.pendingReview,     cls: 'bg-[#eef1ff] text-[#15157d]' },
+                { label: 'Revision',  value: breakdown.revisionRequested, cls: 'bg-[#fff4e0] text-[#9a6700]' },
+                { label: 'Rejected',  value: breakdown.rejected,          cls: 'bg-[#fde7e7] text-[#8a1c1c]' },
+                { label: 'In progress', value: breakdown.inProgress,      cls: 'bg-white text-[#424654]' },
+              ]).map((b) => (
+                <div key={b.label} className={`rounded-lg px-3 py-3 text-center ${b.cls}`}>
+                  <p className="text-2xl font-extrabold">{b.value}</p>
+                  <p className="mt-0.5 text-xs font-medium">{b.label}</p>
+                </div>
+              ))}
             </div>
           </div>
 

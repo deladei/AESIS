@@ -5,6 +5,32 @@ import { decryptPII } from '../../shared/utils/crypto';
 // Statuses that count as a submitted logbook for completion progress.
 const SUBMITTED_STATUSES = ['submitted', 'approved', 'under_review'];
 
+// Maps the entries state machine (the active weekly workflow) onto the
+// intern-facing status buckets. `draft` => in progress; there is no synthetic
+// bucket — `rejected` is a real terminal state (see entry.stateMachine.ts).
+type EntryStatusName = 'draft' | 'submitted' | 'returned' | 'acknowledged' | 'rejected';
+
+function statusBreakdownOf(entries: { status: EntryStatusName }[]) {
+  const breakdown = {
+    approved: 0,           // acknowledged
+    pendingReview: 0,      // submitted
+    revisionRequested: 0,  // returned
+    rejected: 0,           // rejected
+    inProgress: 0,         // draft
+    total: entries.length,
+  };
+  for (const e of entries) {
+    if (e.status === 'acknowledged') breakdown.approved++;
+    else if (e.status === 'submitted') breakdown.pendingReview++;
+    else if (e.status === 'returned') breakdown.revisionRequested++;
+    else if (e.status === 'rejected') breakdown.rejected++;
+    else breakdown.inProgress++;
+  }
+  return breakdown;
+}
+
+const EMPTY_BREAKDOWN = statusBreakdownOf([]);
+
 // Phone numbers are AES-256-GCM encrypted at rest; decryptPII throws on any
 // malformed/legacy-plaintext value, so never let it break the dashboard.
 function safeDecryptPhone(stored: string | null): string | null {
@@ -65,6 +91,8 @@ export async function getStudentDashboard(studentId: string) {
           analysis: { select: { qualityScore: true } },
         },
       },
+      // Active weekly workflow — drives the per-log status breakdown.
+      logbookEntries: { select: { status: true } },
     },
   });
 
@@ -80,6 +108,7 @@ export async function getStudentDashboard(studentId: string) {
       expectedLogs:       0,
       completionPct:      0,
       avgQualityScore:    null,
+      statusBreakdown:    EMPTY_BREAKDOWN,
       supervisors:        { academic: null, company: null },
     };
   }
@@ -106,6 +135,7 @@ export async function getStudentDashboard(studentId: string) {
     expectedLogs:    week.total,
     completionPct,
     avgQualityScore,                   // number (1 dp) within [0, 100], or null
+    statusBreakdown: statusBreakdownOf(placement.logbookEntries as { status: EntryStatusName }[]),
     supervisors: {
       // Academic supervisor is faculty — no host org. Company supervisor's org
       // is the placement's host company.

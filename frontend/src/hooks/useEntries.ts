@@ -2,7 +2,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { api } from '@/lib/api';
 
 // ── Types (mirror the new weekly-entry pipeline: modules/entries) ──
-export type EntryStatus = 'draft' | 'submitted' | 'returned' | 'acknowledged';
+export type EntryStatus = 'draft' | 'submitted' | 'returned' | 'acknowledged' | 'rejected';
 
 export interface EntryActivity {
   id?:            string;
@@ -153,6 +153,21 @@ export function useReturnEntry() {
   return useMutation({
     mutationFn: async ({ entryId, comment }: { entryId: string; comment: string }) => {
       const r = await api.post<{ data: LogbookEntry }>(`/entries/${entryId}/return`, { comment });
+      return r.data.data;
+    },
+    onSuccess: (entry) => {
+      qc.invalidateQueries({ queryKey: ['entries'] });
+      qc.invalidateQueries({ queryKey: ['entries', 'detail', entry.id] });
+    },
+  });
+}
+
+// Decline a week outright (terminal). Distinct from return, which invites a fix.
+export function useRejectEntry() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ entryId, comment }: { entryId: string; comment: string }) => {
+      const r = await api.post<{ data: LogbookEntry }>(`/entries/${entryId}/reject`, { comment });
       return r.data.data;
     },
     onSuccess: (entry) => {

@@ -3,9 +3,10 @@ import { AppError } from '../../middleware/errorHandler';
 // Weekly entry lifecycle:
 //   draft -> submitted -> acknowledged   (acknowledged is TERMINAL, LOCKS the week)
 //   submitted -> returned -> draft       (reopen increments version)
-export type EntryStatus = 'draft' | 'submitted' | 'returned' | 'acknowledged';
+//   submitted -> rejected                (TERMINAL — week declined, not a revision)
+export type EntryStatus = 'draft' | 'submitted' | 'returned' | 'acknowledged' | 'rejected';
 
-export type TransitionAction = 'submit' | 'acknowledge' | 'return' | 'reopen';
+export type TransitionAction = 'submit' | 'acknowledge' | 'return' | 'reopen' | 'reject';
 
 export type EntryRole =
   | 'student'
@@ -41,12 +42,20 @@ export const TRANSITIONS: Record<TransitionAction, TransitionDef> = {
   },
   // Student takes a returned entry back to draft to correct it (new version).
   reopen: { from: ['returned'], to: 'draft', roles: ['student'], bumpsVersion: true },
+  // Supervisor declines a week outright (distinct from `return`, which invites a revision).
+  reject: {
+    from: ['submitted'],
+    to: 'rejected',
+    roles: ['academic_supervisor'],
+    bumpsVersion: false,
+  },
 };
 
-export const TERMINAL_STATUS: EntryStatus = 'acknowledged';
+// Terminal states lock the week — no further transitions or content edits.
+export const TERMINAL_STATUSES: readonly EntryStatus[] = ['acknowledged', 'rejected'];
 
 export function isTerminal(status: EntryStatus): boolean {
-  return status === TERMINAL_STATUS;
+  return TERMINAL_STATUSES.includes(status);
 }
 
 /** Whether the entry contents (activities/reflection) may still be edited. */

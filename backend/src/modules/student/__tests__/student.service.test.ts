@@ -32,6 +32,7 @@ const makePlacement = (overrides: Record<string, unknown> = {}) => ({
     { submissionStatus: 'submitted', analysis: { qualityScore: '60' } },
     { submissionStatus: 'draft',     analysis: null },
   ],
+  logbookEntries: [],
   ...overrides,
 });
 
@@ -99,6 +100,35 @@ describe('getStudentDashboard', () => {
     expect(result.avgQualityScore).toBeNull();
     expect(result.logsSubmitted).toBe(0);
     expect(result.supervisors).toEqual({ academic: null, company: null });
+    expect(result.statusBreakdown).toEqual({
+      approved: 0, pendingReview: 0, revisionRequested: 0, rejected: 0, inProgress: 0, total: 0,
+    });
+  });
+
+  it('computes the per-status breakdown from the entries state machine', async () => {
+    (mp.placement.findMany as jest.Mock).mockResolvedValue([
+      makePlacement({
+        logbookEntries: [
+          { status: 'acknowledged' },
+          { status: 'acknowledged' },
+          { status: 'submitted' },
+          { status: 'returned' },
+          { status: 'rejected' },
+          { status: 'draft' },
+        ],
+      }),
+    ]);
+
+    const result = await getStudentDashboard('stu-1');
+
+    expect(result.statusBreakdown).toEqual({
+      approved: 2,           // acknowledged
+      pendingReview: 1,      // submitted
+      revisionRequested: 1,  // returned
+      rejected: 1,           // rejected
+      inProgress: 1,         // draft
+      total: 6,
+    });
   });
 
   it('surfaces both supervisors with org and a decrypted phone', async () => {
