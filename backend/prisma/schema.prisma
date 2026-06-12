@@ -181,6 +181,9 @@ model CohortConfig {
   reminderDayOfWeek        Int          @default(1) @map("reminder_day_of_week") // 1 = Monday
   reminderHour             Int          @default(8) @map("reminder_hour")
   totalWeeks               Int          @default(24) @map("total_weeks")
+  // Per-week minimum attendance hours. Drives the intern dashboard's cumulative
+  // hours target + shortfall flag. 0 = no minimum configured (never short).
+  minWeeklyHours           Int          @default(0) @map("min_weekly_hours")
   createdAt                DateTime     @default(now()) @map("created_at")
 
   @@unique([academicYearId])

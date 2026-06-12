@@ -103,6 +103,47 @@ describe('getStudentDashboard', () => {
     expect(result.statusBreakdown).toEqual({
       approved: 0, pendingReview: 0, revisionRequested: 0, rejected: 0, inProgress: 0, total: 0,
     });
+    expect(result.hours).toEqual({ logged: 0, expected: 0, perWeekMin: 0, shortfall: false });
+  });
+
+  it('sums attendance hours over submitted+ entries and flags a shortfall against the per-week minimum', async () => {
+    (mp.placement.findMany as jest.Mock).mockResolvedValue([
+      makePlacement({
+        // 40h/week minimum; dates win → 24 weeks → expected 960h.
+        academicYear: { cohortConfigs: [{ totalWeeks: 6, minWeeklyHours: 40 }] },
+        logbookEntries: [
+          { status: 'acknowledged', hoursLogged: '40' },    // counted
+          { status: 'submitted',    hoursLogged: '37.5' },   // counted (Decimal-as-string)
+          { status: 'rejected',     hoursLogged: '40' },     // counted — time was still worked
+          { status: 'returned',     hoursLogged: '40' },     // counted
+          { status: 'draft',        hoursLogged: '10' },     // EXCLUDED — not yet submitted
+          { status: 'submitted',    hoursLogged: null },     // null ignored, never concatenated
+        ],
+      }),
+    ]);
+
+    const result = await getStudentDashboard('stu-1');
+
+    // 40 + 37.5 + 40 + 40 = 157.5 (draft's 10 excluded; null ignored)
+    expect(result.hours).toEqual({
+      logged: 157.5,
+      expected: 960,   // 40/wk × 24 weeks
+      perWeekMin: 40,
+      shortfall: true,
+    });
+  });
+
+  it('never flags an hours shortfall when no per-week minimum is configured', async () => {
+    (mp.placement.findMany as jest.Mock).mockResolvedValue([
+      makePlacement({
+        academicYear: { cohortConfigs: [{ totalWeeks: 6, minWeeklyHours: 0 }] },
+        logbookEntries: [{ status: 'submitted', hoursLogged: '12' }],
+      }),
+    ]);
+
+    const result = await getStudentDashboard('stu-1');
+
+    expect(result.hours).toEqual({ logged: 12, expected: 0, perWeekMin: 0, shortfall: false });
   });
 
   it('computes the per-status breakdown from the entries state machine', async () => {

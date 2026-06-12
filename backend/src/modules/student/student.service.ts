@@ -1,9 +1,14 @@
 import { prisma } from '../../config/prisma';
 import { meanQualityScore, weekProgress } from '../../shared/utils/quality';
+import { hoursSummary } from '../../shared/utils/hours';
 import { decryptPII } from '../../shared/utils/crypto';
 
 // Statuses that count as a submitted logbook for completion progress.
 const SUBMITTED_STATUSES = ['submitted', 'approved', 'under_review'];
+
+// Entry states whose logged hours count toward attendance. A `draft` has not
+// logged attendance yet; every other (submitted+) state has.
+const HOURS_LOGGED_STATUSES = ['submitted', 'returned', 'acknowledged', 'rejected'];
 
 // Maps the entries state machine (the active weekly workflow) onto the
 // intern-facing status buckets. `draft` => in progress; there is no synthetic
@@ -30,6 +35,7 @@ function statusBreakdownOf(entries: { status: EntryStatusName }[]) {
 }
 
 const EMPTY_BREAKDOWN = statusBreakdownOf([]);
+const EMPTY_HOURS = { logged: 0, expected: 0, perWeekMin: 0, shortfall: false };
 
 // Phone numbers are AES-256-GCM encrypted at rest; decryptPII throws on any
 // malformed/legacy-plaintext value, so never let it break the dashboard.
@@ -76,7 +82,9 @@ export async function getStudentDashboard(studentId: string) {
       endDate:         true,
       placementStatus: true,
       academicYear: {
-        select: { cohortConfigs: { select: { totalWeeks: true }, take: 1 } },
+        select: {
+          cohortConfigs: { select: { totalWeeks: true, minWeeklyHours: true }, take: 1 },
+        },
       },
       company: { select: { name: true } },
       academicSupervisor: {
@@ -91,8 +99,8 @@ export async function getStudentDashboard(studentId: string) {
           analysis: { select: { qualityScore: true } },
         },
       },
-      // Active weekly workflow — drives the per-log status breakdown.
-      logbookEntries: { select: { status: true } },
+      // Active weekly workflow — drives the per-log status breakdown + hours.
+      logbookEntries: { select: { status: true, hoursLogged: true } },
     },
   });
 
@@ -109,6 +117,7 @@ export async function getStudentDashboard(studentId: string) {
       completionPct:      0,
       avgQualityScore:    null,
       statusBreakdown:    EMPTY_BREAKDOWN,
+      hours:              EMPTY_HOURS,
       supervisors:        { academic: null, company: null },
     };
   }
@@ -128,6 +137,16 @@ export async function getStudentDashboard(studentId: string) {
     ? Math.min(100, Math.round((submitted.length / week.total) * 100))
     : 0;
 
+  // Cumulative attendance: sum hoursLogged over submitted+ entries, against the
+  // cohort's per-week minimum × the date-derived week count.
+  const hours = hoursSummary({
+    rawLoggedHours: placement.logbookEntries
+      .filter(e => HOURS_LOGGED_STATUSES.includes(e.status))
+      .map(e => e.hoursLogged),
+    perWeekMin: placement.academicYear?.cohortConfigs?.[0]?.minWeeklyHours ?? 0,
+    weeks: week.total,
+  });
+
   return {
     hasActivePlacement: placement.placementStatus === 'active',
     week,                              // { current, total }
@@ -136,6 +155,7 @@ export async function getStudentDashboard(studentId: string) {
     completionPct,
     avgQualityScore,                   // number (1 dp) within [0, 100], or null
     statusBreakdown: statusBreakdownOf(placement.logbookEntries as { status: EntryStatusName }[]),
+    hours,                             // { logged, expected, perWeekMin, shortfall }
     supervisors: {
       // Academic supervisor is faculty — no host org. Company supervisor's org
       // is the placement's host company.
