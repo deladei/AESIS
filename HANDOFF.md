@@ -1728,6 +1728,36 @@ COMMIT;  -- or ROLLBACK to abort
 
 ---
 
+### Session 40 — 2026-06-12 — Coordinator GROUP A: data correctness (3 PRs, prod)
+
+**Batch "Coordinator" GROUP A — data correctness.** Plan proposed & approved (relabel Host Companies; rename junk supervisor; 3-PR split). Implemented as 3 feature-scoped PRs, each green + auto-pushed to prod. Full suite **416/416** (39 suites, `--runInBand`); `tsc` clean BE+FE; `vite build` ok.
+
+**PR A-1 `b32e442` — `fix(coordinator): validated Avg Performance + honest Host Companies card`** (items 2 & 3)
+- Avg Performance was a **raw `prisma.logbookAnalysis.aggregate({_avg})`** — corrupt/out-of-range scores could blow it past 100. Now averaged via `meanQualityScore()` (drops null + out-of-range, clamps [0,100]); null → "—". Dashboard bar binds the same value + clamps width.
+- Renamed card "Partner Companies" → **"Host Companies" / "Currently hosting interns"** so the label matches the number (distinct companies hosting an active placement). API field `partnerCompanies` → `hostCompanies`.
+- Test: out-of-range score (`151565326582`, `-5`) excluded so avgPerformance stays in [0,100].
+
+**PR A-2 `991d260` — `feat(coordinator): gate AI Pulse Matching behind a feature flag (off in prod)`** (item 4)
+- New backend flag `AI_PULSE_MATCHING` (`envBool`, default **false**), exposed to the client via the dashboard response `featureFlags`. First flag→frontend channel.
+- Panel: when off, marked **"Roadmap"**, figures labelled illustrative, Invite buttons **disabled with a tooltip** ("On the roadmap — not yet available"), wrapped in a `<span title>` so the tooltip shows on the disabled control. No live-looking dead buttons. Enables when flag on.
+- Test: `featureFlags.aiPulseMatching` defaults false.
+
+**PR A-3 `0ffef8e` — `fix(coordinator): supervisor display shows real name or explicit "Unassigned"`** (item 1)
+- Coordinator dashboard + Oversight now fall back to an explicit **"Unassigned"** chip on null OR blank/whitespace name (Oversight previously showed a bare "—"; null-only guard let empty names render blank). Backend trims composed names.
+- **Prod data fix:** the all-caps seed-junk supervisor name **"THEO WALLS"** on the real `theowalls@gmail.com` account was proper-cased to **"Theo Walls"** via `psql` over the Render **External DB URL** (no schema change; login/identity unchanged).
+
+**Notes / gotchas**
+- **No Render Shell on free tier.** To run prod SQL, use the Postgres **External Connection URL** (free tier exposes it) + local `psql` (this box has psql 18 + outbound net). Don't wrap in `BEGIN`/`COMMIT` over a flaky session — a single autocommitting statement is safer (an earlier renumber "ran" but never committed).
+- **Full-suite flake:** under heavy concurrent load this box reported ~14 spurious failures in one DB-integration suite (5s connect-hook timeout). Re-run isolated/calm → 416/416. Not a regression.
+- **AESIS auto-push standing rule** in effect — each PR pushed to `main` → prod on green.
+
+**Stopped here — next session should**
+1. **Eyeball coordinator dashboard on prod** once Vercel redeploys: Avg Performance within range + bar matches; "Host Companies" label; AI Pulse Matching shows "Roadmap" + disabled tooltip buttons; supervisor column shows "Theo Walls" / "Unassigned" (never caps junk).
+2. **GROUP B–D not yet provided** — user said "first group"; await the next groups' specs before implementing.
+3. The legacy `getCoordinatorDashboard` weekly-engagement chart still reads `logbook_submission` (from S39) — unrelated to Group A, still pending full entries migration.
+
+---
+
 ## Handoff Entry Template
 
 ```markdown
