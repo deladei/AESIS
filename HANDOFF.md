@@ -1626,6 +1626,38 @@ Root cause was a single deterministic **open-handle leak**, not a flaky/slow int
 
 ---
 
+### Session 37 — 2026-06-11 — BATCH 4: Oversight + closeout (3 PRs, all pushed to prod)
+
+**Plan approved, then implemented autonomously as 3 feature-scoped PRs, each committed + pushed to `main` → prod.** Full backend suite ended at **414/414** (39 suites, `--runInBand`, ~31 s, no hang); `tsc` clean BE+FE; `vite build` ok throughout.
+
+**PR1 `81f5ef9` — `feat(coordinator): cross-cohort oversight view with at-risk flags`** (read-only, coordinator+admin)
+- `GET /coordinator/oversight`: every active intern + 3 computed flags — `overdueLogs` (draft entries whose period ended), `lowAvgScore` (validated mean quality <50; null→"—", never 0; uses `quality.ts`), `noSupervisorFeedback` (no written feedback AND no acknowledged week) — plus `lastActivityAt`; at-risk sorts first. +7 service tests.
+- FE: `/coordinator/oversight` table (risk pills, avg score, last activity, flag chips, at-risk-only filter); new "Oversight" nav.
+
+**PR2 `b67ff5a` — `feat(objectives): learning objectives + entry mapping (AI-suggested, human-confirmed)`**
+- Migration `20260611120000_learning_objectives` (additive): enums `ObjectiveLinkStatus`/`ObjectiveLinkSource` + tables `learning_objective`, `entry_objective` (unique (entry,objective)).
+- New `modules/objectives`: define/list objectives (supervisor own/admin define; placement-read to list); student maps own entries (confirmed/human); `…/objectives/suggest` (admin/system → suggested/ai, never overrides); `…/confirm` (student own/admin). **HARD RULE: only `confirmed` links count** (suggested excluded everywhere incl. dashboard); foreign objective ids rejected (400) before any write. `getStudentDashboard` returns `objectives`. +16 tests.
+- FE: `useObjectives` hook; `ObjectivesPanel` (define+progress) on supervisor finalization page; `EntryObjectives` chips on the logbook editor (map + confirm AI suggestions, visually distinct); objectives card on the intern dashboard.
+
+**PR3 `b2ab243` — `feat(finalization): end-of-placement evaluation form + gated final-assessment view`**
+- Migration `20260611130000_assessment_evaluation` (additive): `placement_assessment.evaluation` JSONB.
+- `assessmentSchema` gains structured `evaluation` { criteria:[{criterion, rating **1–5 strictly validated**, comment?}], recommendation? } — out-of-range rejected (400), never persisted; still blocked once finalized. New `GET /placements/:id/final-assessment` closeout package; **visibility gate**: student/company-supervisor see it ONLY once finalized; academic supervisor(own)/coordinator/admin see in-progress. +9 tests.
+- FE: supervisor evaluation criteria editor on the assessment form; student read-only `/student/final-assessment` page (locked until finalized) + nav; `useFinalAssessment` (`retry:false`).
+
+**Errors & fixes**
+
+| Error | Fix |
+|---|---|
+| Full suite: 8 `entries.integration` finalization tests failed after PR3 | Test DB `aesis_logbook_test` lacked the new `evaluation` column (+ objectives tables). Applied both new migrations via `prisma db execute --file … ` against the test DB (same pattern as S35). Re-ran → 414/414. |
+| `usePlacements` import accidentally split when inserting an import in `PlacementFinalization.tsx` | Removed the dangling empty `import {} from '@/hooks/usePlacements'`. |
+
+**Stopped here — next session should**
+1. **Watch `prisma migrate deploy` on the next Render deploy** applies BOTH new migrations cleanly against prod (`learning_objective`/`entry_objective` tables with FKs to placements/users/logbook_entry; `placement_assessment.evaluation` column). All additive.
+2. **Eyeball on prod:** coordinator Oversight flags; supervisor defines an objective + records an evaluation; student maps an entry→objective and confirms an AI suggestion; finalize a placement → student sees the Final Assessment page unlock.
+3. The AI objective-suggestion path (`/entries/:id/objectives/suggest`) is admin/system-only and **not yet wired into the FastAPI enrichment worker** — wire it there when an objective-tagging model exists (it's inert/safe until then).
+
+---
+
 ## Handoff Entry Template
 
 ```markdown
