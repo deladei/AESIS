@@ -5,7 +5,7 @@ import { useUnreadCount } from '@/hooks/useNotifications';
 import { MobileNav } from './MobileNav';
 import {
   LayoutDashboard, ClipboardList, UserCheck, Sparkles, Settings,
-  Search, Bell, HelpCircle, GraduationCap, LogOut, Plus,
+  Search, Bell, HelpCircle, GraduationCap, LogOut, Plus, ShieldAlert,
 } from 'lucide-react';
 
 interface NavItem {
@@ -18,6 +18,7 @@ interface NavItem {
 // dashboard so the chrome stays consistent across coordinator views.
 const navItems: NavItem[] = [
   { label: 'Intern Overview', href: '/coordinator/dashboard',   icon: LayoutDashboard },
+  { label: 'Oversight',       href: '/coordinator/oversight',   icon: ShieldAlert },
   { label: 'Placements',      href: '/coordinator/placements',  icon: ClipboardList },
   { label: 'Assignments',     href: '/coordinator/assignments', icon: UserCheck },
   { label: 'AI Insights',     href: '/ai-insights',             icon: Sparkles },

@@ -36,6 +36,11 @@ export async function supervisors(_req: Request, res: Response) {
   ok(res, data);
 }
 
+export async function oversight(_req: Request, res: Response) {
+  const data = await service.getOversight();
+  ok(res, data);
+}
+
 export async function cohortConfig(_req: Request, res: Response) {
   const data = await service.getActiveCohortConfig();
   ok(res, data);

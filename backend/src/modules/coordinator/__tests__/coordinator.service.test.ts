@@ -30,6 +30,7 @@ import {
   getRecentActivity,
   getActiveCohortConfig,
   updateActiveCohortConfig,
+  getOversight,
 } from '../coordinator.service';
 
 const mp = prisma as jest.Mocked<typeof prisma>;
@@ -303,6 +304,133 @@ describe('getRecentActivity', () => {
     const result = await getRecentActivity();
 
     expect(result[0].summary).toBe('Exported data');
+  });
+});
+
+// ── getOversight ──────────────────────────────────────────────
+
+describe('getOversight', () => {
+  beforeEach(() => jest.clearAllMocks());
+
+  const NOW = new Date('2026-06-11T00:00:00Z');
+  const PAST = new Date('2026-05-01T00:00:00Z'); // period already ended
+  const FUTURE = new Date('2026-12-01T00:00:00Z'); // period not yet ended
+
+  function placement(over: Record<string, unknown> = {}) {
+    return {
+      id: 'p-1',
+      student: { id: 's-1', firstName: 'Kwame', lastName: 'Mensah', email: 'k@cs.edu', programme: { name: 'CS' } },
+      academicSupervisor: { id: 'sup-1', firstName: 'Ama', lastName: 'Owusu' },
+      riskScores: [{ riskTier: 'low' }],
+      logbookEntries: [],
+      logbookSubmissions: [],
+      ...over,
+    };
+  }
+
+  it('flags overdue draft logs whose period has ended (not future ones)', async () => {
+    (mp.placement.findMany as jest.Mock).mockResolvedValue([
+      placement({
+        logbookEntries: [
+          { status: 'draft',        periodEnd: PAST,   submittedAt: null, updatedAt: PAST },
+          { status: 'draft',        periodEnd: FUTURE, submittedAt: null, updatedAt: NOW },  // not overdue
+          { status: 'acknowledged', periodEnd: PAST,   submittedAt: PAST, updatedAt: PAST },  // submitted, not overdue
+        ],
+        logbookSubmissions: [{ submittedAt: PAST, analysis: { qualityScore: '80' }, feedback: [{ submittedAt: PAST }] }],
+      }),
+    ]);
+
+    const { rows, summary } = await getOversight(NOW);
+
+    expect(rows[0].flags.overdueLogs).toBe(1);
+    expect(rows[0].atRisk).toBe(true);
+    expect(summary).toEqual({ total: 1, atRisk: 1 });
+  });
+
+  it('flags a low validated average score and excludes out-of-range/null from the mean', async () => {
+    (mp.placement.findMany as jest.Mock).mockResolvedValue([
+      placement({
+        logbookEntries: [{ status: 'acknowledged', periodEnd: PAST, submittedAt: PAST, updatedAt: PAST }],
+        logbookSubmissions: [
+          { submittedAt: PAST, analysis: { qualityScore: '40' },  feedback: [{ submittedAt: PAST }] },
+          { submittedAt: PAST, analysis: { qualityScore: '999' }, feedback: [] }, // out of range — excluded
+          { submittedAt: PAST, analysis: { qualityScore: null },  feedback: [] }, // null — excluded
+        ],
+      }),
+    ]);
+
+    const { rows } = await getOversight(NOW);
+
+    expect(rows[0].avgQualityScore).toBe(40);        // only the valid 40 counts
+    expect(rows[0].flags.lowAvgScore).toBe(true);
+    expect(rows[0].atRisk).toBe(true);
+  });
+
+  it('reports avgQualityScore = null (not 0) when nothing is scorable, and does not flag low', async () => {
+    (mp.placement.findMany as jest.Mock).mockResolvedValue([
+      placement({
+        logbookEntries: [{ status: 'acknowledged', periodEnd: PAST, submittedAt: PAST, updatedAt: PAST }],
+        logbookSubmissions: [{ submittedAt: PAST, analysis: { qualityScore: null }, feedback: [{ submittedAt: PAST }] }],
+      }),
+    ]);
+
+    const { rows } = await getOversight(NOW);
+
+    expect(rows[0].avgQualityScore).toBeNull();
+    expect(rows[0].flags.lowAvgScore).toBe(false);
+  });
+
+  it('flags no supervisor feedback when there is neither written feedback nor an acknowledged week', async () => {
+    (mp.placement.findMany as jest.Mock).mockResolvedValue([
+      placement({
+        logbookEntries: [{ status: 'submitted', periodEnd: FUTURE, submittedAt: PAST, updatedAt: PAST }],
+        logbookSubmissions: [{ submittedAt: PAST, analysis: { qualityScore: '90' }, feedback: [] }],
+      }),
+    ]);
+
+    const { rows } = await getOversight(NOW);
+
+    expect(rows[0].flags.noSupervisorFeedback).toBe(true);
+    expect(rows[0].atRisk).toBe(true);
+  });
+
+  it('a healthy intern has no flags, a computed average, and a last-activity timestamp', async () => {
+    (mp.placement.findMany as jest.Mock).mockResolvedValue([
+      placement({
+        logbookEntries: [{ status: 'acknowledged', periodEnd: PAST, submittedAt: PAST, updatedAt: PAST }],
+        logbookSubmissions: [{ submittedAt: PAST, analysis: { qualityScore: '85' }, feedback: [{ submittedAt: PAST }] }],
+      }),
+    ]);
+
+    const { rows } = await getOversight(NOW);
+
+    expect(rows[0]).toMatchObject({
+      atRisk: false,
+      avgQualityScore: 85,
+      flags: { overdueLogs: 0, lowAvgScore: false, noSupervisorFeedback: false },
+      supervisor: { id: 'sup-1', name: 'Ama Owusu' },
+      department: 'CS',
+    });
+    expect(rows[0].lastActivityAt).toBe(PAST.toISOString());
+  });
+
+  it('sorts at-risk interns ahead of healthy ones', async () => {
+    (mp.placement.findMany as jest.Mock).mockResolvedValue([
+      placement({
+        id: 'healthy',
+        logbookEntries: [{ status: 'acknowledged', periodEnd: PAST, submittedAt: PAST, updatedAt: PAST }],
+        logbookSubmissions: [{ submittedAt: PAST, analysis: { qualityScore: '85' }, feedback: [{ submittedAt: PAST }] }],
+      }),
+      placement({
+        id: 'risky',
+        logbookEntries: [{ status: 'draft', periodEnd: PAST, submittedAt: null, updatedAt: PAST }],
+        logbookSubmissions: [],
+      }),
+    ]);
+
+    const { rows } = await getOversight(NOW);
+
+    expect(rows.map((r) => r.placementId)).toEqual(['risky', 'healthy']);
   });
 });
 

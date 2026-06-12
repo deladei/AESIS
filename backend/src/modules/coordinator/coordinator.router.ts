@@ -21,6 +21,9 @@ router.get('/activity', asyncHandler(ctrl.activity));
 // GET /api/v1/coordinator/supervisors
 router.get('/supervisors', asyncHandler(ctrl.supervisors));
 
+// GET /api/v1/coordinator/oversight — cross-cohort at-risk monitoring
+router.get('/oversight', asyncHandler(ctrl.oversight));
+
 // GET  /api/v1/coordinator/cohort-config — active year's config
 // PATCH /api/v1/coordinator/cohort-config — set per-week minimum hours
 router.get('/cohort-config', asyncHandler(ctrl.cohortConfig));

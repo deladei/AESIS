@@ -1,6 +1,7 @@
 import { prisma } from '../../config/prisma';
 import { paginate, buildMeta } from '../../shared/utils/pagination';
 import { AppError } from '../../middleware/errorHandler';
+import { meanQualityScore } from '../../shared/utils/quality';
 import type { RiskTier } from '@prisma/client';
 
 // ── Dashboard ─────────────────────────────────────────────────
@@ -232,6 +233,94 @@ export async function listSupervisors() {
     select:  { id: true, firstName: true, lastName: true, email: true },
     orderBy: [{ firstName: 'asc' }, { lastName: 'asc' }],
   });
+}
+
+// ── Oversight view (cross-cohort at-risk monitoring) ──────────
+// Read-only across ALL active placements (coordinator/admin). Computes three
+// at-risk flags per intern from real data — never a raw/ambiguous value:
+//   • overdueLogs        — draft weekly entries whose period has already ended.
+//   • lowAvgScore        — validated mean logbook quality score below threshold.
+//   • noSupervisorFeedback — no written feedback AND no acknowledged week.
+
+const LOW_AVG_THRESHOLD = 50;
+
+export async function getOversight(now: Date = new Date()) {
+  const placements = await prisma.placement.findMany({
+    where:   { placementStatus: 'active' },
+    orderBy: { createdAt: 'desc' },
+    select: {
+      id:      true,
+      student: {
+        select: {
+          id: true, firstName: true, lastName: true, email: true,
+          programme: { select: { name: true } },
+        },
+      },
+      academicSupervisor: { select: { id: true, firstName: true, lastName: true } },
+      riskScores: { orderBy: { computedAt: 'desc' }, take: 1, select: { riskTier: true } },
+      // Active weekly pipeline — drives overdue + activity.
+      logbookEntries: { select: { status: true, periodEnd: true, submittedAt: true, updatedAt: true } },
+      // Legacy submissions carry the quality scores + written feedback.
+      logbookSubmissions: {
+        select: {
+          submittedAt: true,
+          analysis:    { select: { qualityScore: true } },
+          feedback:    { select: { submittedAt: true } },
+        },
+      },
+    },
+  });
+
+  const rows = placements.map((p) => {
+    const overdueLogs = p.logbookEntries.filter(
+      (e) => e.status === 'draft' && e.periodEnd != null && new Date(e.periodEnd) < now,
+    ).length;
+
+    // Validated numeric mean — null (→ "—") when nothing scorable, never 0.
+    const avgQualityScore = meanQualityScore(
+      p.logbookSubmissions.map((s) => s.analysis?.qualityScore ?? null),
+    );
+    const lowAvgScore = avgQualityScore !== null && avgQualityScore < LOW_AVG_THRESHOLD;
+
+    const feedbackCount     = p.logbookSubmissions.reduce((n, s) => n + s.feedback.length, 0);
+    const acknowledgedCount = p.logbookEntries.filter((e) => e.status === 'acknowledged').length;
+    const noSupervisorFeedback = feedbackCount === 0 && acknowledgedCount === 0;
+
+    // Latest student/supervisor action across both pipelines.
+    const stamps: number[] = [];
+    for (const e of p.logbookEntries) {
+      if (e.submittedAt) stamps.push(new Date(e.submittedAt).getTime());
+      if (e.updatedAt)   stamps.push(new Date(e.updatedAt).getTime());
+    }
+    for (const s of p.logbookSubmissions) {
+      if (s.submittedAt) stamps.push(new Date(s.submittedAt).getTime());
+      for (const f of s.feedback) if (f.submittedAt) stamps.push(new Date(f.submittedAt).getTime());
+    }
+    const lastActivityAt = stamps.length ? new Date(Math.max(...stamps)).toISOString() : null;
+
+    const sup = p.academicSupervisor;
+    const atRisk = overdueLogs > 0 || lowAvgScore || noSupervisorFeedback;
+
+    return {
+      placementId: p.id,
+      student: {
+        id: p.student.id, firstName: p.student.firstName,
+        lastName: p.student.lastName, email: p.student.email,
+      },
+      department:      p.student.programme?.name ?? null,
+      supervisor:      sup ? { id: sup.id, name: `${sup.firstName} ${sup.lastName}` } : null,
+      riskTier:        p.riskScores[0]?.riskTier ?? null,
+      avgQualityScore, // number (1 dp) within [0,100], or null
+      lastActivityAt,  // ISO string, or null
+      flags:           { overdueLogs, lowAvgScore, noSupervisorFeedback },
+      atRisk,
+    };
+  });
+
+  // At-risk interns surface first.
+  rows.sort((a, b) => Number(b.atRisk) - Number(a.atRisk));
+
+  return { rows, summary: { total: rows.length, atRisk: rows.filter((r) => r.atRisk).length } };
 }
 
 // ── Cohort configuration ──────────────────────────────────────
