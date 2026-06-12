@@ -1606,7 +1606,7 @@ Root cause was a single deterministic **open-handle leak**, not a flaky/slow int
 
 **Stopped here — next session should**
 1. ✅ DONE — hang fixed, `838cef5` committed + pushed, full suite **378/378**.
-2. **Reconcile the undocumented `cohort_min_weekly_hours` WIP + commit `29a6b02`** — finish/commit or document them; then the running total stabilizes. (Being looked at this session.)
+2. ✅ DONE this session — **`29a6b02`** (reject + status surface, your prior commit) was pushed to prod alongside the hang fix; its additive `rejected` enum migration applies on the next Render `migrate deploy`. The **`cohort_min_weekly_hours` WIP** was committed feature-scoped as **`c45c1b4`** (`feat(student): cumulative attendance hours…`, backend-only, 24/24, additive `min_weekly_hours` migration default 0) — **committed but intentionally NOT pushed**: held until the **frontend dashboard hours/shortfall tile** is built, so the feature deploys as one coherent change. Next session: build that tile, then push BE+FE together (this is the only unpushed local commit). The API already returns `dashboard.hours = { logged, expected, perWeekMin, shortfall }`.
 3. Remaining S35 items still open: watch `prisma migrate deploy` (`entry_event_audit_trail`) on the next Render deploy; eyeball company-supervisor assignment + `GET /entries/:id/trail` on prod.
 
 ---
