@@ -3,7 +3,9 @@ import { env } from '../../config/env';
 import { paginate, buildMeta } from '../../shared/utils/pagination';
 import { AppError } from '../../middleware/errorHandler';
 import { meanQualityScore, SYSTEM_MAX_WEEKS } from '../../shared/utils/quality';
-import { Prisma, type RiskTier } from '@prisma/client';
+import { createNotification } from '../notifications/notifications.service';
+import { emitToUser } from '../../shared/utils/socketEmitter';
+import { Prisma, type RiskTier, type NotificationType } from '@prisma/client';
 
 // ── Dashboard ─────────────────────────────────────────────────
 
@@ -260,6 +262,48 @@ export async function listCohorts() {
     select:  { id: true, label: true, isActive: true },
   });
   return rows;
+}
+
+// ── Intern actions (row ⋮ menu) ───────────────────────────────
+
+/**
+ * Send a notification to a placement's student and push it live. Shared by the
+ * "message" and "send reminder" actions. (A notification is its own record;
+ * these aren't entry state/score changes, so no AuditAction row is written.)
+ */
+async function notifyStudent(
+  placementId: string,
+  opts: { type: NotificationType; title: string; body: string; link?: string },
+) {
+  const placement = await prisma.placement.findUnique({
+    where: { id: placementId }, select: { studentId: true },
+  });
+  if (!placement) throw new AppError(404, 'Placement not found');
+
+  const notif = await createNotification({
+    userId: placement.studentId, type: opts.type, title: opts.title, body: opts.body, link: opts.link,
+  });
+  emitToUser(placement.studentId, 'notification:new', {
+    id: notif.id, type: notif.type, title: notif.title, createdAt: notif.createdAt,
+  });
+  return { ok: true };
+}
+
+/** Coordinator sends a free-text message to an intern (in-app notification). */
+export async function messageStudent(placementId: string, _actorId: string, message: string) {
+  return notifyStudent(placementId, {
+    type: 'system', title: 'Message from your coordinator', body: message,
+    link: '/student/notifications',
+  });
+}
+
+/** Coordinator nudges an intern to keep their logbook up to date. */
+export async function remindStudent(placementId: string, _actorId: string) {
+  return notifyStudent(placementId, {
+    type: 'submission_reminder', title: 'Logbook reminder',
+    body: 'Your coordinator is reminding you to keep your weekly logbook up to date.',
+    link: '/student/logbook',
+  });
 }
 
 // ── Intern detail / profile ───────────────────────────────────

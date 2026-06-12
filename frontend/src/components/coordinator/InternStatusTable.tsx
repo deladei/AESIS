@@ -1,13 +1,14 @@
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import {
-  Filter, MoreVertical, Loader2, ChevronLeft, ChevronRight, ArrowUp, ArrowDown, X,
+  Filter, Loader2, ChevronLeft, ChevronRight, ArrowUp, ArrowDown, X,
 } from 'lucide-react';
 import {
   useCoordinatorStudents, useCoordinatorProgrammes, useCoordinatorCohorts,
   type StudentSortKey, type StudentStatusFilter, type CoordinatorStudent,
 } from '@/hooks/useDashboard';
 import { useSupervisors } from '@/hooks/usePlacements';
+import RowActionsMenu from './RowActionsMenu';
 
 function initials(name: string) {
   return name.split(' ').map((n) => n[0]).join('').slice(0, 2).toUpperCase();
@@ -108,9 +109,7 @@ function InternRow({ s }: { s: CoordinatorStudent }) {
         </Link>
       </td>
       <td className="px-6 py-3 text-right">
-        <Link to={`/coordinator/interns/${s.placementId}`} aria-label={`View ${name}`} className="inline-flex text-[#757684] transition-colors hover:text-[#15157d]">
-          <MoreVertical className="h-4 w-4" />
-        </Link>
+        <RowActionsMenu placementId={s.placementId} internName={name} />
       </td>
     </tr>
   );

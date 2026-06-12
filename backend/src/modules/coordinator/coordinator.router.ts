@@ -18,6 +18,12 @@ router.get('/students', asyncHandler(ctrl.students));
 // GET /api/v1/coordinator/students/:placementId — full intern profile
 router.get('/students/:placementId', asyncHandler(ctrl.studentDetail));
 
+// POST /api/v1/coordinator/students/:placementId/message — message the intern
+router.post('/students/:placementId/message', asyncHandler(ctrl.messageStudent));
+
+// POST /api/v1/coordinator/students/:placementId/reminder — nudge the intern
+router.post('/students/:placementId/reminder', asyncHandler(ctrl.remindStudent));
+
 // GET /api/v1/coordinator/activity
 router.get('/activity', asyncHandler(ctrl.activity));
 

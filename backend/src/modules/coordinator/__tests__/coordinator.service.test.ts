@@ -19,6 +19,9 @@ jest.mock('../../../config/prisma', () => ({
     entryEvent: {
       findMany: jest.fn(),
     },
+    notification: {
+      create: jest.fn(),
+    },
     logbookAnalysis: {
       findMany: jest.fn(),
     },
@@ -45,6 +48,8 @@ import {
   listProgrammes,
   listCohorts,
   getStudentDetail,
+  messageStudent,
+  remindStudent,
   getRecentActivity,
   getActiveCohortConfig,
   updateActiveCohortConfig,
@@ -423,6 +428,40 @@ describe('getStudentDetail', () => {
     expect(r.entries).toHaveLength(2);
     expect(r.feedback[0]).toMatchObject({ week: 1, comment: 'Nice work', by: 'Theo Walls' });
     expect(r.supervisorHistory[0]).toMatchObject({ kind: 'academic', by: 'Coord One' });
+  });
+});
+
+// ── messageStudent / remindStudent ────────────────────────────
+
+describe('messageStudent / remindStudent', () => {
+  beforeEach(() => jest.clearAllMocks());
+
+  it('creates a system notification to the placement student', async () => {
+    (mp.placement.findUnique as jest.Mock).mockResolvedValue({ studentId: 'u-1' });
+    (mp.notification.create  as jest.Mock).mockResolvedValue({ id: 'n-1', type: 'system', title: 'Message from your coordinator', createdAt: new Date() });
+
+    const r = await messageStudent('p-1', 'coord-1', 'Please submit week 3.');
+
+    expect(r).toEqual({ ok: true });
+    expect(mp.notification.create).toHaveBeenCalledWith({
+      data: expect.objectContaining({ userId: 'u-1', type: 'system', body: 'Please submit week 3.' }),
+    });
+  });
+
+  it('sends a submission_reminder notification', async () => {
+    (mp.placement.findUnique as jest.Mock).mockResolvedValue({ studentId: 'u-1' });
+    (mp.notification.create  as jest.Mock).mockResolvedValue({ id: 'n-2', type: 'submission_reminder', title: 'Logbook reminder', createdAt: new Date() });
+
+    await remindStudent('p-1', 'coord-1');
+
+    expect(mp.notification.create).toHaveBeenCalledWith({
+      data: expect.objectContaining({ userId: 'u-1', type: 'submission_reminder' }),
+    });
+  });
+
+  it('throws 404 when the placement does not exist', async () => {
+    (mp.placement.findUnique as jest.Mock).mockResolvedValue(null);
+    await expect(messageStudent('missing', 'coord-1', 'hi')).rejects.toMatchObject({ statusCode: 404 });
   });
 });
 

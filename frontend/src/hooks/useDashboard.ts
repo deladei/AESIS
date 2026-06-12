@@ -1,4 +1,4 @@
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { api } from '@/lib/api';
 
 // ── Coordinator ───────────────────────────────────────────────
@@ -122,6 +122,25 @@ export function useInternDetail(placementId?: string) {
       return r.data.data;
     },
   });
+}
+
+export function useMessageStudent() {
+  return useMutation({
+    mutationFn: ({ placementId, message }: { placementId: string; message: string }) =>
+      api.post(`/coordinator/students/${placementId}/message`, { message }),
+  });
+}
+
+export function useRemindStudent() {
+  return useMutation({
+    mutationFn: (placementId: string) => api.post(`/coordinator/students/${placementId}/reminder`),
+  });
+}
+
+/** Invalidate coordinator lists/detail after a row action (e.g. reassign). */
+export function useInvalidateCoordinator() {
+  const qc = useQueryClient();
+  return () => qc.invalidateQueries({ queryKey: ['coordinator'] });
 }
 
 export interface CoordinatorActivity {

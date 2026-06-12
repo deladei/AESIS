@@ -33,6 +33,19 @@ export async function studentDetail(req: Request, res: Response) {
   ok(res, data);
 }
 
+const messageSchema = z.object({ message: z.string().trim().min(1).max(2000) });
+
+export async function messageStudent(req: Request, res: Response) {
+  const placementId = z.string().uuid().parse(req.params.placementId);
+  const { message } = messageSchema.parse(req.body);
+  ok(res, await service.messageStudent(placementId, req.user!.sub, message));
+}
+
+export async function remindStudent(req: Request, res: Response) {
+  const placementId = z.string().uuid().parse(req.params.placementId);
+  ok(res, await service.remindStudent(placementId, req.user!.sub));
+}
+
 export async function programmes(_req: Request, res: Response) {
   ok(res, await service.listProgrammes());
 }

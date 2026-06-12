@@ -1,0 +1,123 @@
+import { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
+import {
+  MoreVertical, User, FileText, UserCheck, MessageSquare, BellRing, Loader2, X,
+} from 'lucide-react';
+import { useSupervisors, useAssignSupervisor } from '@/hooks/usePlacements';
+import { useMessageStudent, useRemindStudent } from '@/hooks/useDashboard';
+
+interface Props {
+  placementId: string;
+  internName: string;
+  /** Optional toast sink so callers can surface confirmations consistently. */
+  onDone?: (message: string) => void;
+}
+
+export default function RowActionsMenu({ placementId, internName, onDone }: Props) {
+  const navigate = useNavigate();
+  const [open, setOpen]   = useState(false);
+  const [modal, setModal] = useState<null | 'reassign' | 'message'>(null);
+  const [supId, setSupId] = useState('');
+  const [msg, setMsg]     = useState('');
+  const [toast, setToast] = useState<string | null>(null);
+
+  const { data: supervisors = [] } = useSupervisors();
+  const assign  = useAssignSupervisor();
+  const message = useMessageStudent();
+  const remind  = useRemindStudent();
+
+  const flash = (t: string) => {
+    if (onDone) onDone(t);
+    else { setToast(t); setTimeout(() => setToast(null), 2500); }
+  };
+  const go = (path: string) => { setOpen(false); navigate(path); };
+
+  const doReassign = async () => {
+    if (!supId) return;
+    await assign.mutateAsync({ id: placementId, supervisorId: supId });
+    setModal(null); setSupId(''); flash('Supervisor reassigned');
+  };
+  const doMessage = async () => {
+    if (!msg.trim()) return;
+    await message.mutateAsync({ placementId, message: msg.trim() });
+    setModal(null); setMsg(''); flash('Message sent');
+  };
+  const doRemind = async () => {
+    setOpen(false);
+    await remind.mutateAsync(placementId);
+    flash('Reminder sent');
+  };
+
+  const item = 'flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-[#0b1c30] transition-colors hover:bg-[#eff4ff]';
+
+  return (
+    <>
+      <div className="relative inline-block text-left">
+        <button
+          onClick={() => setOpen((v) => !v)}
+          aria-label={`Actions for ${internName}`} aria-haspopup="menu" aria-expanded={open}
+          className="inline-flex rounded p-1 text-[#757684] transition-colors hover:bg-[#dce9ff] hover:text-[#15157d]"
+        >
+          <MoreVertical className="h-4 w-4" />
+        </button>
+        {open && (
+          <>
+            <div className="fixed inset-0 z-10" onClick={() => setOpen(false)} />
+            <div role="menu" className="absolute right-0 z-20 mt-1 w-52 overflow-hidden rounded-lg border border-[#c4c5d5]/70 bg-white py-1 shadow-lg">
+              <button className={item} onClick={() => go(`/coordinator/interns/${placementId}`)}><User className="h-4 w-4 text-[#757684]" /> View profile</button>
+              <button className={item} onClick={() => go(`/coordinator/interns/${placementId}`)}><FileText className="h-4 w-4 text-[#757684]" /> View logs</button>
+              <button className={item} onClick={() => { setOpen(false); setModal('reassign'); }}><UserCheck className="h-4 w-4 text-[#757684]" /> Reassign supervisor</button>
+              <button className={item} onClick={() => { setOpen(false); setModal('message'); }}><MessageSquare className="h-4 w-4 text-[#757684]" /> Message</button>
+              <button className={item} onClick={doRemind} disabled={remind.isPending}>
+                {remind.isPending ? <Loader2 className="h-4 w-4 animate-spin text-[#757684]" /> : <BellRing className="h-4 w-4 text-[#757684]" />} Send reminder
+              </button>
+            </div>
+          </>
+        )}
+      </div>
+
+      {modal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 p-4" onClick={() => setModal(null)}>
+          <div className="w-full max-w-md rounded-xl bg-white p-5 shadow-xl" onClick={(e) => e.stopPropagation()}>
+            <div className="mb-3 flex items-center justify-between">
+              <h3 className="text-base font-bold text-[#0b1c30]">
+                {modal === 'reassign' ? 'Reassign supervisor' : `Message ${internName}`}
+              </h3>
+              <button onClick={() => setModal(null)} aria-label="Close" className="rounded p-1 text-[#757684] hover:bg-[#eff4ff]"><X className="h-4 w-4" /></button>
+            </div>
+
+            {modal === 'reassign' ? (
+              <>
+                <label className="mb-1 block text-xs font-semibold text-[#757684]">Academic supervisor</label>
+                <select value={supId} onChange={(e) => setSupId(e.target.value)} className="w-full rounded-lg border border-[#c4c5d5]/70 px-3 py-2 text-sm focus:border-[#15157d] focus:outline-none">
+                  <option value="">Select a supervisor…</option>
+                  {supervisors.map((s) => <option key={s.id} value={s.id}>{s.firstName} {s.lastName}</option>)}
+                </select>
+                <div className="mt-4 flex justify-end gap-2">
+                  <button onClick={() => setModal(null)} className="rounded-lg border border-[#c4c5d5]/70 px-4 py-2 text-sm font-medium text-[#444653] hover:bg-[#eff4ff]">Cancel</button>
+                  <button onClick={doReassign} disabled={!supId || assign.isPending} className="inline-flex items-center gap-2 rounded-lg bg-[#15157d] px-4 py-2 text-sm font-semibold text-white hover:opacity-90 disabled:opacity-50">
+                    {assign.isPending && <Loader2 className="h-4 w-4 animate-spin" />} Reassign
+                  </button>
+                </div>
+              </>
+            ) : (
+              <>
+                <textarea value={msg} onChange={(e) => setMsg(e.target.value)} rows={4} maxLength={2000} placeholder="Write a message — it reaches the intern's notifications." className="w-full resize-none rounded-lg border border-[#c4c5d5]/70 px-3 py-2 text-sm text-[#0b1c30] focus:border-[#15157d] focus:outline-none" />
+                <div className="mt-4 flex justify-end gap-2">
+                  <button onClick={() => setModal(null)} className="rounded-lg border border-[#c4c5d5]/70 px-4 py-2 text-sm font-medium text-[#444653] hover:bg-[#eff4ff]">Cancel</button>
+                  <button onClick={doMessage} disabled={!msg.trim() || message.isPending} className="inline-flex items-center gap-2 rounded-lg bg-[#15157d] px-4 py-2 text-sm font-semibold text-white hover:opacity-90 disabled:opacity-50">
+                    {message.isPending && <Loader2 className="h-4 w-4 animate-spin" />} Send
+                  </button>
+                </div>
+              </>
+            )}
+          </div>
+        </div>
+      )}
+
+      {toast && (
+        <div className="fixed bottom-4 right-4 z-50 rounded-lg bg-[#0b1c30] px-4 py-2 text-sm font-medium text-white shadow-lg">{toast}</div>
+      )}
+    </>
+  );
+}
