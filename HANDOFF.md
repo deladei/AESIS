@@ -1611,6 +1611,21 @@ Root cause was a single deterministic **open-handle leak**, not a flaky/slow int
 
 ---
 
+### Session 36 (cont.) — 2026-06-11 — coordinator cohort settings
+
+**Work done — built the coordinator UI to set `min_weekly_hours` (the config the intern attendance tile consumes).** Commit `624b816` (`feat(coordinator): cohort settings UI…`), 9 files, +334/−2.
+
+- **Backend** (coordinator module; router already authz `coordinator`+`admin`): `GET /coordinator/cohort-config` (active year's config, flattened) + `PATCH /coordinator/cohort-config` (`minWeeklyHours`, Zod int 0–168; 0 disables the shortfall). Scopes to the **active academic year**; 404 + no-write when none exists. New `coordinator.schema.ts`; service `getActiveCohortConfig`/`updateActiveCohortConfig` (+4 tests).
+- **Frontend:** `useCohortConfig` hook (GET + PATCH; on save primes config cache + invalidates `['student','dashboard']` so the attendance tile updates live); `CohortSettings` page at `/coordinator/settings` (validated hours input, expected-total preview, saved/error states); the previously-placeholder "Settings" nav item now points there.
+
+**Verification:** full backend suite **382/382** (`--runInBand`, ~40 s, no hang); `tsc --noEmit` clean BE+FE; `vite build` ok. Pushed to prod (no migration — column already exists).
+
+**Stopped here — next session should**
+1. **Eyeball on prod:** as coordinator, open Settings → set a per-week minimum → confirm an intern's dashboard Attendance Hours tile flips from "logged only" to "logged / target" with the shortfall pill.
+2. The cohort-config endpoint currently exposes only `minWeeklyHours`; `totalWeeks`/reminder/deadline fields are still seed-only — extend the same page if coordinators need them.
+
+---
+
 ## Handoff Entry Template
 
 ```markdown
