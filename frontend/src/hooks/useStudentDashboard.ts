@@ -17,6 +17,13 @@ export interface StatusBreakdown {
   total:             number;
 }
 
+export interface HoursSummary {
+  logged:     number; // cumulative attendance hours on submitted+ entries
+  expected:   number; // perWeekMin × expected weeks (0 = no minimum configured)
+  perWeekMin: number; // the cohort's configured per-week minimum
+  shortfall:  boolean; // expected > 0 && logged < expected
+}
+
 export interface StudentDashboard {
   hasActivePlacement: boolean;
   week:               { current: number; total: number } | null;
@@ -25,6 +32,7 @@ export interface StudentDashboard {
   completionPct:      number;
   avgQualityScore:    number | null;
   statusBreakdown:    StatusBreakdown;
+  hours:              HoursSummary;
   supervisors: {
     academic: DashboardSupervisor | null;
     company:  DashboardSupervisor | null;

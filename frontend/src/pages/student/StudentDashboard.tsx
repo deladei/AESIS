@@ -2,7 +2,7 @@ import { Link } from 'react-router-dom';
 import {
   NotebookPen, Gauge, ArrowRight, CalendarClock, CheckCircle2,
   Star, GraduationCap, ExternalLink, Loader2, BookOpen,
-  Building2, Mail, Phone,
+  Building2, Mail, Phone, Clock,
 } from 'lucide-react';
 import type { DashboardSupervisor } from '@/hooks/useStudentDashboard';
 import { useAuth } from '@/contexts/AuthContext';
@@ -138,6 +138,8 @@ export default function StudentDashboard() {
   const avgQuality   = stats?.avgQualityScore ?? null;
   const breakdown    = stats?.statusBreakdown
     ?? { approved: 0, pendingReview: 0, revisionRequested: 0, rejected: 0, inProgress: 0, total: 0 };
+  const hours        = stats?.hours
+    ?? { logged: 0, expected: 0, perWeekMin: 0, shortfall: false };
 
   // Flatten the latest supervisor feedback from each fetched submission
   const feedbackCards = [fb0.data, fb1.data, fb2.data]
@@ -225,9 +227,9 @@ export default function StudentDashboard() {
             </div>
           </div>
 
-          {/* Avg Quality (AI) — replaces the un-tracked "Hours" tile */}
+          {/* Avg Quality (AI) */}
           <div className="flex items-center gap-6 rounded-xl bg-[#f3f3f7] p-8">
-            <div className="flex h-12 w-12 items-center justify-center rounded-full bg-white text-[#15157d]">
+            <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-white text-[#15157d]">
               <Gauge className="h-6 w-6" />
             </div>
             <div>
@@ -235,6 +237,38 @@ export default function StudentDashboard() {
               <p className="text-2xl font-extrabold text-[#191c1e]">
                 {avgQuality != null ? `${avgQuality} / 100` : '—'}
               </p>
+            </div>
+          </div>
+
+          {/* Attendance Hours — cumulative logged vs the cohort's weekly minimum */}
+          <div className="flex items-center gap-6 rounded-xl bg-[#f3f3f7] p-8">
+            <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-white text-[#15157d]">
+              <Clock className="h-6 w-6" />
+            </div>
+            <div className="min-w-0">
+              <p className="text-sm font-medium text-[#424654]">Attendance Hours</p>
+              {hours.expected > 0 ? (
+                <>
+                  <p className="text-2xl font-extrabold text-[#191c1e]">
+                    {hours.logged}
+                    <span className="text-base font-bold text-[#737785]"> / {hours.expected} h</span>
+                  </p>
+                  {hours.shortfall ? (
+                    <span className="mt-1 inline-flex w-fit items-center rounded-full bg-[#fde7e7] px-2 py-0.5 text-xs font-semibold text-[#8a1c1c]">
+                      {Math.round((hours.expected - hours.logged) * 100) / 100} h below target
+                    </span>
+                  ) : (
+                    <p className="mt-0.5 text-xs font-medium text-[#1b7a45]">
+                      On track · {hours.perWeekMin} h/week
+                    </p>
+                  )}
+                </>
+              ) : (
+                <p className="text-2xl font-extrabold text-[#191c1e]">
+                  {hours.logged} h
+                  <span className="ml-2 align-middle text-xs font-medium text-[#737785]">logged</span>
+                </p>
+              )}
             </div>
           </div>
         </div>
