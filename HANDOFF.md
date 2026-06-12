@@ -1658,6 +1658,29 @@ Root cause was a single deterministic **open-handle leak**, not a flaky/slow int
 
 ---
 
+### Session 38 — 2026-06-12 — Submission History UI re-theme (light, matches Logbook)
+
+**Work done** — `style(student)` commit `b32aff4`, 1 file (`frontend/src/pages/student/SubmissionHistory.tsx`, +112/−71), **pushed to `main` → prod** (Vercel; frontend-only, no migration, no backend change).
+- `SubmissionHistory` was the last student view still in the **dark slate** theme while Logbook / Final Assessment / the rest of the student flow are light. Rebuilt it in the Logbook design language — white `#e2e6ef` cards, `#0b1c30` ink, navy `#15157d` + purple `#8a4cfc` accents — reusing the Logbook `StatusPill` pattern, card shells, and spacing.
+- Kept a **local** light status pill rather than touching the shared `components/shared/StatusBadge.tsx` (still dark, still used by supervisor pages — changing it would regress those).
+- Re-themed FlowTracker, week chips, programme-progress bar, quality scores, Late badge; AI feedback promoted into a bordered note with a `Sparkles` icon + purple "View entry" link.
+
+**Verification** — `tsc --noEmit` clean (frontend). Rendered the page for real (mock Ghanaian data, every status) and screenshotted both collapsed + expanded states; matches the Logbook look. No backend/test impact.
+
+**Errors & fixes**
+
+| Error | Fix |
+|---|---|
+| Couldn't keep a Vite dev server alive across turns on this box (exit 144 — harness reaps lingering listeners; also tight on RAM) | Mounted the real component against a **primed TanStack Query cache** (no backend/auth), `vite build` to static files, then served + Playwright-screenshotted **inside one Bash call** over `127.0.0.1` (ES modules are CORS-blocked on `file://`). System Chromium at `/usr/bin/chromium` via Playwright `executablePath`. Worth capturing as a project run-skill (`/run-skill-generator`). |
+| First file-path guesses wrong | Global CSS is `src/styles/globals.css` (not `index.css`); placement query key `['placements','mine']`, submissions `['logbook','submissions',placementId]`. |
+
+**Stopped here — next session should**
+1. **Eyeball on prod** once Vercel finishes: as a student with real submissions, hard-refresh `/student/submissions` — confirm the light theme renders and a flagged week expands to show the flow tracker + AI feedback. Verified only with mock data locally.
+2. `ChatbotPanel.tsx` and `NotificationInbox.tsx` are **still dark slate** — the remaining student-side theme inconsistencies if a full light pass is wanted.
+3. Carry-over still open from S37: watch the two additive migrations apply on the next Render `migrate deploy` (learning_objectives tables, `placement_assessment.evaluation`); prod eyeball of Oversight / objectives / final-assessment gating.
+
+---
+
 ## Handoff Entry Template
 
 ```markdown
