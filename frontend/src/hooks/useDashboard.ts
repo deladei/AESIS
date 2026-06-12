@@ -10,7 +10,7 @@ export interface CoordinatorDashboard {
     complianceRate:   number;
     highRiskCount:    number;
     avgPerformance:   number | null;
-    partnerCompanies: number;
+    hostCompanies:    number;
   };
   riskDistribution: { low: number; medium: number; high: number };
   submissionTrends: { week: number; scheduled: number; submitted: number }[];

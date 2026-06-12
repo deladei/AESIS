@@ -99,7 +99,7 @@ export default function CoordinatorDashboard() {
     { label: 'Active Interns',    value: ov ? ov.activePlacements.toLocaleString() : '—', icon: Users,     sub: 'Currently on placement', tone: 'text-[#757684]' },
     { label: 'Pending Placements', value: ov ? String(ov.pendingApprovals) : '—',         icon: Clock,     sub: ov?.pendingApprovals ? 'Awaiting your review' : 'All caught up', tone: 'text-amber-600' },
     { label: 'Avg Performance',   value: ov?.avgPerformance != null ? ov.avgPerformance.toFixed(1) : '—', icon: BarChart3, bar: ov?.avgPerformance ?? 0 },
-    { label: 'Partner Companies', value: ov ? String(ov.partnerCompanies) : '—',          icon: Briefcase, sub: 'Hosting active placements', tone: 'text-[#757684]' },
+    { label: 'Host Companies',    value: ov ? String(ov.hostCompanies) : '—',             icon: Briefcase, sub: 'Currently hosting interns', tone: 'text-[#757684]' },
   ];
 
   if (dashError) {
@@ -146,7 +146,7 @@ export default function CoordinatorDashboard() {
                 <p className="text-4xl font-bold text-[#0b1c30]">{dashLoading ? '—' : m.value}</p>
                 {'bar' in m ? (
                   <div className="mt-2 h-1.5 w-full overflow-hidden rounded-full bg-[#e5eeff]">
-                    <div className="h-full rounded-full bg-[#15157d]" style={{ width: `${m.bar}%` }} />
+                    <div className="h-full rounded-full bg-[#15157d]" style={{ width: `${Math.min(100, Math.max(0, m.bar ?? 0))}%` }} />
                   </div>
                 ) : (
                   <p className={`mt-1 flex items-center gap-1 text-xs font-medium ${m.tone}`}>

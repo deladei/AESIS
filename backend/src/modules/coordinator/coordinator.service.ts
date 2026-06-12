@@ -12,7 +12,7 @@ export async function getCoordinatorDashboard() {
     pendingApprovals,
     riskRows,
     scheduledByWeek,
-    qualityAgg,
+    qualityRows,
     partnerCompanyRows,
   ] = await Promise.all([
     prisma.placement.count({ where: { placementStatus: 'active' } }),
@@ -30,10 +30,11 @@ export async function getCoordinatorDashboard() {
       where:   { placement: { placementStatus: 'active' } },
       orderBy: { weekNumber: 'asc' },
     }),
-    // Cohort-wide average logbook quality score (active placements only)
-    prisma.logbookAnalysis.aggregate({
-      _avg:  { qualityScore: true },
-      where: { submission: { placement: { placementStatus: 'active' } } },
+    // Cohort-wide logbook quality scores (active placements). Averaged below via
+    // the validated/clamped path so a corrupt stored score can't skew the mean.
+    prisma.logbookAnalysis.findMany({
+      select: { qualityScore: true },
+      where:  { submission: { placement: { placementStatus: 'active' } } },
     }),
     // Distinct companies hosting at least one active placement
     prisma.placement.findMany({
@@ -74,10 +75,11 @@ export async function getCoordinatorDashboard() {
     submitted: submittedMap.get(r.weekNumber) ?? 0,
   }));
 
-  // Cohort average performance (quality) — null when no analyses exist yet
-  const avgPerformance = qualityAgg._avg.qualityScore != null
-    ? Math.round(Number(qualityAgg._avg.qualityScore) * 10) / 10
-    : null;
+  // Cohort average performance (quality) via the validated/clamped path:
+  // meanQualityScore drops null + out-of-range scores and clamps to [0, 100], so
+  // a corrupt stored value can never push this metric outside that range. Null
+  // when no log carries a valid score (UI renders "—").
+  const avgPerformance = meanQualityScore(qualityRows.map((r) => r.qualityScore));
 
   return {
     overview: {
@@ -86,7 +88,7 @@ export async function getCoordinatorDashboard() {
       complianceRate,
       highRiskCount:    riskDistribution.high,
       avgPerformance,
-      partnerCompanies: partnerCompanyRows.length,
+      hostCompanies: partnerCompanyRows.length,
     },
     riskDistribution,
     submissionTrends,

@@ -14,7 +14,7 @@ jest.mock('../../../config/prisma', () => ({
       groupBy: jest.fn(),
     },
     logbookAnalysis: {
-      aggregate: jest.fn(),
+      findMany: jest.fn(),
     },
     auditLog: {
       findMany: jest.fn(),
@@ -38,12 +38,13 @@ import {
 
 const mp = prisma as jest.Mocked<typeof prisma>;
 
-// Defaults so the two extra dashboard queries (avg quality + partner companies)
-// don't blow up tests that only assert on other fields.
-function stubDashboardExtras(opts: { avgQuality?: number | null; companies?: number } = {}) {
-  (mp.logbookAnalysis.aggregate as jest.Mock).mockResolvedValue({
-    _avg: { qualityScore: opts.avgQuality ?? null },
-  });
+// Defaults so the two extra dashboard queries (quality scores + host companies)
+// don't blow up tests that only assert on other fields. `scores` are the raw
+// per-analysis quality scores the service now averages via the clamped path.
+function stubDashboardExtras(opts: { scores?: (number | string | null)[]; companies?: number } = {}) {
+  (mp.logbookAnalysis.findMany as jest.Mock).mockResolvedValue(
+    (opts.scores ?? []).map((s) => ({ qualityScore: s })),
+  );
   (mp.placement.findMany as jest.Mock).mockResolvedValue(
     Array.from({ length: opts.companies ?? 0 }, (_, i) => ({ companyId: `c-${i}` })),
   );
@@ -75,7 +76,7 @@ describe('getCoordinatorDashboard', () => {
         { weekNumber: 2, _count: { _all: 32 } },
       ]);
 
-    stubDashboardExtras({ avgQuality: 87.25, companies: 24 });
+    stubDashboardExtras({ scores: [87.25], companies: 24 });
 
     const result = await getCoordinatorDashboard();
 
@@ -86,7 +87,7 @@ describe('getCoordinatorDashboard', () => {
     expect(result.overview.complianceRate).toBe(85);
     // 87.25 rounded to 1 dp
     expect(result.overview.avgPerformance).toBe(87.3);
-    expect(result.overview.partnerCompanies).toBe(24);
+    expect(result.overview.hostCompanies).toBe(24);
   });
 
   it('returns avgPerformance null when no analyses exist', async () => {
@@ -95,12 +96,29 @@ describe('getCoordinatorDashboard', () => {
     (mp.logbookSubmission.groupBy as jest.Mock)
       .mockResolvedValueOnce([])
       .mockResolvedValueOnce([]);
-    stubDashboardExtras({ avgQuality: null, companies: 0 });
+    stubDashboardExtras({ scores: [], companies: 0 });
 
     const result = await getCoordinatorDashboard();
 
     expect(result.overview.avgPerformance).toBeNull();
-    expect(result.overview.partnerCompanies).toBe(0);
+    expect(result.overview.hostCompanies).toBe(0);
+  });
+
+  it('excludes an out-of-range stored score so avgPerformance can never leave [0, 100]', async () => {
+    (mp.placement.count as jest.Mock).mockResolvedValue(0);
+    (mp.studentRiskScore.groupBy as jest.Mock).mockResolvedValue([]);
+    (mp.logbookSubmission.groupBy as jest.Mock)
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([]);
+    // A corrupt 151565326582 and a negative -5 must be dropped (Decimal-as-string
+    // included); the valid 80 & 60 average to 70 — the metric stays in range.
+    stubDashboardExtras({ scores: ['80', '151565326582', '60', '-5'], companies: 3 });
+
+    const result = await getCoordinatorDashboard();
+
+    expect(result.overview.avgPerformance).toBe(70);
+    expect(result.overview.avgPerformance!).toBeGreaterThanOrEqual(0);
+    expect(result.overview.avgPerformance!).toBeLessThanOrEqual(100);
   });
 
   it('returns complianceRate 100 when no submissions are scheduled', async () => {
