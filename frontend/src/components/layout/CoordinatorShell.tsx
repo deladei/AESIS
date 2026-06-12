@@ -21,7 +21,7 @@ const navItems: NavItem[] = [
   { label: 'Placements',      href: '/coordinator/placements',  icon: ClipboardList },
   { label: 'Assignments',     href: '/coordinator/assignments', icon: UserCheck },
   { label: 'AI Insights',     href: '/ai-insights',             icon: Sparkles },
-  { label: 'Settings',        href: '/coordinator/dashboard',   icon: Settings },
+  { label: 'Settings',        href: '/coordinator/settings',    icon: Settings },
 ];
 
 interface CoordinatorShellProps {

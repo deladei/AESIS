@@ -2,6 +2,7 @@ import { Request, Response } from 'express';
 import { z } from 'zod';
 import { ok } from '../../shared/utils/response';
 import * as service from './coordinator.service';
+import { updateCohortConfigSchema } from './coordinator.schema';
 
 const studentsQuerySchema = z.object({
   page:     z.coerce.number().int().positive().default(1),
@@ -32,5 +33,16 @@ export async function activity(req: Request, res: Response) {
 
 export async function supervisors(_req: Request, res: Response) {
   const data = await service.listSupervisors();
+  ok(res, data);
+}
+
+export async function cohortConfig(_req: Request, res: Response) {
+  const data = await service.getActiveCohortConfig();
+  ok(res, data);
+}
+
+export async function updateCohortConfig(req: Request, res: Response) {
+  const input = updateCohortConfigSchema.parse(req.body);
+  const data = await service.updateActiveCohortConfig(input);
   ok(res, data);
 }

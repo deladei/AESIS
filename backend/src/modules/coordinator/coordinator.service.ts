@@ -1,5 +1,6 @@
 import { prisma } from '../../config/prisma';
 import { paginate, buildMeta } from '../../shared/utils/pagination';
+import { AppError } from '../../middleware/errorHandler';
 import type { RiskTier } from '@prisma/client';
 
 // ── Dashboard ─────────────────────────────────────────────────
@@ -231,4 +232,58 @@ export async function listSupervisors() {
     select:  { id: true, firstName: true, lastName: true, email: true },
     orderBy: [{ firstName: 'asc' }, { lastName: 'asc' }],
   });
+}
+
+// ── Cohort configuration ──────────────────────────────────────
+// One CohortConfig exists per academic year (@@unique). The coordinator edits
+// the config for the *active* year only; everything else here is read-only.
+
+const COHORT_CONFIG_SELECT = {
+  id:             true,
+  minWeeklyHours: true,
+  totalWeeks:     true,
+  academicYear:   { select: { id: true, label: true } },
+} as const;
+
+type CohortConfigRow = {
+  id: string;
+  minWeeklyHours: number;
+  totalWeeks: number;
+  academicYear: { id: string; label: string };
+};
+
+function shapeCohortConfig(c: CohortConfigRow) {
+  return {
+    id:                c.id,
+    minWeeklyHours:    c.minWeeklyHours,
+    totalWeeks:        c.totalWeeks,
+    academicYearId:    c.academicYear.id,
+    academicYearLabel: c.academicYear.label,
+  };
+}
+
+/** Cohort config for the active academic year. 404 when none is configured. */
+export async function getActiveCohortConfig() {
+  const config = await prisma.cohortConfig.findFirst({
+    where:  { academicYear: { isActive: true } },
+    select: COHORT_CONFIG_SELECT,
+  });
+  if (!config) throw new AppError(404, 'No cohort configuration for the active academic year');
+  return shapeCohortConfig(config);
+}
+
+/** Set the active cohort's per-week minimum attendance hours. 404 when none exists. */
+export async function updateActiveCohortConfig(input: { minWeeklyHours: number }) {
+  const existing = await prisma.cohortConfig.findFirst({
+    where:  { academicYear: { isActive: true } },
+    select: { id: true },
+  });
+  if (!existing) throw new AppError(404, 'No cohort configuration for the active academic year');
+
+  const updated = await prisma.cohortConfig.update({
+    where:  { id: existing.id },
+    data:   { minWeeklyHours: input.minWeeklyHours },
+    select: COHORT_CONFIG_SELECT,
+  });
+  return shapeCohortConfig(updated);
 }

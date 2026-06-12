@@ -16,11 +16,21 @@ jest.mock('../../../config/prisma', () => ({
     auditLog: {
       findMany: jest.fn(),
     },
+    cohortConfig: {
+      findFirst: jest.fn(),
+      update:    jest.fn(),
+    },
   },
 }));
 
 import { prisma } from '../../../config/prisma';
-import { getCoordinatorDashboard, listStudents, getRecentActivity } from '../coordinator.service';
+import {
+  getCoordinatorDashboard,
+  listStudents,
+  getRecentActivity,
+  getActiveCohortConfig,
+  updateActiveCohortConfig,
+} from '../coordinator.service';
 
 const mp = prisma as jest.Mocked<typeof prisma>;
 
@@ -293,5 +303,64 @@ describe('getRecentActivity', () => {
     const result = await getRecentActivity();
 
     expect(result[0].summary).toBe('Exported data');
+  });
+});
+
+// ── getActiveCohortConfig ─────────────────────────────────────
+
+describe('getActiveCohortConfig', () => {
+  beforeEach(() => jest.clearAllMocks());
+
+  it('returns the active year config in flattened shape', async () => {
+    (mp.cohortConfig.findFirst as jest.Mock).mockResolvedValue({
+      id: 'cc-1', minWeeklyHours: 40, totalWeeks: 24,
+      academicYear: { id: 'ay-1', label: '2024/2025' },
+    });
+
+    const result = await getActiveCohortConfig();
+
+    expect(result).toEqual({
+      id: 'cc-1', minWeeklyHours: 40, totalWeeks: 24,
+      academicYearId: 'ay-1', academicYearLabel: '2024/2025',
+    });
+    // Scopes to the active academic year.
+    const call = (mp.cohortConfig.findFirst as jest.Mock).mock.calls[0][0];
+    expect(call.where).toEqual({ academicYear: { isActive: true } });
+  });
+
+  it('throws 404 when no active cohort config exists', async () => {
+    (mp.cohortConfig.findFirst as jest.Mock).mockResolvedValue(null);
+    await expect(getActiveCohortConfig()).rejects.toThrow('No cohort configuration');
+  });
+});
+
+// ── updateActiveCohortConfig ──────────────────────────────────
+
+describe('updateActiveCohortConfig', () => {
+  beforeEach(() => jest.clearAllMocks());
+
+  it('updates the active cohort by id and returns the flattened shape', async () => {
+    (mp.cohortConfig.findFirst as jest.Mock).mockResolvedValue({ id: 'cc-1' });
+    (mp.cohortConfig.update as jest.Mock).mockResolvedValue({
+      id: 'cc-1', minWeeklyHours: 35, totalWeeks: 24,
+      academicYear: { id: 'ay-1', label: '2024/2025' },
+    });
+
+    const result = await updateActiveCohortConfig({ minWeeklyHours: 35 });
+
+    const call = (mp.cohortConfig.update as jest.Mock).mock.calls[0][0];
+    expect(call.where).toEqual({ id: 'cc-1' });
+    expect(call.data).toEqual({ minWeeklyHours: 35 });
+    expect(result.minWeeklyHours).toBe(35);
+    expect(result.academicYearLabel).toBe('2024/2025');
+  });
+
+  it('throws 404 (and never writes) when no active cohort config exists', async () => {
+    (mp.cohortConfig.findFirst as jest.Mock).mockResolvedValue(null);
+
+    await expect(updateActiveCohortConfig({ minWeeklyHours: 35 })).rejects.toThrow(
+      'No cohort configuration',
+    );
+    expect(mp.cohortConfig.update as jest.Mock).not.toHaveBeenCalled();
   });
 });
