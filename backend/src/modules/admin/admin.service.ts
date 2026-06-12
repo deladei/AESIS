@@ -1,11 +1,10 @@
 import { prisma } from '../../config/prisma';
-import type { SubmissionStatus } from '@prisma/client';
+import { SYSTEM_MAX_WEEKS } from '../../shared/utils/quality';
 
-// A submission "counts as submitted" once it leaves draft — mirrors the
-// coordinator dashboard's engagement definition for cross-dashboard consistency.
-const SUBMITTED: SubmissionStatus[] = ['submitted', 'under_review', 'approved'];
-const PENDING:   SubmissionStatus[] = ['submitted', 'under_review'];
-const REVIEWED:  SubmissionStatus[] = ['approved', 'flagged'];
+// Engagement is measured off the active weekly-entry pipeline. A week "counts as
+// submitted" once its entry has actually been submitted (submittedAt set);
+// "pending" is awaiting supervisor action, "reviewed" is acted on.
+const REVIEWED_ENTRY_STATUSES = ['acknowledged', 'returned', 'rejected'] as const;
 
 const PULSE_LIMIT  = 6;
 const RECENT_LIMIT = 6;
@@ -17,7 +16,6 @@ const RECENT_LIMIT = 6;
 export async function getAdminDashboard() {
   const [
     activeInterns,
-    totalScheduled,
     totalSubmitted,
     pendingReviews,
     reviewedCount,
@@ -25,12 +23,11 @@ export async function getAdminDashboard() {
     recentRows,
   ] = await Promise.all([
     prisma.placement.count({ where: { placementStatus: 'active' } }),
-    prisma.logbookSubmission.count({ where: { placement: { placementStatus: 'active' } } }),
-    prisma.logbookSubmission.count({
-      where: { placement: { placementStatus: 'active' }, submissionStatus: { in: SUBMITTED } },
+    prisma.logbookEntry.count({
+      where: { placement: { placementStatus: 'active' }, submittedAt: { not: null } },
     }),
-    prisma.logbookSubmission.count({ where: { submissionStatus: { in: PENDING } } }),
-    prisma.logbookSubmission.count({ where: { submissionStatus: { in: REVIEWED } } }),
+    prisma.logbookEntry.count({ where: { status: 'submitted' } }),
+    prisma.logbookEntry.count({ where: { status: { in: [...REVIEWED_ENTRY_STATUSES] } } }),
     prisma.placement.findMany({
       where:  { placementStatus: 'active' },
       select: {
@@ -42,20 +39,22 @@ export async function getAdminDashboard() {
           },
         },
         riskScores: { orderBy: { computedAt: 'desc' }, take: 1, select: { riskTier: true } },
-        _count:     { select: { logbookSubmissions: true } },
       },
     }),
-    prisma.logbookSubmission.findMany({
-      where:   { submittedAt: { not: null }, submissionStatus: { in: SUBMITTED } },
+    prisma.logbookEntry.findMany({
+      where:   { submittedAt: { not: null } },
       orderBy: { submittedAt: 'desc' },
       take:    RECENT_LIMIT,
       select:  {
-        id: true, weekNumber: true, submittedAt: true, submissionStatus: true,
-        student: { select: { firstName: true, lastName: true } },
+        id: true, weekNumber: true, submittedAt: true, status: true,
+        placement: { select: { student: { select: { firstName: true, lastName: true } } } },
       },
     }),
   ]);
 
+  // Every active intern is on the fixed 6-week programme, so the scheduled total
+  // is interns × 6 — never a count of pre-seeded rows.
+  const totalScheduled = activeInterns * SYSTEM_MAX_WEEKS;
   const avgEngagement = totalScheduled > 0
     ? Math.round((totalSubmitted / totalScheduled) * 100)
     : 100;
@@ -63,16 +62,16 @@ export async function getAdminDashboard() {
   // Submitted-week counts per active placement, in one grouped query.
   const placementIds = activePlacements.map(p => p.id);
   const submittedByPlacement = placementIds.length
-    ? await prisma.logbookSubmission.groupBy({
+    ? await prisma.logbookEntry.groupBy({
         by:     ['placementId'],
         _count: { _all: true },
-        where:  { placementId: { in: placementIds }, submissionStatus: { in: SUBMITTED } },
+        where:  { placementId: { in: placementIds }, submittedAt: { not: null } },
       })
     : [];
   const submittedMap = new Map(submittedByPlacement.map(r => [r.placementId, r._count._all]));
 
   const ranked = activePlacements.map(p => {
-    const totalWeeks     = p._count.logbookSubmissions;
+    const totalWeeks     = SYSTEM_MAX_WEEKS;
     const submittedWeeks = submittedMap.get(p.id) ?? 0;
     return {
       placementId:   p.id,
@@ -105,10 +104,10 @@ export async function getAdminDashboard() {
 
   const recentSubmissions = recentRows.map(s => ({
     id:          s.id,
-    internName:  `${s.student.firstName} ${s.student.lastName}`,
+    internName:  `${s.placement.student.firstName} ${s.placement.student.lastName}`,
     weekNumber:  s.weekNumber,
     submittedAt: s.submittedAt,
-    status:      s.submissionStatus,
+    status:      s.status,
   }));
 
   return {

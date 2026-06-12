@@ -26,13 +26,19 @@ const makePlacement = (overrides: Record<string, unknown> = {}) => ({
   endDate:         new Date('2026-06-29'), // 24 weeks
   placementStatus: 'active',
   academicYear:    { cohortConfigs: [{ totalWeeks: 6 }] }, // intentionally wrong; dates must win
+  // Legacy submissions feed only the advisory AI quality average now.
   logbookSubmissions: [
     { submissionStatus: 'approved',  analysis: { qualityScore: '80' } },
     { submissionStatus: 'approved',  analysis: { qualityScore: '70' } },
     { submissionStatus: 'submitted', analysis: { qualityScore: '60' } },
     { submissionStatus: 'draft',     analysis: null },
   ],
-  logbookEntries: [],
+  // Progress counts entries that have actually been submitted (submittedAt set).
+  logbookEntries: [
+    { status: 'acknowledged', hoursLogged: null, submittedAt: new Date('2026-01-20') },
+    { status: 'submitted',    hoursLogged: null, submittedAt: new Date('2026-01-27') },
+    { status: 'returned',     hoursLogged: null, submittedAt: new Date('2026-02-03') },
+  ],
   learningObjectives: [],
   ...overrides,
 });
@@ -67,6 +73,8 @@ describe('getStudentDashboard', () => {
         logbookSubmissions: [
           { submissionStatus: 'draft', analysis: null },
         ],
+        // No entries submitted yet → a genuine empty state.
+        logbookEntries: [],
       }),
     ]);
 

@@ -159,18 +159,18 @@ describe('service.updatePlacementStatus', () => {
       .rejects.toMatchObject({ statusCode: 409 });
   });
 
-  it('approves placement and generates logbook schedule', async () => {
+  it('approves placement with a clean slate — no logbook rows are pre-generated', async () => {
     (mp.placement.findUnique as jest.Mock).mockResolvedValue(fakePlacement);
     (mp.placement.update as jest.Mock).mockResolvedValue({
       ...fakePlacement, placementStatus: 'active',
       student: { id: 'student-1', firstName: 'Ada', lastName: 'Okonkwo', email: 's@cs.edu' },
     });
-    (mp.logbookSubmission.createMany as jest.Mock).mockResolvedValue({ count: 24 });
     (mp.auditLog.create as jest.Mock).mockResolvedValue({});
 
     const result = await service.updatePlacementStatus('pl-1', 'coord-1', { status: 'active' });
     expect(result.placementStatus).toBe('active');
-    expect(mp.logbookSubmission.createMany).toHaveBeenCalledTimes(1);
+    // Data must appear only when the student starts logging — nothing pre-seeded.
+    expect(mp.logbookSubmission.createMany).not.toHaveBeenCalled();
     expect(mp.auditLog.create).toHaveBeenCalledTimes(1);
   });
 

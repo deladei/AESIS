@@ -3,9 +3,6 @@ import { meanQualityScore, weekProgress } from '../../shared/utils/quality';
 import { hoursSummary } from '../../shared/utils/hours';
 import { decryptPII } from '../../shared/utils/crypto';
 
-// Statuses that count as a submitted logbook for completion progress.
-const SUBMITTED_STATUSES = ['submitted', 'approved', 'under_review'];
-
 // Entry states whose logged hours count toward attendance. A `draft` has not
 // logged attendance yet; every other (submitted+) state has.
 const HOURS_LOGGED_STATUSES = ['submitted', 'returned', 'acknowledged', 'rejected'];
@@ -100,7 +97,7 @@ export async function getStudentDashboard(studentId: string) {
         },
       },
       // Active weekly workflow — drives the per-log status breakdown + hours.
-      logbookEntries: { select: { status: true, hoursLogged: true } },
+      logbookEntries: { select: { status: true, hoursLogged: true, submittedAt: true } },
       // Learning objectives — progress counts CONFIRMED links only (AI
       // suggestions never count until a human confirms them).
       learningObjectives: {
@@ -129,19 +126,26 @@ export async function getStudentDashboard(studentId: string) {
     };
   }
 
-  const subs        = placement.logbookSubmissions;
-  const submitted   = subs.filter(s => SUBMITTED_STATUSES.includes(s.submissionStatus));
-  const avgQualityScore = meanQualityScore(subs.map(s => s.analysis?.qualityScore));
+  // Progress reflects real activity: a week counts once its entry has actually
+  // been submitted (the active entries pipeline), so a new placement reads 0 and
+  // climbs only as the student submits — never from pre-seeded rows.
+  const submittedCount = placement.logbookEntries.filter(e => e.submittedAt != null).length;
+
+  // AI quality scores stay advisory and come from the legacy enrichment when
+  // present; with no scored log the mean is null and the UI renders "—".
+  const avgQualityScore = meanQualityScore(
+    placement.logbookSubmissions.map(s => s.analysis?.qualityScore),
+  );
 
   const week = weekProgress({
     startDate:        placement.startDate,
     endDate:          placement.endDate,
     totalWeeksConfig: placement.academicYear?.cohortConfigs?.[0]?.totalWeeks ?? null,
-    submittedCount:   submitted.length,
+    submittedCount,
   });
 
   const completionPct = week.total > 0
-    ? Math.min(100, Math.round((submitted.length / week.total) * 100))
+    ? Math.min(100, Math.round((submittedCount / week.total) * 100))
     : 0;
 
   // Objective progress — only CONFIRMED entry links count.
@@ -164,7 +168,7 @@ export async function getStudentDashboard(studentId: string) {
   return {
     hasActivePlacement: placement.placementStatus === 'active',
     week,                              // { current, total }
-    logsSubmitted:   submitted.length,
+    logsSubmitted:   submittedCount,
     expectedLogs:    week.total,
     completionPct,
     avgQualityScore,                   // number (1 dp) within [0, 100], or null

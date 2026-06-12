@@ -1,7 +1,7 @@
 import { prisma } from '../../config/prisma';
 import { paginate, buildMeta } from '../../shared/utils/pagination';
 import { AppError } from '../../middleware/errorHandler';
-import { meanQualityScore } from '../../shared/utils/quality';
+import { meanQualityScore, SYSTEM_MAX_WEEKS } from '../../shared/utils/quality';
 import type { RiskTier } from '@prisma/client';
 
 // ── Dashboard ─────────────────────────────────────────────────
@@ -130,13 +130,13 @@ export async function listStudents(filters: StudentListFilters) {
           take:    1,
           select:  { riskTier: true, riskScore: true, computedAt: true },
         },
-        logbookSubmissions: {
+        // Latest real entry drives the "last activity" columns. Total weeks is
+        // the fixed 6-week programme length, not a count of pre-seeded rows.
+        logbookEntries: {
           orderBy: { weekNumber: 'desc' },
           take:    1,
-          select:  { weekNumber: true, submissionStatus: true, submittedAt: true },
+          select:  { weekNumber: true, status: true, submittedAt: true },
         },
-        // Total scheduled weeks for this placement (the 24-week schedule)
-        _count: { select: { logbookSubmissions: true } },
       },
     }),
     prisma.placement.count({ where }),
@@ -145,19 +145,19 @@ export async function listStudents(filters: StudentListFilters) {
   // Submitted-week counts per placement, in one grouped query, for progress %
   const placementIds = placements.map(p => p.id);
   const submittedCounts = placementIds.length
-    ? await prisma.logbookSubmission.groupBy({
+    ? await prisma.logbookEntry.groupBy({
         by:     ['placementId'],
         _count: { _all: true },
         where:  {
-          placementId:      { in: placementIds },
-          submissionStatus: { in: ['submitted', 'approved', 'under_review'] },
+          placementId: { in: placementIds },
+          submittedAt: { not: null },
         },
       })
     : [];
   const submittedMap = new Map(submittedCounts.map(r => [r.placementId, r._count._all]));
 
   const students = placements.map(p => {
-    const totalWeeks     = p._count.logbookSubmissions;
+    const totalWeeks     = SYSTEM_MAX_WEEKS;
     const submittedWeeks = submittedMap.get(p.id) ?? 0;
     const sup            = p.academicSupervisor;
     return {
@@ -171,9 +171,9 @@ export async function listStudents(filters: StudentListFilters) {
       riskTier:       p.riskScores[0]?.riskTier       ?? null,
       riskScore:      p.riskScores[0]?.riskScore != null
                         ? Number(p.riskScores[0].riskScore) : null,
-      lastWeek:       p.logbookSubmissions[0]?.weekNumber    ?? null,
-      lastStatus:     p.logbookSubmissions[0]?.submissionStatus ?? null,
-      lastSubmittedAt: p.logbookSubmissions[0]?.submittedAt  ?? null,
+      lastWeek:       p.logbookEntries[0]?.weekNumber  ?? null,
+      lastStatus:     p.logbookEntries[0]?.status      ?? null,
+      lastSubmittedAt: p.logbookEntries[0]?.submittedAt ?? null,
       totalWeeks,
       submittedWeeks,
       progressPct:    totalWeeks > 0 ? Math.round((submittedWeeks / totalWeeks) * 100) : 0,

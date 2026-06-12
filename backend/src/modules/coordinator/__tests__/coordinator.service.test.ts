@@ -10,6 +10,9 @@ jest.mock('../../../config/prisma', () => ({
     logbookSubmission: {
       groupBy: jest.fn(),
     },
+    logbookEntry: {
+      groupBy: jest.fn(),
+    },
     logbookAnalysis: {
       aggregate: jest.fn(),
     },
@@ -162,18 +165,17 @@ describe('listStudents', () => {
     },
     academicSupervisor: { id: 's-1', firstName: 'Kofi', lastName: 'Adjei' },
     riskScores: [{ riskTier: 'medium', riskScore: { toNumber: () => 0.55 }, computedAt: new Date() }],
-    logbookSubmissions: [{
-      weekNumber:       3,
-      submissionStatus: 'submitted',
-      submittedAt:      new Date('2026-01-20'),
+    logbookEntries: [{
+      weekNumber:  3,
+      status:      'submitted',
+      submittedAt: new Date('2026-01-20'),
     }],
-    _count: { logbookSubmissions: 24 },
   };
 
   it('returns paginated student list', async () => {
     (mp.placement.findMany as jest.Mock).mockResolvedValue([fakePlacement]);
     (mp.placement.count   as jest.Mock).mockResolvedValue(1);
-    (mp.logbookSubmission.groupBy as jest.Mock).mockResolvedValue([
+    (mp.logbookEntry.groupBy as jest.Mock).mockResolvedValue([
       { placementId: 'p-1', _count: { _all: 6 } },
     ]);
 
@@ -187,7 +189,7 @@ describe('listStudents', () => {
   it('maps department, supervisor and logbook progress', async () => {
     (mp.placement.findMany as jest.Mock).mockResolvedValue([fakePlacement]);
     (mp.placement.count   as jest.Mock).mockResolvedValue(1);
-    (mp.logbookSubmission.groupBy as jest.Mock).mockResolvedValue([
+    (mp.logbookEntry.groupBy as jest.Mock).mockResolvedValue([
       { placementId: 'p-1', _count: { _all: 6 } },
     ]);
 
@@ -196,15 +198,15 @@ describe('listStudents', () => {
 
     expect(student.department).toBe('Computer Science');
     expect(student.supervisor).toEqual({ id: 's-1', name: 'Kofi Adjei' });
-    expect(student.totalWeeks).toBe(24);
+    expect(student.totalWeeks).toBe(6);      // fixed 6-week programme
     expect(student.submittedWeeks).toBe(6);
-    expect(student.progressPct).toBe(25); // 6 / 24
+    expect(student.progressPct).toBe(100);   // 6 / 6
   });
 
   it('maps riskTier and riskScore from the latest riskScore entry', async () => {
     (mp.placement.findMany as jest.Mock).mockResolvedValue([fakePlacement]);
     (mp.placement.count   as jest.Mock).mockResolvedValue(1);
-    (mp.logbookSubmission.groupBy as jest.Mock).mockResolvedValue([
+    (mp.logbookEntry.groupBy as jest.Mock).mockResolvedValue([
       { placementId: 'p-1', _count: { _all: 6 } },
     ]);
 
@@ -222,12 +224,11 @@ describe('listStudents', () => {
       academicSupervisor: null,
       student: { ...fakePlacement.student, programme: null },
       riskScores: [],
-      logbookSubmissions: [],
-      _count: { logbookSubmissions: 0 },
+      logbookEntries: [],
     };
     (mp.placement.findMany as jest.Mock).mockResolvedValue([noRisk]);
     (mp.placement.count   as jest.Mock).mockResolvedValue(1);
-    (mp.logbookSubmission.groupBy as jest.Mock).mockResolvedValue([]);
+    (mp.logbookEntry.groupBy as jest.Mock).mockResolvedValue([]);
 
     const result = await listStudents({ page: 1, limit: 20 });
     const student = result.students[0];

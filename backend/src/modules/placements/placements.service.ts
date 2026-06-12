@@ -9,28 +9,10 @@ import type {
   CreateCompanyInput,
 } from './placements.schema';
 
-const LOGBOOK_WEEKS = 24;
-const SUBMISSION_DEADLINE_DAY  = 5;  // Friday
-const SUBMISSION_DEADLINE_HOUR = 23;
-const SUBMISSION_DEADLINE_MIN  = 59;
-
 // ── Helpers ───────────────────────────────────────────────────
 
 function getActiveAcademicYear() {
   return prisma.academicYear.findFirst({ where: { isActive: true } });
-}
-
-// Compute Friday 23:59 deadline for a given week offset from placement start
-function computeDeadline(placementStart: Date, weekNumber: number): Date {
-  // Week 1 deadline = first Friday after or on placementStart
-  const start  = new Date(placementStart);
-  // Days until next Friday (ISO weekday 5)
-  const dayOfWeek = start.getDay() === 0 ? 7 : start.getDay(); // Sun=7
-  const daysToFriday = ((SUBMISSION_DEADLINE_DAY - dayOfWeek + 7) % 7) || 7;
-  const firstFriday = new Date(start);
-  firstFriday.setDate(start.getDate() + daysToFriday + (weekNumber - 1) * 7);
-  firstFriday.setHours(SUBMISSION_DEADLINE_HOUR, SUBMISSION_DEADLINE_MIN, 59, 0);
-  return firstFriday;
 }
 
 // ── Placement CRUD ────────────────────────────────────────────
@@ -183,10 +165,10 @@ export async function updatePlacementStatus(
     },
   });
 
-  // On approval: generate 24-week logbook submission schedule
-  if (input.status === 'active' && placement.startDate) {
-    await generateLogbookSchedule(placementId, updated.studentId, placement.startDate);
-  }
+  // No logbook rows are pre-generated on approval. A student's weekly entries
+  // are created only when they actually start logging (the entries pipeline),
+  // so a new placement begins with a clean, empty slate — data appears as the
+  // student does the work, never before.
 
   // Audit log
   await prisma.auditLog.create({
@@ -268,29 +250,6 @@ export async function assignSupervisor(
   });
 
   return updated;
-}
-
-async function generateLogbookSchedule(
-  placementId: string,
-  studentId: string,
-  startDate: Date,
-) {
-  const submissions = Array.from({ length: LOGBOOK_WEEKS }, (_, i) => ({
-    placementId,
-    studentId,
-    weekNumber:       i + 1,
-    deadline:         computeDeadline(startDate, i + 1),
-    submissionStatus: 'draft' as const,
-    aiAnalysisStatus: 'pending' as const,
-  }));
-
-  // Skip weeks where deadline is already past
-  const now   = new Date();
-  const valid = submissions.filter((s) => s.deadline > now);
-
-  if (valid.length > 0) {
-    await prisma.logbookSubmission.createMany({ data: valid, skipDuplicates: true });
-  }
 }
 
 // ── Coordinator: list all placements ─────────────────────────
