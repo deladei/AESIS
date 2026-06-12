@@ -42,15 +42,60 @@ export interface CoordinatorStudent {
   progressPct:     number;
 }
 
-export function useCoordinatorStudents(page = 1, riskTier?: 'low' | 'medium' | 'high') {
+export type StudentSortKey = 'name' | 'department' | 'supervisor' | 'progress' | 'score' | 'status';
+export type StudentStatusFilter =
+  | 'draft' | 'submitted' | 'returned' | 'acknowledged' | 'rejected' | 'not_started';
+
+export interface StudentListParams {
+  page?:           number;
+  limit?:          number;
+  riskTier?:       'low' | 'medium' | 'high';
+  status?:         StudentStatusFilter;
+  programmeId?:    string;
+  supervisorId?:   string;   // a user id, or 'unassigned'
+  academicYearId?: string;
+  sortBy?:         StudentSortKey;
+  sortDir?:        'asc' | 'desc';
+}
+
+export interface PageMeta {
+  total: number; page: number; limit: number;
+  totalPages: number; hasNextPage: boolean; hasPrevPage: boolean;
+}
+
+export function useCoordinatorStudents(params: StudentListParams = {}, opts?: { refetchInterval?: number }) {
+  const { page = 1, limit = 20, ...rest } = params;
   return useQuery({
-    queryKey: ['coordinator', 'students', { page, riskTier }],
+    queryKey: ['coordinator', 'students', { page, limit, ...rest }],
+    refetchInterval: opts?.refetchInterval,
     queryFn:  async () => {
-      const params = new URLSearchParams({ page: String(page), limit: '20' });
-      if (riskTier) params.set('riskTier', riskTier);
-      const r = await api.get<{ data: { students: CoordinatorStudent[]; meta: unknown } }>(
-        `/coordinator/students?${params}`,
+      const sp = new URLSearchParams({ page: String(page), limit: String(limit) });
+      for (const [k, v] of Object.entries(rest)) {
+        if (v != null && v !== '') sp.set(k, String(v));
+      }
+      const r = await api.get<{ data: { students: CoordinatorStudent[]; meta: PageMeta } }>(
+        `/coordinator/students?${sp}`,
       );
+      return r.data.data;
+    },
+  });
+}
+
+export function useCoordinatorProgrammes() {
+  return useQuery({
+    queryKey: ['coordinator', 'programmes'],
+    queryFn:  async () => {
+      const r = await api.get<{ data: { id: string; name: string }[] }>('/coordinator/programmes');
+      return r.data.data;
+    },
+  });
+}
+
+export function useCoordinatorCohorts() {
+  return useQuery({
+    queryKey: ['coordinator', 'cohorts'],
+    queryFn:  async () => {
+      const r = await api.get<{ data: { id: string; label: string; isActive: boolean }[] }>('/coordinator/cohorts');
       return r.data.data;
     },
   });

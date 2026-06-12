@@ -1,13 +1,11 @@
 import { Link } from 'react-router-dom';
 import {
-  Users, Clock, BarChart3, Briefcase, TrendingUp, Filter, MoreVertical,
+  Users, Clock, BarChart3, Briefcase, TrendingUp,
   Landmark, Eye, Check, Sparkles, RefreshCw, Loader2, AlertCircle, Inbox,
 } from 'lucide-react';
-import {
-  useCoordinatorDashboard, useCoordinatorStudents, useCoordinatorActivity,
-  type CoordinatorStudent,
-} from '@/hooks/useDashboard';
+import { useCoordinatorDashboard, useCoordinatorActivity } from '@/hooks/useDashboard';
 import { useAllPlacements } from '@/hooks/usePlacements';
+import InternStatusTable from '@/components/coordinator/InternStatusTable';
 
 /**
  * Coordinator Dashboard — "Nexus Oversight" Stitch design, wired to live data.
@@ -35,9 +33,6 @@ function relativeTime(iso: string): string {
   return `${Math.floor(days / 7)}w ago`;
 }
 
-const tierBar:  Record<string, string> = { low: 'bg-emerald-500', medium: 'bg-amber-500', high: 'bg-red-500' };
-const tierText: Record<string, string> = { low: 'text-emerald-600', medium: 'text-amber-600', high: 'text-red-600' };
-
 function RoadmapBadge() {
   return (
     <span className="rounded-full bg-amber-400/20 px-2 py-0.5 text-[10px] font-bold tracking-wide text-amber-300">
@@ -46,53 +41,13 @@ function RoadmapBadge() {
   );
 }
 
-function InternRow({ s }: { s: CoordinatorStudent }) {
-  const name = `${s.student.firstName} ${s.student.lastName}`;
-  const tier = s.riskTier ?? '';
-  return (
-    <tr className="transition-colors hover:bg-[#eff4ff]">
-      <td className="px-6 py-3">
-        <div className="flex items-center gap-3">
-          <div className="flex h-8 w-8 items-center justify-center rounded-full bg-[#e1e0ff] text-[11px] font-bold text-[#15157d]">{initials(name)}</div>
-          <div>
-            <p className="text-sm font-bold leading-tight text-[#0b1c30]">{name}</p>
-            <p className="font-mono text-xs text-[#757684]">#{s.placementId.slice(0, 6).toUpperCase()}</p>
-          </div>
-        </div>
-      </td>
-      <td className="px-4 py-3 text-sm text-[#0b1c30]">{s.department ?? '—'}</td>
-      <td className="px-4 py-3 text-sm text-[#0b1c30]">{s.supervisor?.name?.trim() ? s.supervisor.name : <span className="text-[#757684]">Unassigned</span>}</td>
-      <td className="px-4 py-3">
-        <div className="w-40">
-          <div className="mb-1 flex justify-between text-[10px]">
-            <span className={`font-bold ${tierText[tier] ?? 'text-[#15157d]'}`}>
-              Week {s.lastWeek ?? 0} of {s.totalWeeks || 6}
-            </span>
-            <span className="text-[#757684]">{s.progressPct}%</span>
-          </div>
-          <div className="h-1.5 w-full overflow-hidden rounded-full bg-[#e5eeff]">
-            <div className={`h-full ${tierBar[tier] ?? 'bg-[#15157d]'}`} style={{ width: `${s.progressPct}%` }} />
-          </div>
-        </div>
-      </td>
-      <td className="px-6 py-3 text-right">
-        <Link to="/coordinator/assignments" aria-label={`Manage ${name}`} className="inline-flex text-[#757684] transition-colors hover:text-[#15157d]">
-          <MoreVertical className="h-4 w-4" />
-        </Link>
-      </td>
-    </tr>
-  );
-}
 
 export default function CoordinatorDashboard() {
   const { data: dash, isLoading: dashLoading, isError: dashError, refetch: refetchDash } = useCoordinatorDashboard();
-  const { data: studentsData, isLoading: studentsLoading } = useCoordinatorStudents(1);
   const { data: pending } = useAllPlacements(1, 'pending');
   const { data: activity, isLoading: activityLoading, refetch: refetchActivity } = useCoordinatorActivity(8);
 
-  const students       = studentsData?.students ?? [];
-  const totalInterns   = (studentsData?.meta as { total?: number } | undefined)?.total ?? students.length;
-  const pendingList    = pending?.placements ?? [];
+  const pendingList = pending?.placements ?? [];
 
   const ov = dash?.overview;
   // AI Pulse Matching is a roadmap feature gated by a backend flag (off in prod).
@@ -164,47 +119,8 @@ export default function CoordinatorDashboard() {
       <div className="grid grid-cols-12 gap-4">
         {/* Left column */}
         <div className="col-span-12 space-y-4 lg:col-span-8">
-          {/* Intern Status Monitor */}
-          <div className="overflow-hidden rounded-xl border border-[#c4c5d5]/60 bg-white shadow-sm">
-            <div className="flex items-center justify-between border-b border-[#c4c5d5]/60 bg-[#f8f9ff] px-6 py-4">
-              <h3 className="text-lg font-semibold text-[#15157d]">Intern Status Monitor</h3>
-              <div className="flex items-center gap-2">
-                <span className="rounded bg-[#15157d]/10 px-2 py-1 text-[11px] font-semibold text-[#15157d]">Live</span>
-                <button aria-label="Filter interns" className="text-[#444653] transition-colors hover:text-[#15157d]">
-                  <Filter className="h-4 w-4" />
-                </button>
-              </div>
-            </div>
-            <div className="overflow-x-auto">
-              <table className="w-full text-left">
-                <thead className="bg-[#eff4ff]">
-                  <tr className="text-xs font-semibold tracking-wide text-[#757684]">
-                    <th className="px-6 py-3">Intern</th>
-                    <th className="px-4 py-3">Department</th>
-                    <th className="px-4 py-3">Supervisor</th>
-                    <th className="px-4 py-3">Logbook progress</th>
-                    <th className="px-6 py-3 text-right">Action</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-[#c4c5d5]/50">
-                  {studentsLoading ? (
-                    <tr><td colSpan={5} className="px-6 py-10 text-center"><Loader2 className="mx-auto h-5 w-5 animate-spin text-[#15157d]" /></td></tr>
-                  ) : students.length === 0 ? (
-                    <tr><td colSpan={5} className="px-6 py-10 text-center text-sm text-[#757684]">No active interns yet.</td></tr>
-                  ) : (
-                    students.map((s) => <InternRow key={s.placementId} s={s} />)
-                  )}
-                </tbody>
-              </table>
-            </div>
-            {students.length > 0 && (
-              <div className="flex justify-center border-t border-[#c4c5d5]/60 bg-[#f8f9ff] py-4">
-                <Link to="/coordinator/assignments" className="text-sm font-semibold text-[#15157d] hover:underline">
-                  View all {totalInterns.toLocaleString()} interns
-                </Link>
-              </div>
-            )}
-          </div>
+          {/* Intern Status Monitor — sortable, filterable; "View all" → full list */}
+          <InternStatusTable pageSize={8} viewAllHref="/coordinator/interns" />
 
           {/* Requests + AI matching */}
           <div className="grid grid-cols-1 gap-4 md:grid-cols-2">

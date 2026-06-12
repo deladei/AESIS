@@ -21,6 +21,12 @@ router.get('/activity', asyncHandler(ctrl.activity));
 // GET /api/v1/coordinator/supervisors
 router.get('/supervisors', asyncHandler(ctrl.supervisors));
 
+// GET /api/v1/coordinator/programmes — department filter options
+router.get('/programmes', asyncHandler(ctrl.programmes));
+
+// GET /api/v1/coordinator/cohorts — academic-year filter options
+router.get('/cohorts', asyncHandler(ctrl.cohorts));
+
 // GET /api/v1/coordinator/oversight — cross-cohort at-risk monitoring
 router.get('/oversight', asyncHandler(ctrl.oversight));
 

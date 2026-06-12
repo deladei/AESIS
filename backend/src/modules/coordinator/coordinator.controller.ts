@@ -5,9 +5,15 @@ import * as service from './coordinator.service';
 import { updateCohortConfigSchema } from './coordinator.schema';
 
 const studentsQuerySchema = z.object({
-  page:     z.coerce.number().int().positive().default(1),
-  limit:    z.coerce.number().int().min(1).max(100).default(20),
-  riskTier: z.enum(['low', 'medium', 'high']).optional(),
+  page:           z.coerce.number().int().positive().default(1),
+  limit:          z.coerce.number().int().min(1).max(100).default(20),
+  riskTier:       z.enum(['low', 'medium', 'high']).optional(),
+  programmeId:    z.string().uuid().optional(),
+  supervisorId:   z.union([z.literal('unassigned'), z.string().uuid()]).optional(),
+  academicYearId: z.string().uuid().optional(),
+  status:         z.enum(['draft', 'submitted', 'returned', 'acknowledged', 'rejected', 'not_started']).optional(),
+  sortBy:         z.enum(['name', 'department', 'supervisor', 'progress', 'score', 'status']).optional(),
+  sortDir:        z.enum(['asc', 'desc']).optional(),
 });
 
 export async function dashboard(_req: Request, res: Response) {
@@ -16,9 +22,17 @@ export async function dashboard(_req: Request, res: Response) {
 }
 
 export async function students(req: Request, res: Response) {
-  const { page, limit, riskTier } = studentsQuerySchema.parse(req.query);
-  const result = await service.listStudents({ page, limit, riskTier });
+  const filters = studentsQuerySchema.parse(req.query);
+  const result = await service.listStudents(filters);
   ok(res, result);
+}
+
+export async function programmes(_req: Request, res: Response) {
+  ok(res, await service.listProgrammes());
+}
+
+export async function cohorts(_req: Request, res: Response) {
+  ok(res, await service.listCohorts());
 }
 
 const activityQuerySchema = z.object({

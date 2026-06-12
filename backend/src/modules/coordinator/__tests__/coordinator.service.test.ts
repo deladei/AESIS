@@ -23,6 +23,12 @@ jest.mock('../../../config/prisma', () => ({
       findFirst: jest.fn(),
       update:    jest.fn(),
     },
+    academicProgramme: {
+      findMany: jest.fn(),
+    },
+    academicYear: {
+      findMany: jest.fn(),
+    },
   },
 }));
 
@@ -30,6 +36,8 @@ import { prisma } from '../../../config/prisma';
 import {
   getCoordinatorDashboard,
   listStudents,
+  listProgrammes,
+  listCohorts,
   getRecentActivity,
   getActiveCohortConfig,
   updateActiveCohortConfig,
@@ -279,6 +287,86 @@ describe('listStudents', () => {
 
     const call = (mp.placement.findMany as jest.Mock).mock.calls[0][0];
     expect(call.where).not.toHaveProperty('riskScores');
+  });
+
+  // Row shape matching STUDENT_SELECT.
+  const row = (over: Record<string, unknown> = {}) => ({
+    id: 'p-1', createdAt: new Date('2026-01-01'),
+    student: { id: 'u-1', firstName: 'Ada', lastName: 'Lovelace', email: 'a@x.edu', programme: { name: 'CS' } },
+    academicSupervisor: { id: 's-1', firstName: 'Theo', lastName: 'Walls' },
+    riskScores: [{ riskTier: 'low', riskScore: 0.2, computedAt: new Date() }],
+    logbookEntries: [{ weekNumber: 3, status: 'submitted', submittedAt: new Date() }],
+    ...over,
+  });
+
+  it('filters by the latest entry status in memory (count not used)', async () => {
+    (mp.placement.findMany as jest.Mock).mockResolvedValue([
+      row({ id: 'p-1', logbookEntries: [{ weekNumber: 3, status: 'submitted', submittedAt: new Date() }] }),
+      row({ id: 'p-2', logbookEntries: [{ weekNumber: 2, status: 'draft', submittedAt: null }] }),
+      row({ id: 'p-3', logbookEntries: [] }), // not_started
+    ]);
+    (mp.logbookEntry.groupBy as jest.Mock).mockResolvedValue([
+      { placementId: 'p-1', _count: { _all: 3 } },
+    ]);
+
+    const result = await listStudents({ page: 1, limit: 20, status: 'submitted' });
+
+    expect(result.students.map(s => s.placementId)).toEqual(['p-1']);
+    expect(result.meta.total).toBe(1);
+    expect(mp.placement.count).not.toHaveBeenCalled(); // in-memory path
+  });
+
+  it('sorts by computed progress descending', async () => {
+    (mp.placement.findMany as jest.Mock).mockResolvedValue([
+      row({ id: 'p-low' }), row({ id: 'p-high' }),
+    ]);
+    (mp.logbookEntry.groupBy as jest.Mock).mockResolvedValue([
+      { placementId: 'p-low',  _count: { _all: 2 } },
+      { placementId: 'p-high', _count: { _all: 5 } },
+    ]);
+
+    const result = await listStudents({ page: 1, limit: 20, sortBy: 'progress', sortDir: 'desc' });
+
+    expect(result.students.map(s => s.placementId)).toEqual(['p-high', 'p-low']);
+  });
+
+  it('maps an "unassigned" supervisor filter to academicSupervisorId: null', async () => {
+    (mp.placement.findMany as jest.Mock).mockResolvedValue([]);
+    (mp.placement.count   as jest.Mock).mockResolvedValue(0);
+
+    await listStudents({ page: 1, limit: 20, supervisorId: 'unassigned' });
+
+    const call = (mp.placement.findMany as jest.Mock).mock.calls[0][0];
+    expect(call.where.academicSupervisorId).toBeNull();
+  });
+
+  it('passes a DB-native sort (department) as orderBy, not in memory', async () => {
+    (mp.placement.findMany as jest.Mock).mockResolvedValue([]);
+    (mp.placement.count   as jest.Mock).mockResolvedValue(0);
+
+    await listStudents({ page: 1, limit: 20, sortBy: 'department', sortDir: 'asc' });
+
+    const call = (mp.placement.findMany as jest.Mock).mock.calls[0][0];
+    expect(call.orderBy).toEqual({ student: { programme: { name: 'asc' } } });
+    expect(call.take).toBe(20); // paged in the DB
+  });
+});
+
+// ── filter options ────────────────────────────────────────────
+
+describe('listProgrammes / listCohorts', () => {
+  beforeEach(() => jest.clearAllMocks());
+
+  it('returns programmes ordered by name', async () => {
+    (mp.academicProgramme.findMany as jest.Mock).mockResolvedValue([{ id: 'pr-1', name: 'CS' }]);
+    const result = await listProgrammes();
+    expect(result).toEqual([{ id: 'pr-1', name: 'CS' }]);
+  });
+
+  it('returns cohorts (academic years)', async () => {
+    (mp.academicYear.findMany as jest.Mock).mockResolvedValue([{ id: 'ay-1', label: '2025/2026', isActive: true }]);
+    const result = await listCohorts();
+    expect(result).toEqual([{ id: 'ay-1', label: '2025/2026', isActive: true }]);
   });
 });
 

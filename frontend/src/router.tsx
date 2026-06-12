@@ -19,6 +19,7 @@ import SupervisorDashboard from '@/pages/supervisor/SupervisorDashboard';
 import EntryReview         from '@/pages/supervisor/EntryReview';
 import PlacementFinalization from '@/pages/supervisor/PlacementFinalization';
 import CoordinatorDashboard from '@/pages/coordinator/CoordinatorDashboard';
+import InternsList          from '@/pages/coordinator/InternsList';
 import PlacementApproval    from '@/pages/coordinator/PlacementApproval';
 import SupervisorAssignment from '@/pages/coordinator/SupervisorAssignment';
 import CohortSettings       from '@/pages/coordinator/CohortSettings';
@@ -121,6 +122,7 @@ export const router = createBrowserRouter([
     element: <RequireAuth roles={['coordinator', 'admin']} />,
     children: [
       { path: '/coordinator/dashboard',  element: <CoordinatorDashboard /> },
+      { path: '/coordinator/interns',    element: <InternsList /> },
       { path: '/coordinator/placements', element: <PlacementApproval /> },
       { path: '/coordinator/assignments', element: <SupervisorAssignment /> },
       { path: '/coordinator/oversight',  element: <Oversight /> },
