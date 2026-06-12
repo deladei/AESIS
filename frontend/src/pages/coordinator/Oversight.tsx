@@ -135,7 +135,7 @@ export default function Oversight() {
                     </p>
                     <p className="text-xs text-[#757684]">{r.department ?? r.student.email}</p>
                   </td>
-                  <td className="px-5 py-4 text-[#444653]">{r.supervisor?.name ?? '—'}</td>
+                  <td className="px-5 py-4 text-[#444653]">{r.supervisor?.name?.trim() ? r.supervisor.name : <span className="text-[#757684]">Unassigned</span>}</td>
                   <td className="px-5 py-4">
                     {r.riskTier ? (
                       <span className={`rounded-full px-2 py-0.5 text-xs font-semibold capitalize ${RISK_CLS[r.riskTier]}`}>

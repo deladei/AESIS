@@ -61,7 +61,7 @@ function InternRow({ s }: { s: CoordinatorStudent }) {
         </div>
       </td>
       <td className="px-4 py-3 text-sm text-[#0b1c30]">{s.department ?? '—'}</td>
-      <td className="px-4 py-3 text-sm text-[#0b1c30]">{s.supervisor?.name ?? <span className="text-[#757684]">Unassigned</span>}</td>
+      <td className="px-4 py-3 text-sm text-[#0b1c30]">{s.supervisor?.name?.trim() ? s.supervisor.name : <span className="text-[#757684]">Unassigned</span>}</td>
       <td className="px-4 py-3">
         <div className="w-40">
           <div className="mb-1 flex justify-between text-[10px]">

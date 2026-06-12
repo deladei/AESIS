@@ -175,7 +175,7 @@ export async function listStudents(filters: StudentListFilters) {
         lastName: p.student.lastName, email: p.student.email,
       },
       department:     p.student.programme?.name ?? null,
-      supervisor:     sup ? { id: sup.id, name: `${sup.firstName} ${sup.lastName}` } : null,
+      supervisor:     sup ? { id: sup.id, name: `${sup.firstName} ${sup.lastName}`.trim() } : null,
       riskTier:       p.riskScores[0]?.riskTier       ?? null,
       riskScore:      p.riskScores[0]?.riskScore != null
                         ? Number(p.riskScores[0].riskScore) : null,
@@ -316,7 +316,7 @@ export async function getOversight(now: Date = new Date()) {
         lastName: p.student.lastName, email: p.student.email,
       },
       department:      p.student.programme?.name ?? null,
-      supervisor:      sup ? { id: sup.id, name: `${sup.firstName} ${sup.lastName}` } : null,
+      supervisor:      sup ? { id: sup.id, name: `${sup.firstName} ${sup.lastName}`.trim() } : null,
       riskTier:        p.riskScores[0]?.riskTier ?? null,
       avgQualityScore, // number (1 dp) within [0,100], or null
       lastActivityAt,  // ISO string, or null
