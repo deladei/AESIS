@@ -8,6 +8,7 @@ import {
   inviteAttestation,
   getAttestationContext,
   submitAttestation,
+  getFinalAssessment,
 } from './finalization.service';
 import type { Actor } from '../entries/entries.policy';
 import type { EntryRole } from '../entries/entry.stateMachine';
@@ -32,6 +33,12 @@ export async function finalizeHandler(req: Request, res: Response) {
   const input = finalizeSchema.parse(req.body ?? {});
   const result = await finalizePlacement(actorOf(req), id, input);
   return ok(res, result);
+}
+
+export async function getFinalAssessmentHandler(req: Request, res: Response) {
+  const { id } = idParam.parse(req.params);
+  const data = await getFinalAssessment(actorOf(req), id);
+  return ok(res, data);
 }
 
 export async function inviteAttestationHandler(req: Request, res: Response) {

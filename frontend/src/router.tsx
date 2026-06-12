@@ -14,6 +14,7 @@ import LogbookEditor     from '@/pages/student/LogbookEditor';
 import SubmissionHistory from '@/pages/student/SubmissionHistory';
 import NotificationInbox from '@/pages/student/NotificationInbox';
 import ChatbotPanel      from '@/pages/student/ChatbotPanel';
+import FinalAssessment   from '@/pages/student/FinalAssessment';
 import SupervisorDashboard from '@/pages/supervisor/SupervisorDashboard';
 import EntryReview         from '@/pages/supervisor/EntryReview';
 import PlacementFinalization from '@/pages/supervisor/PlacementFinalization';
@@ -101,6 +102,7 @@ export const router = createBrowserRouter([
       { path: '/student/submissions',   element: <SubmissionHistory /> },
       { path: '/student/notifications', element: <NotificationInbox /> },
       { path: '/student/chatbot',       element: <ChatbotPanel /> },
+      { path: '/student/final-assessment', element: <FinalAssessment /> },
     ],
   },
 

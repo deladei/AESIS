@@ -35,21 +35,66 @@ export interface WeekWaiver {
 
 // ── Authenticated: academic supervisor / admin ──
 
+export interface EvaluationCriterion {
+  criterion: string;
+  rating:    number; // 1–5
+  comment?:  string;
+}
+export interface EvaluationForm {
+  criteria:        EvaluationCriterion[];
+  recommendation?: 'pass' | 'distinction' | 'resit' | 'fail';
+}
+
 /** Record (or update) the binding placement assessment. active → assessment_pending. */
 export function useRecordAssessment() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: async ({ placementId, grade, narrative }: {
-      placementId: string; grade: string; narrative?: string;
+    mutationFn: async ({ placementId, grade, narrative, evaluation }: {
+      placementId: string; grade: string; narrative?: string; evaluation?: EvaluationForm;
     }) => {
       const r = await api.post<{ data: PlacementAssessment }>(
         `/placements/${placementId}/assessment`,
-        { grade, narrative },
+        { grade, narrative, evaluation },
       );
       return r.data.data;
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['placements'] });
+      qc.invalidateQueries({ queryKey: ['final-assessment'] });
+    },
+  });
+}
+
+export interface FinalAssessment {
+  finalizationStatus: 'active' | 'assessment_pending' | 'finalized';
+  finalized:          boolean;
+  student:            string;
+  organisation:       string | null;
+  startDate:          string | null;
+  endDate:            string | null;
+  grade:              string | null;
+  narrative:          string | null;
+  evaluation:         EvaluationForm | null;
+  signedOffBy:        string | null;
+  signedOffAt:        string | null;
+  crossWeekSummary:   unknown | null;
+  finalReport:        { fileName: string; fileUrl: string; uploadedAt: string } | null;
+  companyAttestation: { confirmed: boolean; comment: string | null; attestedAt: string | null } | null;
+}
+
+/**
+ * The closeout package. The backend gates visibility — students/company
+ * supervisors get a 403 until the placement is finalized. `retry:false` so a
+ * 403/404 is treated as definitive (not retried).
+ */
+export function useFinalAssessment(placementId?: string) {
+  return useQuery({
+    queryKey: ['final-assessment', placementId],
+    enabled:  !!placementId,
+    retry:    false,
+    queryFn: async () => {
+      const r = await api.get<{ data: FinalAssessment }>(`/placements/${placementId}/final-assessment`);
+      return r.data.data;
     },
   });
 }

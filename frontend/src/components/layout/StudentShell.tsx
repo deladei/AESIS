@@ -4,7 +4,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { useUnreadCount } from '@/hooks/useNotifications';
 import { MobileNav } from './MobileNav';
 import {
-  LayoutDashboard, BookOpen, FileText, MessageSquare, MessageSquareText, Bell, LogOut, Sparkles,
+  LayoutDashboard, BookOpen, FileText, MessageSquare, MessageSquareText, Bell, LogOut, Sparkles, Award,
 } from 'lucide-react';
 
 interface NavItem {
@@ -19,6 +19,7 @@ const navItems: NavItem[] = [
   { label: 'Submissions',     href: '/student/submissions',   icon: FileText },
   { label: 'AESIS Assistant', href: '/student/chatbot',       icon: MessageSquare },
   { label: 'Feedback Center', href: '/feedback',              icon: MessageSquareText },
+  { label: 'Final Assessment', href: '/student/final-assessment', icon: Award },
   { label: 'Notifications',   href: '/student/notifications', icon: Bell },
 ];
 

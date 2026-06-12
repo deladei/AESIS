@@ -1,7 +1,7 @@
 import { useState, useEffect, useMemo } from 'react';
 import {
   Loader2, CheckCircle2, AlertCircle, Inbox, Award, Lock, Link2, Copy, Check,
-  ClipboardCheck, CalendarDays,
+  ClipboardCheck, CalendarDays, Plus, X,
 } from 'lucide-react';
 import {
   useAssignedPlacements, type Placement, type FinalizationStatus,
@@ -155,6 +155,8 @@ function FinalizationDetail({ placement }: { placement: Placement }) {
 
   const [grade, setGrade] = useState('');
   const [narrative, setNarrative] = useState('');
+  const [criteria, setCriteria] = useState<{ criterion: string; rating: number }[]>([]);
+  const [recommendation, setRecommendation] = useState<'' | 'pass' | 'distinction' | 'resit' | 'fail'>('');
   const [assessMsg, setAssessMsg] = useState<string | null>(null);
   const [assessErr, setAssessErr] = useState<string | null>(null);
 
@@ -178,11 +180,19 @@ function FinalizationDetail({ placement }: { placement: Placement }) {
   const handleRecord = async () => {
     setAssessErr(null); setAssessMsg(null);
     if (!grade.trim()) { setAssessErr('A grade is required.'); return; }
+    const validCriteria = criteria
+      .filter((c) => c.criterion.trim())
+      .map((c) => ({ criterion: c.criterion.trim(), rating: c.rating }));
+    const evaluation =
+      validCriteria.length > 0 || recommendation
+        ? { criteria: validCriteria, ...(recommendation ? { recommendation } : {}) }
+        : undefined;
     try {
       await recordAssessment.mutateAsync({
         placementId: placement.id,
         grade: grade.trim(),
         narrative: narrative.trim() || undefined,
+        evaluation,
       });
       setAssessMsg('Assessment recorded. You can now finalize once every week is resolved.');
     } catch (e) { setAssessErr(apiErr(e)); }
@@ -328,6 +338,61 @@ function FinalizationDetail({ placement }: { placement: Placement }) {
                 placeholder="Summarise the intern's overall performance…"
                 className={`${inputCls} resize-none`}
               />
+
+              {/* Structured end-of-placement evaluation (optional) */}
+              <div className="mt-4 rounded-lg border border-[#e2e6ef] bg-[#fbfcfe] p-4">
+                <p className="mb-2 text-sm font-semibold text-[#0b1c30]">
+                  End-of-placement evaluation
+                  <span className="ml-2 text-xs font-normal text-[#64748b]">Optional · rate 1–5</span>
+                </p>
+                {criteria.map((c, i) => (
+                  <div key={i} className="mb-2 flex items-center gap-2">
+                    <input
+                      value={c.criterion}
+                      onChange={(e) => setCriteria((cs) => cs.map((x, j) => (j === i ? { ...x, criterion: e.target.value } : x)))}
+                      placeholder="Criterion (e.g. Technical skill)"
+                      maxLength={200}
+                      className="flex-1 rounded-lg border border-[#d8dce6] px-3 py-2 text-sm outline-none focus:border-[#15157d]"
+                    />
+                    <select
+                      value={c.rating}
+                      onChange={(e) => setCriteria((cs) => cs.map((x, j) => (j === i ? { ...x, rating: Number(e.target.value) } : x)))}
+                      className="rounded-lg border border-[#d8dce6] px-2 py-2 text-sm outline-none focus:border-[#15157d]"
+                    >
+                      {[1, 2, 3, 4, 5].map((n) => <option key={n} value={n}>{n}</option>)}
+                    </select>
+                    <button
+                      type="button" aria-label="Remove criterion"
+                      onClick={() => setCriteria((cs) => cs.filter((_, j) => j !== i))}
+                      className="rounded p-1.5 text-[#94a3b8] hover:bg-[#fde7e7] hover:text-[#8a1c1c]"
+                    >
+                      <X className="h-4 w-4" />
+                    </button>
+                  </div>
+                ))}
+                <button
+                  type="button"
+                  onClick={() => setCriteria((cs) => [...cs, { criterion: '', rating: 3 }])}
+                  className="inline-flex items-center gap-1.5 text-xs font-semibold text-[#15157d] hover:underline"
+                >
+                  <Plus className="h-3.5 w-3.5" /> Add criterion
+                </button>
+                <div className="mt-3">
+                  <label className="mb-1 block text-xs font-medium text-[#64748b]">Overall recommendation</label>
+                  <select
+                    value={recommendation}
+                    onChange={(e) => setRecommendation(e.target.value as typeof recommendation)}
+                    className="rounded-lg border border-[#d8dce6] px-3 py-2 text-sm outline-none focus:border-[#15157d]"
+                  >
+                    <option value="">—</option>
+                    <option value="pass">Pass</option>
+                    <option value="distinction">Distinction</option>
+                    <option value="resit">Resit</option>
+                    <option value="fail">Fail</option>
+                  </select>
+                </div>
+              </div>
+
               {assessErr && (
                 <div className="mt-2 flex items-start gap-2 text-xs text-[#b3261e]">
                   <AlertCircle className="mt-0.5 h-3.5 w-3.5 shrink-0" /> {assessErr}

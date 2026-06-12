@@ -1,9 +1,23 @@
 import { z } from 'zod';
 
+// One criterion of the structured end-of-placement evaluation. The rating is a
+// strict 1–5 integer — out-of-range values are rejected (400), never persisted.
+const evaluationCriterionSchema = z.object({
+  criterion: z.string().trim().min(1).max(200),
+  rating:    z.number().int().min(1).max(5),
+  comment:   z.string().trim().max(2000).optional(),
+});
+
+export const evaluationSchema = z.object({
+  criteria:       z.array(evaluationCriterionSchema).max(30).default([]),
+  recommendation: z.enum(['pass', 'distinction', 'resit', 'fail']).optional(),
+});
+
 // Academic supervisor records the binding placement assessment.
 export const assessmentSchema = z.object({
-  grade: z.string().trim().min(1).max(20),
-  narrative: z.string().trim().max(10000).optional(),
+  grade:      z.string().trim().min(1).max(20),
+  narrative:  z.string().trim().max(10000).optional(),
+  evaluation: evaluationSchema.optional(),
 });
 
 // Finalize a placement. Any week not acknowledged must be explicitly waived

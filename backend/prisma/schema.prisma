@@ -664,6 +664,9 @@ model PlacementAssessment {
   academicSupervisor   User      @relation("PlacementAssessor", fields: [academicSupervisorId], references: [id])
   grade                String
   narrative            String?
+  // Structured end-of-placement evaluation form (criteria ratings 1–5 +
+  // recommendation). Validated at the app layer; locked once finalized.
+  evaluation           Json?     @db.JsonB
   crossWeekSummary     Json?     @map("cross_week_summary") @db.JsonB
   // Recorded reasons for any week finalized without acknowledgment (academic
   // supervisor waiver). Shape: [{ weekNumber, reason, waivedBy, waivedAt }].

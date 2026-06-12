@@ -56,6 +56,11 @@ export async function recordAssessment(actor: Actor, placementId: string, input:
     throw new AppError(409, 'Placement is already finalized; its assessment is locked');
   }
 
+  // Evaluation is validated (ratings 1–5) by the Zod schema before it reaches
+  // here; only set it when provided so re-recording a grade can't wipe it.
+  const evaluation =
+    input.evaluation !== undefined ? (input.evaluation as unknown as Prisma.InputJsonValue) : undefined;
+
   const assessment = await prisma.placementAssessment.upsert({
     where: { placementId },
     create: {
@@ -63,8 +68,14 @@ export async function recordAssessment(actor: Actor, placementId: string, input:
       academicSupervisorId: actor.id,
       grade: input.grade,
       narrative: input.narrative ?? null,
+      ...(evaluation !== undefined && { evaluation }),
     },
-    update: { grade: input.grade, narrative: input.narrative ?? null, academicSupervisorId: actor.id },
+    update: {
+      grade: input.grade,
+      narrative: input.narrative ?? null,
+      academicSupervisorId: actor.id,
+      ...(evaluation !== undefined && { evaluation }),
+    },
   });
 
   // active -> assessment_pending once an assessment exists.
@@ -167,6 +178,88 @@ export async function finalizePlacement(
   ]);
 
   return prisma.placementAssessment.findUniqueOrThrow({ where: { placementId } });
+}
+
+// ── Final assessment package (gated closeout view) ────────────
+
+type FinalAssessmentOwnership = {
+  studentId: string;
+  academicSupervisorId: string | null;
+  companySupervisorId: string | null;
+};
+
+/**
+ * Visibility gate for the closeout package. Faculty (own), coordinator and admin
+ * may always see it (in-progress included). The student and company supervisor
+ * see it only once the placement is FINALIZED (signed off) — an in-progress
+ * grade is never exposed to them.
+ */
+function assertCanViewFinalAssessment(actor: Actor, p: FinalAssessmentOwnership, finalized: boolean): void {
+  if (actor.role === 'admin' || actor.role === 'coordinator') return;
+  if (actor.role === 'academic_supervisor' && p.academicSupervisorId === actor.id) return;
+
+  const isStudent = actor.role === 'student' && p.studentId === actor.id;
+  const isCompany = actor.role === 'company_supervisor' && p.companySupervisorId === actor.id;
+  if (isStudent || isCompany) {
+    if (!finalized) {
+      throw new AppError(403, 'The final assessment is available once the internship is finalized');
+    }
+    return;
+  }
+  throw new AppError(403, 'Access denied');
+}
+
+export async function getFinalAssessment(actor: Actor, placementId: string) {
+  const placement = await prisma.placement.findUnique({
+    where: { id: placementId },
+    select: {
+      studentId: true, academicSupervisorId: true, companySupervisorId: true,
+      finalizationStatus: true, startDate: true, endDate: true,
+      student: { select: { firstName: true, lastName: true } },
+      company: { select: { name: true } },
+      placementAssessment: {
+        select: {
+          grade: true, narrative: true, evaluation: true, crossWeekSummary: true, finalizedAt: true,
+          academicSupervisor: { select: { firstName: true, lastName: true } },
+        },
+      },
+      companyAttestation: { select: { confirmed: true, comment: true, attestedAt: true } },
+      documents: {
+        where:   { docType: 'final_report' },
+        orderBy: { uploadedAt: 'desc' },
+        take:    1,
+        select:  { id: true, fileName: true, fileUrl: true, uploadedAt: true },
+      },
+    },
+  });
+  if (!placement) throw new AppError(404, 'Placement not found');
+
+  const finalized = placement.finalizationStatus === 'finalized';
+  assertCanViewFinalAssessment(actor, placement, finalized);
+
+  const a = placement.placementAssessment;
+  const report = placement.documents[0] ?? null;
+  const att = placement.companyAttestation;
+
+  return {
+    finalizationStatus: placement.finalizationStatus,
+    finalized,
+    student:      `${placement.student.firstName} ${placement.student.lastName}`,
+    organisation: placement.company?.name ?? null,
+    startDate:    placement.startDate,
+    endDate:      placement.endDate,
+    grade:        a?.grade ?? null,
+    narrative:    a?.narrative ?? null,
+    evaluation:   a?.evaluation ?? null,
+    signedOffBy:  a?.academicSupervisor
+      ? `${a.academicSupervisor.firstName} ${a.academicSupervisor.lastName}` : null,
+    signedOffAt:  a?.finalizedAt ?? null,
+    crossWeekSummary: a?.crossWeekSummary ?? null, // advisory AI summary — never a grade input
+    finalReport: report
+      ? { fileName: report.fileName, fileUrl: report.fileUrl, uploadedAt: report.uploadedAt } : null,
+    companyAttestation: att
+      ? { confirmed: att.confirmed, comment: att.comment, attestedAt: att.attestedAt } : null,
+  };
 }
 
 // ── Company attestation (magic link, no account) ──────────────
