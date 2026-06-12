@@ -38,10 +38,10 @@ function relativeTime(iso: string): string {
 const tierBar:  Record<string, string> = { low: 'bg-emerald-500', medium: 'bg-amber-500', high: 'bg-red-500' };
 const tierText: Record<string, string> = { low: 'text-emerald-600', medium: 'text-amber-600', high: 'text-red-600' };
 
-function SampleBadge() {
+function RoadmapBadge() {
   return (
     <span className="rounded-full bg-amber-400/20 px-2 py-0.5 text-[10px] font-bold tracking-wide text-amber-300">
-      Sample
+      Roadmap
     </span>
   );
 }
@@ -95,6 +95,8 @@ export default function CoordinatorDashboard() {
   const pendingList    = pending?.placements ?? [];
 
   const ov = dash?.overview;
+  // AI Pulse Matching is a roadmap feature gated by a backend flag (off in prod).
+  const aiMatchingEnabled = dash?.featureFlags?.aiPulseMatching ?? false;
   const metrics = [
     { label: 'Active Interns',    value: ov ? ov.activePlacements.toLocaleString() : '—', icon: Users,     sub: 'Currently on placement', tone: 'text-[#757684]' },
     { label: 'Pending Placements', value: ov ? String(ov.pendingApprovals) : '—',         icon: Clock,     sub: ov?.pendingApprovals ? 'Awaiting your review' : 'All caught up', tone: 'text-amber-600' },
@@ -243,8 +245,10 @@ export default function CoordinatorDashboard() {
               </div>
             </div>
 
-            {/* AI matching — no backing feature yet; clearly marked Sample */}
-            <div className="relative overflow-hidden rounded-xl bg-[#15157d] p-6 text-white">
+            {/* AI matching — roadmap feature behind a flag (off in prod). When
+                disabled, the panel and its Invite buttons are inert with a
+                tooltip; no live-looking dead controls. */}
+            <div className={`relative overflow-hidden rounded-xl bg-[#15157d] p-6 text-white ${aiMatchingEnabled ? '' : 'opacity-95'}`}>
               <div className="absolute -right-4 -top-4 h-32 w-32 rounded-full bg-[#645efb] opacity-20 blur-3xl" />
               <div className="relative">
                 <div className="mb-4 flex items-center justify-between">
@@ -252,12 +256,14 @@ export default function CoordinatorDashboard() {
                     <Sparkles className="h-5 w-5 text-[#89ceff]" />
                     <h3 className="text-lg font-semibold">AI Pulse Matching</h3>
                   </div>
-                  <SampleBadge />
+                  {!aiMatchingEnabled && <RoadmapBadge />}
                 </div>
                 <p className="mb-4 text-xs text-[#e1e0ff]">
-                  Candidate–role matching is on the roadmap. The figures below are illustrative only.
+                  {aiMatchingEnabled
+                    ? 'Candidate–role matching ranked by fit.'
+                    : 'Candidate–role matching is on the roadmap. The figures below are illustrative only.'}
                 </p>
-                <div className="space-y-2">
+                <div className={`space-y-2 ${aiMatchingEnabled ? '' : 'select-none'}`}>
                   {[{ name: 'Kojo Antwi', pct: 98 }, { name: 'Efua Adjei', pct: 94 }].map((m) => (
                     <div key={m.name} className="flex items-center justify-between rounded-lg border border-white/10 bg-white/10 p-3">
                       <div className="flex items-center gap-3">
@@ -272,7 +278,19 @@ export default function CoordinatorDashboard() {
                           </div>
                         </div>
                       </div>
-                      <button disabled className="cursor-not-allowed rounded bg-white/60 px-2 py-1 text-[10px] font-bold text-[#15157d]">Invite</button>
+                      {/* Wrap the disabled button so the tooltip still shows (browsers
+                          suppress title on disabled elements). */}
+                      <span title={aiMatchingEnabled ? 'Invite candidate' : 'On the roadmap — not yet available'} className="inline-flex">
+                        <button
+                          disabled={!aiMatchingEnabled}
+                          aria-disabled={!aiMatchingEnabled}
+                          className={`rounded px-2 py-1 text-[10px] font-bold text-[#15157d] ${
+                            aiMatchingEnabled ? 'cursor-pointer bg-white hover:bg-white/90' : 'cursor-not-allowed bg-white/60'
+                          }`}
+                        >
+                          Invite
+                        </button>
+                      </span>
                     </div>
                   ))}
                 </div>

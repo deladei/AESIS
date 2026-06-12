@@ -88,6 +88,8 @@ describe('getCoordinatorDashboard', () => {
     // 87.25 rounded to 1 dp
     expect(result.overview.avgPerformance).toBe(87.3);
     expect(result.overview.hostCompanies).toBe(24);
+    // AI Pulse Matching is roadmap-only — flag defaults off (no env set in tests).
+    expect(result.featureFlags.aiPulseMatching).toBe(false);
   });
 
   it('returns avgPerformance null when no analyses exist', async () => {

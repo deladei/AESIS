@@ -48,6 +48,10 @@ const envSchema = z.object({
   // README; flip via env when the regulations are known.
   WEEKLY_BINDING_GRADES:                          envBool(false),
   COMPANY_ATTESTATION_REQUIRED_FOR_FINALIZATION:  envBool(false),
+  // ── Coordinator feature flags ────────────────────────────────
+  // AI candidate–role "Pulse Matching" is roadmap-only. Off in production until
+  // a real matching service exists; while off the panel renders disabled.
+  AI_PULSE_MATCHING:                              envBool(false),
   // Backfill cutoff: reject weekly submissions more than N days after the
   // period ends. Unset = OFF (default). Set a number to enable.
   BACKFILL_CUTOFF_DAYS:                           z.coerce.number().int().nonnegative().optional(),

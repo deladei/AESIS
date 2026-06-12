@@ -1,4 +1,5 @@
 import { prisma } from '../../config/prisma';
+import { env } from '../../config/env';
 import { paginate, buildMeta } from '../../shared/utils/pagination';
 import { AppError } from '../../middleware/errorHandler';
 import { meanQualityScore, SYSTEM_MAX_WEEKS } from '../../shared/utils/quality';
@@ -92,6 +93,11 @@ export async function getCoordinatorDashboard() {
     },
     riskDistribution,
     submissionTrends,
+    // Client-readable feature flags. AI Pulse Matching is roadmap-only and off
+    // in production; the panel renders disabled until a real service exists.
+    featureFlags: {
+      aiPulseMatching: env.AI_PULSE_MATCHING,
+    },
   };
 }
 

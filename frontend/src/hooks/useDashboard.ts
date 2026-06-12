@@ -14,6 +14,7 @@ export interface CoordinatorDashboard {
   };
   riskDistribution: { low: number; medium: number; high: number };
   submissionTrends: { week: number; scheduled: number; submitted: number }[];
+  featureFlags:     { aiPulseMatching: boolean };
 }
 
 export function useCoordinatorDashboard() {
