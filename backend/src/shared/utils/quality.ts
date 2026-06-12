@@ -12,7 +12,14 @@ export const QUALITY_MIN = 0;
 export const QUALITY_MAX = 100;
 
 const WEEK_MS = 7 * 24 * 60 * 60 * 1000;
-const DEFAULT_TOTAL_WEEKS = 24;
+
+/**
+ * System-wide internship length. The placement is a fixed 6-week programme;
+ * no derived count may ever exceed this, regardless of dates or config. This is
+ * the single source of truth for "6 weeks" on the backend.
+ */
+export const SYSTEM_MAX_WEEKS = 6;
+const DEFAULT_TOTAL_WEEKS = SYSTEM_MAX_WEEKS;
 
 /** Coerce a raw score (number | string | Prisma.Decimal | null) to a finite number, or null. */
 export function toQualityNumber(raw: unknown): number | null {
@@ -60,22 +67,28 @@ export function weeksBetween(start: Date, end: Date): number {
  *
  * Derived from the actual start/end dates first, so the displayed period can
  * never contradict the dates shown next to it. Falls back to the cohort's
- * configured `totalWeeks`, then to 24, only when the date span is unusable.
+ * configured `totalWeeks`, then to the default, only when the date span is
+ * unusable. The result is always capped at SYSTEM_MAX_WEEKS — the internship is
+ * a fixed 6-week programme, so nothing above six can ever surface.
  */
 export function expectedWeeks(
   startDate: Date | string | null | undefined,
   endDate: Date | string | null | undefined,
   totalWeeksConfig?: number | null,
 ): number {
+  let raw = DEFAULT_TOTAL_WEEKS;
   if (startDate && endDate) {
     const s = new Date(startDate);
     const e = new Date(endDate);
     if (!Number.isNaN(s.getTime()) && !Number.isNaN(e.getTime()) && e > s) {
-      return weeksBetween(s, e);
+      raw = weeksBetween(s, e);
+    } else if (totalWeeksConfig && totalWeeksConfig > 0) {
+      raw = totalWeeksConfig;
     }
+  } else if (totalWeeksConfig && totalWeeksConfig > 0) {
+    raw = totalWeeksConfig;
   }
-  if (totalWeeksConfig && totalWeeksConfig > 0) return totalWeeksConfig;
-  return DEFAULT_TOTAL_WEEKS;
+  return Math.min(SYSTEM_MAX_WEEKS, raw);
 }
 
 /**

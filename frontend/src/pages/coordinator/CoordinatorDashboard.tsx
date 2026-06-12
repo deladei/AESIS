@@ -66,7 +66,7 @@ function InternRow({ s }: { s: CoordinatorStudent }) {
         <div className="w-40">
           <div className="mb-1 flex justify-between text-[10px]">
             <span className={`font-bold ${tierText[tier] ?? 'text-[#15157d]'}`}>
-              Week {s.lastWeek ?? 0} of {s.totalWeeks || 24}
+              Week {s.lastWeek ?? 0} of {s.totalWeeks || 6}
             </span>
             <span className="text-[#757684]">{s.progressPct}%</span>
           </div>

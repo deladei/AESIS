@@ -68,14 +68,15 @@ export interface SaveDraftPayload {
   reflection?: EntryReflection;
 }
 
-// List every week for a placement. limit=104 covers the longest placement (2 yrs).
+// List every week for a placement. The internship is a fixed 6-week programme,
+// so limit=12 comfortably covers every week with headroom.
 export function useEntries(placementId: string | undefined) {
   return useQuery({
     queryKey: ['entries', 'list', placementId],
     enabled:  !!placementId,
     queryFn:  async () => {
       const r = await api.get<{ data: LogbookEntry[] }>(
-        `/entries?placementId=${placementId}&limit=104`,
+        `/entries?placementId=${placementId}&limit=12`,
       );
       return r.data.data;
     },

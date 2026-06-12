@@ -36,13 +36,13 @@ interface ScheduleWeek {
   periodEnd:   string;
 }
 
-const SCHEDULE_WEEKS = 12;
+const SCHEDULE_WEEKS = 6;
 
-// Derive a rolling window of the most recent 12 weeks, ending on the week that
-// contains today, so the schedule always tracks real time (dates stay current).
-// Week boundaries keep the placement's weekday cadence, and `weekNumber` stays
-// anchored to the placement start so saved entries never collide as the window
-// rolls forward; `label` is the friendly 1..12 number shown in the UI.
+// The internship is a fixed 6-week programme. The schedule is anchored at the
+// placement start (week 1) and reveals one week at a time as real time passes —
+// so a brand-new placement shows only Week 1, and weeks appear as the student
+// reaches them, never exceeding week 6. `weekNumber` and `label` are identical
+// (1..6); `weekNumber` is the stable storage key for saved entries.
 function buildSchedule(startDate: string | null): ScheduleWeek[] {
   if (!startDate) return [];
   const start = new Date(`${ymd(startDate)}T00:00:00Z`);
@@ -51,14 +51,14 @@ function buildSchedule(startDate: string | null): ScheduleWeek[] {
 
   const weekMs = 7 * 86_400_000;
   const currentOffset = Math.floor((today.getTime() - start.getTime()) / weekMs);
-  const firstOffset = Math.max(0, currentOffset - (SCHEDULE_WEEKS - 1));
+  const lastOffset = Math.min(currentOffset, SCHEDULE_WEEKS - 1); // never past week 6
 
   const weeks: ScheduleWeek[] = [];
-  for (let off = firstOffset; off <= currentOffset; off++) {
+  for (let off = 0; off <= lastOffset; off++) {
     const periodStart = addDaysYMD(start, off * 7);
     weeks.push({
       weekNumber:  off + 1,
-      label:       off - firstOffset + 1,
+      label:       off + 1,
       periodStart: toYMD(periodStart),
       periodEnd:   toYMD(addDaysYMD(periodStart, 6)),
     });

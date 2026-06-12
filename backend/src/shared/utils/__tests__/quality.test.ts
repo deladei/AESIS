@@ -74,20 +74,25 @@ describe('quality-score coercion + validation', () => {
 });
 
 describe('week/date invariant', () => {
-  it('derives the week count from the actual start/end dates (Jan 12 – Jun 29 = 24)', () => {
-    expect(expectedWeeks('2026-01-12', '2026-06-29')).toBe(24);
+  it('caps the expected week count at the system-wide 6, even when dates span longer', () => {
+    // The raw span is 24 weeks, but the internship is a fixed 6-week programme,
+    // so nothing above six can ever surface.
     expect(weeksBetween(new Date('2026-01-12'), new Date('2026-06-29'))).toBe(24);
+    expect(expectedWeeks('2026-01-12', '2026-06-29')).toBe(6);
   });
 
-  it('lets the dates override a contradictory config so the period can never contradict the dates', () => {
-    // Config wrongly says 6 weeks, but the dates span 24 → dates win.
-    expect(expectedWeeks('2026-01-12', '2026-06-29', 6)).toBe(24);
+  it('returns the real (sub-6) week count for a short span', () => {
+    // Jan 12 – Feb 9 ≈ 4 weeks, under the cap → reported as-is.
+    expect(expectedWeeks('2026-01-12', '2026-02-09')).toBe(4);
   });
 
-  it('falls back to config, then 24, only when the date span is unusable', () => {
-    expect(expectedWeeks(null, null, 12)).toBe(12);
-    expect(expectedWeeks(null, null)).toBe(24);
-    expect(expectedWeeks('2026-06-29', '2026-01-12', 12)).toBe(12); // end before start
+  it('caps a contradictory config at 6 as well', () => {
+    expect(expectedWeeks(null, null, 12)).toBe(6);
+    expect(expectedWeeks('2026-06-29', '2026-01-12', 12)).toBe(6); // end before start
+  });
+
+  it('falls back to the 6-week default when the date span is unusable', () => {
+    expect(expectedWeeks(null, null)).toBe(6);
   });
 
   it('caps current week at the derived total so it can never exceed the internship length', () => {
@@ -97,7 +102,7 @@ describe('week/date invariant', () => {
       totalWeeksConfig: 6,
       submittedCount: 30,
     });
-    expect(p.total).toBe(24);
-    expect(p.current).toBe(24); // capped, not 30
+    expect(p.total).toBe(6);
+    expect(p.current).toBe(6); // capped, not 30
   });
 });

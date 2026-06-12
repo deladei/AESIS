@@ -80,7 +80,7 @@ async function seed() {
       submissionDeadlineMinute:59,
       reminderDayOfWeek:       1,
       reminderHour:            8,
-      totalWeeks:              24,
+      totalWeeks:              6,
     },
   });
   console.log(`✓ Academic year: ${academicYear.label}`);

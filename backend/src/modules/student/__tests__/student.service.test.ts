@@ -50,15 +50,15 @@ describe('getStudentDashboard', () => {
     expect(result.avgQualityScore!).toBeLessThanOrEqual(100);
   });
 
-  it('derives the week total from the dates, ignoring a contradictory cohort config', async () => {
+  it('caps the week total at the system-wide 6, even though the dates span longer', async () => {
     (mp.placement.findMany as jest.Mock).mockResolvedValue([makePlacement()]);
 
     const result = await getStudentDashboard('stu-1');
 
-    expect(result.week!.total).toBe(24);   // from Jan 12 – Jun 29, not the config's 6
-    expect(result.expectedLogs).toBe(24);
+    expect(result.week!.total).toBe(6);    // capped — the internship is a fixed 6-week programme
+    expect(result.expectedLogs).toBe(6);
     expect(result.week!.current).toBe(3);  // 3 submitted (draft excluded)
-    expect(result.completionPct).toBe(13); // round(3/24*100)
+    expect(result.completionPct).toBe(50); // round(3/6*100)
   });
 
   it('returns null avgQualityScore and "—"-able state when no log is scored', async () => {
@@ -136,7 +136,7 @@ describe('getStudentDashboard', () => {
   it('sums attendance hours over submitted+ entries and flags a shortfall against the per-week minimum', async () => {
     (mp.placement.findMany as jest.Mock).mockResolvedValue([
       makePlacement({
-        // 40h/week minimum; dates win → 24 weeks → expected 960h.
+        // 40h/week minimum; weeks capped at the system-wide 6 → expected 240h.
         academicYear: { cohortConfigs: [{ totalWeeks: 6, minWeeklyHours: 40 }] },
         logbookEntries: [
           { status: 'acknowledged', hoursLogged: '40' },    // counted
@@ -154,7 +154,7 @@ describe('getStudentDashboard', () => {
     // 40 + 37.5 + 40 + 40 = 157.5 (draft's 10 excluded; null ignored)
     expect(result.hours).toEqual({
       logged: 157.5,
-      expected: 960,   // 40/wk × 24 weeks
+      expected: 240,   // 40/wk × 6 weeks (capped)
       perWeekMin: 40,
       shortfall: true,
     });

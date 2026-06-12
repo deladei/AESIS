@@ -19,7 +19,7 @@ export const reflectionSchema = z.object({
 // Create-or-update a draft for a given week of a placement.
 export const saveDraftSchema = z.object({
   placementId: z.string().uuid(),
-  weekNumber: z.number().int().min(1).max(104),
+  weekNumber: z.number().int().min(1).max(6),
   periodStart: dateOnly,
   periodEnd: dateOnly,
   hoursLogged: z.number().min(0).max(168).optional(),
