@@ -101,6 +101,29 @@ export function useCoordinatorCohorts() {
   });
 }
 
+export interface InternDetail {
+  placement:   { id: string; status: string; startDate: string | null; endDate: string | null; company: string | null; cohort: string | null };
+  student:     { id: string; name: string; email: string; department: string | null };
+  supervisors: { academic: { id: string; name: string; email: string } | null; company: { id: string; name: string; email: string } | null };
+  progress:    { submittedWeeks: number; totalWeeks: number; progressPct: number };
+  avgQuality:  number | null;
+  entries:     { id: string; weekNumber: number; status: string; periodStart: string; periodEnd: string; submittedAt: string | null; hoursLogged: number | null }[];
+  riskHistory: { tier: 'low' | 'medium' | 'high'; score: number; computedAt: string }[];
+  feedback:    { week: number; comment: string | null; status: string | null; by: string; createdAt: string }[];
+  supervisorHistory: { at: string; by: string; kind: string }[];
+}
+
+export function useInternDetail(placementId?: string) {
+  return useQuery({
+    queryKey: ['coordinator', 'intern', placementId],
+    enabled:  !!placementId,
+    queryFn:  async () => {
+      const r = await api.get<{ data: InternDetail }>(`/coordinator/students/${placementId}`);
+      return r.data.data;
+    },
+  });
+}
+
 export interface CoordinatorActivity {
   id:         string;
   action:     string;

@@ -74,7 +74,7 @@ function InternRow({ s }: { s: CoordinatorStudent }) {
   return (
     <tr className="transition-colors hover:bg-[#eff4ff]">
       <td className="px-6 py-3">
-        <Link to={`/coordinator/assignments`} className="flex items-center gap-3">
+        <Link to={`/coordinator/interns/${s.placementId}`} className="flex items-center gap-3">
           <div className="flex h-8 w-8 items-center justify-center rounded-full bg-[#e1e0ff] text-[11px] font-bold text-[#15157d]">{initials(name)}</div>
           <div>
             <p className="text-sm font-bold leading-tight text-[#0b1c30]">{name}</p>
@@ -97,7 +97,7 @@ function InternRow({ s }: { s: CoordinatorStudent }) {
         ) : <span className="text-sm text-[#757684]">—</span>}
       </td>
       <td className="px-4 py-3">
-        <Link to={`/coordinator/assignments`} className="block w-40" title={`${s.submittedWeeks}/${s.totalWeeks} weeks · ${s.progressPct}% · last entry ${lastEntry}`}>
+        <Link to={`/coordinator/interns/${s.placementId}`} className="block w-40" title={`${s.submittedWeeks}/${s.totalWeeks} weeks · ${s.progressPct}% · last entry ${lastEntry}`}>
           <div className="mb-1 flex justify-between text-[10px]">
             <span className="font-bold text-[#15157d]">Week {s.lastWeek ?? 0} of {s.totalWeeks || 6}</span>
             <span className="text-[#757684]">{s.progressPct}%</span>
@@ -108,7 +108,7 @@ function InternRow({ s }: { s: CoordinatorStudent }) {
         </Link>
       </td>
       <td className="px-6 py-3 text-right">
-        <Link to={`/coordinator/assignments`} aria-label={`View ${name}`} className="inline-flex text-[#757684] transition-colors hover:text-[#15157d]">
+        <Link to={`/coordinator/interns/${s.placementId}`} aria-label={`View ${name}`} className="inline-flex text-[#757684] transition-colors hover:text-[#15157d]">
           <MoreVertical className="h-4 w-4" />
         </Link>
       </td>

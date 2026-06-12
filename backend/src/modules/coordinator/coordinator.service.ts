@@ -262,6 +262,114 @@ export async function listCohorts() {
   return rows;
 }
 
+// ── Intern detail / profile ───────────────────────────────────
+
+function supShape(u: { id: string; firstName: string; lastName: string; email: string } | null) {
+  return u ? { id: u.id, name: `${u.firstName} ${u.lastName}`.trim(), email: u.email } : null;
+}
+
+/**
+ * Full profile for one intern: placement + student, supervisors, progress, the
+ * weekly logs, AI quality average (validated/clamped), risk-score history,
+ * supervisor feedback (entry-event comments), and supervisor-assignment history.
+ * Read-only; the route is coordinator/admin-guarded.
+ */
+export async function getStudentDetail(placementId: string) {
+  const placement = await prisma.placement.findUnique({
+    where:  { id: placementId },
+    select: {
+      id: true, placementStatus: true, startDate: true, endDate: true,
+      student: {
+        select: { id: true, firstName: true, lastName: true, email: true, programme: { select: { name: true } } },
+      },
+      company:            { select: { name: true } },
+      academicYear:       { select: { label: true } },
+      academicSupervisor: { select: { id: true, firstName: true, lastName: true, email: true } },
+      companySupervisor:  { select: { id: true, firstName: true, lastName: true, email: true } },
+    },
+  });
+  if (!placement) throw new AppError(404, 'Placement not found');
+
+  const [entries, riskHistory, eventRows, assignmentRows, analyses] = await Promise.all([
+    prisma.logbookEntry.findMany({
+      where:   { placementId },
+      orderBy: { weekNumber: 'asc' },
+      select:  { id: true, weekNumber: true, status: true, periodStart: true, periodEnd: true, submittedAt: true, hoursLogged: true },
+    }),
+    prisma.studentRiskScore.findMany({
+      where:   { placementId },
+      orderBy: { computedAt: 'desc' },
+      take:    10,
+      select:  { riskTier: true, riskScore: true, computedAt: true },
+    }),
+    // Supervisor feedback = entry events that carry a comment (return/reject/acknowledge).
+    prisma.entryEvent.findMany({
+      where:   { entry: { placementId }, comment: { not: null } },
+      orderBy: { createdAt: 'desc' },
+      take:    20,
+      select:  {
+        comment: true, toStatus: true, createdAt: true,
+        actor: { select: { firstName: true, lastName: true } },
+        entry: { select: { weekNumber: true } },
+      },
+    }),
+    // Supervisor-assignment history from the audit log.
+    prisma.auditLog.findMany({
+      where:   { entityType: 'placement', entityId: placementId, action: 'placement_status_change' },
+      orderBy: { createdAt: 'desc' },
+      take:    20,
+      select:  { metadata: true, createdAt: true, user: { select: { firstName: true, lastName: true } } },
+    }),
+    prisma.logbookAnalysis.findMany({
+      where:  { submission: { placementId } },
+      select: { qualityScore: true },
+    }),
+  ]);
+
+  const submittedWeeks = entries.filter(e => e.submittedAt != null).length;
+  const totalWeeks = SYSTEM_MAX_WEEKS;
+
+  return {
+    placement: {
+      id: placement.id, status: placement.placementStatus,
+      startDate: placement.startDate, endDate: placement.endDate,
+      company: placement.company?.name ?? null, cohort: placement.academicYear?.label ?? null,
+    },
+    student: {
+      id: placement.student.id,
+      name: `${placement.student.firstName} ${placement.student.lastName}`.trim(),
+      email: placement.student.email,
+      department: placement.student.programme?.name ?? null,
+    },
+    supervisors: {
+      academic: supShape(placement.academicSupervisor),
+      company:  supShape(placement.companySupervisor),
+    },
+    progress: {
+      submittedWeeks, totalWeeks,
+      progressPct: totalWeeks > 0 ? Math.round((submittedWeeks / totalWeeks) * 100) : 0,
+    },
+    avgQuality: meanQualityScore(analyses.map(a => a.qualityScore)),
+    entries: entries.map(e => ({
+      id: e.id, weekNumber: e.weekNumber, status: e.status,
+      periodStart: e.periodStart, periodEnd: e.periodEnd, submittedAt: e.submittedAt,
+      hoursLogged: e.hoursLogged != null ? Number(e.hoursLogged) : null,
+    })),
+    riskHistory: riskHistory.map(r => ({ tier: r.riskTier, score: Number(r.riskScore), computedAt: r.computedAt })),
+    feedback: eventRows.map(ev => ({
+      week: ev.entry.weekNumber, comment: ev.comment, status: ev.toStatus,
+      by: `${ev.actor.firstName} ${ev.actor.lastName}`.trim(), createdAt: ev.createdAt,
+    })),
+    supervisorHistory: assignmentRows
+      .filter(a => (a.metadata as { change?: string } | null)?.change === 'supervisor_assigned')
+      .map(a => ({
+        at: a.createdAt,
+        by: `${a.user.firstName} ${a.user.lastName}`.trim(),
+        kind: (a.metadata as { kind?: string } | null)?.kind ?? 'academic',
+      })),
+  };
+}
+
 // ── Recent activity feed ──────────────────────────────────────
 
 /** Human-readable summary for an audit-log row, from action + metadata. */

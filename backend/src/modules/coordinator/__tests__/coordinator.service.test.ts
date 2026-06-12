@@ -1,17 +1,23 @@
 jest.mock('../../../config/prisma', () => ({
   prisma: {
     placement: {
-      count:    jest.fn(),
-      findMany: jest.fn(),
+      count:     jest.fn(),
+      findMany:  jest.fn(),
+      findUnique: jest.fn(),
     },
     studentRiskScore: {
-      groupBy: jest.fn(),
+      groupBy:  jest.fn(),
+      findMany: jest.fn(),
     },
     logbookSubmission: {
       groupBy: jest.fn(),
     },
     logbookEntry: {
-      groupBy: jest.fn(),
+      groupBy:  jest.fn(),
+      findMany: jest.fn(),
+    },
+    entryEvent: {
+      findMany: jest.fn(),
     },
     logbookAnalysis: {
       findMany: jest.fn(),
@@ -38,6 +44,7 @@ import {
   listStudents,
   listProgrammes,
   listCohorts,
+  getStudentDetail,
   getRecentActivity,
   getActiveCohortConfig,
   updateActiveCohortConfig,
@@ -367,6 +374,55 @@ describe('listProgrammes / listCohorts', () => {
     (mp.academicYear.findMany as jest.Mock).mockResolvedValue([{ id: 'ay-1', label: '2025/2026', isActive: true }]);
     const result = await listCohorts();
     expect(result).toEqual([{ id: 'ay-1', label: '2025/2026', isActive: true }]);
+  });
+});
+
+// ── getStudentDetail ──────────────────────────────────────────
+
+describe('getStudentDetail', () => {
+  beforeEach(() => jest.clearAllMocks());
+
+  it('throws 404 when the placement does not exist', async () => {
+    (mp.placement.findUnique as jest.Mock).mockResolvedValue(null);
+    await expect(getStudentDetail('missing')).rejects.toMatchObject({ statusCode: 404 });
+  });
+
+  it('aggregates profile, progress, validated avg quality and feedback', async () => {
+    (mp.placement.findUnique as jest.Mock).mockResolvedValue({
+      id: 'p-1', placementStatus: 'active', startDate: new Date('2026-05-18'), endDate: new Date('2026-06-29'),
+      student: { id: 'u-1', firstName: 'Ama', lastName: 'Mensah', email: 'ama@x.edu', programme: { name: 'CS' } },
+      company: { name: 'Hubtel' }, academicYear: { label: '2025/2026' },
+      academicSupervisor: { id: 's-1', firstName: 'Theo', lastName: 'Walls', email: 't@x.edu' },
+      companySupervisor: null,
+    });
+    (mp.logbookEntry.findMany    as jest.Mock).mockResolvedValue([
+      { id: 'e1', weekNumber: 1, status: 'acknowledged', periodStart: new Date(), periodEnd: new Date(), submittedAt: new Date(), hoursLogged: '40' },
+      { id: 'e2', weekNumber: 2, status: 'draft',        periodStart: new Date(), periodEnd: new Date(), submittedAt: null,       hoursLogged: null },
+    ]);
+    (mp.studentRiskScore.findMany as jest.Mock).mockResolvedValue([
+      { riskTier: 'low', riskScore: 0.2, computedAt: new Date() },
+    ]);
+    (mp.entryEvent.findMany       as jest.Mock).mockResolvedValue([
+      { comment: 'Nice work', toStatus: 'acknowledged', createdAt: new Date(), actor: { firstName: 'Theo', lastName: 'Walls' }, entry: { weekNumber: 1 } },
+    ]);
+    (mp.auditLog.findMany         as jest.Mock).mockResolvedValue([
+      { metadata: { change: 'supervisor_assigned', kind: 'academic' }, createdAt: new Date(), user: { firstName: 'Coord', lastName: 'One' } },
+    ]);
+    // One valid score + one corrupt — corrupt must be excluded (clamped path).
+    (mp.logbookAnalysis.findMany  as jest.Mock).mockResolvedValue([
+      { qualityScore: '82' }, { qualityScore: '151565326582' },
+    ]);
+
+    const r = await getStudentDetail('p-1');
+
+    expect(r.student.name).toBe('Ama Mensah');
+    expect(r.supervisors.academic).toMatchObject({ name: 'Theo Walls' });
+    expect(r.supervisors.company).toBeNull();
+    expect(r.progress).toMatchObject({ submittedWeeks: 1, totalWeeks: 6, progressPct: 17 });
+    expect(r.avgQuality).toBe(82);            // corrupt 151565326582 excluded
+    expect(r.entries).toHaveLength(2);
+    expect(r.feedback[0]).toMatchObject({ week: 1, comment: 'Nice work', by: 'Theo Walls' });
+    expect(r.supervisorHistory[0]).toMatchObject({ kind: 'academic', by: 'Coord One' });
   });
 });
 

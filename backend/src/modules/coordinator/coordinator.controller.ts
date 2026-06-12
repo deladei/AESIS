@@ -27,6 +27,12 @@ export async function students(req: Request, res: Response) {
   ok(res, result);
 }
 
+export async function studentDetail(req: Request, res: Response) {
+  const placementId = z.string().uuid().parse(req.params.placementId);
+  const data = await service.getStudentDetail(placementId);
+  ok(res, data);
+}
+
 export async function programmes(_req: Request, res: Response) {
   ok(res, await service.listProgrammes());
 }
