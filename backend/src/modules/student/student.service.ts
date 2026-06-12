@@ -101,6 +101,12 @@ export async function getStudentDashboard(studentId: string) {
       },
       // Active weekly workflow — drives the per-log status breakdown + hours.
       logbookEntries: { select: { status: true, hoursLogged: true } },
+      // Learning objectives — progress counts CONFIRMED links only (AI
+      // suggestions never count until a human confirms them).
+      learningObjectives: {
+        orderBy: { createdAt: 'asc' },
+        select: { id: true, title: true, entryLinks: { select: { status: true } } },
+      },
     },
   });
 
@@ -118,6 +124,7 @@ export async function getStudentDashboard(studentId: string) {
       avgQualityScore:    null,
       statusBreakdown:    EMPTY_BREAKDOWN,
       hours:              EMPTY_HOURS,
+      objectives:         [],
       supervisors:        { academic: null, company: null },
     };
   }
@@ -136,6 +143,13 @@ export async function getStudentDashboard(studentId: string) {
   const completionPct = week.total > 0
     ? Math.min(100, Math.round((submitted.length / week.total) * 100))
     : 0;
+
+  // Objective progress — only CONFIRMED entry links count.
+  const objectives = placement.learningObjectives.map(o => ({
+    id:    o.id,
+    title: o.title,
+    confirmedEntryCount: o.entryLinks.filter(l => l.status === 'confirmed').length,
+  }));
 
   // Cumulative attendance: sum hoursLogged over submitted+ entries, against the
   // cohort's per-week minimum × the date-derived week count.
@@ -156,6 +170,7 @@ export async function getStudentDashboard(studentId: string) {
     avgQualityScore,                   // number (1 dp) within [0, 100], or null
     statusBreakdown: statusBreakdownOf(placement.logbookEntries as { status: EntryStatusName }[]),
     hours,                             // { logged, expected, perWeekMin, shortfall }
+    objectives,                        // [{ id, title, confirmedEntryCount }]
     supervisors: {
       // Academic supervisor is faculty — no host org. Company supervisor's org
       // is the placement's host company.

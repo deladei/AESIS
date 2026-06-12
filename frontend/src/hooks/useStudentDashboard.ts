@@ -24,6 +24,12 @@ export interface HoursSummary {
   shortfall:  boolean; // expected > 0 && logged < expected
 }
 
+export interface ObjectiveProgressSummary {
+  id:                  string;
+  title:               string;
+  confirmedEntryCount: number; // confirmed entry links only
+}
+
 export interface StudentDashboard {
   hasActivePlacement: boolean;
   week:               { current: number; total: number } | null;
@@ -33,6 +39,7 @@ export interface StudentDashboard {
   avgQualityScore:    number | null;
   statusBreakdown:    StatusBreakdown;
   hours:              HoursSummary;
+  objectives:         ObjectiveProgressSummary[];
   supervisors: {
     academic: DashboardSupervisor | null;
     company:  DashboardSupervisor | null;

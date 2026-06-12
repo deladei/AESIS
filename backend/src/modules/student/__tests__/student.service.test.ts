@@ -33,6 +33,7 @@ const makePlacement = (overrides: Record<string, unknown> = {}) => ({
     { submissionStatus: 'draft',     analysis: null },
   ],
   logbookEntries: [],
+  learningObjectives: [],
   ...overrides,
 });
 
@@ -88,6 +89,32 @@ describe('getStudentDashboard', () => {
     const result = await getStudentDashboard('stu-1');
 
     expect(result.avgQualityScore).toBe(80); // corrupt value excluded
+  });
+
+  it('reports objective progress counting CONFIRMED links only (AI suggestions excluded)', async () => {
+    (mp.placement.findMany as jest.Mock).mockResolvedValue([
+      makePlacement({
+        learningObjectives: [
+          {
+            id: 'obj-1', title: 'Apply version control',
+            entryLinks: [
+              { status: 'confirmed' }, { status: 'confirmed' },
+              { status: 'suggested' }, // AI suggestion — must NOT count
+            ],
+          },
+          { id: 'obj-2', title: 'Write tests', entryLinks: [{ status: 'suggested' }] },
+          { id: 'obj-3', title: 'Deploy to prod', entryLinks: [] },
+        ],
+      }),
+    ]);
+
+    const result = await getStudentDashboard('stu-1');
+
+    expect(result.objectives).toEqual([
+      { id: 'obj-1', title: 'Apply version control', confirmedEntryCount: 2 },
+      { id: 'obj-2', title: 'Write tests',           confirmedEntryCount: 0 },
+      { id: 'obj-3', title: 'Deploy to prod',        confirmedEntryCount: 0 },
+    ]);
   });
 
   it('returns a safe empty payload when the student has no placement', async () => {

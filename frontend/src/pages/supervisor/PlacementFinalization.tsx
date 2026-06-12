@@ -6,6 +6,7 @@ import {
 import {
   useAssignedPlacements, type Placement, type FinalizationStatus,
 } from '@/hooks/usePlacements';
+import { ObjectivesPanel } from '@/components/objectives/ObjectivesPanel';
 import { useEntries, type LogbookEntry, type EntryStatus } from '@/hooks/useEntries';
 import {
   useRecordAssessment, useFinalizePlacement, useInviteAttestation,
@@ -244,6 +245,9 @@ function FinalizationDetail({ placement }: { placement: Placement }) {
           <span>This placement is finalized. Its assessment and attestation are locked and can no longer be changed.</span>
         </div>
       )}
+
+      {/* Learning objectives — define + track per-objective progress */}
+      <ObjectivesPanel placementId={placement.id} canDefine={!isFinalized} />
 
       {/* Weekly resolution */}
       <div className="rounded-xl border border-[#e2e6ef] bg-white p-5">

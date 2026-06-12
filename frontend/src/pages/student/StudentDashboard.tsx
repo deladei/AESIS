@@ -2,7 +2,7 @@ import { Link } from 'react-router-dom';
 import {
   NotebookPen, Gauge, ArrowRight, CalendarClock, CheckCircle2,
   Star, GraduationCap, ExternalLink, Loader2, BookOpen,
-  Building2, Mail, Phone, Clock,
+  Building2, Mail, Phone, Clock, Target,
 } from 'lucide-react';
 import type { DashboardSupervisor } from '@/hooks/useStudentDashboard';
 import { useAuth } from '@/contexts/AuthContext';
@@ -140,6 +140,7 @@ export default function StudentDashboard() {
     ?? { approved: 0, pendingReview: 0, revisionRequested: 0, rejected: 0, inProgress: 0, total: 0 };
   const hours        = stats?.hours
     ?? { logged: 0, expected: 0, perWeekMin: 0, shortfall: false };
+  const objectives   = stats?.objectives ?? [];
 
   // Flatten the latest supervisor feedback from each fetched submission
   const feedbackCards = [fb0.data, fb1.data, fb2.data]
@@ -312,6 +313,26 @@ export default function StudentDashboard() {
               />
             </div>
           </div>
+
+          {/* Learning objectives — progress counts confirmed entry links only */}
+          {objectives.length > 0 && (
+            <div className="rounded-xl bg-white p-6">
+              <div className="mb-5 flex items-center gap-2">
+                <Target className="h-5 w-5 text-[#15157d]" />
+                <h3 className="font-bold text-[#191c1e]">Learning Objectives</h3>
+              </div>
+              <div className="space-y-3">
+                {objectives.map((o) => (
+                  <div key={o.id} className="flex items-center justify-between gap-3">
+                    <p className="min-w-0 truncate text-sm text-[#424654]">{o.title}</p>
+                    <span className="shrink-0 rounded-full bg-[#e1e0ff] px-2 py-0.5 text-xs font-semibold text-[#15157d]">
+                      {o.confirmedEntryCount} {o.confirmedEntryCount === 1 ? 'entry' : 'entries'}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
 
           {/* Notifications */}
           <div className="rounded-xl bg-white p-6">

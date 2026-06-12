@@ -128,6 +128,20 @@ enum EnrichmentStatus {
   abandoned
 }
 
+// Entry <-> learning-objective link state. AI-suggested links are `suggested`
+// and DO NOT count toward progress until a human flips them to `confirmed`.
+enum ObjectiveLinkStatus {
+  suggested
+  confirmed
+}
+
+// Provenance of an entry<->objective link. `ai` records that the enrichment
+// path proposed it (advisory); `human` is a student/admin authored link.
+enum ObjectiveLinkSource {
+  human
+  ai
+}
+
 // ─────────────────────────────────────────────
 // REFERENCE TABLES
 // ─────────────────────────────────────────────
@@ -230,6 +244,8 @@ model User {
   // New weekly logbook pipeline
   entryEvents          EntryEvent[]          @relation("EntryEventActor")
   placementAssessments PlacementAssessment[] @relation("PlacementAssessor")
+  createdObjectives    LearningObjective[]   @relation("ObjectiveCreator")
+  confirmedObjectiveLinks EntryObjective[]   @relation("ObjectiveLinkConfirmer")
 
   @@map("users")
 }
@@ -301,6 +317,7 @@ model Placement {
   logbookEntries      LogbookEntry[]
   placementAssessment PlacementAssessment?
   companyAttestation  CompanyAttestation?
+  learningObjectives  LearningObjective[]
 
   @@map("placements")
 }
@@ -564,6 +581,7 @@ model LogbookEntry {
   events         EntryEvent[]
   assessments    AiAssessment[]
   enrichmentJobs EnrichmentQueue[]
+  objectiveLinks EntryObjective[]
 
   @@unique([placementId, weekNumber])
   @@index([placementId])
@@ -689,4 +707,45 @@ model EnrichmentQueue {
 
   @@index([status, nextRunAt])
   @@map("enrichment_queue")
+}
+
+// Learning objective / competency defined per placement (the internship). The
+// academic supervisor (or admin) defines them; entries map to one or more.
+model LearningObjective {
+  id          String    @id @default(uuid())
+  placementId String    @map("placement_id")
+  placement   Placement @relation(fields: [placementId], references: [id], onDelete: Cascade)
+  title       String
+  description String?
+  createdById String    @map("created_by_id")
+  createdBy   User      @relation("ObjectiveCreator", fields: [createdById], references: [id])
+  createdAt   DateTime  @default(now()) @map("created_at")
+  updatedAt   DateTime  @updatedAt @map("updated_at")
+
+  entryLinks EntryObjective[]
+
+  @@index([placementId])
+  @@map("learning_objective")
+}
+
+// Mapping of a weekly entry to a learning objective. `status` gates counting:
+// an AI-suggested link is `suggested` and counts toward NOTHING until a human
+// confirms it. `source` records provenance (human vs ai).
+model EntryObjective {
+  id            String              @id @default(uuid())
+  entryId       String              @map("entry_id")
+  entry         LogbookEntry        @relation(fields: [entryId], references: [id], onDelete: Cascade)
+  objectiveId   String              @map("objective_id")
+  objective     LearningObjective   @relation(fields: [objectiveId], references: [id], onDelete: Cascade)
+  status        ObjectiveLinkStatus @default(confirmed)
+  source        ObjectiveLinkSource @default(human)
+  confirmedById String?             @map("confirmed_by_id")
+  confirmedBy   User?               @relation("ObjectiveLinkConfirmer", fields: [confirmedById], references: [id])
+  confirmedAt   DateTime?           @map("confirmed_at")
+  createdAt     DateTime            @default(now()) @map("created_at")
+
+  @@unique([entryId, objectiveId])
+  @@index([objectiveId])
+  @@index([entryId])
+  @@map("entry_objective")
 }

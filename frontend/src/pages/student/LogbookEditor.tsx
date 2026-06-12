@@ -9,6 +9,7 @@ import {
   useEntries, useEntry, useSaveEntryDraft, useSubmitEntry,
   type EntryStatus, type EntryActivity,
 } from '@/hooks/useEntries';
+import { EntryObjectives } from '@/components/objectives/EntryObjectives';
 
 const COMPETENCY_SUGGESTIONS = [
   'Problem Solving', 'Teamwork', 'Communication', 'Technical Writing',
@@ -523,6 +524,13 @@ export default function LogbookEditor() {
                   Share this reflection with my company supervisor
                 </label>
               </div>
+
+              {/* Learning objectives — map this week's work (confirm AI suggestions) */}
+              {existing?.id && (
+                <div className="rounded-xl border border-[#e2e6ef] bg-white p-5">
+                  <EntryObjectives entryId={existing.id} placementId={activePlacement?.id} editable={editable} />
+                </div>
+              )}
             </fieldset>
 
             {error && (

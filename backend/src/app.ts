@@ -11,6 +11,8 @@ import placementsRouter    from './modules/placements/placements.router';
 import companiesRouter     from './modules/placements/companies.router';
 import logbookRouter       from './modules/logbook/logbook.router';
 import entriesRouter       from './modules/entries/entries.router';
+import objectivesPlacementRouter from './modules/objectives/objectives.placement.router';
+import objectivesEntryRouter     from './modules/objectives/objectives.entry.router';
 import finalizationRouter  from './modules/finalization/finalization.router';
 import attestPublicRouter  from './modules/finalization/attestation.public.router';
 import notificationsRouter from './modules/notifications/notifications.router';
@@ -73,9 +75,12 @@ export function createApp() {
   app.use('/api/v1/auth',          authRouter);
   app.use('/api/v1/placements',    placementsRouter);
   app.use('/api/v1/placements',    finalizationRouter); // assessment / finalize / attestation invite
+  app.use('/api/v1/placements',    objectivesPlacementRouter); // learning objectives (define/list)
   app.use('/api/v1/companies',     companiesRouter);
   app.use('/api/v1/logbook',       logbookRouter);
   app.use('/api/v1/entries',       entriesRouter);
+  app.use('/api/v1/entries',       objectivesEntryRouter); // entry <-> objective links
+
   app.use('/api/v1/attest',        attestPublicRouter); // PUBLIC magic-link attestation
   app.use('/api/v1/notifications', notificationsRouter);
   app.use('/api/v1/coordinator',   coordinatorRouter);
