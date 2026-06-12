@@ -36,10 +36,11 @@ interface Filters {
   riskTier?:       'low' | 'medium' | 'high';
 }
 
+// How often the table re-fetches while the Live toggle is on.
+const LIVE_POLL_MS = 15_000;
+
 interface Props {
   pageSize?: number;
-  /** Poll interval (ms) when the Live toggle is on; undefined = static. */
-  refetchInterval?: number;
   /** Compact dashboard mode: show a "View all" link to this href instead of pager. */
   viewAllHref?: string;
 }
@@ -115,16 +116,17 @@ function InternRow({ s }: { s: CoordinatorStudent }) {
   );
 }
 
-export default function InternStatusTable({ pageSize = 20, refetchInterval, viewAllHref }: Props) {
+export default function InternStatusTable({ pageSize = 20, viewAllHref }: Props) {
   const [sortBy, setSortBy]     = useState<StudentSortKey | undefined>(undefined);
   const [sortDir, setSortDir]   = useState<'asc' | 'desc'>('asc');
   const [page, setPage]         = useState(1);
   const [showFilters, setShow]  = useState(false);
   const [filters, setFilters]   = useState<Filters>({});
+  const [live, setLive]         = useState(false);
 
-  const { data, isLoading } = useCoordinatorStudents(
+  const { data, isLoading, isFetching } = useCoordinatorStudents(
     { page, limit: pageSize, sortBy, sortDir, ...filters },
-    { refetchInterval },
+    { refetchInterval: live ? LIVE_POLL_MS : undefined },
   );
   const { data: programmes = [] }  = useCoordinatorProgrammes();
   const { data: cohorts = [] }     = useCoordinatorCohorts();
@@ -152,6 +154,17 @@ export default function InternStatusTable({ pageSize = 20, refetchInterval, view
       <div className="flex items-center justify-between border-b border-[#c4c5d5]/60 bg-[#f8f9ff] px-6 py-4">
         <h3 className="text-lg font-semibold text-[#15157d]">Intern Status Monitor</h3>
         <div className="flex items-center gap-2">
+          <button
+            onClick={() => setLive((v) => !v)}
+            aria-pressed={live}
+            title={live ? `Live — refreshing every ${LIVE_POLL_MS / 1000}s` : 'Paused — click for live updates'}
+            className={`inline-flex items-center gap-1.5 rounded-lg border px-2.5 py-1.5 text-xs font-semibold transition-colors ${
+              live ? 'border-emerald-300 bg-emerald-50 text-emerald-700' : 'border-[#c4c5d5]/70 text-[#757684] hover:text-[#15157d]'
+            }`}
+          >
+            <span className={`h-2 w-2 rounded-full ${live ? `bg-emerald-500 ${isFetching ? 'animate-ping' : 'animate-pulse'}` : 'bg-[#c4c5d5]'}`} />
+            {live ? 'Live' : 'Paused'}
+          </button>
           <button
             onClick={() => setShow((v) => !v)}
             aria-label="Filter interns"
