@@ -1686,6 +1686,48 @@ Root cause was a single deterministic **open-handle leak**, not a flaky/slow int
 
 ---
 
+### Session 39 — 2026-06-12 — Fixed 6-week internship + SaaS empty state (2 feature PRs, prod)
+
+**Two product changes, shipped as two feature commits, both auto-pushed to prod** (standing AESIS auto-push rule). Full suite **415/415** throughout; `tsc` clean BE+FE; `vite build` ok.
+
+**PR1 `98e3caa` — `feat: fix internship length at 6 weeks system-wide`**
+- `SYSTEM_MAX_WEEKS = 6` in `shared/utils/quality.ts` is the single backend source of truth. `expectedWeeks()` now **caps** at 6 (dates still derive the count, but nothing above six can surface); default fallback 6.
+- `entries.schema` weekNumber `max(104)→max(6)`; seed cohort `totalWeeks 24→6`; `useEntries` list limit `104→12`; `CoordinatorDashboard` fallback `||24→||6`.
+- `LogbookEditor.buildSchedule` rewritten: **non-rolling**, anchored at week 1, reveals one week at a time as the placement progresses, never past week 6 (a brand-new placement shows only Week 1). `weekNumber === label` now.
+- Tests updated for the 6-week ceiling (quality, student dashboard).
+
+**PR2 `2796cc0` — `feat(student): no pre-seeded data — surfaces reflect real activity`**
+- **Root cause of "pre-existing data":** approving a placement called `generateLogbookSchedule()` which pre-created a full schedule of empty **legacy** `logbook_submissions` rows. The app is **half-migrated** — students author via the `entries` pipeline, but Submission History / dashboard progress / coordinator+admin "weeks" all read the legacy table that only existed via that pre-gen. **Removed pre-gen** (+ dead `computeDeadline`/deadline consts) so a new placement starts empty.
+- **Submission History (frontend):** repointed from legacy `useSubmissions` → `useEntries` (the active pipeline). Empty for a new student ("No submissions yet"); grows per submitted week; expand lazy-loads `useEntry` for the flow tracker + supervisor note + AI summary. Light theme preserved. Verified both empty + populated states via the build-and-screenshot harness.
+- **Student dashboard:** `logsSubmitted`/`completion` now count submitted **entries** (`submittedAt` set), not legacy rows. Avg quality stays advisory (legacy/enrichment → "—" when none).
+- **Coordinator `listStudents` + admin dashboard:** progress/engagement now derive from submitted **entries** + the fixed 6 (`SYSTEM_MAX_WEEKS`), never from a count of pre-seeded rows. Tests rewritten to mock `logbookEntry`.
+
+**Decisions (user-approved via question):** (1) Submission History reflects real entries; (2) clean up existing prod data too.
+
+**⚠️ ACTION REQUIRED — prod data cleanup (Render shell `psql $DATABASE_URL`).** I can't reach prod DB from this box. Safe SQL (only deletes empty, never-submitted, childless pre-gen rows + sets cohorts to 6); run inside a txn and review the SELECT count before COMMIT:
+```sql
+BEGIN;
+SELECT count(*) FROM logbook_submissions s
+ WHERE s.submitted_at IS NULL AND s.submission_status = 'draft'
+   AND NOT EXISTS (SELECT 1 FROM logbook_analyses    a WHERE a.submission_id = s.id)
+   AND NOT EXISTS (SELECT 1 FROM supervisor_feedback f WHERE f.submission_id = s.id)
+   AND NOT EXISTS (SELECT 1 FROM logbook_attachments t WHERE t.submission_id = s.id);
+DELETE FROM logbook_submissions s
+ WHERE s.submitted_at IS NULL AND s.submission_status = 'draft'
+   AND NOT EXISTS (SELECT 1 FROM logbook_analyses    a WHERE a.submission_id = s.id)
+   AND NOT EXISTS (SELECT 1 FROM supervisor_feedback f WHERE f.submission_id = s.id)
+   AND NOT EXISTS (SELECT 1 FROM logbook_attachments t WHERE t.submission_id = s.id);
+UPDATE cohort_configs SET total_weeks = 6 WHERE total_weeks <> 6;
+COMMIT;  -- or ROLLBACK to abort
+```
+
+**Stopped here — next session should**
+1. **Run the cleanup SQL on prod** (above), then eyeball as a fresh student: Submission History empty → log/submit a week → it appears; dashboard climbs from 0.
+2. **Known remaining legacy coupling (out of scope this session):** `getCoordinatorDashboard`'s weekly-engagement chart, the shared `FeedbackCenter`/supervisor `LogbookReview` and admin feedbackCount still read `logbook_submissions`; they degrade to empty now. Unifying fully onto `entries` is the real follow-up to finish the migration.
+3. `cohort_configs.total_weeks` column `@default(24)` is now dormant (seed sets 6, code caps at 6) — harmless; tidy to `@default(6)` if a migration is being cut anyway.
+
+---
+
 ## Handoff Entry Template
 
 ```markdown
