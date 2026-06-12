@@ -5,12 +5,12 @@ import { getSocket } from '@/lib/socket';
 import { queryClient } from '@/lib/queryClient';
 
 const notifConfig: Record<string, { icon: React.ElementType; iconClass: string; bg: string }> = {
-  risk_alert:           { icon: AlertTriangle,  iconClass: 'text-red-400',    bg: 'bg-red-500/10 border-red-500/20' },
-  feedback_received:    { icon: MessageSquare,  iconClass: 'text-blue-400',   bg: 'bg-blue-500/10 border-blue-500/20' },
-  submission_reminder:  { icon: Clock,          iconClass: 'text-amber-400',  bg: 'bg-amber-500/10 border-amber-500/20' },
-  placement_approved:   { icon: CheckCircle2,   iconClass: 'text-emerald-400',bg: 'bg-emerald-500/10 border-emerald-500/20' },
-  escalation:           { icon: AlertTriangle,  iconClass: 'text-orange-400', bg: 'bg-orange-500/10 border-orange-500/20' },
-  system:               { icon: FileText,       iconClass: 'text-slate-400',  bg: 'bg-slate-700/50 border-slate-600' },
+  risk_alert:           { icon: AlertTriangle,  iconClass: 'text-[#b3261e]', bg: 'bg-[#ffe2dc] border-[#f5b8ad]' },
+  feedback_received:    { icon: MessageSquare,  iconClass: 'text-[#15157d]', bg: 'bg-[#e1e8ff] border-[#bcc8ff]' },
+  submission_reminder:  { icon: Clock,          iconClass: 'text-[#9a6700]', bg: 'bg-[#fff4e0] border-[#f3d690]' },
+  placement_approved:   { icon: CheckCircle2,   iconClass: 'text-[#1b7a45]', bg: 'bg-[#dcf5e6] border-[#aee3c2]' },
+  escalation:           { icon: AlertTriangle,  iconClass: 'text-[#b45309]', bg: 'bg-[#ffedd5] border-[#fed7aa]' },
+  system:               { icon: FileText,       iconClass: 'text-[#64748b]', bg: 'bg-[#eef0f5] border-[#d8dce6]' },
 };
 
 function formatDate(iso: string) {
@@ -42,19 +42,19 @@ export default function NotificationInbox() {
 
   if (isLoading) {
     return (
-      <div className="p-6 flex justify-center items-center h-64">
-        <Loader2 className="w-6 h-6 animate-spin text-blue-400" />
+      <div className="flex h-64 items-center justify-center p-6">
+        <Loader2 className="h-6 w-6 animate-spin text-[#8a4cfc]" />
       </div>
     );
   }
 
   return (
-    <div className="p-6 max-w-3xl mx-auto space-y-5">
+    <div className="mx-auto max-w-3xl space-y-5 px-6 py-6">
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-3">
-          <h1 className="text-xl font-bold text-white">Notifications</h1>
+          <h1 className="text-xl font-bold text-[#0b1c30]">Notifications</h1>
           {unread > 0 && (
-            <span className="text-xs px-2 py-0.5 rounded-full bg-blue-600/30 border border-blue-600/40 text-blue-300 font-mono">
+            <span className="rounded-full border border-[#bcc8ff] bg-[#e1e8ff] px-2 py-0.5 font-mono text-xs text-[#15157d]">
               {unread} unread
             </span>
           )}
@@ -63,7 +63,7 @@ export default function NotificationInbox() {
           <button
             onClick={() => markAllRead.mutate()}
             disabled={markAllRead.isPending}
-            className="text-xs text-blue-400 hover:text-blue-300 transition-colors cursor-pointer disabled:opacity-60"
+            className="cursor-pointer text-xs font-medium text-[#712ae2] transition-colors hover:text-[#5a1fc0] disabled:opacity-60"
           >
             Mark all read
           </button>
@@ -71,9 +71,9 @@ export default function NotificationInbox() {
       </div>
 
       {notifications.length === 0 ? (
-        <div className="flex flex-col items-center justify-center py-20 text-center">
-          <Bell className="w-10 h-10 text-slate-700 mb-4" />
-          <p className="text-slate-500 text-sm">No notifications yet</p>
+        <div className="flex flex-col items-center justify-center rounded-xl border border-dashed border-[#d8dce6] bg-white py-20 text-center">
+          <Bell className="mb-4 h-10 w-10 text-[#cbd2e0]" />
+          <p className="text-sm text-[#64748b]">No notifications yet</p>
         </div>
       ) : (
         <div className="space-y-2">
@@ -84,25 +84,25 @@ export default function NotificationInbox() {
               <div
                 key={n.id}
                 onClick={() => { if (!n.isRead) markRead.mutate(n.id); }}
-                className={`flex items-start gap-4 px-5 py-4 rounded-xl border transition-colors cursor-pointer ${
+                className={`flex cursor-pointer items-start gap-4 rounded-xl border px-5 py-4 transition-colors ${
                   n.isRead
-                    ? 'bg-slate-900 border-slate-800 hover:bg-slate-800/50'
-                    : 'bg-slate-900 border-slate-700 hover:bg-slate-800/50'
+                    ? 'border-[#e2e6ef] bg-white hover:bg-[#f8f9ff]'
+                    : 'border-[#bcc8ff] bg-[#f4f6ff] hover:bg-[#eef2ff]'
                 }`}
               >
-                <div className={`w-9 h-9 rounded-lg border flex items-center justify-center shrink-0 mt-0.5 ${cfg.bg}`}>
-                  <Icon className={`w-4 h-4 ${cfg.iconClass}`} />
+                <div className={`mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border ${cfg.bg}`}>
+                  <Icon className={`h-4 w-4 ${cfg.iconClass}`} />
                 </div>
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-2 mb-0.5">
-                    <p className={`text-sm font-semibold ${n.isRead ? 'text-slate-300' : 'text-white'}`}>
+                <div className="min-w-0 flex-1">
+                  <div className="mb-0.5 flex items-center gap-2">
+                    <p className={`text-sm font-semibold ${n.isRead ? 'text-[#464652]' : 'text-[#0b1c30]'}`}>
                       {n.title}
                     </p>
-                    {!n.isRead && <span className="w-1.5 h-1.5 rounded-full bg-blue-400 shrink-0" />}
+                    {!n.isRead && <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-[#15157d]" />}
                   </div>
-                  <p className="text-xs text-slate-400 leading-relaxed">{n.body}</p>
+                  <p className="text-xs leading-relaxed text-[#64748b]">{n.body}</p>
                 </div>
-                <span className="text-xs text-slate-600 shrink-0 whitespace-nowrap mt-0.5">
+                <span className="mt-0.5 shrink-0 whitespace-nowrap text-xs text-[#94a3b8]">
                   {formatDate(n.createdAt)}
                 </span>
               </div>

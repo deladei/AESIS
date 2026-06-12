@@ -111,44 +111,44 @@ export default function ChatbotPanel() {
   };
 
   return (
-    <div className="h-[calc(100vh-0px)] flex flex-col">
+    <div className="flex h-[calc(100vh-0px)] flex-col bg-[#f7f8fb]">
       {/* Header */}
-      <div className="px-6 py-4 border-b border-slate-800 bg-slate-900 flex items-center gap-3 shrink-0">
-        <div className="w-9 h-9 rounded-lg bg-blue-600/20 border border-blue-600/40 flex items-center justify-center">
-          <Sparkles className="w-4.5 h-4.5 text-blue-400 w-[18px] h-[18px]" />
+      <div className="flex shrink-0 items-center gap-3 border-b border-[#e2e6ef] bg-white px-6 py-4">
+        <div className="flex h-9 w-9 items-center justify-center rounded-lg border border-[#dcc9ff] bg-[#f1ecff]">
+          <Sparkles className="h-[18px] w-[18px] text-[#712ae2]" />
         </div>
         <div>
-          <h1 className="text-sm font-semibold text-white">AESIS Assistant</h1>
-          <p className="text-xs text-slate-500">RAG · CS Internship Knowledge Base · GPT-4o-mini</p>
+          <h1 className="text-sm font-semibold text-[#0b1c30]">AESIS Assistant</h1>
+          <p className="text-xs text-[#64748b]">CS Internship Knowledge Base · regulation-grounded</p>
         </div>
         <div className="ml-auto flex items-center gap-1.5">
-          <span className="w-2 h-2 rounded-full bg-emerald-400" />
-          <span className="text-xs text-slate-500">Online</span>
+          <span className="h-2 w-2 rounded-full bg-[#1b7a45]" />
+          <span className="text-xs text-[#64748b]">Online</span>
         </div>
       </div>
 
       {/* Messages */}
-      <div className="flex-1 overflow-y-auto scrollbar-thin px-6 py-4 space-y-5">
+      <div className="scrollbar-thin flex-1 space-y-5 overflow-y-auto px-6 py-4">
         {messages.map((msg) => (
           <div key={msg.id} className={`flex gap-3 ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
             {msg.role === 'assistant' && (
-              <div className="w-7 h-7 rounded-full bg-blue-600/20 border border-blue-600/40 flex items-center justify-center shrink-0 mt-0.5">
-                <Bot className="w-3.5 h-3.5 text-blue-400" />
+              <div className="mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-full border border-[#dcc9ff] bg-[#f1ecff]">
+                <Bot className="h-3.5 w-3.5 text-[#712ae2]" />
               </div>
             )}
             <div className={`max-w-[75%] rounded-xl px-4 py-3 text-sm leading-relaxed ${
               msg.role === 'user'
-                ? 'bg-blue-600 text-white rounded-tr-sm'
-                : 'bg-slate-800 border border-slate-700 text-slate-200 rounded-tl-sm'
+                ? 'rounded-tr-sm bg-[#15157d] text-white'
+                : 'rounded-tl-sm border border-[#e2e6ef] bg-white text-[#1f2a3a]'
             }`}>
               {msg.content}
               {msg.streaming && (
-                <span className="inline-block w-0.5 h-3.5 bg-blue-400 ml-0.5 animate-pulse" />
+                <span className="ml-0.5 inline-block h-3.5 w-0.5 animate-pulse bg-[#712ae2]" />
               )}
             </div>
             {msg.role === 'user' && (
-              <div className="w-7 h-7 rounded-full bg-slate-700 border border-slate-600 flex items-center justify-center shrink-0 mt-0.5">
-                <User className="w-3.5 h-3.5 text-slate-400" />
+              <div className="mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-full border border-[#d8dce6] bg-[#eef0f5]">
+                <User className="h-3.5 w-3.5 text-[#64748b]" />
               </div>
             )}
           </div>
@@ -158,14 +158,14 @@ export default function ChatbotPanel() {
 
       {/* Suggested questions */}
       {messages.length === 1 && (
-        <div className="px-6 pb-3 shrink-0">
-          <p className="text-xs text-slate-500 mb-2">Suggested questions</p>
+        <div className="shrink-0 px-6 pb-3">
+          <p className="mb-2 text-xs text-[#64748b]">Suggested questions</p>
           <div className="flex flex-wrap gap-2">
             {SUGGESTED_QUESTIONS.map((q) => (
               <button
                 key={q}
                 onClick={() => sendMessage(q)}
-                className="px-3 py-1.5 rounded-full border border-slate-700 text-xs text-slate-400 hover:border-blue-500 hover:text-blue-400 hover:bg-blue-500/5 transition-colors cursor-pointer"
+                className="cursor-pointer rounded-full border border-[#d8dce6] bg-white px-3 py-1.5 text-xs text-[#464652] transition-colors hover:border-[#8a4cfc] hover:bg-[#f6f2ff] hover:text-[#712ae2]"
               >
                 {q}
               </button>
@@ -175,8 +175,8 @@ export default function ChatbotPanel() {
       )}
 
       {/* Input */}
-      <div className="px-6 pb-6 pt-3 border-t border-slate-800 shrink-0">
-        <div className="flex items-end gap-3 bg-slate-800 border border-slate-700 rounded-xl p-3 focus-within:border-blue-500 transition-colors">
+      <div className="shrink-0 border-t border-[#e2e6ef] bg-white px-6 pb-6 pt-3">
+        <div className="flex items-end gap-3 rounded-xl border border-[#d8dce6] bg-white p-3 transition-colors focus-within:border-[#8a4cfc] focus-within:ring-1 focus-within:ring-[#8a4cfc]">
           <textarea
             ref={inputRef}
             rows={1}
@@ -184,23 +184,23 @@ export default function ChatbotPanel() {
             onChange={(e) => setInput(e.target.value)}
             onKeyDown={handleKeyDown}
             placeholder="Ask about regulations, deadlines, or procedures…"
-            className="flex-1 bg-transparent text-slate-100 placeholder-slate-500 text-sm resize-none focus:outline-none scrollbar-thin max-h-32"
+            className="scrollbar-thin max-h-32 flex-1 resize-none bg-transparent text-sm text-[#0b1c30] placeholder-[#94a3b8] focus:outline-none"
             style={{ minHeight: '24px' }}
           />
           <button
             onClick={() => sendMessage(input)}
             disabled={!input.trim() || loading}
-            className="w-8 h-8 rounded-lg bg-blue-600 hover:bg-blue-500 flex items-center justify-center transition-colors cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed shrink-0"
+            className="flex h-8 w-8 shrink-0 cursor-pointer items-center justify-center rounded-lg bg-[#15157d] transition-colors hover:bg-[#1f1fa0] disabled:cursor-not-allowed disabled:opacity-40"
             aria-label="Send message"
           >
             {loading ? (
-              <Loader2 className="w-3.5 h-3.5 text-white animate-spin" />
+              <Loader2 className="h-3.5 w-3.5 animate-spin text-white" />
             ) : (
-              <Send className="w-3.5 h-3.5 text-white" />
+              <Send className="h-3.5 w-3.5 text-white" />
             )}
           </button>
         </div>
-        <p className="text-xs text-slate-600 mt-2 text-center">
+        <p className="mt-2 text-center text-xs text-[#94a3b8]">
           Answers are grounded in CS Department regulations only. Not general web knowledge.
         </p>
       </div>
