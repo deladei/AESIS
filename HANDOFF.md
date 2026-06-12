@@ -1674,9 +1674,14 @@ Root cause was a single deterministic **open-handle leak**, not a flaky/slow int
 | Couldn't keep a Vite dev server alive across turns on this box (exit 144 — harness reaps lingering listeners; also tight on RAM) | Mounted the real component against a **primed TanStack Query cache** (no backend/auth), `vite build` to static files, then served + Playwright-screenshotted **inside one Bash call** over `127.0.0.1` (ES modules are CORS-blocked on `file://`). System Chromium at `/usr/bin/chromium` via Playwright `executablePath`. Worth capturing as a project run-skill (`/run-skill-generator`). |
 | First file-path guesses wrong | Global CSS is `src/styles/globals.css` (not `index.css`); placement query key `['placements','mine']`, submissions `['logbook','submissions',placementId]`. |
 
+**Follow-up (same session)** — `style(student)` commit `b683fe9` (2 files, +52/−52), **pushed to prod**. Re-themed the last two dark-slate student views to the light Logbook language:
+- `ChatbotPanel.tsx`: white header/input bars, purple Sparkles/Bot avatars, navy user bubbles, white assistant bubbles, light pill suggestions. **Also dropped the inaccurate "GPT-4o-mini" subtitle** — the chatbot runs on **Groq `llama-3.1-8b-instant`** (per CLAUDE.md), so it now reads "CS Internship Knowledge Base · regulation-grounded".
+- `NotificationInbox.tsx`: light per-type icon chips (red/blue/amber/green/orange/slate), unread rows tinted indigo with a navy dot, read rows white, light empty/loading states.
+- `tsc --noEmit` clean; screenshotted both (mock data) — match the rest of the student flow. No behaviour/API change. **The whole student surface is now light/consistent.** (Notif preview gotcha: `useNotifications()` defaults `unreadOnly=false`, so the list query key is `['notifications',{unreadOnly:false}]`, not `undefined`.)
+
 **Stopped here — next session should**
-1. **Eyeball on prod** once Vercel finishes: as a student with real submissions, hard-refresh `/student/submissions` — confirm the light theme renders and a flagged week expands to show the flow tracker + AI feedback. Verified only with mock data locally.
-2. `ChatbotPanel.tsx` and `NotificationInbox.tsx` are **still dark slate** — the remaining student-side theme inconsistencies if a full light pass is wanted.
+1. **Eyeball on prod** once Vercel finishes: as a student with real data, hard-refresh `/student/submissions`, `/student/chat`(bot), and `/student/notifications` — confirm all render light and consistent. Verified only with mock data locally.
+2. Supervisor/coordinator pages were **not** touched and some still use the shared dark `StatusBadge`/dark surfaces — if a system-wide light pass is wanted, that's the remaining scope.
 3. Carry-over still open from S37: watch the two additive migrations apply on the next Render `migrate deploy` (learning_objectives tables, `placement_assessment.evaluation`); prod eyeball of Oversight / objectives / final-assessment gating.
 
 ---
