@@ -1786,6 +1786,37 @@ COMMIT;  -- or ROLLBACK to abort
 
 ---
 
+### Session 42 — 2026-06-13 — Coordinator GROUP C: oversight features (1 feature PR, prod)
+
+**Finished the uncommitted GROUP C WIP that was sitting in the tree from the prior session (items 13–17), wired the frontend, tested, and shipped as one feature PR `d4babcd` → pushed to prod.** Backend was ~written but untested/unverified and the frontend was untouched.
+
+- **Item 13 At-risk flagging** — pure `deriveAttention()` (overdue draft log / zero logbook progress / no academic supervisor / below-threshold mean quality). Surfaced as an **"Attention" column + reasons tooltip** in `InternStatusTable`, an **attention filter**, a **"Needs Attention" dashboard count card** (deep-links to `/coordinator/interns?attention=1`), and a **performance-threshold field** in Cohort Settings. Oversight's `lowAvgScore` now uses the configured threshold (was hardcoded 50).
+- **Item 14 Supervisor workload** — `GET /coordinator/supervisor-workload` (interns/supervisor, overload + imbalance flags, unassigned). New `SupervisorWorkloadPanel` on the dashboard.
+- **Item 15 Performance distribution** — `GET /coordinator/performance-distribution` (validated/clamped histogram buckets + below-threshold list; unscorable interns reported separately, never 0). New `PerformanceDistributionModal` opened from the Avg Performance card.
+- **Item 16 Export** — printable, **shell-less `/coordinator/report`** page (browser Print → Save-as-PDF, **no new dependency**; added a `bare` mode to `RequireAuth`) alongside the existing CSV; CSV gained a "Needs attention" column + cohort scope.
+- **Item 17 Cohort filter** — dashboard cohort selector scopes every metric + workload + distribution + table + both exports (`academicYearId` threaded end-to-end; `InternStatusTable` gained `scopeYearId` + `initialFilters` props).
+
+**Schema:** additive `performance_threshold` int default 50 on `cohort_configs`. Applied to both LOCAL DBs (`aisystem_db` dev + `aesis_logbook_test`) via `ALTER TABLE … ADD COLUMN IF NOT EXISTS` — they already had it (prior WIP applied it). **No migration folder** (S41 drift pattern).
+
+**Tests/quality:** fixed 9 stale coordinator fixtures the WIP had broken (widened query shape: `logbookSubmissions`, `periodEnd`, threshold lookup, 2nd `placement.findMany`); added 13 new tests (`deriveAttention`, `getSupervisorWorkload`, `getPerformanceDistribution`, dashboard `needsAttention`, threshold config update). **Coordinator suite 59/59.** `tsc` clean BE+FE; `vite build` ok.
+
+**⚠️ REQUIRED PROD STEP — not yet done (no prod DB URL on this box this session):** prod `cohort_configs` needs the column or the coordinator dashboard will 500 once the new backend deploy goes live (the regenerated client `SELECT`s `performance_threshold` unconditionally via `getActivePerformanceThreshold`). Apply via the Render **External DB URL** + local psql:
+```sql
+ALTER TABLE cohort_configs ADD COLUMN IF NOT EXISTS performance_threshold integer NOT NULL DEFAULT 50;
+```
+Same pattern as S41's flag columns. Do this **before/while** Render finishes building `d4babcd`.
+
+**Other notes**
+- Full-suite run was **445/446** but took **700s** (heavy load); the 1 failure was `auth.service.test` "throws 403 … SendGrid configured" — a pre-existing `jest.resetModules`+`doMock(config/env)` isolation flake (sibling controller test pollutes the module registry). **Passes in isolation** (`✓ … 692 ms`). Not a regression; unrelated to Group C.
+- GROUP D (items 18–26: global search, notification bell, account menu, header/stat-card/sidebar wiring, placement-request approve/reject) not started — specs are in hand.
+
+**Stopped here — next session should**
+1. **Confirm the prod `performance_threshold` column was applied** (see REQUIRED PROD STEP) and eyeball Group C on prod as coordinator: Needs Attention card + attention column/filter, workload panel, Avg Performance → distribution modal, cohort selector scoping, Export PDF page, Settings threshold field.
+2. **Reconcile the Prisma migration history** (still the highest-priority infra follow-up from S41).
+3. Implement GROUP D.
+
+---
+
 ## Handoff Entry Template
 
 ```markdown
