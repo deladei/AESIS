@@ -1758,6 +1758,34 @@ COMMIT;  -- or ROLLBACK to abort
 
 ---
 
+### Session 41 — 2026-06-12 — Coordinator GROUP B: Intern Status Monitor (6 PRs, prod)
+
+**Batch "Coordinator" GROUP B — the Intern Status Monitor becomes a full management surface.** Plan proposed + approved (manual flag via additive migration; in-app notifications for message/reminder; all PRs in order). User then said "run the rest autonomously." Implemented as 6 commits, each green + auto-pushed to prod. Coordinator suite ended **46/46**; full backend suite green; `tsc` clean BE+FE; `vite build` ok throughout.
+
+- **`b35586d` B-1 (items 5,6,12)** — `GET /coordinator/students` gains `sortBy` (name|department|supervisor|progress|score|status) + `sortDir` and filters `status` (latest entry status), `programmeId`, `supervisorId`(+`unassigned`), `academicYearId`, `riskTier`. DB-native sorts page in SQL; computed sorts (progress/score/status) + status filter load the bounded active set and sort/slice in memory. New `/coordinator/programmes` + `/coordinator/cohorts`. Extracted reusable `InternStatusTable` (sortable headers, filter panel, Status+Score columns, pagination); dashboard renders it compact (top 8 + "View all"); new `/coordinator/interns` full page + "All Interns" nav.
+- **`013887b` B-2 (item 7)** — Live/Paused toggle: 15s React-Query `refetchInterval` when on, static when off; dot pulses (pings on refresh).
+- **`bbc0feb` B-3 (items 8,9)** — `GET /coordinator/students/:placementId` aggregate (placement/student, supervisors, progress, validated avg quality, weekly entries, risk history, supervisor feedback = entry-event comments, supervisor-assignment history from audit log). New `/coordinator/interns/:placementId` profile page; rows + ⋮ + progress drill into it (rewired off `/assignments`).
+- **`167f39f` B-4a (item 10, no migration)** — ⋮ menu: View profile/logs, Reassign (reuses audited `PATCH /placements/:id/supervisor`), Message + Send reminder (`POST /coordinator/students/:id/{message,reminder}` → `createNotification` + live socket push). Message/reminder are notifications, not state changes → no AuditAction row.
+- **`2f67ba1` B-5 (item 11)** — row checkboxes + select-all + bulk bar: bulk reminder, bulk assign (modal), CSV export (`GET /coordinator/students/export.csv?ids=…`, registered BEFORE `/students/:placementId`). Auth'd blob download.
+- **`ea04729` B-4b (item 10, the flag)** — manual coordinator flag: 3 additive columns on `placements` (`flagged_at/flag_reason/flagged_by_id`) — **these columns ARE the flag's audit record**, so no AuditAction enum change. `POST /coordinator/students/:id/flag {flagged,reason?}`; ⋮ toggles flag/un-flag; flag icon on rows + banner on detail.
+
+**🚨 CRITICAL FINDING — prod migration tracking is non-standard. Reconcile before relying on `migrate deploy`.**
+- `render.yaml` startCommand = `npx prisma migrate deploy && node dist/server.js`, BUT prod `_prisma_migrations` holds **only `0_init`** — yet the 7 later repo migration folders' objects (logbook_entry, learning_objective, placement_assessment.evaluation, etc.) **all exist** in prod. So prod schema has been updated **out-of-band** (db push / manual SQL), not via the granular migration folders. My many backend pushes this session all deployed fine (new endpoints live) **because they're code-only** — that does NOT prove `migrate deploy` applies folders.
+- **Consequence:** adding a normal Prisma migration folder is RISKY — `migrate deploy` could try to apply the 7 untracked-but-existing migrations and fail (`already exists`), breaking the backend deploy. So for B-4b's flag columns I **applied the 3 `ALTER TABLE … ADD COLUMN IF NOT EXISTS` directly to prod via `psql` (external DB URL)** + added the fields to `schema.prisma` (so `prisma generate` on build keeps the client in sync) and **created NO migration folder**. This leaves schema.prisma ahead of the migrations dir (a pre-existing condition for this repo).
+- **Follow-up the user should do:** squash/baseline the migrations to match prod (e.g. `migrate diff` → fresh `0_init`, `migrate resolve --applied`), so fresh provisioning + future migrations work normally. The flag columns must be folded into that baseline.
+
+**Other notes**
+- Prod **external DB URL** works for `psql` but the free instance is **flaky/idle** (dropped ~6 connects mid-session, then came back). Retry loops needed.
+- Coordinator seed login that works on prod: `coordinator@aesis.cs.edu` / `Coord@1234`. Group A verified live earlier; backend health re-confirmed (`/coordinator/programmes`,`/cohorts` = 200).
+- **Local test DB needed the flag columns too** — after `prisma generate` added the flag fields, the regenerated client selects `flagged_*` on every placement query, so `entries.integration` (real `aesis_logbook_test` DB) failed 45/45 until I ran the same 3 `ALTER TABLE … ADD COLUMN IF NOT EXISTS` on `postgresql://aisystem_user:…@localhost:5432/aesis_logbook_test`. Then **433/433** green. (Same gotcha as S35/S37: new column → apply to the test DB.)
+
+**Stopped here — next session should**
+1. **Eyeball Group B on prod** as coordinator (sort/filter/paginate, Live toggle, intern profile, ⋮ actions incl. message/reminder/flag, bulk select + CSV export). Backend `ea04729` may still be deploying when this was written.
+2. **Reconcile the Prisma migration history** (see CRITICAL FINDING) — highest priority before any future schema change.
+3. GROUP C–D not yet provided — await specs.
+
+---
+
 ## Handoff Entry Template
 
 ```markdown
