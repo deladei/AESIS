@@ -4,6 +4,7 @@ import { paginate, buildMeta } from '../../shared/utils/pagination';
 import { AppError } from '../../middleware/errorHandler';
 import { meanQualityScore, SYSTEM_MAX_WEEKS } from '../../shared/utils/quality';
 import { createNotification } from '../notifications/notifications.service';
+import { assignSupervisor } from '../placements/placements.service';
 import { emitToUser } from '../../shared/utils/socketEmitter';
 import { Prisma, type RiskTier, type NotificationType } from '@prisma/client';
 
@@ -304,6 +305,69 @@ export async function remindStudent(placementId: string, _actorId: string) {
     body: 'Your coordinator is reminding you to keep your weekly logbook up to date.',
     link: '/student/logbook',
   });
+}
+
+// ── Bulk actions ──────────────────────────────────────────────
+
+/** Send a reminder to many interns at once. Missing placements are skipped. */
+export async function bulkRemind(placementIds: string[], actorId: string) {
+  let sent = 0;
+  for (const id of placementIds) {
+    try { await remindStudent(id, actorId); sent++; } catch { /* skip missing */ }
+  }
+  return { sent, total: placementIds.length };
+}
+
+/** Assign one academic supervisor across many placements. Reuses the audited
+ *  placements.assignSupervisor (which writes its own auditLog per placement). */
+export async function bulkAssignSupervisor(placementIds: string[], coordinatorId: string, supervisorId: string) {
+  let assigned = 0;
+  for (const id of placementIds) {
+    try { await assignSupervisor(id, coordinatorId, { supervisorId, kind: 'academic' }); assigned++; } catch { /* skip */ }
+  }
+  return { assigned, total: placementIds.length };
+}
+
+// ── CSV export ────────────────────────────────────────────────
+
+function csvCell(v: unknown): string {
+  const s = v == null ? '' : String(v);
+  return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
+}
+
+/** Export active interns to CSV. `ids` limits to the selected placements; omit
+ *  to export the whole active cohort. */
+export async function exportStudentsCsv(opts: { ids?: string[] } = {}) {
+  const where: Prisma.PlacementWhereInput = {
+    placementStatus: 'active',
+    ...(opts.ids && opts.ids.length ? { id: { in: opts.ids } } : {}),
+  };
+  const placements = await prisma.placement.findMany({ where, select: STUDENT_SELECT, orderBy: { createdAt: 'desc' } });
+  const ids = placements.map(p => p.id);
+  const submittedCounts = ids.length
+    ? await prisma.logbookEntry.groupBy({ by: ['placementId'], _count: { _all: true }, where: { placementId: { in: ids }, submittedAt: { not: null } } })
+    : [];
+  const submittedMap = new Map(submittedCounts.map(r => [r.placementId, r._count._all]));
+
+  const header = ['Name', 'Email', 'Department', 'Supervisor', 'Last status', 'Risk tier', 'Risk score', 'Submitted weeks', 'Total weeks', 'Progress %'];
+  const lines = [header.join(',')];
+  for (const p of placements) {
+    const submittedWeeks = submittedMap.get(p.id) ?? 0;
+    const sup = p.academicSupervisor;
+    lines.push([
+      `${p.student.firstName} ${p.student.lastName}`.trim(),
+      p.student.email,
+      p.student.programme?.name ?? '',
+      sup ? `${sup.firstName} ${sup.lastName}`.trim() : 'Unassigned',
+      p.logbookEntries[0]?.status ?? 'not_started',
+      p.riskScores[0]?.riskTier ?? '',
+      p.riskScores[0]?.riskScore != null ? Number(p.riskScores[0].riskScore).toFixed(3) : '',
+      submittedWeeks,
+      SYSTEM_MAX_WEEKS,
+      SYSTEM_MAX_WEEKS > 0 ? Math.round((submittedWeeks / SYSTEM_MAX_WEEKS) * 100) : 0,
+    ].map(csvCell).join(','));
+  }
+  return lines.join('\n');
 }
 
 // ── Intern detail / profile ───────────────────────────────────

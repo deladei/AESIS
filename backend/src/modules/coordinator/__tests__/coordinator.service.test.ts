@@ -50,6 +50,8 @@ import {
   getStudentDetail,
   messageStudent,
   remindStudent,
+  bulkRemind,
+  exportStudentsCsv,
   getRecentActivity,
   getActiveCohortConfig,
   updateActiveCohortConfig,
@@ -462,6 +464,52 @@ describe('messageStudent / remindStudent', () => {
   it('throws 404 when the placement does not exist', async () => {
     (mp.placement.findUnique as jest.Mock).mockResolvedValue(null);
     await expect(messageStudent('missing', 'coord-1', 'hi')).rejects.toMatchObject({ statusCode: 404 });
+  });
+});
+
+// ── bulkRemind / exportStudentsCsv ────────────────────────────
+
+describe('bulk actions + CSV export', () => {
+  beforeEach(() => jest.clearAllMocks());
+
+  it('bulkRemind sends a reminder per placement and counts them', async () => {
+    (mp.placement.findUnique as jest.Mock).mockResolvedValue({ studentId: 'u-1' });
+    (mp.notification.create  as jest.Mock).mockResolvedValue({ id: 'n', type: 'submission_reminder', title: 'Logbook reminder', createdAt: new Date() });
+
+    const r = await bulkRemind(['p-1', 'p-2'], 'coord-1');
+
+    expect(r).toEqual({ sent: 2, total: 2 });
+    expect(mp.notification.create).toHaveBeenCalledTimes(2);
+  });
+
+  it('bulkRemind skips a missing placement without failing the batch', async () => {
+    (mp.placement.findUnique as jest.Mock)
+      .mockResolvedValueOnce({ studentId: 'u-1' })
+      .mockResolvedValueOnce(null);
+    (mp.notification.create  as jest.Mock).mockResolvedValue({ id: 'n', type: 'submission_reminder', title: 'x', createdAt: new Date() });
+
+    const r = await bulkRemind(['p-1', 'gone'], 'coord-1');
+    expect(r).toEqual({ sent: 1, total: 2 });
+  });
+
+  it('exportStudentsCsv builds a header + one row per intern', async () => {
+    (mp.placement.findMany as jest.Mock).mockResolvedValue([{
+      id: 'p-1', createdAt: new Date(),
+      student: { id: 'u-1', firstName: 'Ama', lastName: 'Mensah', email: 'ama@x.edu', programme: { name: 'CS' } },
+      academicSupervisor: { id: 's-1', firstName: 'Theo', lastName: 'Walls' },
+      riskScores: [{ riskTier: 'low', riskScore: 0.2, computedAt: new Date() }],
+      logbookEntries: [{ weekNumber: 2, status: 'submitted', submittedAt: new Date() }],
+    }]);
+    (mp.logbookEntry.groupBy as jest.Mock).mockResolvedValue([{ placementId: 'p-1', _count: { _all: 2 } }]);
+
+    const csv = await exportStudentsCsv({});
+    const lines = csv.split('\n');
+
+    expect(lines[0]).toBe('Name,Email,Department,Supervisor,Last status,Risk tier,Risk score,Submitted weeks,Total weeks,Progress %');
+    expect(lines[1]).toContain('Ama Mensah');
+    expect(lines[1]).toContain('ama@x.edu');
+    expect(lines[1]).toContain('Theo Walls');
+    expect(lines[1]).toContain('33'); // 2/6 → 33%
   });
 });
 

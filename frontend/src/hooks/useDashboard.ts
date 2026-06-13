@@ -143,6 +143,34 @@ export function useInvalidateCoordinator() {
   return () => qc.invalidateQueries({ queryKey: ['coordinator'] });
 }
 
+export function useBulkRemind() {
+  return useMutation({
+    mutationFn: (placementIds: string[]) => api.post('/coordinator/students/bulk/reminder', { placementIds }),
+  });
+}
+
+export function useBulkAssign() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ placementIds, supervisorId }: { placementIds: string[]; supervisorId: string }) =>
+      api.post('/coordinator/students/bulk/assign', { placementIds, supervisorId }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['coordinator'] }),
+  });
+}
+
+/** Fetch the interns CSV (auth header is added by the api client) and download it. */
+export async function downloadInternsCsv(ids?: string[]) {
+  const r = await api.get('/coordinator/students/export.csv', {
+    responseType: 'blob',
+    params: ids && ids.length ? { ids: ids.join(',') } : {},
+  });
+  const url = URL.createObjectURL(r.data as Blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = 'interns.csv';
+  document.body.appendChild(a); a.click(); a.remove();
+  URL.revokeObjectURL(url);
+}
+
 export interface CoordinatorActivity {
   id:         string;
   action:     string;

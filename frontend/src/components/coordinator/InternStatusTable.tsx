@@ -1,10 +1,11 @@
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import {
-  Filter, Loader2, ChevronLeft, ChevronRight, ArrowUp, ArrowDown, X,
+  Filter, Loader2, ChevronLeft, ChevronRight, ArrowUp, ArrowDown, X, BellRing, UserCheck, Download,
 } from 'lucide-react';
 import {
   useCoordinatorStudents, useCoordinatorProgrammes, useCoordinatorCohorts,
+  useBulkRemind, useBulkAssign, downloadInternsCsv,
   type StudentSortKey, type StudentStatusFilter, type CoordinatorStudent,
 } from '@/hooks/useDashboard';
 import { useSupervisors } from '@/hooks/usePlacements';
@@ -66,14 +67,18 @@ function SortHeader({
   );
 }
 
-function InternRow({ s }: { s: CoordinatorStudent }) {
+function InternRow({ s, selected, onToggle }: { s: CoordinatorStudent; selected: boolean; onToggle: (id: string) => void }) {
   const name = `${s.student.firstName} ${s.student.lastName}`;
   const status = STATUS_META[s.lastStatus ?? 'not_started'] ?? STATUS_META.not_started;
   const lastEntry = s.lastSubmittedAt
     ? new Date(s.lastSubmittedAt).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })
     : '—';
   return (
-    <tr className="transition-colors hover:bg-[#eff4ff]">
+    <tr className={`transition-colors hover:bg-[#eff4ff] ${selected ? 'bg-[#eff4ff]' : ''}`}>
+      <td className="px-4 py-3">
+        <input type="checkbox" checked={selected} onChange={() => onToggle(s.placementId)} aria-label={`Select ${name}`}
+          className="h-4 w-4 cursor-pointer rounded border-[#c4c5d5] text-[#15157d] focus:ring-[#15157d]" />
+      </td>
       <td className="px-6 py-3">
         <Link to={`/coordinator/interns/${s.placementId}`} className="flex items-center gap-3">
           <div className="flex h-8 w-8 items-center justify-center rounded-full bg-[#e1e0ff] text-[11px] font-bold text-[#15157d]">{initials(name)}</div>
@@ -134,6 +139,42 @@ export default function InternStatusTable({ pageSize = 20, viewAllHref }: Props)
   const students = data?.students ?? [];
   const meta     = data?.meta;
 
+  // ── Bulk selection ──
+  const [selected, setSelected]           = useState<Set<string>>(new Set());
+  const [bulkAssignOpen, setBulkAssignOpen] = useState(false);
+  const [bulkSupId, setBulkSupId]         = useState('');
+  const [toast, setToast]                 = useState<string | null>(null);
+  const bulkRemind = useBulkRemind();
+  const bulkAssign = useBulkAssign();
+
+  const flash = (t: string) => { setToast(t); setTimeout(() => setToast(null), 2500); };
+  const toggle = (id: string) => setSelected((prev) => {
+    const n = new Set(prev); n.has(id) ? n.delete(id) : n.add(id); return n;
+  });
+  const pageIds   = students.map((s) => s.placementId);
+  const allOnPage = pageIds.length > 0 && pageIds.every((id) => selected.has(id));
+  const toggleAll = () => setSelected((prev) => {
+    const n = new Set(prev);
+    if (allOnPage) pageIds.forEach((id) => n.delete(id));
+    else pageIds.forEach((id) => n.add(id));
+    return n;
+  });
+  const clearSel = () => setSelected(new Set());
+
+  const doBulkRemind = async () => {
+    const n = selected.size;
+    await bulkRemind.mutateAsync([...selected]);
+    flash(`Reminder sent to ${n} intern${n === 1 ? '' : 's'}`); clearSel();
+  };
+  const doBulkAssign = async () => {
+    if (!bulkSupId) return;
+    await bulkAssign.mutateAsync({ placementIds: [...selected], supervisorId: bulkSupId });
+    setBulkAssignOpen(false); setBulkSupId(''); flash('Supervisor assigned'); clearSel();
+  };
+  const doExport = async () => {
+    await downloadInternsCsv(selected.size ? [...selected] : undefined);
+  };
+
   const onSort = (col: StudentSortKey) => {
     if (sortBy === col) setSortDir((d) => (d === 'asc' ? 'desc' : 'asc'));
     else { setSortBy(col); setSortDir('asc'); }
@@ -165,6 +206,13 @@ export default function InternStatusTable({ pageSize = 20, viewAllHref }: Props)
             {live ? 'Live' : 'Paused'}
           </button>
           <button
+            onClick={doExport}
+            aria-label="Export interns to CSV" title="Export to CSV"
+            className="rounded-lg border border-[#c4c5d5]/70 px-2 py-1.5 text-[#444653] transition-colors hover:text-[#15157d]"
+          >
+            <Download className="h-4 w-4" />
+          </button>
+          <button
             onClick={() => setShow((v) => !v)}
             aria-label="Filter interns"
             className={`relative rounded-lg border px-2 py-1.5 transition-colors ${showFilters || activeFilters ? 'border-[#15157d] bg-[#15157d]/5 text-[#15157d]' : 'border-[#c4c5d5]/70 text-[#444653] hover:text-[#15157d]'}`}
@@ -176,6 +224,22 @@ export default function InternStatusTable({ pageSize = 20, viewAllHref }: Props)
           </button>
         </div>
       </div>
+
+      {selected.size > 0 && (
+        <div className="flex flex-wrap items-center gap-2 border-b border-[#c4c5d5]/60 bg-[#eff4ff] px-6 py-2.5 text-sm">
+          <span className="font-semibold text-[#15157d]">{selected.size} selected</span>
+          <button onClick={doBulkRemind} disabled={bulkRemind.isPending} className="inline-flex items-center gap-1.5 rounded-lg border border-[#c4c5d5]/70 bg-white px-3 py-1.5 text-xs font-semibold text-[#444653] transition-colors hover:text-[#15157d] disabled:opacity-50">
+            <BellRing className="h-3.5 w-3.5" /> Send reminder
+          </button>
+          <button onClick={() => setBulkAssignOpen(true)} className="inline-flex items-center gap-1.5 rounded-lg border border-[#c4c5d5]/70 bg-white px-3 py-1.5 text-xs font-semibold text-[#444653] transition-colors hover:text-[#15157d]">
+            <UserCheck className="h-3.5 w-3.5" /> Assign supervisor
+          </button>
+          <button onClick={doExport} className="inline-flex items-center gap-1.5 rounded-lg border border-[#c4c5d5]/70 bg-white px-3 py-1.5 text-xs font-semibold text-[#444653] transition-colors hover:text-[#15157d]">
+            <Download className="h-3.5 w-3.5" /> Export
+          </button>
+          <button onClick={clearSel} className="ml-auto text-xs font-medium text-[#757684] transition-colors hover:text-[#b3261e]">Clear</button>
+        </div>
+      )}
 
       {showFilters && (
         <div className="flex flex-wrap items-center gap-2 border-b border-[#c4c5d5]/60 bg-white px-6 py-3">
@@ -219,6 +283,10 @@ export default function InternStatusTable({ pageSize = 20, viewAllHref }: Props)
         <table className="w-full text-left">
           <thead className="bg-[#eff4ff] text-xs">
             <tr>
+              <th className="px-4 py-3">
+                <input type="checkbox" checked={allOnPage} onChange={toggleAll} aria-label="Select all on this page"
+                  className="h-4 w-4 cursor-pointer rounded border-[#c4c5d5] text-[#15157d] focus:ring-[#15157d]" />
+              </th>
               <SortHeader label="Intern"     col="name"       sortBy={sortBy} sortDir={sortDir} onSort={onSort} className="px-6" />
               <SortHeader label="Department" col="department" sortBy={sortBy} sortDir={sortDir} onSort={onSort} />
               <SortHeader label="Supervisor" col="supervisor" sortBy={sortBy} sortDir={sortDir} onSort={onSort} />
@@ -230,11 +298,11 @@ export default function InternStatusTable({ pageSize = 20, viewAllHref }: Props)
           </thead>
           <tbody className="divide-y divide-[#c4c5d5]/50">
             {isLoading ? (
-              <tr><td colSpan={7} className="px-6 py-10 text-center"><Loader2 className="mx-auto h-5 w-5 animate-spin text-[#15157d]" /></td></tr>
+              <tr><td colSpan={8} className="px-6 py-10 text-center"><Loader2 className="mx-auto h-5 w-5 animate-spin text-[#15157d]" /></td></tr>
             ) : students.length === 0 ? (
-              <tr><td colSpan={7} className="px-6 py-10 text-center text-sm text-[#757684]">{activeFilters > 0 ? 'No interns match these filters.' : 'No active interns yet.'}</td></tr>
+              <tr><td colSpan={8} className="px-6 py-10 text-center text-sm text-[#757684]">{activeFilters > 0 ? 'No interns match these filters.' : 'No active interns yet.'}</td></tr>
             ) : (
-              students.map((s) => <InternRow key={s.placementId} s={s} />)
+              students.map((s) => <InternRow key={s.placementId} s={s} selected={selected.has(s.placementId)} onToggle={toggle} />)
             )}
           </tbody>
         </table>
@@ -267,6 +335,33 @@ export default function InternStatusTable({ pageSize = 20, viewAllHref }: Props)
               </div>
             </div>
           )}
+
+      {/* Bulk assign supervisor modal */}
+      {bulkAssignOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 p-4" onClick={() => setBulkAssignOpen(false)}>
+          <div className="w-full max-w-md rounded-xl bg-white p-5 shadow-xl" onClick={(e) => e.stopPropagation()}>
+            <div className="mb-3 flex items-center justify-between">
+              <h3 className="text-base font-bold text-[#0b1c30]">Assign supervisor to {selected.size} intern{selected.size === 1 ? '' : 's'}</h3>
+              <button onClick={() => setBulkAssignOpen(false)} aria-label="Close" className="rounded p-1 text-[#757684] hover:bg-[#eff4ff]"><X className="h-4 w-4" /></button>
+            </div>
+            <label className="mb-1 block text-xs font-semibold text-[#757684]">Academic supervisor</label>
+            <select value={bulkSupId} onChange={(e) => setBulkSupId(e.target.value)} className="w-full rounded-lg border border-[#c4c5d5]/70 px-3 py-2 text-sm focus:border-[#15157d] focus:outline-none">
+              <option value="">Select a supervisor…</option>
+              {supervisors.map((s) => <option key={s.id} value={s.id}>{s.firstName} {s.lastName}</option>)}
+            </select>
+            <div className="mt-4 flex justify-end gap-2">
+              <button onClick={() => setBulkAssignOpen(false)} className="rounded-lg border border-[#c4c5d5]/70 px-4 py-2 text-sm font-medium text-[#444653] hover:bg-[#eff4ff]">Cancel</button>
+              <button onClick={doBulkAssign} disabled={!bulkSupId || bulkAssign.isPending} className="inline-flex items-center gap-2 rounded-lg bg-[#15157d] px-4 py-2 text-sm font-semibold text-white hover:opacity-90 disabled:opacity-50">
+                {bulkAssign.isPending && <Loader2 className="h-4 w-4 animate-spin" />} Assign
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {toast && (
+        <div className="fixed bottom-4 right-4 z-50 rounded-lg bg-[#0b1c30] px-4 py-2 text-sm font-medium text-white shadow-lg">{toast}</div>
+      )}
     </div>
   );
 }

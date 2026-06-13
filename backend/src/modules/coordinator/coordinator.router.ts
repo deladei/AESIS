@@ -15,6 +15,12 @@ router.get('/dashboard', asyncHandler(ctrl.dashboard));
 // GET /api/v1/coordinator/students
 router.get('/students', asyncHandler(ctrl.students));
 
+// Bulk actions + CSV export. NOTE: these static paths must be registered
+// BEFORE the '/students/:placementId' param route so they aren't swallowed.
+router.get('/students/export.csv', asyncHandler(ctrl.exportCsv));
+router.post('/students/bulk/reminder', asyncHandler(ctrl.bulkReminder));
+router.post('/students/bulk/assign', asyncHandler(ctrl.bulkAssign));
+
 // GET /api/v1/coordinator/students/:placementId — full intern profile
 router.get('/students/:placementId', asyncHandler(ctrl.studentDetail));
 

@@ -46,6 +46,28 @@ export async function remindStudent(req: Request, res: Response) {
   ok(res, await service.remindStudent(placementId, req.user!.sub));
 }
 
+const bulkSchema       = z.object({ placementIds: z.array(z.string().uuid()).min(1).max(200) });
+const bulkAssignSchema = bulkSchema.extend({ supervisorId: z.string().uuid() });
+
+export async function bulkReminder(req: Request, res: Response) {
+  const { placementIds } = bulkSchema.parse(req.body);
+  ok(res, await service.bulkRemind(placementIds, req.user!.sub));
+}
+
+export async function bulkAssign(req: Request, res: Response) {
+  const { placementIds, supervisorId } = bulkAssignSchema.parse(req.body);
+  ok(res, await service.bulkAssignSupervisor(placementIds, req.user!.sub, supervisorId));
+}
+
+export async function exportCsv(req: Request, res: Response) {
+  const raw = typeof req.query.ids === 'string' ? req.query.ids : '';
+  const ids = raw ? raw.split(',').filter(Boolean) : undefined;
+  const csv = await service.exportStudentsCsv({ ids });
+  res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+  res.setHeader('Content-Disposition', 'attachment; filename="interns.csv"');
+  res.send(csv);
+}
+
 export async function programmes(_req: Request, res: Response) {
   ok(res, await service.listProgrammes());
 }
