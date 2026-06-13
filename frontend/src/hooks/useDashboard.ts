@@ -375,14 +375,13 @@ export interface InsightsData {
     engagementLabel: string;
     submittedCount:  number;
     expectedWeeks:   number;
-    successScore:    number | null;
-    riskTier:        'low' | 'medium' | 'high' | null;
+    relevanceScore:  number | null;  // advisory AI relevance 0–100, or null
     status:          string;
     flagged:         boolean;
   }[];
-  successTrend: { week: number; avgQuality: number }[];
-  sentiment: { hasData: boolean; weeks: { week: number; polarity: number }[]; anomalyWeek: number | null };
-  skillProfile: { hasData: boolean; dimensions: { dimension: string; avgScore: number | null }[] };
+  relevanceTrend: { week: number; avgRelevance: number }[];
+  hours: { hasData: boolean; weeks: { week: number; totalHours: number; avgHours: number }[] };
+  skillProfile: { hasData: boolean; competencies: { tag: string; count: number; pct: number }[] };
   actionableSummaries: { hasData: boolean; items: { title: string; body: string }[] };
 }
 

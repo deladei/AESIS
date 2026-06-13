@@ -1,34 +1,17 @@
 import {
-  Sparkles, TrendingUp, AlertTriangle, Loader2,
+  Sparkles, TrendingUp, Clock, Loader2, Inbox,
 } from 'lucide-react';
 import { useInsights } from '@/hooks/useDashboard';
 
 /**
- * AI Insights & Analytics — wired to GET /api/v1/insights (real aggregation).
- * Supervisors see their own cohort; coordinator/admin see all active placements.
+ * AI Insights & Analytics — wired to GET /api/v1/insights, which aggregates the
+ * ACTIVE weekly-entries pipeline (logbook entries, activity competency tags, and
+ * advisory ai_assessment relevance). Supervisors see their own cohort;
+ * coordinator/admin see all active placements.
  *
- * Panels backed by real data: performance monitoring, weekly quality trend,
- * sentiment, cohort skill profile, derived summaries. Where a panel's data is
- * sparse/absent (e.g. no sentiment recorded yet), it shows a "Sample" badge and
- * illustrative content instead of an empty box.
+ * AI relevance is advisory only and is labelled as such — never a grade. Panels
+ * with no source data show an honest empty state (no fabricated sample data).
  */
-
-// Illustrative fallback for the sentiment heatmap when no polarity is recorded.
-const SAMPLE_SENTIMENT = [40, 60, 20, 80, 30, 50, -1, 70, 40, 60, 20, 80, 30, 50];
-
-function SampleBadge() {
-  return (
-    <span className="rounded-full bg-[#712ae2]/10 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-[#712ae2]">
-      Sample
-    </span>
-  );
-}
-
-function polarityColor(polarity: number) {
-  // -1 → red, 0 → neutral grey, +1 → green
-  if (polarity < 0) return `rgba(255,218,214,${Math.min(1, 0.3 + Math.abs(polarity))})`;
-  return `rgba(78,222,163,${Math.max(0.2, polarity)})`;
-}
 
 export default function AIInsights() {
   const { data, isLoading, isError } = useInsights();
@@ -51,11 +34,13 @@ export default function AIInsights() {
     );
   }
 
-  const { overview, performanceMonitoring, successTrend, sentiment, skillProfile, actionableSummaries } = data;
+  const { overview, performanceMonitoring, relevanceTrend, hours, skillProfile, actionableSummaries } = data;
 
-  const trendDelta = successTrend.length >= 2
-    ? Math.round(successTrend[successTrend.length - 1].avgQuality - successTrend[0].avgQuality)
+  const trendDelta = relevanceTrend.length >= 2
+    ? Math.round(relevanceTrend[relevanceTrend.length - 1].avgRelevance - relevanceTrend[0].avgRelevance)
     : null;
+
+  const maxAvgHours = hours.weeks.reduce((m, w) => Math.max(m, w.avgHours), 0);
 
   return (
     <div className="mx-auto max-w-[1440px] p-6 md:p-8">
@@ -63,21 +48,21 @@ export default function AIInsights() {
         <h1 className="text-2xl font-bold text-[#15157d]">AI Insights &amp; Analytics</h1>
         <p className="text-sm text-[#464652]">
           {overview.activeInterns} active intern{overview.activeInterns === 1 ? '' : 's'}
-          {overview.flaggedCount > 0 && <> · <span className="font-medium text-[#ba1a1a]">{overview.flaggedCount} flagged</span></>}
-          {' '}· predictive modeling from logbook activity.
+          {overview.flaggedCount > 0 && <> · <span className="font-medium text-[#ba1a1a]">{overview.flaggedCount} at risk</span></>}
+          {' '}· derived from weekly logbook entries. AI relevance is advisory.
         </p>
       </header>
 
       <div className="grid grid-cols-12 gap-6">
-        {/* Cohort Quality Trend */}
+        {/* Cohort AI Relevance Trend */}
         <section className="col-span-12 overflow-hidden rounded-xl border border-[#712ae2]/10 bg-white/70 p-6 shadow-[0_4px_20px_-2px_rgba(113,42,226,0.15)] backdrop-blur lg:col-span-8">
           <div className="mb-6 flex items-start justify-between">
             <div>
               <div className="mb-1 flex items-center gap-2">
                 <Sparkles className="h-5 w-5 text-[#712ae2]" fill="currentColor" />
-                <span className="text-xs font-semibold uppercase tracking-wider text-[#712ae2]">Predictive Modeling</span>
+                <span className="text-xs font-semibold uppercase tracking-wider text-[#712ae2]">Advisory signal</span>
               </div>
-              <h3 className="text-xl font-semibold text-[#0b1c30]">Cohort Quality Trend</h3>
+              <h3 className="text-xl font-semibold text-[#0b1c30]">Cohort AI Relevance Trend</h3>
             </div>
             {trendDelta != null && (
               <span className={`flex items-center gap-1 rounded-full px-3 py-1 text-xs font-semibold ${trendDelta >= 0 ? 'bg-[#22c087]/10 text-[#22c087]' : 'bg-[#ba1a1a]/10 text-[#ba1a1a]'}`}>
@@ -86,95 +71,95 @@ export default function AIInsights() {
               </span>
             )}
           </div>
-          {successTrend.length === 0 ? (
-            <p className="py-16 text-center text-sm text-[#464652]">No scored logbook submissions yet.</p>
+          {relevanceTrend.length === 0 ? (
+            <p className="py-16 text-center text-sm text-[#464652]">No AI-enriched entries yet.</p>
           ) : (
             <div className="flex h-64 items-end justify-between gap-4 px-2">
-              {successTrend.map((t, i) => (
+              {relevanceTrend.map((t, i) => (
                 <div key={t.week} className="group flex flex-1 flex-col items-center gap-2">
                   <div className="relative flex h-full w-full items-end">
                     <div
                       className="w-full rounded-t-lg bg-[#712ae2] opacity-80 transition-all group-hover:opacity-100"
-                      style={{ height: `${Math.max(6, t.avgQuality)}%` }}
+                      style={{ height: `${Math.max(6, t.avgRelevance)}%` }}
                     >
                       <div className="absolute -top-7 left-1/2 -translate-x-1/2 whitespace-nowrap rounded bg-[#0b1c30] px-2 py-1 text-[10px] text-white opacity-0 transition-opacity group-hover:opacity-100">
-                        {t.avgQuality}/100
+                        {t.avgRelevance}/100
                       </div>
                     </div>
                   </div>
-                  <span className="text-xs text-[#777683]">{i === successTrend.length - 1 ? 'Latest' : `Wk ${t.week}`}</span>
+                  <span className="text-xs text-[#777683]">{i === relevanceTrend.length - 1 ? 'Latest' : `Wk ${t.week}`}</span>
                 </div>
               ))}
             </div>
           )}
         </section>
 
-        {/* Weekly Sentiment */}
+        {/* Weekly Hours Logged */}
         <section className="col-span-12 flex flex-col rounded-xl border border-[#712ae2]/10 bg-white/70 p-6 backdrop-blur lg:col-span-4">
-          <div className="mb-6 flex items-center justify-between">
-            <h3 className="text-xl font-semibold text-[#0b1c30]">Weekly Sentiment</h3>
-            {!sentiment.hasData && <SampleBadge />}
+          <div className="mb-6 flex items-center gap-2">
+            <Clock className="h-5 w-5 text-[#712ae2]" />
+            <h3 className="text-xl font-semibold text-[#0b1c30]">Weekly Hours Logged</h3>
           </div>
-          <div className="grid flex-grow grid-cols-7 gap-2">
-            {sentiment.hasData
-              ? sentiment.weeks.map((w) => (
-                  <div
-                    key={w.week}
-                    className="aspect-square rounded-sm"
-                    style={{ backgroundColor: polarityColor(w.polarity) }}
-                    title={`Week ${w.week}: ${w.polarity > 0 ? '+' : ''}${w.polarity}`}
-                  />
-                ))
-              : SAMPLE_SENTIMENT.map((v, i) => (
-                  <div
-                    key={i}
-                    className="aspect-square rounded-sm"
-                    style={{ backgroundColor: v < 0 ? 'rgba(255,218,214,0.4)' : `rgba(78,222,163,${Math.abs(v) / 100})` }}
-                  />
-                ))}
-          </div>
-          <div className="mt-4 border-t border-[#c7c5d4]/20 pt-4">
-            <div className="flex items-center gap-2 text-xs text-[#464652]">
-              <AlertTriangle className={`h-4 w-4 shrink-0 ${sentiment.anomalyWeek ? 'text-[#ba1a1a]' : 'text-[#777683]'}`} />
-              <span>
-                {sentiment.hasData
-                  ? sentiment.anomalyWeek
-                    ? `Negative sentiment detected in Week ${sentiment.anomalyWeek}.`
-                    : 'No sentiment anomalies detected.'
-                  : 'Sentiment populates once supervisors leave feedback.'}
-              </span>
+          {!hours.hasData ? (
+            <div className="flex flex-grow flex-col items-center justify-center gap-2 py-8 text-center">
+              <Inbox className="h-6 w-6 text-[#c7c5d4]" />
+              <p className="text-sm text-[#464652]">No hours logged yet.</p>
             </div>
-          </div>
+          ) : (
+            <>
+              <div className="flex flex-grow items-end justify-between gap-2">
+                {hours.weeks.map((w) => (
+                  <div key={w.week} className="group flex flex-1 flex-col items-center gap-2">
+                    <div className="relative flex h-40 w-full items-end">
+                      <div
+                        className="w-full rounded-t-md bg-[#4edea3] opacity-80 transition-all group-hover:opacity-100"
+                        style={{ height: `${maxAvgHours > 0 ? Math.max(6, (w.avgHours / maxAvgHours) * 100) : 6}%` }}
+                      >
+                        <div className="absolute -top-6 left-1/2 -translate-x-1/2 whitespace-nowrap rounded bg-[#0b1c30] px-2 py-1 text-[10px] text-white opacity-0 transition-opacity group-hover:opacity-100">
+                          {w.avgHours}h avg
+                        </div>
+                      </div>
+                    </div>
+                    <span className="text-xs text-[#777683]">Wk {w.week}</span>
+                  </div>
+                ))}
+              </div>
+              <p className="mt-4 border-t border-[#c7c5d4]/20 pt-4 text-xs text-[#464652]">
+                Average hours logged per submitted week across the cohort.
+              </p>
+            </>
+          )}
         </section>
 
-        {/* Cohort Skill Profile */}
+        {/* Cohort Competencies */}
         <section className="col-span-12 rounded-xl border border-[#712ae2]/10 bg-white/70 p-6 backdrop-blur lg:col-span-7">
           <div className="mb-6 flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <h3 className="text-xl font-semibold text-[#0b1c30]">Cohort Skill Profile</h3>
-              {!skillProfile.hasData && <SampleBadge />}
-            </div>
-            <span className="text-xs text-[#464652]">Avg rubric score / 100</span>
+            <h3 className="text-xl font-semibold text-[#0b1c30]">Cohort Competencies</h3>
+            <span className="text-xs text-[#464652]">From logged activity tags</span>
           </div>
-          <div className="space-y-6">
-            {skillProfile.dimensions.map((s) => {
-              const score = s.avgScore ?? 0;
-              return (
-                <div key={s.dimension}>
+          {!skillProfile.hasData ? (
+            <div className="flex flex-col items-center gap-2 py-10 text-center">
+              <Inbox className="h-6 w-6 text-[#c7c5d4]" />
+              <p className="text-sm text-[#464652]">No competency tags recorded yet.</p>
+            </div>
+          ) : (
+            <div className="space-y-6">
+              {skillProfile.competencies.map((c) => (
+                <div key={c.tag}>
                   <div className="mb-2 flex justify-between">
-                    <span className="text-sm font-medium text-[#0b1c30]">{s.dimension}</span>
-                    <span className="text-xs text-[#464652]">{s.avgScore != null ? `${s.avgScore}/100` : 'No data'}</span>
+                    <span className="text-sm font-medium text-[#0b1c30]">{c.tag}</span>
+                    <span className="text-xs text-[#464652]">{c.count} {c.count === 1 ? 'activity' : 'activities'}</span>
                   </div>
                   <div className="h-2 w-full overflow-hidden rounded-full bg-[#e5eeff]">
                     <div
-                      className="h-full rounded-full"
-                      style={{ width: `${score}%`, backgroundColor: score >= 70 ? '#4edea3' : score >= 50 ? '#712ae2' : '#ba1a1a' }}
+                      className="h-full rounded-full bg-[#712ae2]"
+                      style={{ width: `${Math.max(4, c.pct)}%` }}
                     />
                   </div>
                 </div>
-              );
-            })}
-          </div>
+              ))}
+            </div>
+          )}
         </section>
 
         {/* Actionable Summaries */}
@@ -194,7 +179,7 @@ export default function AIInsights() {
             </div>
           ) : (
             <p className="py-8 text-center text-sm text-[#464652]">
-              Summaries appear once interns have scored submissions and risk scores.
+              Summaries appear once interns submit logbook entries.
             </p>
           )}
         </section>
@@ -212,7 +197,7 @@ export default function AIInsights() {
               <table className="w-full text-left">
                 <thead className="bg-[#eff4ff]/50">
                   <tr>
-                    {['Intern', 'Employer', 'Engagement', 'Submissions', 'Success Score', 'Status'].map((h) => (
+                    {['Intern', 'Employer', 'Engagement', 'Submissions', 'AI Relevance', 'Status'].map((h) => (
                       <th key={h} className="px-6 py-4 text-xs font-semibold uppercase tracking-wider text-[#777683]">{h}</th>
                     ))}
                   </tr>
@@ -243,7 +228,7 @@ export default function AIInsights() {
                         <td className="px-6 py-4 text-sm text-[#464652]">{m.submittedCount}/{m.expectedWeeks} weeks</td>
                         <td className="px-6 py-4">
                           <span className="font-bold" style={{ color: m.flagged ? '#ba1a1a' : '#15157d' }}>
-                            {m.successScore != null ? `${m.successScore}/100` : '—'}
+                            {m.relevanceScore != null ? `${m.relevanceScore}/100` : '—'}
                           </span>
                         </td>
                         <td className="px-6 py-4">

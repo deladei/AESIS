@@ -11,35 +11,43 @@ import { getInsights, listInternsForFeedback } from '../insights.service';
 
 const mp = prisma as jest.Mocked<typeof prisma>;
 
-const sub = (
+// Build a logbook_entry row in the shape getInsights selects.
+const entry = (
   weekNumber: number,
-  submissionStatus: string,
-  analysis: Record<string, unknown> | null = null,
-) => ({ weekNumber, submissionStatus, analysis });
+  opts: { submitted?: boolean; hours?: number | null; tags?: string[]; relevance?: number | null },
+) => ({
+  weekNumber,
+  submittedAt: opts.submitted ? new Date('2026-01-05') : null,
+  hoursLogged: opts.hours ?? null,
+  activities:  opts.tags ? [{ competencyTags: opts.tags }] : [],
+  assessments: opts.relevance != null ? [{ relevance: opts.relevance }] : [],
+});
 
 beforeEach(() => jest.clearAllMocks());
 
 describe('getInsights', () => {
-  it('aggregates performance, trend, sentiment, skills and summaries from real rows', async () => {
+  it('aggregates performance, relevance trend, hours, competencies and summaries from entries', async () => {
     (mp.placement.findMany as jest.Mock).mockResolvedValue([
       {
         id: 'p1',
-        student: { id: 's1', firstName: 'Akosua', lastName: 'Mensah' },
+        student: { firstName: 'Akosua', lastName: 'Mensah' },
         company: { name: 'Sankofa Software Ltd.' },
-        riskScores: [{ riskTier: 'low', riskScore: 0.1, topRiskFactors: [] }],
-        logbookSubmissions: [
-          sub(1, 'approved',  { qualityScore: 90, taskDepthScore: 80, techVocabScore: 70, reflectionScore: 60, temporalConsistencyScore: 88, sentimentPolarity: 0.5, sentimentClass: 'supportive' }),
-          sub(2, 'submitted', { qualityScore: 96, taskDepthScore: 84, techVocabScore: 74, reflectionScore: 64, temporalConsistencyScore: 92, sentimentPolarity: 0.6, sentimentClass: 'encouraging' }),
+        logbookEntries: [
+          entry(1, { submitted: true, hours: 40, tags: ['Python', 'Testing'], relevance: 0.80 }),
+          entry(2, { submitted: true, hours: 36, tags: ['Python'],            relevance: 0.90 }),
+          entry(3, { submitted: true, hours: 38, tags: ['Python', 'SQL'],     relevance: 1.00 }),
+          entry(4, { submitted: true, hours: 40, tags: ['Python'],            relevance: 0.90 }),
+          entry(5, { submitted: true, hours: 40, tags: ['Testing'],           relevance: 0.90 }),
+          entry(6, { submitted: true, hours: 40, tags: ['Python'],            relevance: 0.90 }),
         ],
       },
       {
         id: 'p2',
-        student: { id: 's2', firstName: 'Yaa', lastName: 'Frimpong' },
+        student: { firstName: 'Yaw', lastName: 'Asante' },
         company: { name: 'Ananse Technologies Ltd.' },
-        riskScores: [{ riskTier: 'high', riskScore: 0.8, topRiskFactors: ['missed deadlines'] }],
-        logbookSubmissions: [
-          sub(1, 'approved', { qualityScore: 50, taskDepthScore: 40, techVocabScore: 30, reflectionScore: 35, temporalConsistencyScore: 45, sentimentPolarity: -0.2, sentimentClass: 'frustrated' }),
-          sub(2, 'draft',    null),
+        logbookEntries: [
+          entry(1, { submitted: true, hours: 10, tags: ['Python'], relevance: 0.40 }),
+          entry(2, { submitted: false }),
         ],
       },
     ]);
@@ -49,66 +57,80 @@ describe('getInsights', () => {
     expect(r.overview.activeInterns).toBe(2);
     expect(r.overview.flaggedCount).toBe(1);
 
-    // Akosua: 2/2 submitted → 100% engagement, success = (1-0.1)*100 = 90, Active
+    // Akosua: 6/6 submitted → 100% engagement; relevance mean(80,90,100,90,90,90)=90.
     const akosua = r.performanceMonitoring.find(p => p.name === 'Akosua Mensah')!;
     expect(akosua.engagementPct).toBe(100);
-    expect(akosua.successScore).toBe(90);
-    expect(akosua.status).toBe('Active');
+    expect(akosua.engagementLabel).toBe('High');
+    expect(akosua.relevanceScore).toBe(90);
+    expect(akosua.status).toBe('On Track');
+    expect(akosua.flagged).toBe(false);
 
-    // Yaa: high risk → flagged, success = (1-0.8)*100 = 20, 1/2 submitted = 50%
-    const yaa = r.performanceMonitoring.find(p => p.name === 'Yaa Frimpong')!;
-    expect(yaa.flagged).toBe(true);
-    expect(yaa.status).toBe('Flagged');
-    expect(yaa.successScore).toBe(20);
-    expect(yaa.engagementPct).toBe(50);
+    // Yaw: 1/6 submitted → 17% engagement → flagged At Risk; relevance mean(40)=40.
+    const yaw = r.performanceMonitoring.find(p => p.name === 'Yaw Asante')!;
+    expect(yaw.engagementPct).toBe(17);
+    expect(yaw.flagged).toBe(true);
+    expect(yaw.status).toBe('At Risk');
+    expect(yaw.relevanceScore).toBe(40);
 
-    // Weekly trend: week1 avg (90,50)=70, week2 avg (96)=96
-    expect(r.successTrend).toEqual([
-      { week: 1, avgQuality: 70 },
-      { week: 2, avgQuality: 96 },
+    // Relevance trend per week across all enriched entries.
+    expect(r.relevanceTrend).toEqual([
+      { week: 1, avgRelevance: 60 }, // (80 + 40) / 2
+      { week: 2, avgRelevance: 90 },
+      { week: 3, avgRelevance: 100 },
+      { week: 4, avgRelevance: 90 },
+      { week: 5, avgRelevance: 90 },
+      { week: 6, avgRelevance: 90 },
     ]);
 
-    // Sentiment present; week1 avg (0.5,-0.2)=0.2, week2 (0.6)=0.6 → no negative weeks
-    expect(r.sentiment.hasData).toBe(true);
-    expect(r.sentiment.anomalyWeek).toBeNull();
+    // Hours from submitted entries only; week 1 has both interns.
+    expect(r.hours.hasData).toBe(true);
+    expect(r.hours.weeks[0]).toEqual({ week: 1, totalHours: 50, avgHours: 25 });
+    expect(r.hours.weeks).toHaveLength(6);
 
-    // Skill profile has data for all 4 dimensions
+    // Competencies ranked by frequency across activity tags. Python: 6, Testing: 2, SQL: 1.
     expect(r.skillProfile.hasData).toBe(true);
-    expect(r.skillProfile.dimensions).toHaveLength(4);
+    expect(r.skillProfile.competencies[0]).toEqual({ tag: 'Python', count: 6, pct: 100 });
+    expect(r.skillProfile.competencies.map(c => c.tag)).toEqual(['Python', 'Testing', 'SQL']);
 
-    // Summaries: highest-risk mentorship (Yaa) + resource (weakest dim) + success signal (Akosua 90)
-    expect(r.actionableSummaries.hasData).toBe(true);
+    // Summaries grounded in the above.
     const titles = r.actionableSummaries.items.map(i => i.title);
-    expect(titles).toContain('Targeted Mentorship');
-    expect(titles).toContain('Success Signal');
+    expect(r.actionableSummaries.hasData).toBe(true);
+    expect(titles).toContain('Re-engage At-Risk Intern'); // Yaw
+    expect(titles).toContain('Strong Logbook Signal');    // Akosua (90 ≥ 80)
+    expect(titles).toContain('Cohort Focus');             // Python
   });
 
-  it('flags an anomaly week when avg sentiment polarity is negative', async () => {
+  it('handles entries with no AI assessment and filters blank competency tags', async () => {
     (mp.placement.findMany as jest.Mock).mockResolvedValue([
       {
         id: 'p1',
-        student: { id: 's1', firstName: 'Kwabena', lastName: 'Boateng' },
+        student: { firstName: 'Abena', lastName: 'Owusu' },
         company: null,
-        riskScores: [],
-        logbookSubmissions: [
-          sub(3, 'submitted', { qualityScore: 60, sentimentPolarity: -0.4, sentimentClass: 'frustrated' }),
+        logbookEntries: [
+          entry(1, { submitted: true, hours: 20, tags: ['   ', 'Docker'], relevance: null }),
         ],
       },
     ]);
 
     const r = await getInsights({});
-    expect(r.sentiment.anomalyWeek).toBe(3);
-    // no risk score → success falls back to avg quality (60)
-    expect(r.performanceMonitoring[0].successScore).toBe(60);
+
+    // No assessment → relevanceScore null and the entry never enters the trend.
+    expect(r.performanceMonitoring[0].relevanceScore).toBeNull();
+    expect(r.relevanceTrend).toEqual([]);
+    expect(r.performanceMonitoring[0].department).toBe('—'); // null company
+    // Whitespace-only tag dropped; only Docker survives.
+    expect(r.skillProfile.competencies).toEqual([{ tag: 'Docker', count: 1, pct: 100 }]);
+    expect(r.hours.hasData).toBe(true);
   });
 
-  it('returns empty-but-valid shape when there are no placements', async () => {
+  it('returns an empty-but-valid shape when there are no placements', async () => {
     (mp.placement.findMany as jest.Mock).mockResolvedValue([]);
 
     const r = await getInsights({ supervisorId: 'sup-1' });
     expect(r.overview.activeInterns).toBe(0);
     expect(r.performanceMonitoring).toEqual([]);
-    expect(r.sentiment.hasData).toBe(false);
+    expect(r.relevanceTrend).toEqual([]);
+    expect(r.hours.hasData).toBe(false);
     expect(r.skillProfile.hasData).toBe(false);
     expect(r.actionableSummaries.hasData).toBe(false);
   });
