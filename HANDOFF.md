@@ -1845,6 +1845,41 @@ Same pattern as S41's flag columns. Do this **before/while** Render finishes bui
 
 ---
 
+### Session 44 — 2026-06-13 — AI Insights rewired onto the active entries pipeline (1 fix PR, prod)
+
+**User report:** the coordinator AI Insights page "is not serving data with all the data available in the system." **Root cause:** `insights.service.getInsights` read **only the legacy** `logbook_submissions`/`logbook_analyses` tables. In prod the legacy `qualityScore` was seeded (so the trend + performance table had numbers) but the rubric sub-scores and VADER sentiment were never populated → the **Skill Profile and Sentiment panels fell back to hardcoded `SAMPLE_SENTIMENT` fake data** (violates the no-impossible-state / no-vibe-coded-fake-data bar), while the **active entries pipeline** (`logbook_entry`, `entry_activity.competency_tags`, advisory `ai_assessment.relevance`/`summary`, `hours_logged`) — the real current data — was never read at all.
+
+**User decisions (asked):** (1) **full rewire** onto the entries pipeline; (2) **replace the sentiment panel with a real Hours/Relevance panel**.
+
+**PR `319887f` — `fix(insights): rewire AI Insights onto the active entries pipeline`**
+- `getInsights` now queries active placements' `logbookEntries` + `activities.competencyTags` + latest `assessments.relevance`. New return shape:
+  - `performanceMonitoring`: engagement = submitted/`SYSTEM_MAX_WEEKS`(6); `relevanceScore` = `meanQualityScore(relevance×100)` (advisory); `flagged` when engagement < 50% → status `At Risk`/`On Track`.
+  - `relevanceTrend` (was `successTrend`): weekly mean of `ai_assessment.relevance`, validated/clamped via shared quality helpers.
+  - `hours` (replaces `sentiment`): weekly total/avg of `entry.hoursLogged` from submitted entries.
+  - `skillProfile.competencies` (was `dimensions`): frequency rank of `entry_activity.competencyTags` (top 6, relative pct).
+  - `actionableSummaries`: derived from the above (re-engage at-risk / strong logbook signal / cohort focus).
+- **HARD RULE respected:** `ai_assessment.relevance` is surfaced as **"AI relevance" (advisory)**, never a grade. Header reworded; "Success Score" column → "AI Relevance".
+- Frontend `AIInsights.tsx` rewritten: removed `SAMPLE_SENTIMENT` + `polarityColor` fake data; three real panels with **honest empty states** (no fabricated samples). `InsightsData` type updated.
+- **`listInternsForFeedback` left on the legacy pipeline intentionally** (Feedback Center, separate surface) — noted in code as remaining coupling; out of scope.
+- The entries enrichment worker runs **in-process on the backend** (`server.ts:67`), so `ai_assessment.relevance` is populated in prod as students submit.
+
+**No migration** — all fields already exist; read-only change.
+
+**Tests/quality:** rewrote `insights.service.test.ts` for the entries shape (4/4: full aggregation w/ Ghanaian names, no-assessment + blank-tag filtering, empty-but-valid shape, unchanged feedback list). `tsc` clean BE+FE; `vite build` ok. Only `AIInsights.tsx` consumes `InsightsData` — no stale refs.
+
+**✅ Verified live on prod (`319887f` deployed):** `/insights` returns the new shape (`relevanceTrend`/`hours`/`skillProfile.competencies`). `hours` ✅ populated (wk1 48h total/24 avg), `competencies` ✅ populated (Problem Solving/backend/testing/database). **BUT** `relevanceTrend: []`, every `relevanceScore: null`, all 9 interns `0–17% engagement / At Risk`. **User decision: keep entries-only (honest)** — the page now reflects the true active pipeline; no blend/fallback.
+
+**🔍 TWO ROOT-CAUSE FINDINGS this session (both INFRA, not code):**
+1. **The active entries pipeline is sparse in prod.** Entries-based coordinator `/students` shows interns with `submittedWeeks: 1`, `progressPct: 17`. The rich "9×6-week, quality 77" demo data lives **only in the legacy tables** — and the coordinator dashboard is itself mixed-source (its `submissionTrends` 8/8 + `avgPerformance` read legacy; its intern table reads entries). The S39 half-migration debt is the cause. Insights now correctly reads entries, so it looks sparse until students actually use the entries pipeline.
+2. **🚨 The prod AI Engine (FastAPI `aesis-ai-engine`) is DOWN.** `https://aesis-ai-engine.onrender.com/*` returns **404 with header `x-render-routing: no-server`** on every path (incl. `/docs`, `/health`, `/ai/chat`) — Render has **no running instance** (suspended / not deployed; NOT a cold start, which would 502). Consequence: every enrichment job's `POST /ai/enrich/entry` fails → worker fails open (retry→abandon) → **zero `ai_assessment` rows** → empty AI relevance everywhere. **The student chatbot is also down** (same service). **USER ACTION REQUIRED (Render dashboard):** resume/redeploy `aesis-ai-engine` (+ `aesis-celery-worker`); confirm backend env `AI_ENGINE_URL` + `AI_ENGINE_API_KEY` match the live engine. Once up, new submits enqueue + enrich, and the relevance trend/column populate on their own (fail-open worker retries pending jobs). No backend redeploy needed.
+
+**Stopped here — next session should**
+1. **(User) Resume the AI Engine on Render** (finding #2) — unblocks AI relevance AND the chatbot. Then re-check `/insights` (`relevanceTrend` should fill as jobs drain).
+2. **Migrate the Feedback Center (`listInternsForFeedback`) off legacy** `logbook_submissions` — the last insights-module legacy coupling.
+3. **Reconcile the Prisma migration history** (S41 CRITICAL FINDING) — still the top infra follow-up. The coordinator dashboard's mixed legacy/entries sources (finding #1) is the broader half-migration cleanup.
+
+---
+
 ## Handoff Entry Template
 
 ```markdown
