@@ -1836,8 +1836,10 @@ Same pattern as S41's flag columns. Do this **before/while** Render finishes bui
 
 **Tests/quality:** coordinator suite **62/62** (59 from C + 3 new: search empty-guard, search grouping, feature flags). `tsc` clean BE+FE; `vite build` ok. New tests assert search only queries `active` placements + subtitle fallbacks (company→email, industry→"Host company").
 
+**✅ Verified live on prod (same session, after deploy landed):** backend — `/coordinator/feature-flags` 200 `{aiPulseMatching:false,aiInsights:true}`; `/coordinator/search?q=ko` 200 grouped interns+companies; 2-char guard `q=k` returns empty groups; `/coordinator/activity` rows carry `entityType:placement`+`entityId`; `/companies` returns 3 cos w/ `_count.placements`. Frontend — Vercel serving new bundle `index-uyvgVpiF.js`: new search placeholder present, old `"…projects, or companies"` gone, markers for Quick actions / Host Companies / reject-reason / feature-flags all in the served JS.
+
 **Stopped here — next session should**
-1. **Eyeball GROUP D on prod** once Vercel + Render redeploy `ed06365`: global search routes correctly, bell dropdown + mark-read, quick-actions/account menus, stat cards navigate, activity rows deep-link, inline approve/reject a pending placement, AI Insights nav present.
+1. (Optional) Manual UI click-through on prod as coordinator — backend+bundle already verified live; remaining is human eyeballing dropdowns/navigation/inline reject in the browser.
 2. **Reconcile the Prisma migration history** (S41 CRITICAL FINDING) — still the top infra follow-up; nothing this session touched schema so the drift is unchanged.
 3. All Coordinator groups A–D now shipped. Await next batch of specs.
 
