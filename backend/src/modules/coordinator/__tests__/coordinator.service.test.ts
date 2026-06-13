@@ -4,6 +4,7 @@ jest.mock('../../../config/prisma', () => ({
       count:     jest.fn(),
       findMany:  jest.fn(),
       findUnique: jest.fn(),
+      update:    jest.fn(),
     },
     studentRiskScore: {
       groupBy:  jest.fn(),
@@ -52,6 +53,7 @@ import {
   remindStudent,
   bulkRemind,
   exportStudentsCsv,
+  setFlag,
   getRecentActivity,
   getActiveCohortConfig,
   updateActiveCohortConfig,
@@ -510,6 +512,42 @@ describe('bulk actions + CSV export', () => {
     expect(lines[1]).toContain('ama@x.edu');
     expect(lines[1]).toContain('Theo Walls');
     expect(lines[1]).toContain('33'); // 2/6 → 33%
+  });
+});
+
+// ── setFlag ───────────────────────────────────────────────────
+
+describe('setFlag', () => {
+  beforeEach(() => jest.clearAllMocks());
+
+  it('flags a placement with a reason and stamps the coordinator', async () => {
+    (mp.placement.findUnique as jest.Mock).mockResolvedValue({ id: 'p-1' });
+    (mp.placement.update     as jest.Mock).mockResolvedValue({ flaggedAt: new Date(), flagReason: 'Low engagement' });
+
+    const r = await setFlag('p-1', 'coord-1', true, 'Low engagement');
+
+    expect(r).toEqual({ flagged: true, flagReason: 'Low engagement' });
+    expect(mp.placement.update).toHaveBeenCalledWith(expect.objectContaining({
+      where: { id: 'p-1' },
+      data: expect.objectContaining({ flaggedById: 'coord-1', flagReason: 'Low engagement' }),
+    }));
+  });
+
+  it('un-flags by clearing the columns', async () => {
+    (mp.placement.findUnique as jest.Mock).mockResolvedValue({ id: 'p-1' });
+    (mp.placement.update     as jest.Mock).mockResolvedValue({ flaggedAt: null, flagReason: null });
+
+    const r = await setFlag('p-1', 'coord-1', false);
+
+    expect(r).toEqual({ flagged: false, flagReason: null });
+    expect(mp.placement.update).toHaveBeenCalledWith(expect.objectContaining({
+      data: { flaggedAt: null, flagReason: null, flaggedById: null },
+    }));
+  });
+
+  it('throws 404 when the placement does not exist', async () => {
+    (mp.placement.findUnique as jest.Mock).mockResolvedValue(null);
+    await expect(setFlag('missing', 'coord-1', true)).rejects.toMatchObject({ statusCode: 404 });
   });
 });
 

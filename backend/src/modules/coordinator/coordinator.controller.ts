@@ -46,6 +46,14 @@ export async function remindStudent(req: Request, res: Response) {
   ok(res, await service.remindStudent(placementId, req.user!.sub));
 }
 
+const flagSchema = z.object({ flagged: z.boolean(), reason: z.string().trim().max(500).optional() });
+
+export async function setFlag(req: Request, res: Response) {
+  const placementId = z.string().uuid().parse(req.params.placementId);
+  const { flagged, reason } = flagSchema.parse(req.body);
+  ok(res, await service.setFlag(placementId, req.user!.sub, flagged, reason));
+}
+
 const bulkSchema       = z.object({ placementIds: z.array(z.string().uuid()).min(1).max(200) });
 const bulkAssignSchema = bulkSchema.extend({ supervisorId: z.string().uuid() });
 

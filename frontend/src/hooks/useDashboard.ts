@@ -37,6 +37,8 @@ export interface CoordinatorStudent {
   lastWeek:        number | null;
   lastStatus:      string | null;
   lastSubmittedAt: string | null;
+  flagged:         boolean;
+  flagReason:      string | null;
   totalWeeks:      number;
   submittedWeeks:  number;
   progressPct:     number;
@@ -102,7 +104,7 @@ export function useCoordinatorCohorts() {
 }
 
 export interface InternDetail {
-  placement:   { id: string; status: string; startDate: string | null; endDate: string | null; company: string | null; cohort: string | null };
+  placement:   { id: string; status: string; startDate: string | null; endDate: string | null; company: string | null; cohort: string | null; flagged: boolean; flagReason: string | null };
   student:     { id: string; name: string; email: string; department: string | null };
   supervisors: { academic: { id: string; name: string; email: string } | null; company: { id: string; name: string; email: string } | null };
   progress:    { submittedWeeks: number; totalWeeks: number; progressPct: number };
@@ -141,6 +143,15 @@ export function useRemindStudent() {
 export function useInvalidateCoordinator() {
   const qc = useQueryClient();
   return () => qc.invalidateQueries({ queryKey: ['coordinator'] });
+}
+
+export function useSetFlag() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ placementId, flagged, reason }: { placementId: string; flagged: boolean; reason?: string }) =>
+      api.post(`/coordinator/students/${placementId}/flag`, { flagged, reason }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['coordinator'] }),
+  });
 }
 
 export function useBulkRemind() {

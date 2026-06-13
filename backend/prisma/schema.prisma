@@ -305,6 +305,11 @@ model Placement {
   rejectionReason      String?            @map("rejection_reason")
   approvedAt           DateTime?          @map("approved_at")
   approvedBy           String?            @map("approved_by") // coordinator user id
+  // Manual coordinator "flag for attention". These columns ARE the flag's audit
+  // record (who/when/why); cleared on un-flag. No FK on flaggedById by design.
+  flaggedAt            DateTime?          @map("flagged_at")
+  flagReason           String?            @map("flag_reason")
+  flaggedById          String?            @map("flagged_by_id") // coordinator user id
   createdAt            DateTime           @default(now()) @map("created_at")
   updatedAt            DateTime           @updatedAt @map("updated_at")
 

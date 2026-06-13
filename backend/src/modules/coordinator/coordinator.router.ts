@@ -30,6 +30,9 @@ router.post('/students/:placementId/message', asyncHandler(ctrl.messageStudent))
 // POST /api/v1/coordinator/students/:placementId/reminder — nudge the intern
 router.post('/students/:placementId/reminder', asyncHandler(ctrl.remindStudent));
 
+// POST /api/v1/coordinator/students/:placementId/flag — flag/un-flag for attention
+router.post('/students/:placementId/flag', asyncHandler(ctrl.setFlag));
+
 // GET /api/v1/coordinator/activity
 router.get('/activity', asyncHandler(ctrl.activity));
 

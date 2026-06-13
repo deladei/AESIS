@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import {
-  Filter, Loader2, ChevronLeft, ChevronRight, ArrowUp, ArrowDown, X, BellRing, UserCheck, Download,
+  Filter, Loader2, ChevronLeft, ChevronRight, ArrowUp, ArrowDown, X, BellRing, UserCheck, Download, Flag,
 } from 'lucide-react';
 import {
   useCoordinatorStudents, useCoordinatorProgrammes, useCoordinatorCohorts,
@@ -83,7 +83,10 @@ function InternRow({ s, selected, onToggle }: { s: CoordinatorStudent; selected:
         <Link to={`/coordinator/interns/${s.placementId}`} className="flex items-center gap-3">
           <div className="flex h-8 w-8 items-center justify-center rounded-full bg-[#e1e0ff] text-[11px] font-bold text-[#15157d]">{initials(name)}</div>
           <div>
-            <p className="text-sm font-bold leading-tight text-[#0b1c30]">{name}</p>
+            <p className="flex items-center gap-1 text-sm font-bold leading-tight text-[#0b1c30]">
+              {name}
+              {s.flagged && <Flag className="h-3 w-3 fill-amber-400 text-amber-500" />}
+            </p>
             <p className="font-mono text-xs text-[#757684]">#{s.placementId.slice(0, 6).toUpperCase()}</p>
           </div>
         </Link>
@@ -114,7 +117,7 @@ function InternRow({ s, selected, onToggle }: { s: CoordinatorStudent; selected:
         </Link>
       </td>
       <td className="px-6 py-3 text-right">
-        <RowActionsMenu placementId={s.placementId} internName={name} />
+        <RowActionsMenu placementId={s.placementId} internName={name} flagged={s.flagged} />
       </td>
     </tr>
   );

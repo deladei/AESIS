@@ -131,8 +131,10 @@ const STATUS_ORDER: Record<StatusFilter, number> = {
 };
 
 const STUDENT_SELECT = {
-  id:      true,
+  id:        true,
   createdAt: true,
+  flaggedAt: true,
+  flagReason: true,
   student: {
     select: {
       id: true, firstName: true, lastName: true, email: true,
@@ -219,6 +221,8 @@ export async function listStudents(filters: StudentListFilters) {
       lastWeek:        p.logbookEntries[0]?.weekNumber  ?? null,
       lastStatus:      p.logbookEntries[0]?.status      ?? null,
       lastSubmittedAt: p.logbookEntries[0]?.submittedAt ?? null,
+      flagged:         p.flaggedAt != null,
+      flagReason:      p.flagReason ?? null,
       totalWeeks,
       submittedWeeks,
       progressPct:     totalWeeks > 0 ? Math.round((submittedWeeks / totalWeeks) * 100) : 0,
@@ -307,6 +311,25 @@ export async function remindStudent(placementId: string, _actorId: string) {
   });
 }
 
+/**
+ * Flag / un-flag a placement for coordinator attention. The flag columns
+ * (flaggedAt / flagReason / flaggedById) ARE the audit record, so no separate
+ * AuditAction row is written. Returns the resulting flag state.
+ */
+export async function setFlag(placementId: string, coordinatorId: string, flagged: boolean, reason?: string) {
+  const placement = await prisma.placement.findUnique({ where: { id: placementId }, select: { id: true } });
+  if (!placement) throw new AppError(404, 'Placement not found');
+
+  const updated = await prisma.placement.update({
+    where: { id: placementId },
+    data: flagged
+      ? { flaggedAt: new Date(), flagReason: reason?.trim() || null, flaggedById: coordinatorId }
+      : { flaggedAt: null, flagReason: null, flaggedById: null },
+    select: { flaggedAt: true, flagReason: true },
+  });
+  return { flagged: updated.flaggedAt != null, flagReason: updated.flagReason ?? null };
+}
+
 // ── Bulk actions ──────────────────────────────────────────────
 
 /** Send a reminder to many interns at once. Missing placements are skipped. */
@@ -387,6 +410,7 @@ export async function getStudentDetail(placementId: string) {
     where:  { id: placementId },
     select: {
       id: true, placementStatus: true, startDate: true, endDate: true,
+      flaggedAt: true, flagReason: true,
       student: {
         select: { id: true, firstName: true, lastName: true, email: true, programme: { select: { name: true } } },
       },
@@ -442,6 +466,7 @@ export async function getStudentDetail(placementId: string) {
       id: placement.id, status: placement.placementStatus,
       startDate: placement.startDate, endDate: placement.endDate,
       company: placement.company?.name ?? null, cohort: placement.academicYear?.label ?? null,
+      flagged: placement.flaggedAt != null, flagReason: placement.flagReason ?? null,
     },
     student: {
       id: placement.student.id,

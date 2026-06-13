@@ -1,30 +1,33 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
-  MoreVertical, User, FileText, UserCheck, MessageSquare, BellRing, Loader2, X,
+  MoreVertical, User, FileText, UserCheck, MessageSquare, BellRing, Loader2, X, Flag,
 } from 'lucide-react';
 import { useSupervisors, useAssignSupervisor } from '@/hooks/usePlacements';
-import { useMessageStudent, useRemindStudent } from '@/hooks/useDashboard';
+import { useMessageStudent, useRemindStudent, useSetFlag } from '@/hooks/useDashboard';
 
 interface Props {
   placementId: string;
   internName: string;
+  flagged?: boolean;
   /** Optional toast sink so callers can surface confirmations consistently. */
   onDone?: (message: string) => void;
 }
 
-export default function RowActionsMenu({ placementId, internName, onDone }: Props) {
+export default function RowActionsMenu({ placementId, internName, flagged = false, onDone }: Props) {
   const navigate = useNavigate();
   const [open, setOpen]   = useState(false);
-  const [modal, setModal] = useState<null | 'reassign' | 'message'>(null);
+  const [modal, setModal] = useState<null | 'reassign' | 'message' | 'flag'>(null);
   const [supId, setSupId] = useState('');
   const [msg, setMsg]     = useState('');
+  const [reason, setReason] = useState('');
   const [toast, setToast] = useState<string | null>(null);
 
   const { data: supervisors = [] } = useSupervisors();
   const assign  = useAssignSupervisor();
   const message = useMessageStudent();
   const remind  = useRemindStudent();
+  const setFlag = useSetFlag();
 
   const flash = (t: string) => {
     if (onDone) onDone(t);
@@ -46,6 +49,15 @@ export default function RowActionsMenu({ placementId, internName, onDone }: Prop
     setOpen(false);
     await remind.mutateAsync(placementId);
     flash('Reminder sent');
+  };
+  const doFlag = async () => {
+    await setFlag.mutateAsync({ placementId, flagged: true, reason: reason.trim() || undefined });
+    setModal(null); setReason(''); flash('Flagged for attention');
+  };
+  const doUnflag = async () => {
+    setOpen(false);
+    await setFlag.mutateAsync({ placementId, flagged: false });
+    flash('Flag removed');
   };
 
   const item = 'flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-[#0b1c30] transition-colors hover:bg-[#eff4ff]';
@@ -71,6 +83,15 @@ export default function RowActionsMenu({ placementId, internName, onDone }: Prop
               <button className={item} onClick={doRemind} disabled={remind.isPending}>
                 {remind.isPending ? <Loader2 className="h-4 w-4 animate-spin text-[#757684]" /> : <BellRing className="h-4 w-4 text-[#757684]" />} Send reminder
               </button>
+              {flagged ? (
+                <button className={item} onClick={doUnflag} disabled={setFlag.isPending}>
+                  <Flag className="h-4 w-4 text-amber-500" /> Remove flag
+                </button>
+              ) : (
+                <button className={item} onClick={() => { setOpen(false); setModal('flag'); }}>
+                  <Flag className="h-4 w-4 text-[#757684]" /> Flag for attention
+                </button>
+              )}
             </div>
           </>
         )}
@@ -81,12 +102,23 @@ export default function RowActionsMenu({ placementId, internName, onDone }: Prop
           <div className="w-full max-w-md rounded-xl bg-white p-5 shadow-xl" onClick={(e) => e.stopPropagation()}>
             <div className="mb-3 flex items-center justify-between">
               <h3 className="text-base font-bold text-[#0b1c30]">
-                {modal === 'reassign' ? 'Reassign supervisor' : `Message ${internName}`}
+                {modal === 'reassign' ? 'Reassign supervisor' : modal === 'flag' ? `Flag ${internName}` : `Message ${internName}`}
               </h3>
               <button onClick={() => setModal(null)} aria-label="Close" className="rounded p-1 text-[#757684] hover:bg-[#eff4ff]"><X className="h-4 w-4" /></button>
             </div>
 
-            {modal === 'reassign' ? (
+            {modal === 'flag' ? (
+              <>
+                <label className="mb-1 block text-xs font-semibold text-[#757684]">Reason (optional)</label>
+                <textarea value={reason} onChange={(e) => setReason(e.target.value)} rows={3} maxLength={500} placeholder="Why are you flagging this intern for attention?" className="w-full resize-none rounded-lg border border-[#c4c5d5]/70 px-3 py-2 text-sm text-[#0b1c30] focus:border-[#15157d] focus:outline-none" />
+                <div className="mt-4 flex justify-end gap-2">
+                  <button onClick={() => setModal(null)} className="rounded-lg border border-[#c4c5d5]/70 px-4 py-2 text-sm font-medium text-[#444653] hover:bg-[#eff4ff]">Cancel</button>
+                  <button onClick={doFlag} disabled={setFlag.isPending} className="inline-flex items-center gap-2 rounded-lg bg-amber-500 px-4 py-2 text-sm font-semibold text-white hover:bg-amber-600 disabled:opacity-50">
+                    {setFlag.isPending && <Loader2 className="h-4 w-4 animate-spin" />} Flag
+                  </button>
+                </div>
+              </>
+            ) : modal === 'reassign' ? (
               <>
                 <label className="mb-1 block text-xs font-semibold text-[#757684]">Academic supervisor</label>
                 <select value={supId} onChange={(e) => setSupId(e.target.value)} className="w-full rounded-lg border border-[#c4c5d5]/70 px-3 py-2 text-sm focus:border-[#15157d] focus:outline-none">

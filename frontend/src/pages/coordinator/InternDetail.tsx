@@ -1,6 +1,6 @@
 import { Link, useParams } from 'react-router-dom';
 import {
-  ArrowLeft, Loader2, AlertCircle, Mail, Building2, CalendarDays, GraduationCap, MessageSquare, Shield,
+  ArrowLeft, Loader2, AlertCircle, Mail, Building2, CalendarDays, GraduationCap, MessageSquare, Shield, Flag,
 } from 'lucide-react';
 import { useInternDetail } from '@/hooks/useDashboard';
 
@@ -66,6 +66,13 @@ export default function InternDetail() {
         </div>
         <span className="rounded-full border border-[#c4c5d5]/70 px-3 py-1 text-xs font-semibold capitalize text-[#15157d]">{placement.status}</span>
       </div>
+
+      {placement.flagged && (
+        <div className="mb-4 flex items-start gap-2 rounded-lg border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+          <Flag className="mt-0.5 h-4 w-4 shrink-0 fill-amber-400 text-amber-500" />
+          <span><strong>Flagged for attention.</strong>{placement.flagReason ? ` ${placement.flagReason}` : ''}</span>
+        </div>
+      )}
 
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
         {/* Progress + quality */}
