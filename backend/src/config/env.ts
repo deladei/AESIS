@@ -52,6 +52,9 @@ const envSchema = z.object({
   // AI candidate–role "Pulse Matching" is roadmap-only. Off in production until
   // a real matching service exists; while off the panel renders disabled.
   AI_PULSE_MATCHING:                              envBool(false),
+  // AI Insights & Analytics surface. A working page; on by default but
+  // feature-flagged so it can be hidden from the coordinator nav per cohort.
+  AI_INSIGHTS:                                    envBool(true),
   // Backfill cutoff: reject weekly submissions more than N days after the
   // period ends. Unset = OFF (default). Set a number to enable.
   BACKFILL_CUTOFF_DAYS:                           z.coerce.number().int().nonnegative().optional(),

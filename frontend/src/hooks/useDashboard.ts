@@ -239,10 +239,49 @@ export interface CoordinatorActivity {
   id:         string;
   action:     string;
   entityType: string;
+  entityId:   string | null;
   actor:      string;
   actorRole:  string;
   summary:    string;
   createdAt:  string;
+}
+
+// ── Global search (item 18) ───────────────────────────────────
+
+export interface CoordinatorSearchResults {
+  interns:   { placementId: string; name: string; subtitle: string }[];
+  companies: { id: string; name: string; subtitle: string }[];
+}
+
+/** Debounced typeahead across interns + companies. Disabled until 2+ chars. */
+export function useCoordinatorSearch(q: string) {
+  const query = q.trim();
+  return useQuery({
+    queryKey: ['coordinator', 'search', query],
+    enabled:  query.length >= 2,
+    queryFn:  async () => {
+      const r = await api.get<{ data: CoordinatorSearchResults }>(`/coordinator/search?q=${encodeURIComponent(query)}`);
+      return r.data.data;
+    },
+  });
+}
+
+// ── Feature flags (item 24) ───────────────────────────────────
+
+export interface CoordinatorFeatureFlags {
+  aiPulseMatching: boolean;
+  aiInsights:      boolean;
+}
+
+export function useCoordinatorFeatureFlags() {
+  return useQuery({
+    queryKey: ['coordinator', 'feature-flags'],
+    staleTime: 5 * 60_000,
+    queryFn:  async () => {
+      const r = await api.get<{ data: CoordinatorFeatureFlags }>('/coordinator/feature-flags');
+      return r.data.data;
+    },
+  });
 }
 
 export function useCoordinatorActivity(limit = 8) {

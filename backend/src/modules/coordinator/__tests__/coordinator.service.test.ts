@@ -42,6 +42,9 @@ jest.mock('../../../config/prisma', () => ({
     user: {
       findMany: jest.fn(),
     },
+    company: {
+      findMany: jest.fn(),
+    },
   },
 }));
 
@@ -64,6 +67,8 @@ import {
   deriveAttention,
   getSupervisorWorkload,
   getPerformanceDistribution,
+  searchEntities,
+  getFeatureFlags,
 } from '../coordinator.service';
 
 const mp = prisma as jest.Mocked<typeof prisma>;
@@ -603,6 +608,7 @@ describe('getRecentActivity', () => {
     expect(result).toHaveLength(2);
     expect(result[0]).toMatchObject({
       id: 'a-1', actor: 'Kofi Adjei',
+      entityType: 'placement', entityId: 'p-1',   // deep-link target (item 25)
       summary: 'Assigned an academic supervisor to a placement',
     });
     expect(result[1].summary).toBe('Changed a placement status to "active"');
@@ -981,5 +987,54 @@ describe('getPerformanceDistribution', () => {
 
     const r = await getPerformanceDistribution();
     expect(r.belowThreshold).toEqual([]);
+  });
+});
+
+// ── searchEntities (item 18) ──────────────────────────────────
+
+describe('searchEntities', () => {
+  beforeEach(() => jest.clearAllMocks());
+
+  it('returns empty groups (no query) for a query under 2 chars without hitting the DB', async () => {
+    const r = await searchEntities('a');
+    expect(r).toEqual({ interns: [], companies: [] });
+    expect(mp.placement.findMany).not.toHaveBeenCalled();
+    expect(mp.company.findMany).not.toHaveBeenCalled();
+  });
+
+  it('groups interns and companies, mapping subtitles', async () => {
+    (mp.placement.findMany as jest.Mock).mockResolvedValue([
+      { id: 'p-1', student: { firstName: 'Ama', lastName: 'Mensah', email: 'ama@x.edu' }, company: { name: 'Hubtel' } },
+      { id: 'p-2', student: { firstName: 'Kofi', lastName: 'Owusu', email: 'kofi@x.edu' }, company: null },
+    ]);
+    (mp.company.findMany as jest.Mock).mockResolvedValue([
+      { id: 'c-1', name: 'Hubtel', industry: 'Fintech' },
+      { id: 'c-2', name: 'mPharma', industry: null },
+    ]);
+
+    const r = await searchEntities('h');  // 1 char → guard; use a real query below
+    expect(r).toEqual({ interns: [], companies: [] });
+
+    const r2 = await searchEntities('hu');
+    expect(r2.interns).toEqual([
+      { placementId: 'p-1', name: 'Ama Mensah', subtitle: 'Hubtel' },
+      { placementId: 'p-2', name: 'Kofi Owusu', subtitle: 'kofi@x.edu' }, // falls back to email when no company
+    ]);
+    expect(r2.companies).toEqual([
+      { id: 'c-1', name: 'Hubtel', subtitle: 'Fintech' },
+      { id: 'c-2', name: 'mPharma', subtitle: 'Host company' }, // industry null fallback
+    ]);
+    // Only active placements are searched.
+    const where = (mp.placement.findMany as jest.Mock).mock.calls[0][0].where;
+    expect(where.placementStatus).toBe('active');
+  });
+});
+
+// ── getFeatureFlags (item 24) ─────────────────────────────────
+
+describe('getFeatureFlags', () => {
+  it('exposes the coordinator nav flags (test env defaults)', () => {
+    // env defaults in tests: AI_PULSE_MATCHING off, AI_INSIGHTS on.
+    expect(getFeatureFlags()).toEqual({ aiPulseMatching: false, aiInsights: true });
   });
 });

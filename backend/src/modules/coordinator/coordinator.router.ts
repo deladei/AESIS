@@ -39,6 +39,12 @@ router.get('/activity', asyncHandler(ctrl.activity));
 // GET /api/v1/coordinator/supervisors
 router.get('/supervisors', asyncHandler(ctrl.supervisors));
 
+// GET /api/v1/coordinator/search?q= — global typeahead (interns + companies, item 18)
+router.get('/search', asyncHandler(ctrl.search));
+
+// GET /api/v1/coordinator/feature-flags — shell nav gating (item 24)
+router.get('/feature-flags', asyncHandler(ctrl.featureFlags));
+
 // GET /api/v1/coordinator/programmes — department filter options
 router.get('/programmes', asyncHandler(ctrl.programmes));
 

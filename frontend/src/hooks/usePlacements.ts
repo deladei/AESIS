@@ -89,6 +89,25 @@ export function useAllPlacements(page = 1, status?: string) {
   });
 }
 
+export interface Company {
+  id:       string;
+  name:     string;
+  industry: string | null;
+  website:  string | null;
+  _count?:  { placements: number };
+}
+
+/** Host companies list (coordinator/admin). Backed by GET /api/v1/companies. */
+export function useCompanies(page = 1) {
+  return useQuery({
+    queryKey: ['companies', { page }],
+    queryFn:  async () => {
+      const r = await api.get<{ data: Company[]; meta?: unknown }>(`/companies?page=${page}&limit=50`);
+      return { companies: r.data?.data ?? [], meta: r.data?.meta };
+    },
+  });
+}
+
 /** Academic supervisors available for assignment (coordinator/admin only). */
 export function useSupervisors() {
   return useQuery({

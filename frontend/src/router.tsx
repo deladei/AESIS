@@ -25,6 +25,7 @@ import PlacementApproval    from '@/pages/coordinator/PlacementApproval';
 import SupervisorAssignment from '@/pages/coordinator/SupervisorAssignment';
 import CohortSettings       from '@/pages/coordinator/CohortSettings';
 import CohortReport         from '@/pages/coordinator/CohortReport';
+import CompaniesList        from '@/pages/coordinator/CompaniesList';
 import Oversight            from '@/pages/coordinator/Oversight';
 import AdminDashboard       from '@/pages/admin/AdminDashboard';
 import FeedbackCenter       from '@/pages/shared/FeedbackCenter';
@@ -129,6 +130,7 @@ export const router = createBrowserRouter([
       { path: '/coordinator/dashboard',  element: <CoordinatorDashboard /> },
       { path: '/coordinator/interns',    element: <InternsList /> },
       { path: '/coordinator/interns/:placementId', element: <InternDetail /> },
+      { path: '/coordinator/companies', element: <CompaniesList /> },
       { path: '/coordinator/placements', element: <PlacementApproval /> },
       { path: '/coordinator/assignments', element: <SupervisorAssignment /> },
       { path: '/coordinator/oversight',  element: <Oversight /> },

@@ -2,27 +2,35 @@ import { Link, useLocation } from 'react-router-dom';
 import { cn } from '@/lib/utils';
 import { useAuth } from '@/contexts/AuthContext';
 import { useUnreadCount } from '@/hooks/useNotifications';
+import { useCoordinatorFeatureFlags } from '@/hooks/useDashboard';
 import { MobileNav } from './MobileNav';
+import GlobalSearch from './GlobalSearch';
+import NotificationBell from './NotificationBell';
+import QuickActionsMenu from './QuickActionsMenu';
+import AccountMenu from './AccountMenu';
 import {
   LayoutDashboard, ClipboardList, UserCheck, Sparkles, Settings, Users,
-  Search, Bell, HelpCircle, GraduationCap, LogOut, Plus, ShieldAlert,
+  GraduationCap, LogOut, Plus, ShieldAlert,
 } from 'lucide-react';
 
 interface NavItem {
   label: string;
   href: string;
   icon: React.ElementType;
+  /** Hidden unless this feature flag is on (item 24). */
+  flag?: 'aiInsights';
 }
 
-// Stitch "Nexus Oversight" nav. Items without a dedicated page yet land on the
-// dashboard so the chrome stays consistent across coordinator views.
+// Stitch "Nexus Oversight" nav. "Intern Overview" is the dashboard (metrics +
+// status monitor); "Oversight" is the distinct cross-cohort at-risk monitoring
+// surface. AI Insights is gated behind a feature flag.
 const navItems: NavItem[] = [
   { label: 'Intern Overview', href: '/coordinator/dashboard',   icon: LayoutDashboard },
   { label: 'All Interns',     href: '/coordinator/interns',     icon: Users },
   { label: 'Oversight',       href: '/coordinator/oversight',   icon: ShieldAlert },
   { label: 'Placements',      href: '/coordinator/placements',  icon: ClipboardList },
   { label: 'Assignments',     href: '/coordinator/assignments', icon: UserCheck },
-  { label: 'AI Insights',     href: '/ai-insights',             icon: Sparkles },
+  { label: 'AI Insights',     href: '/ai-insights',             icon: Sparkles, flag: 'aiInsights' },
   { label: 'Settings',        href: '/coordinator/settings',    icon: Settings },
 ];
 
@@ -34,7 +42,11 @@ interface CoordinatorShellProps {
 export function CoordinatorShell({ user, children }: CoordinatorShellProps) {
   const { logout } = useAuth();
   const { data: unreadCount = 0 } = useUnreadCount();
+  const { data: flags } = useCoordinatorFeatureFlags();
   const { pathname } = useLocation();
+
+  // Hide flag-gated nav items until their flag resolves on (item 24).
+  const visibleNav = navItems.filter((i) => !i.flag || flags?.[i.flag]);
 
   const isActive = (item: NavItem) =>
     item.href === pathname &&
@@ -59,7 +71,7 @@ export function CoordinatorShell({ user, children }: CoordinatorShellProps) {
 
         {/* Nav */}
         <nav className="flex-1 px-2">
-          {navItems.map((item) => {
+          {visibleNav.map((item) => {
             const Icon = item.icon;
             const active = isActive(item);
             return (
@@ -117,7 +129,7 @@ export function CoordinatorShell({ user, children }: CoordinatorShellProps) {
           <div className="flex items-center gap-3">
             <div className="flex items-center gap-2 md:hidden">
               <MobileNav
-                items={navItems}
+                items={visibleNav}
                 isActive={isActive}
                 user={user}
                 roleLabel="Head Coordinator"
@@ -130,38 +142,14 @@ export function CoordinatorShell({ user, children }: CoordinatorShellProps) {
               </div>
               <span className="text-base font-bold text-[#15157d]">AESIS</span>
             </div>
-            <div className="relative hidden md:block">
-              <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[#757684]" />
-              <input
-                type="text"
-                placeholder="Search interns, projects, or companies..."
-                className="w-[360px] rounded-lg border-none bg-[#eff4ff] py-2 pl-10 pr-4 text-sm text-[#0b1c30] placeholder:text-[#757684] focus:outline-none focus:ring-2 focus:ring-[#15157d]/30"
-              />
-            </div>
+            <GlobalSearch />
           </div>
 
           <div className="flex items-center gap-2">
-            <button className="relative rounded-full p-2 text-[#444653] transition-colors hover:bg-[#e5eeff]" aria-label="Notifications">
-              <Bell className="h-5 w-5" />
-              {unreadCount > 0 && (
-                <span className="absolute right-1 top-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-[#ba1a1a] px-1 text-[10px] font-bold text-white">
-                  {unreadCount > 9 ? '9+' : unreadCount}
-                </span>
-              )}
-            </button>
-            <button className="hidden rounded-full p-2 text-[#444653] transition-colors hover:bg-[#e5eeff] sm:block" aria-label="Help">
-              <HelpCircle className="h-5 w-5" />
-            </button>
+            <NotificationBell />
+            <QuickActionsMenu />
             <div className="mx-1 hidden h-8 w-px bg-[#c4c5d5]/40 sm:block" />
-            <div className="flex items-center gap-3">
-              <div className="hidden text-right lg:block">
-                <p className="text-sm font-bold text-[#15157d]">{user.name}</p>
-                <p className="text-xs text-[#757684]">Head Coordinator</p>
-              </div>
-              <div className="flex h-9 w-9 items-center justify-center rounded-full bg-[#e1e0ff] text-xs font-semibold text-[#15157d]">
-                {user.initials}
-              </div>
-            </div>
+            <AccountMenu user={user} />
           </div>
         </header>
 

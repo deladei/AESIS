@@ -2,10 +2,10 @@ import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import {
   Users, Clock, BarChart3, Briefcase, TrendingUp,
-  Landmark, Eye, Check, Sparkles, RefreshCw, Loader2, AlertCircle, Inbox, AlertTriangle, FileDown,
+  Landmark, Eye, Check, Sparkles, RefreshCw, Loader2, AlertCircle, Inbox, AlertTriangle, FileDown, X,
 } from 'lucide-react';
-import { useCoordinatorDashboard, useCoordinatorActivity, useCoordinatorCohorts } from '@/hooks/useDashboard';
-import { useAllPlacements } from '@/hooks/usePlacements';
+import { useCoordinatorDashboard, useCoordinatorActivity, useCoordinatorCohorts, type CoordinatorActivity } from '@/hooks/useDashboard';
+import { useAllPlacements, useUpdatePlacementStatus } from '@/hooks/usePlacements';
 import InternStatusTable from '@/components/coordinator/InternStatusTable';
 import SupervisorWorkloadPanel from '@/components/coordinator/SupervisorWorkloadPanel';
 import PerformanceDistributionModal from '@/components/coordinator/PerformanceDistributionModal';
@@ -36,6 +36,13 @@ function relativeTime(iso: string): string {
   return `${Math.floor(days / 7)}w ago`;
 }
 
+// Recent-activity rows deep-link to their source entity when we have a route
+// for it (item 25). Placement audit rows open the intern profile.
+function activityLink(a: CoordinatorActivity): string | null {
+  if (a.entityType === 'placement' && a.entityId) return `/coordinator/interns/${a.entityId}`;
+  return null;
+}
+
 function RoadmapBadge() {
   return (
     <span className="rounded-full bg-amber-400/20 px-2 py-0.5 text-[10px] font-bold tracking-wide text-amber-300">
@@ -52,6 +59,18 @@ export default function CoordinatorDashboard() {
   // Performance distribution modal (item 15), opened from the Avg Performance card.
   const [showDistribution, setShowDistribution] = useState(false);
 
+  // Inline placement approve/reject (item 26). Reject expands a reason field.
+  const updateStatus = useUpdatePlacementStatus();
+  const [rejectingId, setRejectingId] = useState<string | null>(null);
+  const [rejectReason, setRejectReason] = useState('');
+  const approve = (id: string) => updateStatus.mutate({ id, status: 'active' });
+  const confirmReject = (id: string) => {
+    const reason = rejectReason.trim();
+    if (!reason) return;
+    updateStatus.mutate({ id, status: 'rejected', rejectionReason: reason },
+      { onSuccess: () => { setRejectingId(null); setRejectReason(''); } });
+  };
+
   const { data: dash, isLoading: dashLoading, isError: dashError, refetch: refetchDash } = useCoordinatorDashboard(scopeYearId);
   const { data: pending } = useAllPlacements(1, 'pending');
   const { data: activity, isLoading: activityLoading, refetch: refetchActivity } = useCoordinatorActivity(8);
@@ -63,11 +82,11 @@ export default function CoordinatorDashboard() {
   // AI Pulse Matching is a roadmap feature gated by a backend flag (off in prod).
   const aiMatchingEnabled = dash?.featureFlags?.aiPulseMatching ?? false;
   const metrics = [
-    { label: 'Active Interns',    value: ov ? ov.activePlacements.toLocaleString() : '—', icon: Users,     sub: 'Currently on placement', tone: 'text-[#757684]' },
-    { label: 'Pending Placements', value: ov ? String(ov.pendingApprovals) : '—',         icon: Clock,     sub: ov?.pendingApprovals ? 'Awaiting your review' : 'All caught up', tone: 'text-amber-600' },
+    { label: 'Active Interns',    value: ov ? ov.activePlacements.toLocaleString() : '—', icon: Users,     sub: 'Currently on placement', tone: 'text-[#757684]', to: '/coordinator/interns' },
+    { label: 'Pending Placements', value: ov ? String(ov.pendingApprovals) : '—',         icon: Clock,     sub: ov?.pendingApprovals ? 'Awaiting your review' : 'All caught up', tone: 'text-amber-600', to: '/coordinator/placements' },
     { label: 'Avg Performance',   value: ov?.avgPerformance != null ? ov.avgPerformance.toFixed(1) : '—', icon: BarChart3, bar: ov?.avgPerformance ?? 0, onClick: () => setShowDistribution(true) },
     { label: 'Needs Attention',   value: ov ? String(ov.needsAttention) : '—',            icon: AlertTriangle, sub: ov?.needsAttention ? 'Review flagged interns' : 'All on track', tone: ov?.needsAttention ? 'text-[#b3261e]' : 'text-[#1b7a45]', to: '/coordinator/interns?attention=1' },
-    { label: 'Host Companies',    value: ov ? String(ov.hostCompanies) : '—',             icon: Briefcase, sub: 'Currently hosting interns', tone: 'text-[#757684]' },
+    { label: 'Host Companies',    value: ov ? String(ov.hostCompanies) : '—',             icon: Briefcase, sub: 'Currently hosting interns', tone: 'text-[#757684]', to: '/coordinator/companies' },
   ];
 
   if (dashError) {
@@ -179,19 +198,37 @@ export default function CoordinatorDashboard() {
                   </div>
                 ) : pendingList.slice(0, 4).map((p) => {
                   const studentName = p.student ? `${p.student.firstName} ${p.student.lastName}` : 'Unknown student';
+                  const busy = updateStatus.isPending && updateStatus.variables?.id === p.id;
                   return (
-                    <div key={p.id} className="flex items-center justify-between rounded-lg border border-[#c4c5d5]/60 p-3 transition-colors hover:border-[#15157d]/40">
-                      <div className="flex items-center gap-3">
-                        <div className="flex h-10 w-10 items-center justify-center rounded bg-[#e5eeff]"><Landmark className="h-5 w-5 text-[#15157d]" /></div>
-                        <div>
-                          <p className="text-sm font-bold text-[#0b1c30]">{p.company?.name ?? 'Unassigned company'}</p>
-                          <p className="text-xs text-[#757684]">{studentName}</p>
+                    <div key={p.id} className="rounded-lg border border-[#c4c5d5]/60 p-3 transition-colors hover:border-[#15157d]/40">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-3">
+                          <div className="flex h-10 w-10 items-center justify-center rounded bg-[#e5eeff]"><Landmark className="h-5 w-5 text-[#15157d]" /></div>
+                          <div>
+                            <p className="text-sm font-bold text-[#0b1c30]">{p.company?.name ?? 'Unassigned company'}</p>
+                            <p className="text-xs text-[#757684]">{studentName}</p>
+                          </div>
                         </div>
+                        {rejectingId !== p.id && (
+                          <div className="flex gap-2">
+                            <Link to="/coordinator/placements" aria-label={`Review ${studentName}'s placement`} className="flex h-8 w-8 items-center justify-center rounded border border-[#c4c5d5]/60 transition-colors hover:bg-[#dce9ff]"><Eye className="h-[18px] w-[18px] text-[#444653]" /></Link>
+                            <button onClick={() => { setRejectingId(p.id); setRejectReason(''); }} disabled={busy} aria-label={`Reject ${studentName}'s placement`} className="flex h-8 w-8 items-center justify-center rounded border border-[#c4c5d5]/60 text-[#b3261e] transition-colors hover:bg-[#fde7e7] disabled:opacity-50"><X className="h-[18px] w-[18px]" /></button>
+                            <button onClick={() => approve(p.id)} disabled={busy} aria-label={`Approve ${studentName}'s placement`} className="flex h-8 w-8 items-center justify-center rounded bg-[#15157d] text-white transition-opacity hover:opacity-90 disabled:opacity-50">{busy ? <Loader2 className="h-[18px] w-[18px] animate-spin" /> : <Check className="h-[18px] w-[18px]" />}</button>
+                          </div>
+                        )}
                       </div>
-                      <div className="flex gap-2">
-                        <Link to="/coordinator/placements" aria-label={`Review ${studentName}'s placement`} className="flex h-8 w-8 items-center justify-center rounded border border-[#c4c5d5]/60 transition-colors hover:bg-[#dce9ff]"><Eye className="h-[18px] w-[18px] text-[#444653]" /></Link>
-                        <Link to="/coordinator/placements" aria-label={`Approve ${studentName}'s placement`} className="flex h-8 w-8 items-center justify-center rounded bg-[#15157d] text-white transition-opacity hover:opacity-90"><Check className="h-[18px] w-[18px]" /></Link>
-                      </div>
+                      {rejectingId === p.id && (
+                        <div className="mt-3 flex items-center gap-2">
+                          <input
+                            autoFocus value={rejectReason} onChange={(e) => setRejectReason(e.target.value)}
+                            placeholder="Reason for rejection…"
+                            className="flex-1 rounded-lg border border-[#c4c5d5] px-3 py-1.5 text-sm focus:border-[#15157d] focus:outline-none"
+                            onKeyDown={(e) => { if (e.key === 'Enter') confirmReject(p.id); }}
+                          />
+                          <button onClick={() => confirmReject(p.id)} disabled={!rejectReason.trim() || busy} className="inline-flex items-center gap-1 rounded-lg bg-[#b3261e] px-3 py-1.5 text-xs font-semibold text-white hover:opacity-90 disabled:opacity-50">{busy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : 'Reject'}</button>
+                          <button onClick={() => { setRejectingId(null); setRejectReason(''); }} className="rounded-lg px-2 py-1.5 text-xs font-medium text-[#757684] hover:text-[#0b1c30]">Cancel</button>
+                        </div>
+                      )}
                     </div>
                   );
                 })}
@@ -267,15 +304,21 @@ export default function CoordinatorDashboard() {
                   <Inbox className="h-6 w-6 text-[#c4c5d5]" />
                   <p className="text-sm text-[#757684]">No recent activity.</p>
                 </div>
-              ) : activity.map((a) => (
-                <div key={a.id} className="relative border-l border-[#c4c5d5]/60 pl-6">
-                  <div className="absolute -left-[5px] top-1 h-2.5 w-2.5 rounded-full bg-[#15157d] ring-4 ring-white" />
-                  <p className="mb-1 text-xs font-semibold tracking-wide text-[#757684]">{relativeTime(a.createdAt)}</p>
-                  <div className="rounded-lg bg-[#eff4ff] p-3">
-                    <p className="text-sm text-[#0b1c30]"><strong>{a.actor}</strong> · {a.summary}</p>
+              ) : activity.map((a) => {
+                const link = activityLink(a);
+                const body = <p className="text-sm text-[#0b1c30]"><strong>{a.actor}</strong> · {a.summary}</p>;
+                return (
+                  <div key={a.id} className="relative border-l border-[#c4c5d5]/60 pl-6">
+                    <div className="absolute -left-[5px] top-1 h-2.5 w-2.5 rounded-full bg-[#15157d] ring-4 ring-white" />
+                    <p className="mb-1 text-xs font-semibold tracking-wide text-[#757684]">{relativeTime(a.createdAt)}</p>
+                    {link ? (
+                      <Link to={link} className="block rounded-lg bg-[#eff4ff] p-3 transition-colors hover:bg-[#dce9ff]">{body}</Link>
+                    ) : (
+                      <div className="rounded-lg bg-[#eff4ff] p-3">{body}</div>
+                    )}
                   </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
             <div className="border-t border-[#c4c5d5]/60 p-4">
               <Link to="/coordinator/placements" className="block w-full rounded-lg border border-[#c4c5d5]/60 py-2 text-center text-sm font-semibold text-[#444653] transition-colors hover:text-[#15157d]">

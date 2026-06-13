@@ -116,6 +116,17 @@ export async function supervisors(_req: Request, res: Response) {
   ok(res, data);
 }
 
+const searchQuerySchema = z.object({ q: z.string().default('') });
+
+export async function search(req: Request, res: Response) {
+  const { q } = searchQuerySchema.parse(req.query);
+  ok(res, await service.searchEntities(q));
+}
+
+export async function featureFlags(_req: Request, res: Response) {
+  ok(res, service.getFeatureFlags());
+}
+
 export async function oversight(_req: Request, res: Response) {
   const data = await service.getOversight();
   ok(res, data);

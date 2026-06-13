@@ -635,11 +635,71 @@ export async function getRecentActivity(limit = 8) {
     id:         l.id,
     action:     l.action,
     entityType: l.entityType,
+    entityId:   l.entityId,   // lets the frontend deep-link the row to its source (item 25)
     actor:      `${l.user.firstName} ${l.user.lastName}`,
     actorRole:  l.user.role,
     summary:    summarizeAudit(l.action, l.metadata),
     createdAt:  l.createdAt,
   }));
+}
+
+// ── Global search (item 18) ───────────────────────────────────
+// Coordinator typeahead across the two real searchable entities — interns
+// (active placements, by student name/email) and companies (by name). AESIS has
+// no separate "project" entity. Case-insensitive, capped per group.
+
+export async function searchEntities(q: string, limit = 5) {
+  const query = q.trim();
+  if (query.length < 2) return { interns: [], companies: [] };
+
+  const [placements, companies] = await Promise.all([
+    prisma.placement.findMany({
+      where: {
+        placementStatus: 'active',
+        OR: [
+          { student: { firstName: { contains: query, mode: 'insensitive' } } },
+          { student: { lastName:  { contains: query, mode: 'insensitive' } } },
+          { student: { email:     { contains: query, mode: 'insensitive' } } },
+        ],
+      },
+      take:   limit,
+      select: {
+        id: true,
+        student:    { select: { firstName: true, lastName: true, email: true } },
+        company:    { select: { name: true } },
+      },
+    }),
+    prisma.company.findMany({
+      where:  { name: { contains: query, mode: 'insensitive' } },
+      take:   limit,
+      orderBy: { name: 'asc' },
+      select: { id: true, name: true, industry: true },
+    }),
+  ]);
+
+  return {
+    interns: placements.map((p) => ({
+      placementId: p.id,
+      name:        `${p.student.firstName} ${p.student.lastName}`.trim(),
+      subtitle:    p.company?.name ?? p.student.email,
+    })),
+    companies: companies.map((c) => ({
+      id:       c.id,
+      name:     c.name,
+      subtitle: c.industry ?? 'Host company',
+    })),
+  };
+}
+
+// ── Feature flags (item 24) ───────────────────────────────────
+// Lightweight flags channel for the coordinator shell, so the nav can gate
+// roadmap/optional surfaces without fetching the whole dashboard.
+
+export function getFeatureFlags() {
+  return {
+    aiPulseMatching: env.AI_PULSE_MATCHING,
+    aiInsights:      env.AI_INSIGHTS,
+  };
 }
 
 // ── Supervisors (for assignment dropdowns) ────────────────────
