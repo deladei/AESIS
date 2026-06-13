@@ -1817,6 +1817,32 @@ Same pattern as S41's flag columns. Do this **before/while** Render finishes bui
 
 ---
 
+### Session 43 — 2026-06-13 — Coordinator GROUP D: functional shell (1 feature PR, prod)
+
+**Picked up the uncommitted GROUP D WIP that was sitting in the tree from the prior session, finished the one unfinished piece, verified, and shipped as one feature PR `ed06365` → pushed to prod.** Items 18–26 (global search, notification bell, quick actions, account menu, clickable stat cards, functional sidebar incl. flagged AI Insights, activity deep-links, inline placement approve/reject) were ~all built locally; the gap was **item 25**: `activityLink()` helper existed but was never wired into the Recent-Activity render (would also have failed `tsc --noUnusedLocals`). Wired it (placement rows link to `/coordinator/interns/:id`, hover affordance; plain card otherwise).
+
+- **18 Global search** — `GET /coordinator/search?q=` (≥2 chars; active placements by student name/email + companies by name, capped 5/group). `GlobalSearch.tsx` debounced 250ms typeahead, grouped, routes intern→profile / company→companies list. AESIS has **no "project" entity** — searches interns+companies only (documented in code).
+- **19 Notification bell** — `NotificationBell.tsx` over existing `useNotifications`/`useUnreadCount`/`useMarkRead`/`useMarkAllRead`; unread badge, mark-read on open, mark-all, deep-link via `n.link`.
+- **20** — the decorative icon beside the bell is now `QuickActionsMenu.tsx` (review placements / manage assignments / settings).
+- **21 Account menu** — `AccountMenu.tsx`: name/email/role chip, Settings link, Sign out.
+- **23 Clickable stat cards** — `to:` added: Active Interns→`/interns`, Pending→`/placements`, Host Companies→new `/coordinator/companies`. New `CompaniesList.tsx` over existing `GET /api/v1/companies` (+ `useCompanies` hook).
+- **24 Sidebar** — AI Insights gated behind new backend flag **`AI_INSIGHTS` (default true)**, exposed via `GET /coordinator/feature-flags` + `useCoordinatorFeatureFlags`; `/ai-insights` page already exists (shared, real `GET /insights`). Oversight kept distinct from Intern Overview (comment documents the distinction).
+- **25 Activity deep-links** — `entityId` now returned from `getRecentActivity`; rows with a known route become links.
+- **26 Inline approve/reject** — pending placement rows approve/reject in place (reject expands a reason field) via the **existing audited `PATCH /placements/:id/status`** (`useUpdatePlacementStatus` already supported `rejectionReason`). No new endpoint, no new audit action.
+
+**No migration.** GROUP D is **code-only** — `entityId` reads the existing `auditLog.entityId` column; search/flags use existing fields. Nothing to apply to prod.
+
+**✅ S42 blocker RESOLVED (verified live this session):** prod `GET /coordinator/dashboard` returns `200` with `"performanceThreshold":50` — the `performance_threshold` column **exists in prod** (the query would 500 otherwise). The required prod column step from S42 is done. (`/coordinator/search` 404s in prod pre-deploy, as expected — confirms GROUP D wasn't live yet.)
+
+**Tests/quality:** coordinator suite **62/62** (59 from C + 3 new: search empty-guard, search grouping, feature flags). `tsc` clean BE+FE; `vite build` ok. New tests assert search only queries `active` placements + subtitle fallbacks (company→email, industry→"Host company").
+
+**Stopped here — next session should**
+1. **Eyeball GROUP D on prod** once Vercel + Render redeploy `ed06365`: global search routes correctly, bell dropdown + mark-read, quick-actions/account menus, stat cards navigate, activity rows deep-link, inline approve/reject a pending placement, AI Insights nav present.
+2. **Reconcile the Prisma migration history** (S41 CRITICAL FINDING) — still the top infra follow-up; nothing this session touched schema so the drift is unchanged.
+3. All Coordinator groups A–D now shipped. Await next batch of specs.
+
+---
+
 ## Handoff Entry Template
 
 ```markdown
