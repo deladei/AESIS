@@ -48,6 +48,12 @@ router.get('/cohorts', asyncHandler(ctrl.cohorts));
 // GET /api/v1/coordinator/oversight — cross-cohort at-risk monitoring
 router.get('/oversight', asyncHandler(ctrl.oversight));
 
+// GET /api/v1/coordinator/supervisor-workload — interns-per-supervisor + imbalance (item 14)
+router.get('/supervisor-workload', asyncHandler(ctrl.supervisorWorkload));
+
+// GET /api/v1/coordinator/performance-distribution — quality-score spread + below-threshold (item 15)
+router.get('/performance-distribution', asyncHandler(ctrl.performanceDistribution));
+
 // GET  /api/v1/coordinator/cohort-config — active year's config
 // PATCH /api/v1/coordinator/cohort-config — set per-week minimum hours
 router.get('/cohort-config', asyncHandler(ctrl.cohortConfig));

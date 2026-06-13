@@ -2,11 +2,12 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { api } from '@/lib/api';
 
 export interface CohortConfig {
-  id:                string;
-  minWeeklyHours:    number;
-  totalWeeks:        number;
-  academicYearId:    string;
-  academicYearLabel: string;
+  id:                   string;
+  minWeeklyHours:       number;
+  performanceThreshold: number;   // quality score below which an intern flags as at-risk (0 = off)
+  totalWeeks:           number;
+  academicYearId:       string;
+  academicYearLabel:    string;
 }
 
 /** Cohort configuration for the active academic year (coordinator/admin only). */
@@ -29,13 +30,16 @@ export function useCohortConfig(enabled = true) {
 export function useUpdateCohortConfig() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: async (input: { minWeeklyHours: number }) => {
+    mutationFn: async (input: { minWeeklyHours?: number; performanceThreshold?: number }) => {
       const r = await api.patch<{ data: CohortConfig }>('/coordinator/cohort-config', input);
       return r.data.data;
     },
     onSuccess: (data) => {
       qc.setQueryData(['coordinator', 'cohort-config'], data);
+      // The threshold drives the coordinator at-risk derivation; the hours drive
+      // the intern attendance tile — refresh both surfaces.
       qc.invalidateQueries({ queryKey: ['student', 'dashboard'] });
+      qc.invalidateQueries({ queryKey: ['coordinator'] });
     },
   });
 }

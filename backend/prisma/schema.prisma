@@ -198,6 +198,11 @@ model CohortConfig {
   // Per-week minimum attendance hours. Drives the intern dashboard's cumulative
   // hours target + shortfall flag. 0 = no minimum configured (never short).
   minWeeklyHours           Int          @default(0) @map("min_weekly_hours")
+  // Logbook quality score (0–100) below which an intern's average flags them as
+  // needing attention on the coordinator dashboard + Oversight. 0 disables the
+  // low-score signal. Applied via ADD COLUMN IF NOT EXISTS (no migration folder)
+  // to match this repo's established additive-column pattern.
+  performanceThreshold     Int          @default(50) @map("performance_threshold")
   createdAt                DateTime     @default(now()) @map("created_at")
 
   @@unique([academicYearId])

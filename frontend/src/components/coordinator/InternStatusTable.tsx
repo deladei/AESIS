@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import {
-  Filter, Loader2, ChevronLeft, ChevronRight, ArrowUp, ArrowDown, X, BellRing, UserCheck, Download, Flag,
+  Filter, Loader2, ChevronLeft, ChevronRight, ArrowUp, ArrowDown, X, BellRing, UserCheck, Download, Flag, AlertTriangle,
 } from 'lucide-react';
 import {
   useCoordinatorStudents, useCoordinatorProgrammes, useCoordinatorCohorts,
@@ -36,6 +36,18 @@ interface Filters {
   supervisorId?:   string;
   academicYearId?: string;
   riskTier?:       'low' | 'medium' | 'high';
+  attention?:      boolean;
+}
+
+const ATTENTION_LABELS: { key: keyof CoordinatorStudent['attentionReasons']; label: string }[] = [
+  { key: 'overdueLog',   label: 'Overdue log' },
+  { key: 'zeroProgress', label: 'No logbook progress' },
+  { key: 'noSupervisor', label: 'No supervisor' },
+  { key: 'lowScore',     label: 'Below-threshold score' },
+];
+
+function attentionReasonText(r: CoordinatorStudent['attentionReasons']): string {
+  return ATTENTION_LABELS.filter(({ key }) => r[key]).map(({ label }) => label).join(' · ');
 }
 
 // How often the table re-fetches while the Live toggle is on.
@@ -45,6 +57,12 @@ interface Props {
   pageSize?: number;
   /** Compact dashboard mode: show a "View all" link to this href instead of pager. */
   viewAllHref?: string;
+  /** Lock the table to one cohort (item 17 — driven by the dashboard cohort
+   *  selector). When set, the in-panel cohort filter is hidden. */
+  scopeYearId?: string;
+  /** Seed the filter panel (e.g. the dashboard "Needs attention" card deep-links
+   *  here with attention pre-applied). */
+  initialFilters?: Filters;
 }
 
 function SortHeader({
@@ -99,6 +117,18 @@ function InternRow({ s, selected, onToggle }: { s: CoordinatorStudent; selected:
         <span className={`inline-flex rounded-full px-2 py-0.5 text-[11px] font-semibold ${status.cls}`}>{status.label}</span>
       </td>
       <td className="px-4 py-3">
+        {s.attention ? (
+          <span
+            title={`Needs attention — ${attentionReasonText(s.attentionReasons)}`}
+            className="inline-flex items-center gap-1 rounded-full bg-red-50 px-2 py-0.5 text-[11px] font-semibold text-red-700"
+          >
+            <AlertTriangle className="h-3 w-3" /> At risk
+          </span>
+        ) : (
+          <span className="text-sm text-[#bdbfca]">—</span>
+        )}
+      </td>
+      <td className="px-4 py-3">
         {s.riskTier ? (
           <span className={`inline-flex rounded-full px-2 py-0.5 text-[11px] font-semibold capitalize ${RISK_CLS[s.riskTier]}`}>
             {s.riskTier}{s.riskScore != null && ` · ${s.riskScore.toFixed(2)}`}
@@ -123,16 +153,19 @@ function InternRow({ s, selected, onToggle }: { s: CoordinatorStudent; selected:
   );
 }
 
-export default function InternStatusTable({ pageSize = 20, viewAllHref }: Props) {
+export default function InternStatusTable({ pageSize = 20, viewAllHref, scopeYearId, initialFilters }: Props) {
   const [sortBy, setSortBy]     = useState<StudentSortKey | undefined>(undefined);
   const [sortDir, setSortDir]   = useState<'asc' | 'desc'>('asc');
   const [page, setPage]         = useState(1);
-  const [showFilters, setShow]  = useState(false);
-  const [filters, setFilters]   = useState<Filters>({});
+  const [showFilters, setShow]  = useState(!!initialFilters && Object.keys(initialFilters).length > 0);
+  const [filters, setFilters]   = useState<Filters>(initialFilters ?? {});
   const [live, setLive]         = useState(false);
 
+  // The dashboard cohort selector (item 17) takes precedence over the in-panel
+  // cohort filter when present.
+  const effectiveYearId = scopeYearId ?? filters.academicYearId;
   const { data, isLoading, isFetching } = useCoordinatorStudents(
-    { page, limit: pageSize, sortBy, sortDir, ...filters },
+    { page, limit: pageSize, sortBy, sortDir, ...filters, academicYearId: effectiveYearId },
     { refetchInterval: live ? LIVE_POLL_MS : undefined },
   );
   const { data: programmes = [] }  = useCoordinatorProgrammes();
@@ -175,7 +208,7 @@ export default function InternStatusTable({ pageSize = 20, viewAllHref }: Props)
     setBulkAssignOpen(false); setBulkSupId(''); flash('Supervisor assigned'); clearSel();
   };
   const doExport = async () => {
-    await downloadInternsCsv(selected.size ? [...selected] : undefined);
+    await downloadInternsCsv(selected.size ? [...selected] : undefined, effectiveYearId);
   };
 
   const onSort = (col: StudentSortKey) => {
@@ -187,7 +220,15 @@ export default function InternStatusTable({ pageSize = 20, viewAllHref }: Props)
     setFilters((f) => ({ ...f, [k]: v || undefined }));
     setPage(1);
   };
-  const activeFilters = Object.values(filters).filter(Boolean).length;
+  const setAttention = (v: string) => {
+    setFilters((f) => ({ ...f, attention: v === '' ? undefined : v === 'true' }));
+    setPage(1);
+  };
+  // Count active filters, but don't count the cohort filter when the dashboard
+  // controls the scope (the in-panel cohort select is hidden then).
+  const activeFilters = (Object.entries(filters) as [keyof Filters, unknown][])
+    .filter(([k, v]) => v !== undefined && v !== '' && !(k === 'academicYearId' && scopeYearId))
+    .length;
   const clearFilters  = () => { setFilters({}); setPage(1); };
 
   const selectCls = 'rounded-lg border border-[#c4c5d5]/70 bg-white px-2.5 py-1.5 text-sm text-[#0b1c30] focus:border-[#15157d] focus:outline-none';
@@ -264,15 +305,22 @@ export default function InternStatusTable({ pageSize = 20, viewAllHref }: Props)
             <option value="unassigned">Unassigned</option>
             {supervisors.map((s) => <option key={s.id} value={s.id}>{s.firstName} {s.lastName}</option>)}
           </select>
-          <select value={filters.academicYearId ?? ''} onChange={(e) => setFilter('academicYearId', e.target.value)} className={selectCls} aria-label="Filter by cohort">
-            <option value="">All cohorts</option>
-            {cohorts.map((c) => <option key={c.id} value={c.id}>{c.label}{c.isActive ? ' (active)' : ''}</option>)}
-          </select>
+          {!scopeYearId && (
+            <select value={filters.academicYearId ?? ''} onChange={(e) => setFilter('academicYearId', e.target.value)} className={selectCls} aria-label="Filter by cohort">
+              <option value="">All cohorts</option>
+              {cohorts.map((c) => <option key={c.id} value={c.id}>{c.label}{c.isActive ? ' (active)' : ''}</option>)}
+            </select>
+          )}
           <select value={filters.riskTier ?? ''} onChange={(e) => setFilter('riskTier', e.target.value)} className={selectCls} aria-label="Filter by risk">
             <option value="">All risk</option>
             <option value="low">Low</option>
             <option value="medium">Medium</option>
             <option value="high">High</option>
+          </select>
+          <select value={filters.attention === undefined ? '' : String(filters.attention)} onChange={(e) => setAttention(e.target.value)} className={selectCls} aria-label="Filter by attention">
+            <option value="">All interns</option>
+            <option value="true">Needs attention</option>
+            <option value="false">On track</option>
           </select>
           {activeFilters > 0 && (
             <button onClick={clearFilters} className="inline-flex items-center gap-1 text-sm font-medium text-[#757684] transition-colors hover:text-[#b3261e]">
@@ -294,6 +342,7 @@ export default function InternStatusTable({ pageSize = 20, viewAllHref }: Props)
               <SortHeader label="Department" col="department" sortBy={sortBy} sortDir={sortDir} onSort={onSort} />
               <SortHeader label="Supervisor" col="supervisor" sortBy={sortBy} sortDir={sortDir} onSort={onSort} />
               <SortHeader label="Status"     col="status"     sortBy={sortBy} sortDir={sortDir} onSort={onSort} />
+              <th className="px-4 py-3 text-left text-xs font-semibold tracking-wide text-[#757684]">Attention</th>
               <SortHeader label="Score"      col="score"      sortBy={sortBy} sortDir={sortDir} onSort={onSort} />
               <SortHeader label="Logbook progress" col="progress" sortBy={sortBy} sortDir={sortDir} onSort={onSort} />
               <th className="px-6 py-3 text-right text-xs font-semibold tracking-wide text-[#757684]">Action</th>
@@ -301,9 +350,9 @@ export default function InternStatusTable({ pageSize = 20, viewAllHref }: Props)
           </thead>
           <tbody className="divide-y divide-[#c4c5d5]/50">
             {isLoading ? (
-              <tr><td colSpan={8} className="px-6 py-10 text-center"><Loader2 className="mx-auto h-5 w-5 animate-spin text-[#15157d]" /></td></tr>
+              <tr><td colSpan={9} className="px-6 py-10 text-center"><Loader2 className="mx-auto h-5 w-5 animate-spin text-[#15157d]" /></td></tr>
             ) : students.length === 0 ? (
-              <tr><td colSpan={8} className="px-6 py-10 text-center text-sm text-[#757684]">{activeFilters > 0 ? 'No interns match these filters.' : 'No active interns yet.'}</td></tr>
+              <tr><td colSpan={9} className="px-6 py-10 text-center text-sm text-[#757684]">{activeFilters > 0 ? 'No interns match these filters.' : 'No active interns yet.'}</td></tr>
             ) : (
               students.map((s) => <InternRow key={s.placementId} s={s} selected={selected.has(s.placementId)} onToggle={toggle} />)
             )}

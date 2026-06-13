@@ -24,6 +24,7 @@ import InternDetail         from '@/pages/coordinator/InternDetail';
 import PlacementApproval    from '@/pages/coordinator/PlacementApproval';
 import SupervisorAssignment from '@/pages/coordinator/SupervisorAssignment';
 import CohortSettings       from '@/pages/coordinator/CohortSettings';
+import CohortReport         from '@/pages/coordinator/CohortReport';
 import Oversight            from '@/pages/coordinator/Oversight';
 import AdminDashboard       from '@/pages/admin/AdminDashboard';
 import FeedbackCenter       from '@/pages/shared/FeedbackCenter';
@@ -32,7 +33,7 @@ import Attestation          from '@/pages/public/Attestation';
 
 type UserRole = 'student' | 'academic_supervisor' | 'coordinator' | 'admin';
 
-function RequireAuth({ roles }: { roles?: UserRole[] }) {
+function RequireAuth({ roles, bare }: { roles?: UserRole[]; bare?: boolean }) {
   const { isAuthenticated, isLoading, user } = useAuth();
   const location = useLocation();
   if (isLoading) return <div className="min-h-screen bg-slate-950 flex items-center justify-center"><div className="w-6 h-6 border-2 border-blue-500 border-t-transparent rounded-full animate-spin" /></div>;
@@ -50,6 +51,9 @@ function RequireAuth({ roles }: { roles?: UserRole[] }) {
       <Outlet />
     </RouteErrorBoundary>
   );
+
+  // Bare mode: authed but no role shell (e.g. the printable cohort report).
+  if (bare) return content;
 
   if (user.role === 'student') {
     return <StudentShell user={shellUser}>{content}</StudentShell>;
@@ -129,6 +133,15 @@ export const router = createBrowserRouter([
       { path: '/coordinator/assignments', element: <SupervisorAssignment /> },
       { path: '/coordinator/oversight',  element: <Oversight /> },
       { path: '/coordinator/settings',   element: <CohortSettings /> },
+    ],
+  },
+
+  // Coordinator printable cohort report (PDF export, item 16) — authed but
+  // shell-less so the browser print/Save-as-PDF captures only the report.
+  {
+    element: <RequireAuth roles={['coordinator', 'admin']} bare />,
+    children: [
+      { path: '/coordinator/report', element: <CohortReport /> },
     ],
   },
 

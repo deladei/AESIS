@@ -39,6 +39,9 @@ jest.mock('../../../config/prisma', () => ({
     academicYear: {
       findMany: jest.fn(),
     },
+    user: {
+      findMany: jest.fn(),
+    },
   },
 }));
 
@@ -58,20 +61,38 @@ import {
   getActiveCohortConfig,
   updateActiveCohortConfig,
   getOversight,
+  deriveAttention,
+  getSupervisorWorkload,
+  getPerformanceDistribution,
 } from '../coordinator.service';
 
 const mp = prisma as jest.Mocked<typeof prisma>;
 
-// Defaults so the two extra dashboard queries (quality scores + host companies)
-// don't blow up tests that only assert on other fields. `scores` are the raw
-// per-analysis quality scores the service now averages via the clamped path.
-function stubDashboardExtras(opts: { scores?: (number | string | null)[]; companies?: number } = {}) {
+// Defaults so the extra dashboard queries (quality scores, host companies,
+// performance threshold, and the needs-attention scan) don't blow up tests that
+// only assert on other fields. `scores` are the raw per-analysis quality scores
+// the service averages via the clamped path. The dashboard issues TWO
+// placement.findMany calls — first the distinct host companies, then the minimal
+// per-placement set for the needs-attention count — so they're stubbed in order.
+function stubDashboardExtras(
+  opts: {
+    scores?: (number | string | null)[];
+    companies?: number;
+    threshold?: number;
+    attention?: unknown[];
+  } = {},
+) {
   (mp.logbookAnalysis.findMany as jest.Mock).mockResolvedValue(
     (opts.scores ?? []).map((s) => ({ qualityScore: s })),
   );
-  (mp.placement.findMany as jest.Mock).mockResolvedValue(
-    Array.from({ length: opts.companies ?? 0 }, (_, i) => ({ companyId: `c-${i}` })),
-  );
+  (mp.cohortConfig.findFirst as jest.Mock).mockResolvedValue({
+    performanceThreshold: opts.threshold ?? 50,
+  });
+  (mp.placement.findMany as jest.Mock)
+    .mockResolvedValueOnce(
+      Array.from({ length: opts.companies ?? 0 }, (_, i) => ({ companyId: `c-${i}` })),
+    )
+    .mockResolvedValueOnce(opts.attention ?? []);
 }
 
 // ── getCoordinatorDashboard ───────────────────────────────────
@@ -213,7 +234,9 @@ describe('listStudents', () => {
       weekNumber:  3,
       status:      'submitted',
       submittedAt: new Date('2026-01-20'),
+      periodEnd:   new Date('2026-01-20'),
     }],
+    logbookSubmissions: [],
   };
 
   it('returns paginated student list', async () => {
@@ -311,7 +334,8 @@ describe('listStudents', () => {
     student: { id: 'u-1', firstName: 'Ada', lastName: 'Lovelace', email: 'a@x.edu', programme: { name: 'CS' } },
     academicSupervisor: { id: 's-1', firstName: 'Theo', lastName: 'Walls' },
     riskScores: [{ riskTier: 'low', riskScore: 0.2, computedAt: new Date() }],
-    logbookEntries: [{ weekNumber: 3, status: 'submitted', submittedAt: new Date() }],
+    logbookEntries: [{ weekNumber: 3, status: 'submitted', submittedAt: new Date(), periodEnd: new Date() }],
+    logbookSubmissions: [],
     ...over,
   });
 
@@ -500,14 +524,16 @@ describe('bulk actions + CSV export', () => {
       student: { id: 'u-1', firstName: 'Ama', lastName: 'Mensah', email: 'ama@x.edu', programme: { name: 'CS' } },
       academicSupervisor: { id: 's-1', firstName: 'Theo', lastName: 'Walls' },
       riskScores: [{ riskTier: 'low', riskScore: 0.2, computedAt: new Date() }],
-      logbookEntries: [{ weekNumber: 2, status: 'submitted', submittedAt: new Date() }],
+      logbookEntries: [{ weekNumber: 2, status: 'submitted', submittedAt: new Date(), periodEnd: new Date() }],
+      logbookSubmissions: [],
     }]);
     (mp.logbookEntry.groupBy as jest.Mock).mockResolvedValue([{ placementId: 'p-1', _count: { _all: 2 } }]);
+    (mp.cohortConfig.findFirst as jest.Mock).mockResolvedValue({ performanceThreshold: 50 });
 
     const csv = await exportStudentsCsv({});
     const lines = csv.split('\n');
 
-    expect(lines[0]).toBe('Name,Email,Department,Supervisor,Last status,Risk tier,Risk score,Submitted weeks,Total weeks,Progress %');
+    expect(lines[0]).toBe('Name,Email,Department,Supervisor,Last status,Risk tier,Risk score,Submitted weeks,Total weeks,Progress %,Needs attention');
     expect(lines[1]).toContain('Ama Mensah');
     expect(lines[1]).toContain('ama@x.edu');
     expect(lines[1]).toContain('Theo Walls');
@@ -780,5 +806,180 @@ describe('updateActiveCohortConfig', () => {
       'No cohort configuration',
     );
     expect(mp.cohortConfig.update as jest.Mock).not.toHaveBeenCalled();
+  });
+
+  it('writes only the provided field (performanceThreshold) and leaves the rest untouched', async () => {
+    (mp.cohortConfig.findFirst as jest.Mock).mockResolvedValue({ id: 'cc-1' });
+    (mp.cohortConfig.update as jest.Mock).mockResolvedValue({
+      id: 'cc-1', minWeeklyHours: 40, performanceThreshold: 65, totalWeeks: 24,
+      academicYear: { id: 'ay-1', label: '2024/2025' },
+    });
+
+    const result = await updateActiveCohortConfig({ performanceThreshold: 65 });
+
+    const call = (mp.cohortConfig.update as jest.Mock).mock.calls[0][0];
+    // minWeeklyHours omitted from the patch → not written.
+    expect(call.data).toEqual({ performanceThreshold: 65 });
+    expect(result.performanceThreshold).toBe(65);
+  });
+});
+
+// ── deriveAttention (item 13, pure) ───────────────────────────
+
+describe('deriveAttention', () => {
+  const ok = { hasSupervisor: true, submittedWeeks: 3, overdueLogs: 0, avgQualityScore: 80 };
+
+  it('flags nothing for a healthy intern', () => {
+    const r = deriveAttention(ok, 50);
+    expect(r.attention).toBe(false);
+    expect(r.reasons).toEqual({ overdueLog: false, zeroProgress: false, noSupervisor: false, lowScore: false });
+  });
+
+  it('flags an overdue draft log', () => {
+    const r = deriveAttention({ ...ok, overdueLogs: 2 }, 50);
+    expect(r.reasons.overdueLog).toBe(true);
+    expect(r.attention).toBe(true);
+  });
+
+  it('flags zero logbook progress', () => {
+    const r = deriveAttention({ ...ok, submittedWeeks: 0 }, 50);
+    expect(r.reasons.zeroProgress).toBe(true);
+    expect(r.attention).toBe(true);
+  });
+
+  it('flags a missing academic supervisor', () => {
+    const r = deriveAttention({ ...ok, hasSupervisor: false }, 50);
+    expect(r.reasons.noSupervisor).toBe(true);
+    expect(r.attention).toBe(true);
+  });
+
+  it('flags a below-threshold average score', () => {
+    const r = deriveAttention({ ...ok, avgQualityScore: 49 }, 50);
+    expect(r.reasons.lowScore).toBe(true);
+    expect(r.attention).toBe(true);
+  });
+
+  it('does not flag low score when the threshold is 0 (disabled)', () => {
+    const r = deriveAttention({ ...ok, avgQualityScore: 5 }, 0);
+    expect(r.reasons.lowScore).toBe(false);
+    expect(r.attention).toBe(false);
+  });
+
+  it('does not flag low score when nothing is scorable (null average)', () => {
+    const r = deriveAttention({ ...ok, avgQualityScore: null }, 50);
+    expect(r.reasons.lowScore).toBe(false);
+    expect(r.attention).toBe(false);
+  });
+});
+
+// ── getCoordinatorDashboard.needsAttention (item 13) ──────────
+
+describe('getCoordinatorDashboard — needsAttention', () => {
+  beforeEach(() => jest.clearAllMocks());
+
+  it('counts only placements the attention derivation flags', async () => {
+    (mp.placement.count as jest.Mock).mockResolvedValue(0);
+    (mp.studentRiskScore.groupBy as jest.Mock).mockResolvedValue([]);
+    (mp.logbookSubmission.groupBy as jest.Mock).mockResolvedValueOnce([]).mockResolvedValueOnce([]);
+    const PAST = new Date('2020-01-01');
+    stubDashboardExtras({
+      scores: [], companies: 0, threshold: 50,
+      attention: [
+        // flagged: zero progress + no supervisor
+        { academicSupervisorId: null, logbookEntries: [], logbookSubmissions: [] },
+        // flagged: overdue draft log
+        { academicSupervisorId: 's-1', logbookEntries: [{ status: 'draft', submittedAt: null, periodEnd: PAST }], logbookSubmissions: [] },
+        // healthy
+        { academicSupervisorId: 's-1', logbookEntries: [{ status: 'submitted', submittedAt: PAST, periodEnd: PAST }], logbookSubmissions: [{ analysis: { qualityScore: '85' } }] },
+      ],
+    });
+
+    const result = await getCoordinatorDashboard();
+
+    expect(result.overview.needsAttention).toBe(2);
+    expect(result.overview.performanceThreshold).toBe(50);
+  });
+});
+
+// ── getSupervisorWorkload (item 14) ───────────────────────────
+
+describe('getSupervisorWorkload', () => {
+  beforeEach(() => jest.clearAllMocks());
+
+  it('counts interns per supervisor, flags imbalance + overload, and reports unassigned', async () => {
+    (mp.user.findMany as jest.Mock).mockResolvedValue([
+      { id: 's1', firstName: 'Busy',  lastName: 'One' },
+      { id: 's2', firstName: 'Light', lastName: 'Two' },
+      { id: 's3', firstName: 'Idle',  lastName: 'Three' },
+    ]);
+    (mp.placement.findMany as jest.Mock).mockResolvedValue([
+      ...Array.from({ length: 5 }, () => ({ academicSupervisorId: 's1' })),
+      { academicSupervisorId: 's2' },
+      { academicSupervisorId: null },
+      { academicSupervisorId: null },
+    ]);
+
+    const r = await getSupervisorWorkload();
+
+    expect(r.unassigned).toBe(2);
+    // sorted busiest-first
+    expect(r.rows.map((x) => x.internCount)).toEqual([5, 1, 0]);
+    expect(r.rows[0].overloaded).toBe(true);   // 5 ≥ ceil(6/2)+2 = 5
+    expect(r.rows[1].overloaded).toBe(false);
+    expect(r.summary).toMatchObject({ supervisors: 2, assignedTotal: 6, max: 5, min: 1, spread: 4, imbalanced: true });
+  });
+
+  it('is not imbalanced when the spread is below the threshold', async () => {
+    (mp.user.findMany as jest.Mock).mockResolvedValue([
+      { id: 's1', firstName: 'A', lastName: 'A' },
+      { id: 's2', firstName: 'B', lastName: 'B' },
+    ]);
+    (mp.placement.findMany as jest.Mock).mockResolvedValue([
+      { academicSupervisorId: 's1' }, { academicSupervisorId: 's1' },
+      { academicSupervisorId: 's2' },
+    ]);
+
+    const r = await getSupervisorWorkload();
+    expect(r.summary.imbalanced).toBe(false); // spread 1 < 3
+  });
+});
+
+// ── getPerformanceDistribution (item 15) ──────────────────────
+
+describe('getPerformanceDistribution', () => {
+  beforeEach(() => jest.clearAllMocks());
+
+  it('buckets validated scores, lists below-threshold, and excludes unscorable interns', async () => {
+    (mp.cohortConfig.findFirst as jest.Mock).mockResolvedValue({ performanceThreshold: 50 });
+    (mp.placement.findMany as jest.Mock).mockResolvedValue([
+      { id: 'p1', student: { firstName: 'High', lastName: 'Scorer' }, logbookSubmissions: [{ analysis: { qualityScore: '85' } }] },
+      { id: 'p2', student: { firstName: 'Mid',  lastName: 'Scorer' }, logbookSubmissions: [{ analysis: { qualityScore: '65' } }] },
+      { id: 'p3', student: { firstName: 'Low',  lastName: 'Scorer' }, logbookSubmissions: [{ analysis: { qualityScore: '40' } }] },
+      // out-of-range excluded → unscored
+      { id: 'p4', student: { firstName: 'Corrupt', lastName: 'Row' }, logbookSubmissions: [{ analysis: { qualityScore: '999' } }] },
+      // nothing scorable
+      { id: 'p5', student: { firstName: 'No', lastName: 'Data' }, logbookSubmissions: [] },
+    ]);
+
+    const r = await getPerformanceDistribution();
+
+    expect(r.threshold).toBe(50);
+    expect(r.scoredCount).toBe(3);
+    expect(r.unscoredCount).toBe(2);
+    // 40 → 40–59, 65 → 60–79, 85 → 80–100
+    expect(r.buckets.find((b) => b.label === '40–59')!.count).toBe(1);
+    expect(r.buckets.find((b) => b.label === '60–79')!.count).toBe(1);
+    expect(r.buckets.find((b) => b.label === '80–100')!.count).toBe(1);
+    expect(r.belowThreshold.map((s) => s.name)).toEqual(['Low Scorer']);
+  });
+
+  it('returns an empty below-threshold list when the threshold is disabled (0)', async () => {
+    (mp.cohortConfig.findFirst as jest.Mock).mockResolvedValue({ performanceThreshold: 0 });
+    (mp.placement.findMany as jest.Mock).mockResolvedValue([
+      { id: 'p1', student: { firstName: 'Low', lastName: 'Scorer' }, logbookSubmissions: [{ analysis: { qualityScore: '10' } }] },
+    ]);
+
+    const r = await getPerformanceDistribution();
+    expect(r.belowThreshold).toEqual([]);
   });
 });

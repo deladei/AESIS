@@ -5,23 +5,69 @@ import { api } from '@/lib/api';
 
 export interface CoordinatorDashboard {
   overview: {
-    activePlacements: number;
-    pendingApprovals: number;
-    complianceRate:   number;
-    highRiskCount:    number;
-    avgPerformance:   number | null;
-    hostCompanies:    number;
+    activePlacements:     number;
+    pendingApprovals:     number;
+    complianceRate:       number;
+    highRiskCount:        number;
+    avgPerformance:       number | null;
+    hostCompanies:        number;
+    needsAttention:       number;   // interns flagged by the at-risk derivation (item 13)
+    performanceThreshold: number;   // configured low-score threshold (0 = disabled)
   };
   riskDistribution: { low: number; medium: number; high: number };
   submissionTrends: { week: number; scheduled: number; submitted: number }[];
   featureFlags:     { aiPulseMatching: boolean };
 }
 
-export function useCoordinatorDashboard() {
+/** Dashboard metrics, optionally scoped to one cohort/academic year (item 17). */
+export function useCoordinatorDashboard(academicYearId?: string) {
   return useQuery({
-    queryKey: ['coordinator', 'dashboard'],
+    queryKey: ['coordinator', 'dashboard', academicYearId ?? 'all'],
     queryFn:  async () => {
-      const r = await api.get<{ data: CoordinatorDashboard }>('/coordinator/dashboard');
+      const qs = academicYearId ? `?academicYearId=${academicYearId}` : '';
+      const r = await api.get<{ data: CoordinatorDashboard }>(`/coordinator/dashboard${qs}`);
+      return r.data.data;
+    },
+  });
+}
+
+export interface SupervisorWorkload {
+  rows: { supervisor: { id: string; name: string }; internCount: number; overloaded: boolean }[];
+  unassigned: number;
+  summary: {
+    supervisors: number; assignedTotal: number; unassigned: number;
+    mean: number; max: number; min: number; spread: number; imbalanced: boolean;
+  };
+}
+
+/** Interns-per-supervisor + imbalance flag (item 14), optionally cohort-scoped. */
+export function useSupervisorWorkload(academicYearId?: string) {
+  return useQuery({
+    queryKey: ['coordinator', 'supervisor-workload', academicYearId ?? 'all'],
+    queryFn:  async () => {
+      const qs = academicYearId ? `?academicYearId=${academicYearId}` : '';
+      const r = await api.get<{ data: SupervisorWorkload }>(`/coordinator/supervisor-workload${qs}`);
+      return r.data.data;
+    },
+  });
+}
+
+export interface PerformanceDistribution {
+  threshold:     number;
+  scoredCount:   number;
+  unscoredCount: number;
+  buckets:        { label: string; count: number }[];
+  belowThreshold: { placementId: string; name: string; avg: number }[];
+}
+
+/** Quality-score spread + below-threshold interns (item 15), optionally cohort-scoped. */
+export function usePerformanceDistribution(academicYearId?: string, enabled = true) {
+  return useQuery({
+    queryKey: ['coordinator', 'performance-distribution', academicYearId ?? 'all'],
+    enabled,
+    queryFn:  async () => {
+      const qs = academicYearId ? `?academicYearId=${academicYearId}` : '';
+      const r = await api.get<{ data: PerformanceDistribution }>(`/coordinator/performance-distribution${qs}`);
       return r.data.data;
     },
   });
@@ -39,6 +85,8 @@ export interface CoordinatorStudent {
   lastSubmittedAt: string | null;
   flagged:         boolean;
   flagReason:      string | null;
+  attention:       boolean;   // derived at-risk flag (item 13)
+  attentionReasons: { overdueLog: boolean; zeroProgress: boolean; noSupervisor: boolean; lowScore: boolean };
   totalWeeks:      number;
   submittedWeeks:  number;
   progressPct:     number;
@@ -56,6 +104,7 @@ export interface StudentListParams {
   programmeId?:    string;
   supervisorId?:   string;   // a user id, or 'unassigned'
   academicYearId?: string;
+  attention?:      boolean;  // true → only interns flagged as needing attention
   sortBy?:         StudentSortKey;
   sortDir?:        'asc' | 'desc';
 }
@@ -169,11 +218,15 @@ export function useBulkAssign() {
   });
 }
 
-/** Fetch the interns CSV (auth header is added by the api client) and download it. */
-export async function downloadInternsCsv(ids?: string[]) {
+/** Fetch the interns CSV (auth header is added by the api client) and download it.
+ *  `ids` limits to selected placements; `academicYearId` scopes to one cohort. */
+export async function downloadInternsCsv(ids?: string[], academicYearId?: string) {
+  const params: Record<string, string> = {};
+  if (ids && ids.length) params.ids = ids.join(',');
+  if (academicYearId) params.academicYearId = academicYearId;
   const r = await api.get('/coordinator/students/export.csv', {
     responseType: 'blob',
-    params: ids && ids.length ? { ids: ids.join(',') } : {},
+    params,
   });
   const url = URL.createObjectURL(r.data as Blob);
   const a = document.createElement('a');

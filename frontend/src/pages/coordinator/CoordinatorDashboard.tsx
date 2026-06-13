@@ -1,11 +1,14 @@
+import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import {
   Users, Clock, BarChart3, Briefcase, TrendingUp,
-  Landmark, Eye, Check, Sparkles, RefreshCw, Loader2, AlertCircle, Inbox,
+  Landmark, Eye, Check, Sparkles, RefreshCw, Loader2, AlertCircle, Inbox, AlertTriangle, FileDown,
 } from 'lucide-react';
-import { useCoordinatorDashboard, useCoordinatorActivity } from '@/hooks/useDashboard';
+import { useCoordinatorDashboard, useCoordinatorActivity, useCoordinatorCohorts } from '@/hooks/useDashboard';
 import { useAllPlacements } from '@/hooks/usePlacements';
 import InternStatusTable from '@/components/coordinator/InternStatusTable';
+import SupervisorWorkloadPanel from '@/components/coordinator/SupervisorWorkloadPanel';
+import PerformanceDistributionModal from '@/components/coordinator/PerformanceDistributionModal';
 
 /**
  * Coordinator Dashboard — "Nexus Oversight" Stitch design, wired to live data.
@@ -43,9 +46,16 @@ function RoadmapBadge() {
 
 
 export default function CoordinatorDashboard() {
-  const { data: dash, isLoading: dashLoading, isError: dashError, refetch: refetchDash } = useCoordinatorDashboard();
+  // Cohort scope (item 17) — '' means the whole active population.
+  const [yearId, setYearId] = useState('');
+  const scopeYearId = yearId || undefined;
+  // Performance distribution modal (item 15), opened from the Avg Performance card.
+  const [showDistribution, setShowDistribution] = useState(false);
+
+  const { data: dash, isLoading: dashLoading, isError: dashError, refetch: refetchDash } = useCoordinatorDashboard(scopeYearId);
   const { data: pending } = useAllPlacements(1, 'pending');
   const { data: activity, isLoading: activityLoading, refetch: refetchActivity } = useCoordinatorActivity(8);
+  const { data: cohorts = [] } = useCoordinatorCohorts();
 
   const pendingList = pending?.placements ?? [];
 
@@ -55,7 +65,8 @@ export default function CoordinatorDashboard() {
   const metrics = [
     { label: 'Active Interns',    value: ov ? ov.activePlacements.toLocaleString() : '—', icon: Users,     sub: 'Currently on placement', tone: 'text-[#757684]' },
     { label: 'Pending Placements', value: ov ? String(ov.pendingApprovals) : '—',         icon: Clock,     sub: ov?.pendingApprovals ? 'Awaiting your review' : 'All caught up', tone: 'text-amber-600' },
-    { label: 'Avg Performance',   value: ov?.avgPerformance != null ? ov.avgPerformance.toFixed(1) : '—', icon: BarChart3, bar: ov?.avgPerformance ?? 0 },
+    { label: 'Avg Performance',   value: ov?.avgPerformance != null ? ov.avgPerformance.toFixed(1) : '—', icon: BarChart3, bar: ov?.avgPerformance ?? 0, onClick: () => setShowDistribution(true) },
+    { label: 'Needs Attention',   value: ov ? String(ov.needsAttention) : '—',            icon: AlertTriangle, sub: ov?.needsAttention ? 'Review flagged interns' : 'All on track', tone: ov?.needsAttention ? 'text-[#b3261e]' : 'text-[#1b7a45]', to: '/coordinator/interns?attention=1' },
     { label: 'Host Companies',    value: ov ? String(ov.hostCompanies) : '—',             icon: Briefcase, sub: 'Currently hosting interns', tone: 'text-[#757684]' },
   ];
 
@@ -79,22 +90,41 @@ export default function CoordinatorDashboard() {
           <p className="mb-1 text-xs font-semibold tracking-wide text-[#15157d]">Dashboard</p>
           <h2 className="text-4xl font-bold tracking-tight text-[#0b1c30]">Nexus Oversight</h2>
         </div>
-        <div className="hidden gap-3 sm:flex">
-          <Link to="/coordinator/placements" className="rounded-lg border border-[#c4c5d5] px-4 py-2 text-sm font-semibold text-[#0b1c30] transition-colors hover:bg-[#e5eeff]">
+        <div className="flex flex-wrap items-center gap-3">
+          {/* Cohort scope (item 17) — scopes every metric, the workload panel,
+              the distribution, the intern table, and exports below. */}
+          <select
+            value={yearId}
+            onChange={(e) => setYearId(e.target.value)}
+            aria-label="Scope dashboard to a cohort"
+            className="rounded-lg border border-[#c4c5d5] bg-white px-3 py-2 text-sm font-medium text-[#0b1c30] focus:border-[#15157d] focus:outline-none"
+          >
+            <option value="">All cohorts</option>
+            {cohorts.map((c) => <option key={c.id} value={c.id}>{c.label}{c.isActive ? ' (active)' : ''}</option>)}
+          </select>
+          <a
+            href={`/coordinator/report${scopeYearId ? `?academicYearId=${scopeYearId}` : ''}`}
+            target="_blank" rel="noopener noreferrer"
+            className="inline-flex items-center gap-1.5 rounded-lg border border-[#c4c5d5] px-4 py-2 text-sm font-semibold text-[#0b1c30] transition-colors hover:bg-[#e5eeff]"
+          >
+            <FileDown className="h-4 w-4" /> Export PDF
+          </a>
+          <Link to="/coordinator/placements" className="hidden rounded-lg border border-[#c4c5d5] px-4 py-2 text-sm font-semibold text-[#0b1c30] transition-colors hover:bg-[#e5eeff] sm:inline-block">
             Review placements
           </Link>
-          <Link to="/coordinator/assignments" className="rounded-lg bg-[#15157d] px-4 py-2 text-sm font-semibold text-white shadow-sm transition-opacity hover:opacity-90">
+          <Link to="/coordinator/assignments" className="hidden rounded-lg bg-[#15157d] px-4 py-2 text-sm font-semibold text-white shadow-sm transition-opacity hover:opacity-90 sm:inline-block">
             Manage assignments
           </Link>
         </div>
       </div>
 
       {/* Metrics */}
-      <section className="mb-8 grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
+      <section className="mb-8 grid grid-cols-2 gap-4 lg:grid-cols-3 xl:grid-cols-5">
         {metrics.map((m) => {
           const Icon = m.icon;
-          return (
-            <div key={m.label} className="flex flex-col justify-between rounded-xl border border-[#c4c5d5]/60 bg-white p-6">
+          const interactive = 'onClick' in m || 'to' in m;
+          const inner = (
+            <>
               <div className="flex items-start justify-between">
                 <span className="text-xs font-semibold tracking-wide text-[#757684]">{m.label}</span>
                 <Icon className="h-5 w-5 text-[#15157d]" />
@@ -106,13 +136,17 @@ export default function CoordinatorDashboard() {
                     <div className="h-full rounded-full bg-[#15157d]" style={{ width: `${Math.min(100, Math.max(0, m.bar ?? 0))}%` }} />
                   </div>
                 ) : (
-                  <p className={`mt-1 flex items-center gap-1 text-xs font-medium ${m.tone}`}>
-                    {m.label === 'Active Interns' && <TrendingUp className="h-4 w-4" />}{m.sub}
+                  <p className={`mt-1 flex items-center gap-1 text-xs font-medium ${'tone' in m ? m.tone : 'text-[#757684]'}`}>
+                    {m.label === 'Active Interns' && <TrendingUp className="h-4 w-4" />}{'sub' in m ? m.sub : null}
                   </p>
                 )}
               </div>
-            </div>
+            </>
           );
+          const cls = `flex w-full flex-col justify-between rounded-xl border border-[#c4c5d5]/60 bg-white p-6 text-left ${interactive ? 'cursor-pointer transition-colors hover:border-[#15157d]/50 hover:bg-[#f8f9ff]' : ''}`;
+          if ('to' in m && m.to) return <Link key={m.label} to={m.to} className={cls}>{inner}</Link>;
+          if ('onClick' in m && m.onClick) return <button key={m.label} type="button" onClick={m.onClick} className={cls}>{inner}</button>;
+          return <div key={m.label} className={cls}>{inner}</div>;
         })}
       </section>
 
@@ -120,7 +154,10 @@ export default function CoordinatorDashboard() {
         {/* Left column */}
         <div className="col-span-12 space-y-4 lg:col-span-8">
           {/* Intern Status Monitor — sortable, filterable; "View all" → full list */}
-          <InternStatusTable pageSize={8} viewAllHref="/coordinator/interns" />
+          <InternStatusTable pageSize={8} viewAllHref="/coordinator/interns" scopeYearId={scopeYearId} />
+
+          {/* Supervisor workload (item 14) */}
+          <SupervisorWorkloadPanel scopeYearId={scopeYearId} />
 
           {/* Requests + AI matching */}
           <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
@@ -248,6 +285,10 @@ export default function CoordinatorDashboard() {
           </div>
         </div>
       </div>
+
+      {showDistribution && (
+        <PerformanceDistributionModal scopeYearId={scopeYearId} onClose={() => setShowDistribution(false)} />
+      )}
     </div>
   );
 }

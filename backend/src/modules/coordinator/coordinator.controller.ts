@@ -12,13 +12,29 @@ const studentsQuerySchema = z.object({
   supervisorId:   z.union([z.literal('unassigned'), z.string().uuid()]).optional(),
   academicYearId: z.string().uuid().optional(),
   status:         z.enum(['draft', 'submitted', 'returned', 'acknowledged', 'rejected', 'not_started']).optional(),
+  attention:      z.enum(['true', 'false']).transform((v) => v === 'true').optional(),
   sortBy:         z.enum(['name', 'department', 'supervisor', 'progress', 'score', 'status']).optional(),
   sortDir:        z.enum(['asc', 'desc']).optional(),
 });
 
-export async function dashboard(_req: Request, res: Response) {
-  const data = await service.getCoordinatorDashboard();
+// Optional cohort scope shared by the dashboard, export, and the workload /
+// distribution panels (item 17).
+const cohortScopeSchema = z.object({ academicYearId: z.string().uuid().optional() });
+
+export async function dashboard(req: Request, res: Response) {
+  const { academicYearId } = cohortScopeSchema.parse(req.query);
+  const data = await service.getCoordinatorDashboard({ academicYearId });
   ok(res, data);
+}
+
+export async function supervisorWorkload(req: Request, res: Response) {
+  const { academicYearId } = cohortScopeSchema.parse(req.query);
+  ok(res, await service.getSupervisorWorkload({ academicYearId }));
+}
+
+export async function performanceDistribution(req: Request, res: Response) {
+  const { academicYearId } = cohortScopeSchema.parse(req.query);
+  ok(res, await service.getPerformanceDistribution({ academicYearId }));
 }
 
 export async function students(req: Request, res: Response) {
@@ -70,7 +86,8 @@ export async function bulkAssign(req: Request, res: Response) {
 export async function exportCsv(req: Request, res: Response) {
   const raw = typeof req.query.ids === 'string' ? req.query.ids : '';
   const ids = raw ? raw.split(',').filter(Boolean) : undefined;
-  const csv = await service.exportStudentsCsv({ ids });
+  const { academicYearId } = cohortScopeSchema.parse(req.query);
+  const csv = await service.exportStudentsCsv({ ids, academicYearId });
   res.setHeader('Content-Type', 'text/csv; charset=utf-8');
   res.setHeader('Content-Disposition', 'attachment; filename="interns.csv"');
   res.send(csv);
