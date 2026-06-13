@@ -15,9 +15,14 @@ const envSchema = z.object({
   NODE_ENV:                  z.enum(['development', 'test', 'production']).default('development'),
   PORT:                      z.coerce.number().default(3000),
 
-  DATABASE_URL:              z.string().min(1),
-  MONGO_URI:                 z.string().min(1),
-  REDIS_URL:                 z.string().min(1),
+  // Connection strings are .trim()'d: a stray space/newline in a hosting
+  // dashboard env var otherwise breaks scheme detection — for REDIS_URL it made
+  // ioredis connect plaintext to Upstash's TLS port → endless ECONNRESET/EPIPE
+  // reconnect storm (never reaching 'ready'). Trim at the boundary so every
+  // consumer (ioredis, Prisma, Mongo) gets the clean value.
+  DATABASE_URL:              z.string().trim().min(1),
+  MONGO_URI:                 z.string().trim().min(1),
+  REDIS_URL:                 z.string().trim().min(1),
 
   JWT_SECRET:                z.string().min(32),
   JWT_EXPIRY:                z.string().default('15m'),
