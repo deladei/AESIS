@@ -1882,6 +1882,37 @@ Same pattern as S41's flag columns. Do this **before/while** Render finishes bui
 
 ---
 
+### Session 45 — 2026-06-14 — 🚨 Prod login down → root cause: Render free Postgres EXPIRED → migrated DB to Neon (no code change)
+
+**User report:** "when I try logging in the prod on aesis it says unexpected error happened."
+
+**Diagnosis (remote, no Render access from this box):**
+- `/health` returns 200 but is a **static handler** (`app.ts:70`) — never touches the DB, so it's a false all-clear.
+- Login with **bogus** creds returned **500** (not 401). A wrong password is rejected at `if (!user || !passwordMatch)` — but it crashed *before* that, at the first DB line `prisma.user.findUnique`. `reset-password` (different endpoint, same first DB read) also 500'd. Validation path returned a correct 400 → request reaches controller; the app process is alive (returns its own JSON error envelope). `bcryptjs` is pure-JS so not a native break. ⇒ **every Postgres read throws** = DB-layer/infra, not auth code.
+- **Render dashboard confirmed:** free Postgres `aesis_postgres` (`dpg-d83hburtqb8s73docod0-a`, created ~1 month ago) status **`suspended` — "Free database expired"**, storage `Unavailable`, **all data deletes in 13 days** unless upgraded. Render free Postgres expires after ~30 days. (Same class of free-tier suspension that took down the AI Engine in S44 — third free Render service to die.)
+
+**User decision (asked, 3 options pay-vs-fresh):** **migrate to a fresh free Neon Postgres** (non-expiring), accept losing current prod data (pilot data was mostly demo/seed). Not upgrade Render, not dump-and-move.
+
+**Fix performed (NO code change — pure infra):**
+1. User created a free Neon project (`ep-autumn-waterfall-a6nt7o2h.us-west-2.aws.neon.tech/neondb`, US-West/Oregon to sit near Render). Neon is **publicly reachable** (unlike the Render-internal DB), so schema+seed were run **from this box**:
+   - `npx prisma db push` → recreated full schema on the empty Neon DB ("in sync"). Prod startCommand is `prisma db push` anyway, so no migration-history needed for the fresh DB.
+   - `npm run db:seed` ✅ → CS dept, 5 programmes, AY 2024/2025, **3 staff logins**: `admin@aesis.cs.edu`/`Admin@1234`, `coordinator@aesis.cs.edu`/`Coord@1234`, `supervisor@aesis.cs.edu`/`Super@1234`.
+   - `seed-supervisor-demo.ts` ✅ → Dr. Kofi Adjei + Ananse Technologies + 4 interns (Akosua Mensah, Kwabena Boateng, Abena Owusu, Yaw Asante), 6 weeks each, intern pwd `Student@1234`.
+   - `seed-real-students-demo.ts` ❌ **kept failing** on `academicYear.findFirstOrThrow` with Prisma **"Timed out fetching a new connection from the connection pool"** (Neon compute cold-start TLS handshake from this weak box > default 10s pool timeout). It only wires extra students to `theowalls@gmail.com` — **not needed for login**; left undone. To finish it later: append `&connection_limit=3&pool_timeout=60&connect_timeout=60` to the URL for the seed run (those params are box-only, NOT for Render).
+2. User updated **Render `aesis-backend` → Environment → `DATABASE_URL`** to the **clean** Neon string (`...neondb?sslmode=require`, no pool params). Note: the old value was **linked to the Render DB resource** (Render auto-injects it) — had to unlink/replace so there's exactly one `DATABASE_URL`. Redeployed.
+
+**✅ Verified live on prod after redeploy:** bad creds → **401** `"Invalid email or password"`; `coordinator@aesis.cs.edu`/`Coord@1234` → **200** + valid JWT (role `coordinator`). **Login restored.**
+
+**Stopped here — next session should**
+1. **Neon is a FRESH DB** — demo/seed only; pre-expiry data is gone (user's explicit choice). Old Render Postgres can be deleted (or self-deletes in ~13 days); prod no longer depends on it.
+2. **AI Engine still down** (S44 finding, unchanged) — resume `aesis-ai-engine` + `aesis-celery-worker`. **When you do: their OWN `DATABASE_URL` (and the worker's) still point at the dead Render Postgres → repoint to the Neon string too**, or enrichment/risk tasks hit the same wall. Confirm `AI_ENGINE_URL`/`AI_ENGINE_API_KEY` on the backend.
+3. **Also confirm `REDIS_URL` on Render is clean** (S44 whitespace finding) — unrelated to this DB issue but still outstanding.
+4. (Optional) finish `seed-real-students-demo.ts` against Neon with the longer-timeout URL params above.
+5. Standing infra debt unchanged: Prisma migration-history reconciliation (S41), Feedback Center off legacy (S44).
+6. **Root pattern: a production pilot is running on auto-expiring/suspending free tiers** (Render free Postgres = ~30d, free Render web services suspend). Neon free does not expire, but the AI Engine + Redis are still on suspendable free Render. Consider this when the pilot needs to be reliably up.
+
+---
+
 ## Handoff Entry Template
 
 ```markdown
