@@ -1930,3 +1930,32 @@ Same pattern as S41's flag columns. Do this **before/while** Render finishes bui
 **Stopped here — next session should**
 - ...
 ```
+
+---
+
+### Session 46 — 2026-06-16 — Revive AI engine + repoint to Neon: render.yaml fixed; dashboard steps for user
+
+**Work done**
+- Confirmed `aesis-ai-engine.onrender.com/health` still **404 `x-render-routing: no-server`** (service not live). This box has **no Render CLI/API key** (CLAUDE.md), so resume + env edits are **dashboard-only** — user must do them.
+- **Key finding:** the FastAPI AI engine + Celery worker read **`POSTGRES_DSN`** (`ai/config/database.py:24,44`, default `localhost`), **NOT `DATABASE_URL`**. render.yaml only wired `DATABASE_URL` into them → a **no-op** for the Python. The S45 handoff note "repoint their DATABASE_URL to Neon" would have had **no effect**; the var to set is `POSTGRES_DSN`.
+- **Second risk caught:** render.yaml still linked the **backend's** `DATABASE_URL` to `aesis-postgres-2` (dead Render DB) via `fromDatabase`. A blueprint sync would have **re-broken the S45 login fix**.
+- **Fix (commit `018edde`, pushed to main):** all DB vars now `sync:false` (Neon is external, dashboard-set):
+  - backend `DATABASE_URL`: `fromDatabase` → `sync:false`
+  - ai-engine + worker: `DATABASE_URL fromDatabase` → **`POSTGRES_DSN sync:false`**
+  - removed the obsolete `databases: aesis-postgres-2` block.
+  - YAML validated (`yaml.safe_load` OK; zero remaining `fromDatabase`/`aesis-postgres` refs).
+
+**Errors & fixes**
+
+| Error | Fix |
+|---|---|
+| AI engine would never read Neon even if `DATABASE_URL` set (code reads `POSTGRES_DSN`) | render.yaml now sets `POSTGRES_DSN` for ai-engine + worker |
+| Future blueprint sync would relink backend to dead `aesis-postgres-2` | backend `DATABASE_URL` → `sync:false`; dead DB block removed |
+
+**Stopped here — USER dashboard actions to actually revive (cannot be done from this box):**
+1. **Render → `aesis-ai-engine` → Resume** the service (it's `plan: starter`, so it was suspended, not idle-spun-down — check billing/suspend banner).
+2. **Render → `aesis-ai-engine` → Environment:** set **`POSTGRES_DSN`** = the **exact same Neon value** as `aesis-backend`'s `DATABASE_URL` (`postgresql://…@ep-autumn-waterfall-a6nt7o2h.us-west-2.aws.neon.tech/neondb?sslmode=require`). Confirm `MONGO_URI`, `AI_ENGINE_API_KEY`, `GROQ_API_KEY` still present. (If a stale `DATABASE_URL` var lingers there, it's harmless but can be deleted.)
+3. **Render → `aesis-celery-worker`:** Resume + set the **same `POSTGRES_DSN`**; confirm `REDIS_URL`/`CELERY_BROKER_URL` point at `aesis-redis` (also free → confirm it's up).
+4. **Backend sanity:** confirm `aesis-backend` env has `AI_ENGINE_URL` = `https://aesis-ai-engine.onrender.com` and `AI_ENGINE_API_KEY` matching the engine's.
+5. **Verify:** `curl https://aesis-ai-engine.onrender.com/health` → 200; then an entry submit should populate `ai_assessment` (fail-open worker backfills) and the student chatbot should respond.
+6. Do NOT run a blueprint sync expecting it to set the secrets — `POSTGRES_DSN`/`DATABASE_URL`/`MONGO_URI`/keys are all `sync:false` (manual). Sync is now safe (won't touch the DB vars) but won't fill them either.
