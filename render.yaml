@@ -87,7 +87,11 @@ services:
           name: aesis-redis
           type: keyvalue
           property: connectionString
-      - key: AI_ENGINE_API_KEY
+      # FastAPI validates the inbound x-api-key against env AI_API_KEY
+      # (ai/config/settings.py + routers/*._require_internal), NOT
+      # AI_ENGINE_API_KEY. Its VALUE must equal the backend's
+      # AI_ENGINE_API_KEY (what the backend sends as x-api-key).
+      - key: AI_API_KEY
         sync: false
       - key: CELERY_BROKER_URL
         fromService:
@@ -120,7 +124,9 @@ services:
           name: aesis-redis
           type: keyvalue
           property: connectionString
-      - key: AI_ENGINE_API_KEY
+      # Worker shares the AI image; same key var as the engine: AI_API_KEY
+      # (value = backend's AI_ENGINE_API_KEY). Not AI_ENGINE_API_KEY.
+      - key: AI_API_KEY
         sync: false
       - key: CELERY_BROKER_URL
         fromService:
