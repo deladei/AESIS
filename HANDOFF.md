@@ -1959,3 +1959,27 @@ Same pattern as S41's flag columns. Do this **before/while** Render finishes bui
 4. **Backend sanity:** confirm `aesis-backend` env has `AI_ENGINE_URL` = `https://aesis-ai-engine.onrender.com` and `AI_ENGINE_API_KEY` matching the engine's.
 5. **Verify:** `curl https://aesis-ai-engine.onrender.com/health` → 200; then an entry submit should populate `ai_assessment` (fail-open worker backfills) and the student chatbot should respond.
 6. Do NOT run a blueprint sync expecting it to set the secrets — `POSTGRES_DSN`/`DATABASE_URL`/`MONGO_URI`/keys are all `sync:false` (manual). Sync is now safe (won't touch the DB vars) but won't fill them either.
+
+---
+
+### Session 47 — 2026-06-18 — AI engine REVIVED end-to-end (recreated service + wiring fixes)
+
+**Work done**
+- Engine was gone from the dashboard entirely (not just suspended) → `aesis-ai-engine.onrender.com/health` = `404 x-render-routing: no-server`. Recreated it as a **new Docker web service** (manual route, not blueprint): Name `aesis-ai-engine` (so URL matches backend's `AI_ENGINE_URL`), Root Directory `ai`, Dockerfile Path `./Dockerfile`, region Oregon, **Starter** plan.
+- Env set on engine: `POSTGRES_DSN` (Neon), `MONGO_URI` (Atlas), `AI_API_KEY` (= backend's `AI_ENGINE_API_KEY` value `5324…`), `GROQ_API_KEY` (NEW key — old one was lost, regenerated at console.groq.com), `REDIS_URL` + `CELERY_BROKER_URL` = the **Upstash** URL the backend uses (`talented-moose-125084.upstash.io`) so worker/pub-sub share one broker.
+- **✅ VERIFIED LIVE from this box:** `/health` → 200 `{status:ok, groq:connected, model:llama-3.1-8b-instant}`. End-to-end: login coordinator → `POST /api/v1/ai/chat` → **HTTP 200, real SSE token stream** back. Backend→engine→Groq path fully working. Enrichment endpoint reachable (`/ai/enrich/entry` parses body).
+
+**Errors & fixes**
+
+| Error | Fix |
+|---|---|
+| Engine startup crash: `socket.gaierror: [Errno -2] Name or service not known` on `asyncpg.create_pool(POSTGRES_DSN)` | `POSTGRES_DSN` had a `\n` artifact splitting the host (`us-west-`\n`2.aws…`). Re-entered as one clean line → DNS resolves, boots. |
+| render.yaml set engine/worker key var `AI_ENGINE_API_KEY`, but FastAPI validates `x-api-key` against env **`AI_API_KEY`** (`ai/config/settings.py` + `routers/*._require_internal`) → engine would fall back to default `dev_internal_key` → 401 from backend | Renamed engine+worker var to `AI_API_KEY` (value = backend's `AI_ENGINE_API_KEY`). Commit `11df44f`, pushed. |
+| Backend `AI_ENGINE_URL` = `http://localhost:8000` → backend could never reach the live engine | User set it to `https://aesis-ai-engine.onrender.com` on `aesis-backend` env; redeployed. |
+
+**Stopped here — next session should**
+1. **Celery worker NOT recreated.** Active enrichment + chatbot work without it (synchronous HTTP). Only the **legacy** `analyze_logbook`/`compute_risk` Celery queues need it. Create it later if legacy risk/analysis is wanted: Docker, Root `ai`, dockerCommand `celery -A tasks.celery_app worker --loglevel=info -Q analysis,risk --concurrency=2`, same env (`POSTGRES_DSN`/`MONGO_URI`/`AI_API_KEY`/`REDIS_URL`/`CELERY_BROKER_URL`).
+2. **Engine reports `environment: development`** (cosmetic — `ENVIRONMENT` var unset on the service). Set `ENVIRONMENT=production` if you want clean logs/flags.
+3. **🔐 ROTATE SECRETS** — Neon password (`npg_wud75URGckaY`), Mongo user pw, and the `5324…` AI key were pasted into a chat session. Rotate when the pilot is stable; update both backend + engine after.
+4. **render.yaml drift vs reality:** the live engine uses Upstash for `REDIS_URL`/`CELERY_BROKER_URL`, but render.yaml wires them `fromService: aesis-redis` (managed, may not exist). A future blueprint sync would repoint them. Reconcile render.yaml to Upstash, or stand up `aesis-redis` and migrate, before ever running a blueprint apply.
+5. Standing infra debt unchanged: Prisma migration-history reconciliation (S41); pilot still on free/suspendable tiers (Render free backend, Upstash free).
