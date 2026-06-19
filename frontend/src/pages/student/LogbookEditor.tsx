@@ -10,6 +10,7 @@ import {
   type EntryStatus, type EntryActivity,
 } from '@/hooks/useEntries';
 import { EntryObjectives } from '@/components/objectives/EntryObjectives';
+import { EntryAttachments } from '@/components/attachments/EntryAttachments';
 
 const COMPETENCY_SUGGESTIONS = [
   'Problem Solving', 'Teamwork', 'Communication', 'Technical Writing',
@@ -529,6 +530,13 @@ export default function LogbookEditor() {
               {existing?.id && (
                 <div className="rounded-xl border border-[#e2e6ef] bg-white p-5">
                   <EntryObjectives entryId={existing.id} placementId={activePlacement?.id} editable={editable} />
+                </div>
+              )}
+
+              {/* Evidence — photos / documents. Available once the week is saved. */}
+              {existing?.id && (
+                <div className="rounded-xl border border-[#e2e6ef] bg-white p-5">
+                  <EntryAttachments entryId={existing.id} editable={editable} />
                 </div>
               )}
             </fieldset>

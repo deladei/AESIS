@@ -1985,3 +1985,19 @@ Same pattern as S41's flag columns. Do this **before/while** Render finishes bui
 5. Standing infra debt unchanged: Prisma migration-history reconciliation (S41); pilot still on free/suspendable tiers (Render free backend, Upstash free).
 
 **S47 addendum (same day):** `aesis-celery-worker` recreated too — Background Worker, Docker, Root `ai`, Starter, dockerCommand `celery -A tasks.celery_app worker --loglevel=info -Q analysis,risk --concurrency=2`, env `POSTGRES_DSN`/`MONGO_URI`/`AI_API_KEY`/`REDIS_URL`/`CELERY_BROKER_URL` (Upstash, no GROQ). Logs show **celery ready** + broker connected. Follow-up #1 (worker not recreated) is now DONE — legacy analyze/risk queues live again.
+
+---
+
+### Session 48 — 2026-06-19 — Weekly-entry file/image attachments (real Cloudinary upload path)
+
+**Work done** — completed the WIP started end of S47 (schema + migration only, uncommitted) into a full feature. Replaces the legacy logbook "placeholder URL" TODO for the **new entries pipeline**.
+- **DB (additive):** `EntryAttachment` model + `entry_attachment` migration (`20260618170000_entry_attachments`) — `fileUrl`(secure_url), `publicId`(Cloudinary handle for deletion), `fileName`/`fileSize`/`mimeType`, `kind` enum `image|document`, `uploadedById`. Cascade on entry delete; FK to users RESTRICT. No existing table touched.
+- **Storage:** added `cloudinary` npm dep + `backend/src/config/cloudinary.ts` (`isCloudinaryConfigured`, `uploadBuffer` via upload_stream, `deleteAsset` best-effort). New **optional** env vars `CLOUDINARY_CLOUD_NAME|API_KEY|API_SECRET` (env.ts + .env.example). Upload route **503s until all three are set** — never falls back to a fake URL like the legacy route did.
+- **API:** `modules/entries/attachments.service.ts` (+controller/router). Routes mounted under `/api/v1/entries/:id/attachments` (mergeParams): `GET` list, `POST` (multer memoryStorage, 10 MB, PDF/PNG/JPG/DOCX filter — same as legacy), `DELETE /:attachmentId`. Authz **reuses** `assertPlacementAccess` + entry `isEditable`: write = owning student/admin only (supervisors 403), only on draft/returned; max 10/week; reads follow read-scope (assigned supervisors + coordinator).
+- **Frontend:** `useAttachments.ts` (list/upload FormData/delete) + `components/attachments/EntryAttachments.tsx` (image thumbnail grid + document chips, open-in-new-tab, upload/delete only when editable, 10 MB client pre-check). Wired into `LogbookEditor.tsx` next to `EntryObjectives` (renders once the week is saved, i.e. `existing?.id`).
+
+**Verification:** backend `tsc --noEmit` clean; new Jest suite `attachments.service.test.ts` **13/13** (`--runInBand`) — covers 503-unconfigured, 404, owner/supervisor 403, editable-gate 409, max-422, image-vs-document kind, list read-scope, delete asset+row + 404/409. Frontend `tsc` clean + `vite build` clean.
+
+**⚠️ Stopped here — prod follow-ups**
+1. **Uploads are DISABLED in prod until Cloudinary creds are set on Render `aesis-backend`:** `CLOUDINARY_CLOUD_NAME`, `CLOUDINARY_API_KEY`, `CLOUDINARY_API_SECRET` (Cloudinary console → dashboard). Until then `POST .../attachments` returns 503 (UI shows "File storage is not configured"). Migration runs automatically via `prisma migrate deploy` on deploy.
+2. Carried from S47 (unchanged): set `ENVIRONMENT=production` on the engine; 🔐 rotate the pasted secrets; reconcile render.yaml Redis (`fromService: aesis-redis`) vs live Upstash before any blueprint sync; Prisma migration-history reconciliation (S41).

@@ -251,6 +251,7 @@ model User {
   placementAssessments PlacementAssessment[] @relation("PlacementAssessor")
   createdObjectives    LearningObjective[]   @relation("ObjectiveCreator")
   confirmedObjectiveLinks EntryObjective[]   @relation("ObjectiveLinkConfirmer")
+  uploadedAttachments  EntryAttachment[]     @relation("AttachmentUploader")
 
   @@map("users")
 }
@@ -592,6 +593,7 @@ model LogbookEntry {
   assessments    AiAssessment[]
   enrichmentJobs EnrichmentQueue[]
   objectiveLinks EntryObjective[]
+  attachments    EntryAttachment[]
 
   @@unique([placementId, weekNumber])
   @@index([placementId])
@@ -621,6 +623,33 @@ model EntryReflection {
   updatedAt         DateTime     @updatedAt @map("updated_at")
 
   @@map("entry_reflection")
+}
+
+// Image / document evidence attached to a weekly entry. Files live in
+// Cloudinary; `publicId` is its handle for deletion. Only attachable while the
+// entry is editable (draft/returned) and only by the owning student — enforced
+// in entries.service via assertPlacementAccess + the state machine.
+enum AttachmentKind {
+  image
+  document
+}
+
+model EntryAttachment {
+  id           String         @id @default(uuid())
+  entryId      String         @map("entry_id")
+  entry        LogbookEntry   @relation(fields: [entryId], references: [id], onDelete: Cascade)
+  fileUrl      String         @map("file_url") // Cloudinary secure_url
+  publicId     String         @map("public_id") // Cloudinary public_id, for deletion
+  fileName     String         @map("file_name")
+  fileSize     Int            @map("file_size") // bytes
+  mimeType     String         @map("mime_type")
+  kind         AttachmentKind
+  uploadedById String         @map("uploaded_by_id")
+  uploadedBy   User           @relation("AttachmentUploader", fields: [uploadedById], references: [id])
+  uploadedAt   DateTime       @default(now()) @map("uploaded_at")
+
+  @@index([entryId])
+  @@map("entry_attachment")
 }
 
 // APPEND-ONLY audit log of every state transition. A DB trigger

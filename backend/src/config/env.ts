@@ -43,6 +43,14 @@ const envSchema = z.object({
   AWS_ACCESS_KEY_ID:         z.string().optional(),
   AWS_SECRET_ACCESS_KEY:     z.string().optional(),
 
+  // Cloudinary — object storage for logbook entry attachments. Optional so dev
+  // and test boot without it; the upload route returns 503 when unconfigured
+  // (see config/cloudinary.ts → isCloudinaryConfigured). Trimmed at the
+  // boundary like the other connection secrets.
+  CLOUDINARY_CLOUD_NAME:     z.string().trim().optional(),
+  CLOUDINARY_API_KEY:        z.string().trim().optional(),
+  CLOUDINARY_API_SECRET:     z.string().trim().optional(),
+
   FRONTEND_URL:              z.string().url().default('http://localhost:5173'),
 
   SENTRY_DSN:                z.string().optional(),

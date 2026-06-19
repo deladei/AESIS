@@ -11,6 +11,7 @@ import {
   getTrailHandler,
   listEntriesHandler,
 } from './entries.controller';
+import attachmentsRouter from './attachments.router';
 
 // Weekly logbook entry pipeline. All routes require authentication; per-role
 // authorization is enforced in the policy layer (entries.policy.ts) + the state
@@ -27,5 +28,8 @@ router.post('/:id/submit', asyncHandler(submitHandler));
 router.post('/:id/acknowledge', asyncHandler(acknowledgeHandler));
 router.post('/:id/return', asyncHandler(returnHandler));
 router.post('/:id/reject', asyncHandler(rejectHandler));
+
+// Image/document evidence for a week. mergeParams carries `:id` (the entry) in.
+router.use('/:id/attachments', attachmentsRouter);
 
 export default router;
