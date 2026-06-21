@@ -2,6 +2,7 @@ import { useState, useEffect, useRef, useCallback } from 'react';
 import { Link } from 'react-router-dom';
 import { Eye, EyeOff, Loader2, CheckCircle2, GraduationCap, BookOpen, Briefcase, ChevronDown, Check } from 'lucide-react';
 import { useAuth, type SelfRegisterRole } from '@/contexts/AuthContext';
+import { REGION_VALUES, REGION_LABELS } from '@/lib/regions';
 
 const PROGRAMMES_URL = `${import.meta.env.VITE_API_BASE_URL ?? ''}/api/v1/auth/programmes`;
 
@@ -27,6 +28,14 @@ interface FormState {
   password: string;
   role: SelfRegisterRole;
   programmeId: string;
+  // Student placement (created at registration)
+  region: string;
+  companyName: string;
+  companyAddress: string;
+  companySupervisorName: string;
+  companySupervisorEmail: string;
+  startDate: string;
+  endDate: string;
 }
 
 export default function RegisterPage() {
@@ -42,12 +51,19 @@ export default function RegisterPage() {
   const programmeRef = useRef<HTMLDivElement>(null);
   const programmeButtonRef = useRef<HTMLButtonElement>(null);
   const [form, setForm] = useState<FormState>({
-    firstName:   '',
-    lastName:    '',
-    email:       '',
-    password:    '',
-    role:        'student',
-    programmeId: '',
+    firstName:              '',
+    lastName:               '',
+    email:                  '',
+    password:               '',
+    role:                   'student',
+    programmeId:            '',
+    region:                 '',
+    companyName:            '',
+    companyAddress:         '',
+    companySupervisorName:  '',
+    companySupervisorEmail: '',
+    startDate:              '',
+    endDate:                '',
   });
   const [errors, setErrors] = useState<Partial<Record<keyof FormState, string>>>({});
 
@@ -107,7 +123,19 @@ export default function RegisterPage() {
     if (!form.lastName.trim()) e.lastName = 'Required';
     if (!form.email.includes('@') || !form.email.includes('.')) e.email = 'Enter a valid email address';
     if (form.password.length < 8) e.password = 'Minimum 8 characters';
-    if (form.role === 'student' && !form.programmeId) e.programmeId = 'Select a programme';
+    if (form.role === 'student') {
+      if (!form.programmeId) e.programmeId = 'Select a programme';
+      if (!form.region) e.region = 'Select your placement region';
+      if (!form.companyName.trim()) e.companyName = 'Required';
+      if (!form.companyAddress.trim()) e.companyAddress = 'Required';
+      if (!form.companySupervisorName.trim()) e.companySupervisorName = 'Required';
+      if (!form.companySupervisorEmail.includes('@')) e.companySupervisorEmail = 'Enter a valid email address';
+      if (!form.startDate) e.startDate = 'Required';
+      if (!form.endDate) e.endDate = 'Required';
+      if (form.startDate && form.endDate && new Date(form.endDate) <= new Date(form.startDate)) {
+        e.endDate = 'End date must be after start date';
+      }
+    }
     setErrors(e);
     return Object.keys(e).length === 0;
   };
@@ -123,7 +151,18 @@ export default function RegisterPage() {
         email:     form.email,
         password:  form.password,
         role:      form.role,
-        ...(form.role === 'student' ? { programmeId: form.programmeId } : {}),
+        ...(form.role === 'student'
+          ? {
+              programmeId:            form.programmeId,
+              region:                 form.region,
+              companyName:            form.companyName,
+              companyAddress:         form.companyAddress,
+              companySupervisorName:  form.companySupervisorName,
+              companySupervisorEmail: form.companySupervisorEmail,
+              startDate:              form.startDate,
+              endDate:                form.endDate,
+            }
+          : {}),
       };
       await register(payload);
       setSuccess(true);
@@ -350,6 +389,106 @@ export default function RegisterPage() {
                 )}
               </div>
               {errors.programmeId && <p className="mt-1 text-xs text-red-400">{errors.programmeId}</p>}
+            </div>
+          )}
+
+          {form.role === 'student' && (
+            <div className="space-y-4 rounded-lg border border-slate-800 bg-slate-900/40 p-4">
+              <p className="text-sm font-medium text-slate-200">Your placement</p>
+
+              <div>
+                <label htmlFor="region" className="block text-sm font-medium text-slate-300 mb-1.5">Region</label>
+                <select
+                  id="region"
+                  value={form.region}
+                  onChange={(e) => setField('region', e.target.value)}
+                  className={`${fieldClass(!!errors.region)} cursor-pointer ${form.region ? 'text-slate-100' : 'text-slate-500'}`}
+                >
+                  <option value="" disabled>Select region</option>
+                  {REGION_VALUES.map((r) => (
+                    <option key={r} value={r} className="text-slate-100">{REGION_LABELS[r]}</option>
+                  ))}
+                </select>
+                {errors.region && <p className="mt-1 text-xs text-red-400">{errors.region}</p>}
+              </div>
+
+              <div>
+                <label htmlFor="companyName" className="block text-sm font-medium text-slate-300 mb-1.5">Company name</label>
+                <input
+                  id="companyName"
+                  type="text"
+                  placeholder="Kofi Analytics Ltd"
+                  value={form.companyName}
+                  onChange={(e) => setField('companyName', e.target.value)}
+                  className={fieldClass(!!errors.companyName)}
+                />
+                {errors.companyName && <p className="mt-1 text-xs text-red-400">{errors.companyName}</p>}
+              </div>
+
+              <div>
+                <label htmlFor="companyAddress" className="block text-sm font-medium text-slate-300 mb-1.5">Company address</label>
+                <input
+                  id="companyAddress"
+                  type="text"
+                  placeholder="12 Independence Avenue, Accra"
+                  value={form.companyAddress}
+                  onChange={(e) => setField('companyAddress', e.target.value)}
+                  className={fieldClass(!!errors.companyAddress)}
+                />
+                {errors.companyAddress && <p className="mt-1 text-xs text-red-400">{errors.companyAddress}</p>}
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <label htmlFor="companySupervisorName" className="block text-sm font-medium text-slate-300 mb-1.5">Company supervisor</label>
+                  <input
+                    id="companySupervisorName"
+                    type="text"
+                    placeholder="Yaw Mensah"
+                    value={form.companySupervisorName}
+                    onChange={(e) => setField('companySupervisorName', e.target.value)}
+                    className={fieldClass(!!errors.companySupervisorName)}
+                  />
+                  {errors.companySupervisorName && <p className="mt-1 text-xs text-red-400">{errors.companySupervisorName}</p>}
+                </div>
+                <div>
+                  <label htmlFor="companySupervisorEmail" className="block text-sm font-medium text-slate-300 mb-1.5">Supervisor email</label>
+                  <input
+                    id="companySupervisorEmail"
+                    type="email"
+                    placeholder="supervisor@company.com"
+                    value={form.companySupervisorEmail}
+                    onChange={(e) => setField('companySupervisorEmail', e.target.value)}
+                    className={fieldClass(!!errors.companySupervisorEmail)}
+                  />
+                  {errors.companySupervisorEmail && <p className="mt-1 text-xs text-red-400">{errors.companySupervisorEmail}</p>}
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <label htmlFor="startDate" className="block text-sm font-medium text-slate-300 mb-1.5">Start date</label>
+                  <input
+                    id="startDate"
+                    type="date"
+                    value={form.startDate}
+                    onChange={(e) => setField('startDate', e.target.value)}
+                    className={`${fieldClass(!!errors.startDate)} cursor-pointer [color-scheme:dark]`}
+                  />
+                  {errors.startDate && <p className="mt-1 text-xs text-red-400">{errors.startDate}</p>}
+                </div>
+                <div>
+                  <label htmlFor="endDate" className="block text-sm font-medium text-slate-300 mb-1.5">End date</label>
+                  <input
+                    id="endDate"
+                    type="date"
+                    value={form.endDate}
+                    onChange={(e) => setField('endDate', e.target.value)}
+                    className={`${fieldClass(!!errors.endDate)} cursor-pointer [color-scheme:dark]`}
+                  />
+                  {errors.endDate && <p className="mt-1 text-xs text-red-400">{errors.endDate}</p>}
+                </div>
+              </div>
             </div>
           )}
 

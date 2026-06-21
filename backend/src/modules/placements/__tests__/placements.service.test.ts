@@ -2,9 +2,9 @@ import { AppError } from '../../../middleware/errorHandler';
 
 jest.mock('../../../config/prisma', () => ({
   prisma: {
-    placement:          { findFirst: jest.fn(), findUnique: jest.fn(), findMany: jest.fn(), create: jest.fn(), update: jest.fn(), count: jest.fn() },
+    placement:          { findFirst: jest.fn(), findUnique: jest.fn(), findMany: jest.fn(), create: jest.fn(), update: jest.fn(), count: jest.fn(), groupBy: jest.fn() },
     company:            { findFirst: jest.fn(), findUnique: jest.fn(), upsert: jest.fn(), create: jest.fn(), update: jest.fn() },
-    user:               { findUnique: jest.fn(), create: jest.fn() },
+    user:               { findUnique: jest.fn(), findMany: jest.fn(), create: jest.fn() },
     academicYear:       { findFirst: jest.fn() },
     department:         { findUnique: jest.fn() },
     auditLog:           { create: jest.fn() },
@@ -56,9 +56,10 @@ const fakePlacement = {
 
 const validInput = {
   companyName:            'TechBridge Ltd',
-  companyAddress:         '14 Marina St, Lagos',
+  companyAddress:         '14 Marina St, Accra',
   companySupervisorName:  'John Doe',
   companySupervisorEmail: 'sup@techbridge.com',
+  region:                 'greater_accra' as const,
   startDate:              futureStart.toISOString(),
   endDate:                futureEnd.toISOString(),
 };
@@ -73,6 +74,7 @@ describe('service.createPlacement', () => {
     (mp.company.findFirst as jest.Mock).mockResolvedValue(null);
     (mp.company.create as jest.Mock).mockResolvedValue(fakeCompany);
     (mp.user.findUnique as jest.Mock).mockResolvedValue(fakeCSupervisor);
+    (mp.user.findMany as jest.Mock).mockResolvedValue([]); // no regional supervisor → stays pending
     (mp.placement.create as jest.Mock).mockResolvedValue({ ...fakePlacement, company: fakeCompany, companySupervisor: fakeCSupervisor });
 
     const result = await service.createPlacement('student-1', validInput);
@@ -101,10 +103,51 @@ describe('service.createPlacement', () => {
     (mp.user.findUnique as jest.Mock).mockResolvedValue(null); // not found
     (mp.department.findUnique as jest.Mock).mockResolvedValue(fakeDept);
     (mp.user.create as jest.Mock).mockResolvedValue(fakeCSupervisor);
+    (mp.user.findMany as jest.Mock).mockResolvedValue([]);
     (mp.placement.create as jest.Mock).mockResolvedValue({ ...fakePlacement, company: fakeCompany, companySupervisor: fakeCSupervisor });
 
     await service.createPlacement('student-1', validInput);
     expect(mp.user.create).toHaveBeenCalledTimes(1);
+  });
+
+  it('auto-assigns the sole regional supervisor and activates the placement', async () => {
+    (mp.placement.findFirst as jest.Mock).mockResolvedValue(null);
+    (mp.academicYear.findFirst as jest.Mock).mockResolvedValue(fakeAcademicYear);
+    (mp.company.findFirst as jest.Mock).mockResolvedValue(null);
+    (mp.company.create as jest.Mock).mockResolvedValue(fakeCompany);
+    (mp.user.findUnique as jest.Mock).mockResolvedValue(fakeCSupervisor);
+    (mp.user.findMany as jest.Mock).mockResolvedValue([{ id: 'asu-1' }]); // one supervisor in region
+    (mp.placement.create as jest.Mock).mockResolvedValue({ ...fakePlacement });
+    (mp.placement.update as jest.Mock).mockResolvedValue({ ...fakePlacement, academicSupervisorId: 'asu-1', placementStatus: 'active' });
+
+    const result = await service.createPlacement('student-1', validInput);
+    expect(mp.placement.update).toHaveBeenCalledTimes(1);
+    expect(result.placementStatus).toBe('active');
+    expect(result.academicSupervisorId).toBe('asu-1');
+  });
+});
+
+// ─────────────────────────────────────────────────────────────
+describe('service.pickLeastLoadedSupervisor', () => {
+  it('returns null when no supervisor covers the region', async () => {
+    (mp.user.findMany as jest.Mock).mockResolvedValue([]);
+    expect(await service.pickLeastLoadedSupervisor('volta')).toBeNull();
+  });
+
+  it('returns the only supervisor without querying loads', async () => {
+    (mp.user.findMany as jest.Mock).mockResolvedValue([{ id: 'asu-1' }]);
+    expect(await service.pickLeastLoadedSupervisor('volta')).toBe('asu-1');
+    expect(mp.placement.groupBy).not.toHaveBeenCalled();
+  });
+
+  it('picks the least-loaded among several supervisors', async () => {
+    (mp.user.findMany as jest.Mock).mockResolvedValue([{ id: 'asu-1' }, { id: 'asu-2' }, { id: 'asu-3' }]);
+    (mp.placement.groupBy as jest.Mock).mockResolvedValue([
+      { academicSupervisorId: 'asu-1', _count: { _all: 5 } },
+      { academicSupervisorId: 'asu-2', _count: { _all: 2 } },
+      // asu-3 has no placements → load 0 → should win
+    ]);
+    expect(await service.pickLeastLoadedSupervisor('volta')).toBe('asu-3');
   });
 });
 
@@ -350,9 +393,10 @@ describe('service.assignSupervisor', () => {
 
     const res = await service.assignSupervisor('pl-1', 'coord-1', { supervisorId: 'sup-9' });
 
+    // pending placement → assigning the academic supervisor also activates it
     expect(mp.placement.update).toHaveBeenCalledWith(expect.objectContaining({
       where: { id: 'pl-1' },
-      data:  { academicSupervisorId: 'sup-9' },
+      data:  { academicSupervisorId: 'sup-9', placementStatus: 'active' },
     }));
     expect(mp.auditLog.create).toHaveBeenCalled();
     expect(res.academicSupervisorId).toBe('sup-9');

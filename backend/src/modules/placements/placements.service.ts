@@ -20,7 +20,7 @@ function getActiveAcademicYear() {
 export async function createPlacement(studentId: string, input: CreatePlacementInput) {
   const {
     companyName, companyAddress, companySupervisorName,
-    companySupervisorEmail, startDate, endDate,
+    companySupervisorEmail, region, startDate, endDate,
   } = input;
 
   // Student must not already have an active/pending placement
@@ -79,6 +79,7 @@ export async function createPlacement(studentId: string, input: CreatePlacementI
       companySupervisorId: companySupervisor.id,
       companyId:           company.id,
       academicYearId:      academicYear.id,
+      region,
       startDate:           new Date(startDate),
       endDate:             new Date(endDate),
       placementStatus:     'pending',
@@ -89,7 +90,65 @@ export async function createPlacement(studentId: string, input: CreatePlacementI
     },
   });
 
+  // Auto-assign the least-loaded academic supervisor covering this region.
+  // If none is configured yet the placement stays unassigned + pending and the
+  // coordinator picks it up from the "needs supervisor" queue.
+  const supervisorId = await pickLeastLoadedSupervisor(region);
+  if (supervisorId) {
+    const assigned = await prisma.placement.update({
+      where: { id: placement.id },
+      data:  { academicSupervisorId: supervisorId, placementStatus: 'active' },
+      include: {
+        company:            { select: { id: true, name: true } },
+        companySupervisor:  { select: { id: true, firstName: true, lastName: true, email: true } },
+        academicSupervisor: { select: { id: true, firstName: true, lastName: true, email: true } },
+      },
+    });
+    await prisma.auditLog.create({
+      data: {
+        userId:     supervisorId,
+        action:     'placement_status_change',
+        entityType: 'placement',
+        entityId:   placement.id,
+        metadata:   { change: 'supervisor_auto_assigned', region, toSupervisorId: supervisorId },
+      },
+    });
+    return assigned;
+  }
+
   return placement;
+}
+
+/**
+ * Pick the academic supervisor for `region` carrying the fewest live placements
+ * (pending + active), so a region with two or more supervisors balances load
+ * instead of piling every intern on one person. Ties break by supervisor id
+ * (stable). Returns null when no supervisor is assigned to the region yet.
+ */
+export async function pickLeastLoadedSupervisor(region: string): Promise<string | null> {
+  const supervisors = await prisma.user.findMany({
+    where:  { role: 'academic_supervisor', supervisedRegion: region as never },
+    select: { id: true },
+    orderBy: { id: 'asc' },
+  });
+  if (supervisors.length === 0) return null;
+  if (supervisors.length === 1) return supervisors[0].id;
+
+  const ids = supervisors.map((s) => s.id);
+  const loads = await prisma.placement.groupBy({
+    by:    ['academicSupervisorId'],
+    where: { academicSupervisorId: { in: ids }, placementStatus: { in: ['pending', 'active'] } },
+    _count: { _all: true },
+  });
+  const loadById = new Map(loads.map((l) => [l.academicSupervisorId, l._count._all]));
+
+  let bestId = ids[0];
+  let bestLoad = loadById.get(ids[0]) ?? 0;
+  for (const id of ids) {
+    const load = loadById.get(id) ?? 0;
+    if (load < bestLoad) { bestId = id; bestLoad = load; }
+  }
+  return bestId;
 }
 
 export async function getPlacement(placementId: string, requesterId: string, requesterRole: string) {
@@ -224,9 +283,13 @@ export async function assignSupervisor(
     throw new AppError(400, slot.rejectMsg);
   }
 
+  // Assigning the academic supervisor to a still-pending placement activates it
+  // (the region-auto-assign path couldn't find a supervisor at registration).
+  const activates = slot.column === 'academicSupervisorId' && placement.placementStatus === 'pending';
+
   const updated = await prisma.placement.update({
     where: { id: placementId },
-    data:  { [slot.column]: input.supervisorId },
+    data:  { [slot.column]: input.supervisorId, ...(activates ? { placementStatus: 'active' } : {}) },
     include: {
       student:            { select: { id: true, firstName: true, lastName: true, email: true } },
       academicSupervisor: { select: { id: true, firstName: true, lastName: true } },

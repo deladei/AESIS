@@ -13,6 +13,7 @@ import {
   buildVerificationEmail,
   buildPasswordResetEmail,
 } from '../../shared/utils/email';
+import { createPlacement } from '../placements/placements.service';
 import type {
   RegisterInput,
   LoginInput,
@@ -75,6 +76,27 @@ export async function register(input: RegisterInput) {
     },
     select: { id: true, email: true, firstName: true, lastName: true, role: true },
   });
+
+  // Students register with their full placement in one step: create it now and
+  // auto-assign a regional supervisor (createPlacement handles balancing + the
+  // unassigned-pending fallback). If placement creation fails, roll the user
+  // back so the account isn't left orphaned with no placement.
+  if (role === 'student') {
+    try {
+      await createPlacement(user.id, {
+        companyName:            input.companyName!,
+        companyAddress:         input.companyAddress!,
+        companySupervisorName:  input.companySupervisorName!,
+        companySupervisorEmail: input.companySupervisorEmail!,
+        region:                 input.region!,
+        startDate:              input.startDate!,
+        endDate:                input.endDate!,
+      });
+    } catch (err) {
+      await prisma.user.delete({ where: { id: user.id } }).catch(() => { /* best-effort */ });
+      throw err;
+    }
+  }
 
   if (!autoVerify) {
     await sendEmail({

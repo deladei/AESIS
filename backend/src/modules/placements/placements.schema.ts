@@ -1,10 +1,14 @@
 import { z } from 'zod';
+import { REGION_VALUES } from '../../shared/constants/regions';
+
+export const regionSchema = z.enum(REGION_VALUES);
 
 export const createPlacementSchema = z.object({
   companyName:            z.string().trim().min(2).max(200),
   companyAddress:         z.string().trim().min(5).max(500),
   companySupervisorName:  z.string().trim().min(2).max(100),
   companySupervisorEmail: z.string().email(),
+  region:                 regionSchema,
   startDate:              z.string().date('Invalid start date (YYYY-MM-DD)'),
   endDate:                z.string().date('Invalid end date (YYYY-MM-DD)'),
 }).refine((d) => new Date(d.endDate) > new Date(d.startDate), {

@@ -39,6 +39,12 @@ router.get('/activity', asyncHandler(ctrl.activity));
 // GET /api/v1/coordinator/supervisors
 router.get('/supervisors', asyncHandler(ctrl.supervisors));
 
+// PATCH /api/v1/coordinator/supervisors/:id/region — set region a supervisor covers
+router.patch('/supervisors/:id/region', asyncHandler(ctrl.setSupervisorRegion));
+
+// GET /api/v1/coordinator/unassigned-placements — interns whose region had no supervisor yet
+router.get('/unassigned-placements', asyncHandler(ctrl.unassignedPlacements));
+
 // GET /api/v1/coordinator/search?q= — global typeahead (interns + companies, item 18)
 router.get('/search', asyncHandler(ctrl.search));
 

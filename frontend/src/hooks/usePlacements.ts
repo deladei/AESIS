@@ -27,6 +27,16 @@ export interface Supervisor {
   firstName: string;
   lastName:  string;
   email:     string;
+  region?:   string | null;
+  load?:     number;
+}
+
+export interface UnassignedPlacement {
+  id:        string;
+  region:    string | null;
+  createdAt: string;
+  student:   { id: string; name: string; email: string };
+  company:   string | null;
 }
 
 export function useMyPlacements() {
@@ -115,6 +125,29 @@ export function useSupervisors() {
     queryFn:  async () => {
       const r = await api.get<{ data: Supervisor[] }>('/coordinator/supervisors');
       return r.data.data;
+    },
+  });
+}
+
+/** Placements whose region had no supervisor at registration (coordinator queue). */
+export function useUnassignedPlacements() {
+  return useQuery({
+    queryKey: ['coordinator', 'unassigned-placements'],
+    queryFn:  async () => {
+      const r = await api.get<{ data: UnassignedPlacement[] }>('/coordinator/unassigned-placements');
+      return r.data.data ?? [];
+    },
+  });
+}
+
+/** Set (or clear, with null) the single region an academic supervisor covers. */
+export function useSetSupervisorRegion() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, region }: { id: string; region: string | null }) =>
+      api.patch(`/coordinator/supervisors/${id}/region`, { region }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['coordinator'] });
     },
   });
 }

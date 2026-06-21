@@ -58,13 +58,22 @@ const app = buildApp();
 afterEach(() => jest.clearAllMocks());
 
 describe('POST /auth/register', () => {
+  const tomorrow = new Date(Date.now() + 86400_000).toISOString().slice(0, 10);
+  const nextYear = new Date(Date.now() + 365 * 86400_000).toISOString().slice(0, 10);
   const validBody = {
-    email:       'student@cs.edu',
-    password:    'Password@123',
-    firstName:   'Ada',
-    lastName:    'Okonkwo',
-    role:        'student',
-    programmeId: '00000000-0000-0000-0000-000000000001',
+    email:                  'student@cs.edu',
+    password:               'Password@123',
+    firstName:              'Ama',
+    lastName:               'Boateng',
+    role:                   'student',
+    programmeId:            '00000000-0000-0000-0000-000000000001',
+    region:                 'greater_accra',
+    companyName:            'Kofi Analytics Ltd',
+    companyAddress:         '12 Independence Avenue, Accra',
+    companySupervisorName:  'Yaw Mensah',
+    companySupervisorEmail: 'yaw@kofianalytics.com',
+    startDate:              tomorrow,
+    endDate:                nextYear,
   };
 
   it('returns 201 on successful registration', async () => {

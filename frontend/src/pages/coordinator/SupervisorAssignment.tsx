@@ -1,12 +1,17 @@
 import { useState } from 'react';
-import { Loader2, UserCheck, Check, GraduationCap } from 'lucide-react';
+import { Loader2, UserCheck, Check, GraduationCap, MapPin, Inbox } from 'lucide-react';
 import {
   useAllPlacements,
   useSupervisors,
   useAssignSupervisor,
+  useSetSupervisorRegion,
+  useUnassignedPlacements,
   type Placement,
+  type Supervisor,
+  type UnassignedPlacement,
 } from '@/hooks/usePlacements';
 import SupervisorPicker from '@/components/shared/SupervisorPicker';
+import { REGION_VALUES, REGION_LABELS, regionLabel } from '@/lib/regions';
 
 type StatusFilter = 'active' | 'pending' | 'all';
 
@@ -101,6 +106,142 @@ function AssignmentRow({ placement }: { placement: Placement }) {
   );
 }
 
+// ── Supervisor regions ──────────────────────────────────────────
+// Each academic supervisor covers one region; new interns placed there are
+// auto-balanced across everyone sharing it. Load = live (pending + active) count.
+
+function SupervisorRegionRow({ supervisor }: { supervisor: Supervisor }) {
+  const setRegion = useSetSupervisorRegion();
+  const current = supervisor.region ?? '';
+
+  const onChange = (value: string) =>
+    setRegion.mutate({ id: supervisor.id, region: value === '' ? null : value });
+
+  return (
+    <div className="flex flex-col gap-3 rounded-xl border border-[#c4c5d5]/60 bg-white px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
+      <div className="min-w-0">
+        <p className="truncate text-sm font-semibold text-[#0b1c30]">
+          {supervisor.firstName} {supervisor.lastName}
+        </p>
+        <p className="text-xs text-[#757684]">
+          {supervisor.load ?? 0} active {(supervisor.load ?? 0) === 1 ? 'intern' : 'interns'}
+          {supervisor.region ? <> · {regionLabel(supervisor.region)}</> : <span className="text-amber-600"> · No region</span>}
+        </p>
+      </div>
+      <div className="flex shrink-0 items-center gap-2">
+        <select
+          value={current}
+          onChange={(e) => onChange(e.target.value)}
+          disabled={setRegion.isPending}
+          className="min-w-[12rem] cursor-pointer rounded-lg border border-[#c4c5d5] bg-white px-3 py-2 text-sm text-[#0b1c30] focus:border-[#15157d] focus:outline-none focus:ring-1 focus:ring-[#15157d] disabled:opacity-50"
+        >
+          <option value="">No region</option>
+          {REGION_VALUES.map((r) => (
+            <option key={r} value={r}>{REGION_LABELS[r]}</option>
+          ))}
+        </select>
+        {setRegion.isPending && <Loader2 className="h-4 w-4 animate-spin text-[#15157d]" />}
+      </div>
+    </div>
+  );
+}
+
+function SupervisorRegionsPanel() {
+  const { data: supervisors = [], isLoading } = useSupervisors();
+
+  return (
+    <section className="space-y-3">
+      <div className="flex items-center gap-2">
+        <MapPin className="h-4 w-4 text-[#15157d]" />
+        <h2 className="text-sm font-semibold text-[#0b1c30]">Supervisor regions</h2>
+      </div>
+      <p className="text-sm text-[#757684]">
+        Set the region each academic supervisor covers. New interns who register in a
+        region are auto-assigned to the least-loaded supervisor there.
+      </p>
+      {isLoading ? (
+        <div className="flex h-24 items-center justify-center">
+          <Loader2 className="h-5 w-5 animate-spin text-[#15157d]" />
+        </div>
+      ) : supervisors.length === 0 ? (
+        <div className="rounded-xl border border-[#c4c5d5]/60 bg-white p-8 text-center text-sm text-[#757684]">
+          No academic supervisors registered yet.
+        </div>
+      ) : (
+        <div className="space-y-3">
+          {supervisors.map((s) => <SupervisorRegionRow key={s.id} supervisor={s} />)}
+        </div>
+      )}
+    </section>
+  );
+}
+
+// ── Needs-supervisor queue ───────────────────────────────────────
+// Interns whose region had no supervisor at registration sit pending here.
+
+function UnassignedRow({ placement }: { placement: UnassignedPlacement }) {
+  const { data: supervisors = [] } = useSupervisors();
+  const assign = useAssignSupervisor();
+  const [choice, setChoice] = useState('');
+
+  const save = () => {
+    if (!choice) return;
+    assign.mutate({ id: placement.id, supervisorId: choice });
+  };
+
+  return (
+    <div className="flex flex-col gap-4 rounded-xl border border-amber-200 bg-amber-50/40 px-5 py-4 lg:flex-row lg:items-center">
+      <div className="min-w-0 flex-1">
+        <p className="truncate text-sm font-semibold text-[#0b1c30]">{placement.student.name}</p>
+        <p className="text-xs text-[#757684]">
+          {placement.company ?? 'No company'} · {regionLabel(placement.region)}
+        </p>
+      </div>
+      <div className="flex shrink-0 items-center gap-2">
+        <SupervisorPicker
+          supervisors={supervisors}
+          value={choice}
+          onChange={setChoice}
+          placeholder="Select supervisor…"
+          className="min-w-[14rem]"
+        />
+        <button
+          onClick={save}
+          disabled={!choice || assign.isPending}
+          className="flex cursor-pointer items-center justify-center gap-1.5 rounded-lg bg-[#15157d] px-4 py-2 text-sm font-semibold text-white transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-40"
+        >
+          {assign.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <UserCheck className="h-4 w-4" />}
+          Assign
+        </button>
+      </div>
+    </div>
+  );
+}
+
+function NeedsSupervisorPanel() {
+  const { data: unassigned = [], isLoading } = useUnassignedPlacements();
+  if (isLoading || unassigned.length === 0) return null;
+
+  return (
+    <section className="space-y-3">
+      <div className="flex items-center gap-2">
+        <Inbox className="h-4 w-4 text-amber-600" />
+        <h2 className="text-sm font-semibold text-[#0b1c30]">
+          Needs a supervisor
+          <span className="ml-2 rounded-full bg-amber-100 px-2 py-0.5 text-xs font-medium text-amber-700">{unassigned.length}</span>
+        </h2>
+      </div>
+      <p className="text-sm text-[#757684]">
+        These interns registered in a region with no supervisor configured. Assign one
+        directly, or set a region above so future interns auto-assign.
+      </p>
+      <div className="space-y-3">
+        {unassigned.map((p) => <UnassignedRow key={p.id} placement={p} />)}
+      </div>
+    </section>
+  );
+}
+
 export default function SupervisorAssignment() {
   const [filter, setFilter] = useState<StatusFilter>('active');
   const { data, isLoading } = useAllPlacements(1, filter === 'all' ? undefined : filter);
@@ -108,12 +249,24 @@ export default function SupervisorAssignment() {
   const placements = data?.placements ?? [];
 
   return (
-    <div className="mx-auto max-w-4xl space-y-6 p-6">
+    <div className="mx-auto max-w-4xl space-y-8 p-6">
+      <div>
+        <h1 className="text-xl font-bold text-[#0b1c30]">Supervisor Assignments</h1>
+        <p className="mt-0.5 text-sm text-[#757684]">
+          Set the region each supervisor covers (new interns auto-assign), clear the
+          needs-supervisor queue, and reassign any existing placement below.
+        </p>
+      </div>
+
+      <SupervisorRegionsPanel />
+      <NeedsSupervisorPanel />
+
+      <section className="space-y-4">
       <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
         <div>
-          <h1 className="text-xl font-bold text-[#0b1c30]">Supervisor Assignments</h1>
+          <h2 className="text-sm font-semibold text-[#0b1c30]">All placements</h2>
           <p className="mt-0.5 text-sm text-[#757684]">
-            Assign an academic supervisor to each placement. The supervisor's dashboard
+            Reassign the academic supervisor on any placement. The supervisor's dashboard
             populates as soon as they're assigned.
           </p>
         </div>
@@ -148,6 +301,7 @@ export default function SupervisorAssignment() {
           {placements.map((p) => <AssignmentRow key={p.id} placement={p} />)}
         </div>
       )}
+      </section>
     </div>
   );
 }

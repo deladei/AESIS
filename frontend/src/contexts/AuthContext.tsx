@@ -29,6 +29,15 @@ export interface RegisterInput {
   password:     string;
   role:         SelfRegisterRole;
   programmeId?: string;
+  // Student-only: the full placement is created at registration and a regional
+  // academic supervisor is auto-assigned. Required by the API when role=student.
+  region?:                 string;
+  companyName?:            string;
+  companyAddress?:         string;
+  companySupervisorName?:  string;
+  companySupervisorEmail?: string;
+  startDate?:              string;
+  endDate?:                string;
 }
 
 const AuthContext = createContext<AuthState | null>(null);

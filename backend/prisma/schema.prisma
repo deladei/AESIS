@@ -31,6 +31,28 @@ enum PlacementStatus {
   failed
 }
 
+// The 16 administrative regions of Ghana (2019 demarcation). A student's
+// internship placement sits in exactly one region; an academic supervisor is
+// assigned to exactly one region and supervises every intern placed there.
+enum Region {
+  ahafo
+  ashanti
+  bono
+  bono_east
+  central
+  eastern
+  greater_accra
+  north_east
+  northern
+  oti
+  savannah
+  upper_east
+  upper_west
+  volta
+  western
+  western_north
+}
+
 enum SubmissionStatus {
   draft
   submitted
@@ -226,6 +248,10 @@ model User {
   programmeId         String?            @map("programme_id")
   programme           AcademicProgramme? @relation(fields: [programmeId], references: [id])
   isVerified          Boolean            @default(false) @map("is_verified")
+  // For academic_supervisor only: the one region this supervisor covers.
+  // Set by the coordinator; null until assigned. New interns in this region
+  // are auto-balanced across all supervisors sharing it.
+  supervisedRegion    Region?            @map("supervised_region")
   verificationToken   String?            @map("verification_token")
   passwordResetToken  String?            @map("password_reset_token")
   passwordResetExpiry DateTime?          @map("password_reset_expiry")
@@ -302,6 +328,7 @@ model Placement {
   company              Company?           @relation(fields: [companyId], references: [id])
   academicYearId       String             @map("academic_year_id")
   academicYear         AcademicYear       @relation(fields: [academicYearId], references: [id])
+  region               Region?            @map("region")
   startDate            DateTime?          @map("start_date")
   endDate              DateTime?          @map("end_date")
   placementStatus      PlacementStatus    @default(pending) @map("placement_status")

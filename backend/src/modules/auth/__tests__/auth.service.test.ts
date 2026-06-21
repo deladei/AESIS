@@ -17,6 +17,13 @@ jest.mock('../../../shared/utils/email', () => ({
   buildPasswordResetEmail:  jest.fn().mockReturnValue('<html>reset</html>'),
 }));
 
+// Student registration now creates the placement + auto-assigns a regional
+// supervisor; that path is unit-tested in placements.service.test.ts. Here we
+// only assert the user side, so stub it out.
+jest.mock('../../placements/placements.service', () => ({
+  createPlacement: jest.fn().mockResolvedValue({ id: 'placement-uuid-1' }),
+}));
+
 jest.mock('../../../config/env', () => ({
   env: {
     NODE_ENV:                  'test',
@@ -67,6 +74,13 @@ describe('authService.register', () => {
     password:    'Password@123',
     role:        'student' as const,
     programmeId: 'prog-uuid-1',
+    region:                 'greater_accra' as const,
+    companyName:            'TechBridge Ghana',
+    companyAddress:         '12 Liberation Road, Accra',
+    companySupervisorName:  'Kwabena Mensah',
+    companySupervisorEmail: 'kwabena@techbridge.com',
+    startDate:              '2026-07-01',
+    endDate:                '2026-09-30',
   };
 
   beforeEach(() => jest.clearAllMocks());

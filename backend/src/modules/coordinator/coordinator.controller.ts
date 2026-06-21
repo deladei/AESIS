@@ -3,6 +3,7 @@ import { z } from 'zod';
 import { ok } from '../../shared/utils/response';
 import * as service from './coordinator.service';
 import { updateCohortConfigSchema } from './coordinator.schema';
+import { REGION_VALUES } from '../../shared/constants/regions';
 
 const studentsQuerySchema = z.object({
   page:           z.coerce.number().int().positive().default(1),
@@ -113,6 +114,20 @@ export async function activity(req: Request, res: Response) {
 
 export async function supervisors(_req: Request, res: Response) {
   const data = await service.listSupervisors();
+  ok(res, data);
+}
+
+// region is nullable so the coordinator can clear a supervisor's region too.
+const setRegionSchema = z.object({ region: z.enum(REGION_VALUES).nullable() });
+
+export async function setSupervisorRegion(req: Request, res: Response) {
+  const { region } = setRegionSchema.parse(req.body);
+  const data = await service.setSupervisorRegion(String(req.params.id), region);
+  ok(res, data);
+}
+
+export async function unassignedPlacements(_req: Request, res: Response) {
+  const data = await service.listUnassignedPlacements();
   ok(res, data);
 }
 

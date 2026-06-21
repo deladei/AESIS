@@ -54,10 +54,11 @@ describe('POST /placements', () => {
   const tomorrow = new Date(Date.now() + 86400_000).toISOString().slice(0, 10);
   const nextYear = new Date(Date.now() + 365 * 86400_000).toISOString().slice(0, 10);
   const validBody = {
-    companyName:            'Acme Corp',
-    companyAddress:         '123 Main Street, Lagos',
-    companySupervisorName:  'John Doe',
-    companySupervisorEmail: 'john@acme.com',
+    companyName:            'Kofi Analytics Ltd',
+    companyAddress:         '12 Independence Avenue, Accra',
+    companySupervisorName:  'Yaw Mensah',
+    companySupervisorEmail: 'yaw@kofianalytics.com',
+    region:                 'greater_accra',
     startDate:              tomorrow,
     endDate:                nextYear,
   };

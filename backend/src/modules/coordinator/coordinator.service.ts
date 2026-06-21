@@ -705,11 +705,71 @@ export function getFeatureFlags() {
 // ── Supervisors (for assignment dropdowns) ────────────────────
 
 export async function listSupervisors() {
-  return prisma.user.findMany({
+  const supervisors = await prisma.user.findMany({
     where:   { role: 'academic_supervisor' },
-    select:  { id: true, firstName: true, lastName: true, email: true },
+    select:  { id: true, firstName: true, lastName: true, email: true, supervisedRegion: true },
     orderBy: [{ firstName: 'asc' }, { lastName: 'asc' }],
   });
+
+  // Live caseload per supervisor (active + pending placements) so the
+  // coordinator can see who is loaded before adjusting regions.
+  const ids = supervisors.map((s) => s.id);
+  const loads = ids.length
+    ? await prisma.placement.groupBy({
+        by:     ['academicSupervisorId'],
+        where:  { academicSupervisorId: { in: ids }, placementStatus: { in: ['pending', 'active'] } },
+        _count: { _all: true },
+      })
+    : [];
+  const loadById = new Map(loads.map((l) => [l.academicSupervisorId, l._count._all]));
+
+  return supervisors.map((s) => ({
+    id:        s.id,
+    firstName: s.firstName,
+    lastName:  s.lastName,
+    email:     s.email,
+    region:    s.supervisedRegion,
+    load:      loadById.get(s.id) ?? 0,
+  }));
+}
+
+/** Coordinator sets (or clears) the single region an academic supervisor covers. */
+export async function setSupervisorRegion(supervisorId: string, region: string | null) {
+  const supervisor = await prisma.user.findUnique({ where: { id: supervisorId } });
+  if (!supervisor || supervisor.role !== 'academic_supervisor') {
+    throw new AppError(404, 'Academic supervisor not found');
+  }
+  return prisma.user.update({
+    where:  { id: supervisorId },
+    data:   { supervisedRegion: region as never },
+    select: { id: true, firstName: true, lastName: true, email: true, supervisedRegion: true },
+  });
+}
+
+/**
+ * Placements created at registration whose region had no supervisor yet, so
+ * they sit pending with no academic supervisor. The coordinator assigns one
+ * from here (reusing PATCH /placements/:id/supervisor).
+ */
+export async function listUnassignedPlacements() {
+  const placements = await prisma.placement.findMany({
+    where: { academicSupervisorId: null, placementStatus: { in: ['pending', 'active'] } },
+    select: {
+      id: true,
+      region: true,
+      createdAt: true,
+      student:  { select: { id: true, firstName: true, lastName: true, email: true } },
+      company:  { select: { id: true, name: true } },
+    },
+    orderBy: { createdAt: 'asc' },
+  });
+  return placements.map((p) => ({
+    id:        p.id,
+    region:    p.region,
+    createdAt: p.createdAt,
+    student:   { id: p.student.id, name: `${p.student.firstName} ${p.student.lastName}`.trim(), email: p.student.email },
+    company:   p.company?.name ?? null,
+  }));
 }
 
 // ── Oversight view (cross-cohort at-risk monitoring) ──────────
