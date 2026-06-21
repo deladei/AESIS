@@ -73,6 +73,11 @@ export async function createPlacement(studentId: string, input: CreatePlacementI
     });
   }
 
+  // A new placement is ALWAYS created pending — a coordinator must approve it
+  // before it goes active and the student can use their logbook. Region drives
+  // the supervisor auto-balance, but that happens at approval time
+  // (updatePlacementStatus), never here, so registration can never skip the
+  // approval gate.
   const placement = await prisma.placement.create({
     data: {
       studentId,
@@ -89,32 +94,6 @@ export async function createPlacement(studentId: string, input: CreatePlacementI
       companySupervisor: { select: { id: true, firstName: true, lastName: true, email: true } },
     },
   });
-
-  // Auto-assign the least-loaded academic supervisor covering this region.
-  // If none is configured yet the placement stays unassigned + pending and the
-  // coordinator picks it up from the "needs supervisor" queue.
-  const supervisorId = await pickLeastLoadedSupervisor(region);
-  if (supervisorId) {
-    const assigned = await prisma.placement.update({
-      where: { id: placement.id },
-      data:  { academicSupervisorId: supervisorId, placementStatus: 'active' },
-      include: {
-        company:            { select: { id: true, name: true } },
-        companySupervisor:  { select: { id: true, firstName: true, lastName: true, email: true } },
-        academicSupervisor: { select: { id: true, firstName: true, lastName: true, email: true } },
-      },
-    });
-    await prisma.auditLog.create({
-      data: {
-        userId:     supervisorId,
-        action:     'placement_status_change',
-        entityType: 'placement',
-        entityId:   placement.id,
-        metadata:   { change: 'supervisor_auto_assigned', region, toSupervisorId: supervisorId },
-      },
-    });
-    return assigned;
-  }
 
   return placement;
 }
@@ -208,8 +187,17 @@ export async function updatePlacementStatus(
   };
 
   if (input.status === 'active') {
-    updateData['approvedAt']           = new Date();
-    updateData['academicSupervisorId'] = input.supervisorId ?? null;
+    updateData['approvedAt'] = new Date();
+    // Coordinator may pick a supervisor explicitly; otherwise fall back to the
+    // least-loaded supervisor covering the placement's region (S49 balancing,
+    // applied at approval). Keep any already-assigned supervisor if neither
+    // yields one, so approval never silently un-assigns.
+    const chosen =
+      input.supervisorId
+      ?? (placement.region ? await pickLeastLoadedSupervisor(placement.region) : null)
+      ?? placement.academicSupervisorId
+      ?? null;
+    updateData['academicSupervisorId'] = chosen;
   }
 
   if (input.status === 'rejected') {
@@ -283,8 +271,9 @@ export async function assignSupervisor(
     throw new AppError(400, slot.rejectMsg);
   }
 
-  // Assigning the academic supervisor to a still-pending placement activates it
-  // (the region-auto-assign path couldn't find a supervisor at registration).
+  // Assigning the academic supervisor to a still-pending placement also approves
+  // and activates it — this is the coordinator picking a placement straight off
+  // the "needs a supervisor" queue, which counts as the approval.
   const activates = slot.column === 'academicSupervisorId' && placement.placementStatus === 'pending';
 
   const updated = await prisma.placement.update({

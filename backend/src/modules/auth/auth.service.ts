@@ -77,10 +77,11 @@ export async function register(input: RegisterInput) {
     select: { id: true, email: true, firstName: true, lastName: true, role: true },
   });
 
-  // Students register with their full placement in one step: create it now and
-  // auto-assign a regional supervisor (createPlacement handles balancing + the
-  // unassigned-pending fallback). If placement creation fails, roll the user
-  // back so the account isn't left orphaned with no placement.
+  // Students register with their full placement in one step: create it now as a
+  // pending application awaiting coordinator approval (the regional supervisor
+  // auto-balance happens at approval time, not here, so registration can't skip
+  // the approval gate). If placement creation fails, roll the user back so the
+  // account isn't left orphaned with no placement.
   if (role === 'student') {
     try {
       await createPlacement(user.id, {

@@ -110,20 +110,19 @@ describe('service.createPlacement', () => {
     expect(mp.user.create).toHaveBeenCalledTimes(1);
   });
 
-  it('auto-assigns the sole regional supervisor and activates the placement', async () => {
+  it('stays pending and never auto-activates, even when a regional supervisor exists', async () => {
     (mp.placement.findFirst as jest.Mock).mockResolvedValue(null);
     (mp.academicYear.findFirst as jest.Mock).mockResolvedValue(fakeAcademicYear);
     (mp.company.findFirst as jest.Mock).mockResolvedValue(null);
     (mp.company.create as jest.Mock).mockResolvedValue(fakeCompany);
     (mp.user.findUnique as jest.Mock).mockResolvedValue(fakeCSupervisor);
-    (mp.user.findMany as jest.Mock).mockResolvedValue([{ id: 'asu-1' }]); // one supervisor in region
-    (mp.placement.create as jest.Mock).mockResolvedValue({ ...fakePlacement });
-    (mp.placement.update as jest.Mock).mockResolvedValue({ ...fakePlacement, academicSupervisorId: 'asu-1', placementStatus: 'active' });
+    (mp.user.findMany as jest.Mock).mockResolvedValue([{ id: 'asu-1' }]); // a supervisor covers the region…
+    (mp.placement.create as jest.Mock).mockResolvedValue({ ...fakePlacement, company: fakeCompany, companySupervisor: fakeCSupervisor });
 
     const result = await service.createPlacement('student-1', validInput);
-    expect(mp.placement.update).toHaveBeenCalledTimes(1);
-    expect(result.placementStatus).toBe('active');
-    expect(result.academicSupervisorId).toBe('asu-1');
+    // …but registration must NOT auto-assign or activate — that waits for coordinator approval.
+    expect(result.placementStatus).toBe('pending');
+    expect(mp.placement.update).not.toHaveBeenCalled();
   });
 });
 
@@ -215,6 +214,36 @@ describe('service.updatePlacementStatus', () => {
     // Data must appear only when the student starts logging — nothing pre-seeded.
     expect(mp.logbookSubmission.createMany).not.toHaveBeenCalled();
     expect(mp.auditLog.create).toHaveBeenCalledTimes(1);
+  });
+
+  it('auto-assigns the least-loaded regional supervisor on approval when none is given', async () => {
+    (mp.placement.findUnique as jest.Mock).mockResolvedValue({ ...fakePlacement, region: 'greater_accra' });
+    (mp.user.findMany as jest.Mock).mockResolvedValue([{ id: 'asu-1' }]); // sole regional supervisor
+    (mp.placement.update as jest.Mock).mockResolvedValue({
+      ...fakePlacement, placementStatus: 'active', academicSupervisorId: 'asu-1',
+      student: { id: 'student-1', firstName: 'Ada', lastName: 'Okonkwo', email: 's@cs.edu' },
+    });
+    (mp.auditLog.create as jest.Mock).mockResolvedValue({});
+
+    await service.updatePlacementStatus('pl-1', 'coord-1', { status: 'active' });
+    expect(mp.placement.update).toHaveBeenCalledWith(
+      expect.objectContaining({ data: expect.objectContaining({ academicSupervisorId: 'asu-1' }) }),
+    );
+  });
+
+  it('honours an explicit supervisor over the regional auto-balance on approval', async () => {
+    (mp.placement.findUnique as jest.Mock).mockResolvedValue({ ...fakePlacement, region: 'greater_accra' });
+    (mp.placement.update as jest.Mock).mockResolvedValue({
+      ...fakePlacement, placementStatus: 'active', academicSupervisorId: 'asu-9',
+      student: { id: 'student-1', firstName: 'Ada', lastName: 'Okonkwo', email: 's@cs.edu' },
+    });
+    (mp.auditLog.create as jest.Mock).mockResolvedValue({});
+
+    await service.updatePlacementStatus('pl-1', 'coord-1', { status: 'active', supervisorId: 'asu-9' });
+    expect(mp.placement.update).toHaveBeenCalledWith(
+      expect.objectContaining({ data: expect.objectContaining({ academicSupervisorId: 'asu-9' }) }),
+    );
+    expect(mp.user.findMany).not.toHaveBeenCalled(); // no region lookup needed
   });
 
   it('rejects placement and records reason in audit log', async () => {
