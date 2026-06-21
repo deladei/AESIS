@@ -2021,3 +2021,24 @@ Same pattern as S41's flag columns. Do this **before/while** Render finishes bui
 **⚠️ Stopped here — follow-ups**
 1. **Backfill:** legacy placements have `region = null` → they never appear in region balancing and supervisors with a region won't pick them up. Coordinator can still assign them via the existing "All placements" reassign row. Set regions on legacy rows if region-balancing should cover them.
 2. Carried from S48 (unchanged): Cloudinary creds on Render `aesis-backend` (`CLOUDINARY_CLOUD_NAME|API_KEY|API_SECRET`) — attachment uploads 503 until set; `ENVIRONMENT=production` on the engine; 🔐 rotate pasted secrets; reconcile render.yaml Redis (`fromService: aesis-redis`) vs live Upstash before any blueprint sync; Prisma migration-history reconciliation (S41).
+
+---
+
+### Session 50 — 2026-06-21 — Fix: supervisor auto-balance was skipping the coordinator approval gate (commit `3c93738`, pushed)
+
+**Bug (continued from end-of-S49 WIP).** S49's region feature auto-assigned a regional supervisor **and flipped the placement to `active` inside `createPlacement`** — so a student registration could go straight to active, **bypassing the coordinator approval gate**. A new placement must always start `pending` until a coordinator approves it.
+
+**Fix.**
+- `placements.service.ts`:
+  - `createPlacement` — removed the auto-assign/activate block; a new placement is now **always created `pending` + unassigned** (still includes company/companySupervisor). `pickLeastLoadedSupervisor` unchanged + still exported.
+  - `updatePlacementStatus` (status→`active`, the approval path) — now resolves the academic supervisor as `input.supervisorId ?? (placement.region ? pickLeastLoadedSupervisor(region) : null) ?? placement.academicSupervisorId ?? null`. So coordinator's explicit pick wins; else region auto-balance; else keep any existing — **never silently un-assigns**.
+  - `assignSupervisor` — behaviour unchanged (assigning the academic supervisor to a pending placement still activates it = approving straight off the "needs a supervisor" queue); only the stale comment fixed.
+- `auth.service.ts` — `register()` still creates the placement inline (rolls user back on failure); only the stale "auto-assign at registration" comment corrected.
+
+**New flow:** student registers → **pending + unassigned** → coordinator approves (auto-balances) **or** assigns from the "needs a supervisor" queue → active.
+
+**Tests** (`placements.service.test.ts`): replaced the old "createPlacement auto-assigns + activates" case with "stays pending, never auto-activates even when a regional supervisor exists"; added two `updatePlacementStatus` cases — region auto-balance on approval, and explicit supervisor wins with no region lookup. **86/86** placements+auth green, `tsc --noEmit` clean.
+
+**Stopped here — follow-ups**
+1. **Backfill unchanged (S49):** legacy placements `region = null` → approval auto-balance returns null for them and keeps any existing supervisor; coordinator assigns explicitly. Set regions on legacy rows if region-balancing should cover them.
+2. Carried (S48/S49): Cloudinary creds on Render `aesis-backend` (attachment uploads 503 until set); `ENVIRONMENT=production` on the engine; 🔐 rotate pasted secrets; reconcile render.yaml Redis (`fromService: aesis-redis`) vs live Upstash before any blueprint sync; Prisma migration-history reconciliation (S41).
