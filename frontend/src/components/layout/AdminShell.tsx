@@ -19,7 +19,7 @@ interface NavItem {
 // land on the dashboard so the chrome stays consistent.
 const navItems: NavItem[] = [
   { label: 'Dashboard',       href: '/admin/dashboard', icon: LayoutDashboard },
-  { label: 'Interns',         href: '/admin/dashboard', icon: Users },
+  { label: 'Interns',         href: '/admin/interns', icon: Users },
   { label: 'Review Logbooks', href: '/admin/review',    icon: ClipboardCheck },
   { label: 'AI Insights',     href: '/ai-insights', icon: Sparkles },
   { label: 'Feedback Center', href: '/feedback', icon: MessageSquareText },

@@ -28,6 +28,7 @@ import CohortReport         from '@/pages/coordinator/CohortReport';
 import CompaniesList        from '@/pages/coordinator/CompaniesList';
 import Oversight            from '@/pages/coordinator/Oversight';
 import AdminDashboard       from '@/pages/admin/AdminDashboard';
+import AdminInterns         from '@/pages/admin/AdminInterns';
 import FeedbackCenter       from '@/pages/shared/FeedbackCenter';
 import AIInsights           from '@/pages/shared/AIInsights';
 import Attestation          from '@/pages/public/Attestation';
@@ -152,6 +153,7 @@ export const router = createBrowserRouter([
     element: <RequireAuth roles={['admin']} />,
     children: [
       { path: '/admin/dashboard', element: <AdminDashboard /> },
+      { path: '/admin/interns',   element: <AdminInterns /> },
       { path: '/admin/review',    element: <EntryReview /> },
       { path: '/admin/finalize',  element: <PlacementFinalization /> },
     ],
