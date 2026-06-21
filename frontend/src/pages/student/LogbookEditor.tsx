@@ -21,6 +21,17 @@ const COMPETENCY_SUGGESTIONS = [
 function toYMD(d: Date): string {
   return d.toISOString().slice(0, 10);
 }
+// "Today" as the user's LOCAL calendar date. The placement start is a local
+// calendar pick (<input type=date>, plain YYYY-MM-DD), so comparing it against a
+// UTC-derived today (toISOString) is off by a day for any device not on UTC —
+// an already-arrived start could still read as "hasn't started". Build the YMD
+// from local Y/M/D instead.
+function localYMD(d: Date): string {
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${y}-${m}-${day}`;
+}
 function ymd(iso: string): string {
   return iso.slice(0, 10);
 }
@@ -47,7 +58,7 @@ const SCHEDULE_WEEKS = 6;
 function buildSchedule(startDate: string | null): ScheduleWeek[] {
   if (!startDate) return [];
   const start = new Date(`${ymd(startDate)}T00:00:00Z`);
-  const today = new Date(`${toYMD(new Date())}T00:00:00Z`);
+  const today = new Date(`${localYMD(new Date())}T00:00:00Z`);
   if (today.getTime() < start.getTime()) return []; // placement hasn't started yet
 
   const weekMs = 7 * 86_400_000;
@@ -70,7 +81,7 @@ function buildSchedule(startDate: string | null): ScheduleWeek[] {
 // Default a new activity to today when today falls inside the week; otherwise
 // clamp to the week's bounds. (YMD strings compare correctly lexicographically.)
 function defaultActivityDate(week: ScheduleWeek): string {
-  const today = toYMD(new Date());
+  const today = localYMD(new Date());
   if (today < week.periodStart) return week.periodStart;
   if (today > week.periodEnd) return week.periodEnd;
   return today;
@@ -81,6 +92,12 @@ function fmtRange(start: string, end: string): string {
   const s = new Date(`${start}T00:00:00Z`).toLocaleDateString('en-GB', { ...opts, timeZone: 'UTC' });
   const e = new Date(`${end}T00:00:00Z`).toLocaleDateString('en-GB', { ...opts, year: 'numeric', timeZone: 'UTC' });
   return `${s} – ${e}`;
+}
+
+function fmtDate(d: string): string {
+  return new Date(`${ymd(d)}T00:00:00Z`).toLocaleDateString('en-GB', {
+    day: 'numeric', month: 'short', year: 'numeric', timeZone: 'UTC',
+  });
 }
 
 const STATUS_META: Record<EntryStatus | 'not_started', { label: string; cls: string; Icon: React.ElementType }> = {
@@ -302,7 +319,9 @@ export default function LogbookEditor() {
         <Calendar className="mx-auto mb-4 h-12 w-12 text-[#8a4cfc]" />
         <h2 className="mb-1 text-lg font-bold text-[#0b1c30]">Your placement hasn't started yet</h2>
         <p className="text-sm text-[#464652]">
-          The first logbook week opens on the placement start date.
+          {activePlacement.startDate
+            ? <>The first logbook week opens on <span className="font-semibold text-[#0b1c30]">{fmtDate(activePlacement.startDate)}</span>, your placement start date.</>
+            : 'The first logbook week opens on the placement start date.'}
         </p>
       </div>
     );
