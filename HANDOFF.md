@@ -2056,3 +2056,16 @@ Same pattern as S41's flag columns. Do this **before/while** Render finishes bui
 **Verified:** `tsc --noEmit` clean, `vite build` green. No backend/schema change.
 
 **Note:** if a student genuinely registered a future start date, the lock is correct (working as designed) — the new date line makes that clear.
+
+### Session 52 — 2026-06-21 — Admin "Interns" sidebar now opens the Intern Status Monitor (commit `b4cd7d3`, pushed)
+
+**Ask.** Admin portal "Interns" sidebar link dead-ended on the dashboard. Wire it to the same intern status/monitor table the coordinator has.
+
+**Fix (frontend-only).** Admin is already authorized on every `/coordinator/*` endpoint (`coordinator.router.ts`: `authorize('coordinator','admin')`) and always renders inside `AdminShell` (router shell switch keys on `user.role==='admin'`), so no backend/RBAC change was needed.
+- New page `frontend/src/pages/admin/AdminInterns.tsx` — mirrors `coordinator/InternsList.tsx`, reuses `components/coordinator/InternStatusTable` (full sortable/filterable monitor: status, attention, risk, progress, bulk remind/assign, CSV, live poll). "Admin" eyebrow label; honours `?attention=1`.
+- `router.tsx` — added `{ path: '/admin/interns', element: <AdminInterns /> }` under the admin `RequireAuth roles={['admin']}` block + import.
+- `AdminShell.tsx` — "Interns" nav `href` `/admin/dashboard` → `/admin/interns`.
+
+**Note.** Row drill-down still links to `/coordinator/interns/:placementId` (InternDetail) — admin is authorized there and it renders in AdminShell, so it works; only the detail page's eyebrow reads "Coordinator". Left as-is (out of scope).
+
+**Verified:** `tsc --noEmit` clean, `vite build` green (only pre-existing >500 kB chunk warning). No backend/schema change.
