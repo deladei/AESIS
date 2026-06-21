@@ -2001,3 +2001,23 @@ Same pattern as S41's flag columns. Do this **before/while** Render finishes bui
 **⚠️ Stopped here — prod follow-ups**
 1. **Uploads are DISABLED in prod until Cloudinary creds are set on Render `aesis-backend`:** `CLOUDINARY_CLOUD_NAME`, `CLOUDINARY_API_KEY`, `CLOUDINARY_API_SECRET` (Cloudinary console → dashboard). Until then `POST .../attachments` returns 503 (UI shows "File storage is not configured"). Migration runs automatically via `prisma migrate deploy` on deploy.
 2. Carried from S47 (unchanged): set `ENVIRONMENT=production` on the engine; 🔐 rotate the pasted secrets; reconcile render.yaml Redis (`fromService: aesis-redis`) vs live Upstash before any blueprint sync; Prisma migration-history reconciliation (S41).
+
+---
+
+### Session 49 — 2026-06-20 — Region-based placement + auto-balanced supervisor assignment (commit `0f92cb0`, pushed)
+
+**Work done** — completed the uncommitted WIP from end of S48 into a full cross-stack feature. Students now register their whole placement in one step and get a regional academic supervisor auto-assigned.
+- **DB (additive, CREATE-only):** `Region` enum = 16 Ghana regions (2019 demarcation); nullable `User.supervisedRegion` + `Placement.region`. Migration `20260619120000_region_assignment`. No existing column/row altered → no backfill.
+- **Region constants:** `backend/src/shared/constants/regions.ts` (tuple + labels, Zod source) mirrored by `frontend/src/lib/regions.ts` (+ `regionLabel()` null-tolerant). **Keep the two in sync** — API validates against the backend copy.
+- **auth:** `registerSchema` now takes student placement fields (region/company/dates), made mandatory for `role=student` via `superRefine`. `register()` calls `createPlacement` inline after user create; **rolls the user back** if placement creation throws (no orphan account).
+- **placements:** `createPlacement` persists `region` then auto-assigns via new **`pickLeastLoadedSupervisor(region)`** — supervisors with `supervisedRegion=region`, fewest live (pending+active) placements, ties by id; **null when region has no supervisor → placement stays pending+unassigned**. `assignSupervisor` now **activates** a still-pending placement when the academic supervisor is set (covers the unassigned-queue path).
+- **coordinator:** `listSupervisors` returns `region` + live `load`; **`setSupervisorRegion`** = `PATCH /api/v1/coordinator/supervisors/:id/region` (region nullable to clear); **`listUnassignedPlacements`** = `GET /api/v1/coordinator/unassigned-placements`.
+- **frontend:** RegisterPage "Your placement" block (region select + company/address/supervisor/dates, client-validated); `SupervisorAssignment` gains **Supervisor-regions** panel (per-supervisor region dropdown + caseload) and **Needs-a-supervisor** amber queue (assign directly, reuses `assignSupervisor`); `usePlacements` hooks `useUnassignedPlacements` + `useSetSupervisorRegion`.
+
+**Verification:** backend `tsc --noEmit` clean; Jest auth + placements + coordinator green incl **new** cases (`pickLeastLoadedSupervisor`: none/sole/least-loaded; createPlacement auto-assign activates; assignSupervisor activates pending). Frontend `tsc` + `vite build` clean (only pre-existing >500 kB chunk warning).
+
+**Model recap:** one student placement → one region; one academic supervisor → one region (set by coordinator) → supervises all interns there; new interns auto-balanced across supervisors sharing the region; no-supervisor regions queue for manual assignment.
+
+**⚠️ Stopped here — follow-ups**
+1. **Backfill:** legacy placements have `region = null` → they never appear in region balancing and supervisors with a region won't pick them up. Coordinator can still assign them via the existing "All placements" reassign row. Set regions on legacy rows if region-balancing should cover them.
+2. Carried from S48 (unchanged): Cloudinary creds on Render `aesis-backend` (`CLOUDINARY_CLOUD_NAME|API_KEY|API_SECRET`) — attachment uploads 503 until set; `ENVIRONMENT=production` on the engine; 🔐 rotate pasted secrets; reconcile render.yaml Redis (`fromService: aesis-redis`) vs live Upstash before any blueprint sync; Prisma migration-history reconciliation (S41).
