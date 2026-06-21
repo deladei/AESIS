@@ -2042,3 +2042,17 @@ Same pattern as S41's flag columns. Do this **before/while** Render finishes bui
 **Stopped here — follow-ups**
 1. **Backfill unchanged (S49):** legacy placements `region = null` → approval auto-balance returns null for them and keeps any existing supervisor; coordinator assigns explicitly. Set regions on legacy rows if region-balancing should cover them.
 2. Carried (S48/S49): Cloudinary creds on Render `aesis-backend` (attachment uploads 503 until set); `ENVIRONMENT=production` on the engine; 🔐 rotate pasted secrets; reconcile render.yaml Redis (`fromService: aesis-redis`) vs live Upstash before any blueprint sync; Prisma migration-history reconciliation (S41).
+
+### Session 51 — 2026-06-21 — Fix: logbook locked an approved, started placement (commit `fab332e`, pushed)
+
+**Bug.** A student whose placement was approved (active) and whose start date had arrived still saw "Your placement hasn't started yet" and could not submit. Traced entirely to the frontend `LogbookEditor.tsx` — backend never gates submit on placement status or start date (`entries.policy.ts` = ownership only; `entries.service.ts` = no status/date guard).
+
+**Root cause.** `buildSchedule()` returns `[]` (→ locked screen) when `today < startDate`. `today` was the **UTC** calendar date (`toYMD` = `.toISOString()`), but the start date is a **local** calendar pick (`<input type=date>`, plain `YYYY-MM-DD`). On any device not on UTC, UTC-today lagged a day, so an already-arrived start still read as future. Ghana (UTC+0) prod dodges it, but any non-UTC device clock trips it.
+
+**Fix** (`frontend/src/pages/student/LogbookEditor.tsx`, FE-only):
+- Added `localYMD(d)` (local Y/M/D, no `toISOString`); `buildSchedule` and `defaultActivityDate` now compute "today" with it instead of UTC `toYMD`.
+- Added `fmtDate()`; the "hasn't started" screen now shows the actual start date ("opens on 25 Jun 2026 …") so an early-registered student sees *why* it's locked rather than a bare message.
+
+**Verified:** `tsc --noEmit` clean, `vite build` green. No backend/schema change.
+
+**Note:** if a student genuinely registered a future start date, the lock is correct (working as designed) — the new date line makes that clear.
