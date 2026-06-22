@@ -48,6 +48,23 @@ export const registerSchema = z.object({
   }
 });
 
+// Self-service profile edit (PATCH /auth/me). Every field is optional — only
+// what's sent is changed. Identity-sensitive fields (email, role, password) are
+// intentionally NOT editable here; those have their own flows. `indexNumber` is
+// accepted but only applied for students (enforced in the service against the
+// authenticated role, since the body can't be trusted to carry it).
+export const updateProfileSchema = z.object({
+  firstName:   z.string().trim().min(2).max(50).optional(),
+  lastName:    z.string().trim().min(2).max(50).optional(),
+  gender:      z.enum(['male', 'female', 'other']).optional(),
+  // Phone is PII (AES-256-GCM at rest). Empty string clears it.
+  phone:       z.string().trim().max(30).optional(),
+  indexNumber: z.string().trim().min(3, 'Index number is too short').max(40).optional(),
+}).refine(
+  (data) => Object.values(data).some((v) => v !== undefined),
+  { message: 'No fields to update' },
+);
+
 export const loginSchema = z.object({
   email:    emailField,
   password: z.string().min(1),
@@ -67,6 +84,7 @@ export const resetPasswordConfirmSchema = z.object({
 });
 
 export type RegisterInput          = z.infer<typeof registerSchema>;
+export type UpdateProfileInput     = z.infer<typeof updateProfileSchema>;
 export type LoginInput             = z.infer<typeof loginSchema>;
 export type ResetPasswordInitInput = z.infer<typeof resetPasswordInitSchema>;
 export type ResetPasswordConfirmInput = z.infer<typeof resetPasswordConfirmSchema>;

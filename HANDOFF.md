@@ -2095,3 +2095,22 @@ Same pattern as S41's flag columns. Do this **before/while** Render finishes bui
 **Stopped here — follow-ups.**
 1. Gender/index are **nullable** → all pre-S53 accounts have `gender = null` / `indexNumber = null`; Profile shows `—` for them. No profile **edit** endpoint yet — values are set at registration only (add a `PATCH /auth/me` if back-fill/self-edit is wanted).
 2. Carried (S48–S50): Cloudinary creds on Render `aesis-backend` (attachment uploads 503 until set); `ENVIRONMENT=production` on the engine; 🔐 rotate pasted secrets; reconcile render.yaml Redis (`fromService: aesis-redis`) vs live Upstash before any blueprint sync; Prisma migration-history reconciliation (S41); legacy placements `region = null`.
+
+### Session 54 — 2026-06-22 — Profile self-edit (`PATCH /auth/me`)
+
+**Ask.** S53 left gender/index registration-only (no edit). Add a self-service profile edit endpoint + UI.
+
+**Backend (no migration — fields already exist).**
+- `auth.schema.ts` — new `updateProfileSchema`: all fields optional (`firstName`, `lastName`, `gender`, `phone`, `indexNumber`); `.refine` rejects an empty body ("No fields to update"). New `UpdateProfileInput` type.
+- `auth.service.ts` — new **`updateProfile(userId, input)`**: 404 if user gone; builds a partial update from only the sent fields; **phone** is PII → `encryptPII` at rest, **empty string clears it** (NULL); **indexNumber** applied **students only** (silently dropped for other roles) with a dup check excluding self → **409**; returns `getProfile(userId)`. Imported `encryptPII`.
+- `auth.controller.ts` — `updateMeHandler` (parses body, calls service, returns `{ profile }`).
+- `auth.router.ts` — **`PATCH /me`** behind `authenticate`.
+- Email/role/password intentionally NOT editable here (own flows).
+
+**Frontend.**
+- `hooks/useProfile.ts` — `UpdateProfileInput` type + `useUpdateProfile()` mutation (PATCH `/auth/me`, writes result into the `['profile','me']` cache).
+- `pages/shared/ProfilePage.tsx` — "Edit profile" button on the header card; inline `EditProfileForm` (first/last name, gender select, phone, student-only index number) that sends only changed fields, surfaces the server error message (e.g. dup-index 409), spinner while saving, swaps back to read-only on success/cancel.
+
+**Verification.** Backend `tsc --noEmit` clean; auth Jest **42/42** (added: update 404, name+gender, phone encrypt + empty-clears, dup-index 409, non-student ignores index). Frontend `tsc --noEmit` clean + `vite build` green (pre-existing >500 kB chunk warning only).
+
+**Note.** Closes S53 follow-up #1. Phone wasn't collected at registration, so this is also the first place a user can set it.

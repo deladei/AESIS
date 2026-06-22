@@ -14,10 +14,11 @@ import {
   buildPasswordResetEmail,
 } from '../../shared/utils/email';
 import { createPlacement } from '../placements/placements.service';
-import { decryptPII } from '../../shared/utils/crypto';
+import { decryptPII, encryptPII } from '../../shared/utils/crypto';
 import type {
   RegisterInput,
   LoginInput,
+  UpdateProfileInput,
   ResetPasswordInitInput,
   ResetPasswordConfirmInput,
 } from './auth.schema';
@@ -197,6 +198,48 @@ export async function getProfile(userId: string) {
   }
 
   return base;
+}
+
+// ── Update profile (self-service) ────────────────────────────────────────────
+
+export async function updateProfile(userId: string, input: UpdateProfileInput) {
+  const user = await prisma.user.findUnique({ where: { id: userId } });
+  if (!user) throw new AppError(404, 'User not found');
+
+  const data: {
+    firstName?: string;
+    lastName?: string;
+    gender?: 'male' | 'female' | 'other';
+    phone?: string | null;
+    indexNumber?: string | null;
+  } = {};
+
+  if (input.firstName !== undefined) data.firstName = input.firstName;
+  if (input.lastName  !== undefined) data.lastName  = input.lastName;
+  if (input.gender    !== undefined) data.gender    = input.gender;
+
+  // Phone is PII — encrypt at rest. An empty string clears it (stored NULL).
+  if (input.phone !== undefined) {
+    data.phone = input.phone === '' ? null : encryptPII(input.phone);
+  }
+
+  // Index number is a student-only identifier and unique. Silently ignore it for
+  // other roles (the body can't elevate a non-student into having one).
+  if (input.indexNumber !== undefined && user.role === 'student') {
+    if (input.indexNumber !== user.indexNumber) {
+      const dupIndex = await prisma.user.findUnique({ where: { indexNumber: input.indexNumber } });
+      if (dupIndex && dupIndex.id !== userId) {
+        throw new AppError(409, 'An account with this index number already exists');
+      }
+    }
+    data.indexNumber = input.indexNumber;
+  }
+
+  if (Object.keys(data).length > 0) {
+    await prisma.user.update({ where: { id: userId }, data });
+  }
+
+  return getProfile(userId);
 }
 
 // ── Verify Email ─────────────────────────────────────────────

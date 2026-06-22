@@ -2,6 +2,7 @@ import { Request, Response } from 'express';
 import {
   registerSchema,
   loginSchema,
+  updateProfileSchema,
   resetPasswordInitSchema,
   resetPasswordConfirmSchema,
 } from './auth.schema';
@@ -86,6 +87,13 @@ export async function resetPasswordConfirmHandler(req: Request, res: Response) {
 export async function meHandler(req: Request, res: Response) {
   const userId = req.user!.sub;
   const profile = await authService.getProfile(userId);
+  return ok(res, { profile });
+}
+
+export async function updateMeHandler(req: Request, res: Response) {
+  const userId  = req.user!.sub;
+  const input   = updateProfileSchema.parse(req.body);
+  const profile = await authService.updateProfile(userId, input);
   return ok(res, { profile });
 }
 

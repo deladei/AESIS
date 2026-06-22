@@ -32,6 +32,8 @@ jest.mock('../../../config/env', () => ({
     REFRESH_TOKEN_EXPIRY_DAYS: 7,
     JWT_SECRET:                'test_secret_at_least_32_characters_long',
     JWT_EXPIRY:                '15m',
+    ENCRYPTION_KEY:            '0'.repeat(64), // 32-byte hex key for AES-256-GCM
+
     FRONTEND_URL:              'http://localhost:5173',
     EMAIL_FROM:                'test@aesis.edu',
     EMAIL_FROM_NAME:           'AESIS Test',
@@ -195,6 +197,83 @@ describe('authService.getProfile', () => {
 
     expect(profile.placement).toBeNull();
     expect(mockPrisma.placement.findFirst).not.toHaveBeenCalled();
+  });
+});
+
+// ─────────────────────────────────────────────────────────────
+describe('authService.updateProfile', () => {
+  beforeEach(() => jest.clearAllMocks());
+
+  // getProfile is exercised on the return path; give it enough to not throw.
+  const stubProfileRead = (overrides = {}) => {
+    (mockPrisma.user.findUnique as jest.Mock).mockResolvedValue({
+      id: 'user-uuid-1', firstName: 'Ada', lastName: 'Okonkwo', email: 'student@cs.edu',
+      role: 'student', gender: 'female', indexNumber: '10543210', phone: null,
+      isVerified: true, supervisedRegion: null, createdAt: new Date(), lastLoginAt: null,
+      department: { name: 'Computer Science', code: 'CS' },
+      programme:  { name: 'B.Sc. Computer Science', code: 'BSC-CS' },
+      ...overrides,
+    });
+    (mockPrisma.placement.findFirst as jest.Mock).mockResolvedValue(null);
+  };
+
+  it('throws 404 when the user does not exist', async () => {
+    (mockPrisma.user.findUnique as jest.Mock).mockResolvedValue(null);
+    await expect(authService.updateProfile('missing-id', { firstName: 'Nia' }))
+      .rejects.toMatchObject({ statusCode: 404 });
+    expect(mockPrisma.user.update).not.toHaveBeenCalled();
+  });
+
+  it('updates name + gender', async () => {
+    stubProfileRead();
+    (mockPrisma.user.update as jest.Mock).mockResolvedValue({});
+
+    await authService.updateProfile('user-uuid-1', { firstName: 'Nia', gender: 'other' });
+
+    expect(mockPrisma.user.update).toHaveBeenCalledWith(
+      expect.objectContaining({ data: { firstName: 'Nia', gender: 'other' } }),
+    );
+  });
+
+  it('encrypts phone (not stored in plaintext) and clears it on empty string', async () => {
+    stubProfileRead();
+    (mockPrisma.user.update as jest.Mock).mockResolvedValue({});
+
+    await authService.updateProfile('user-uuid-1', { phone: '+233201234567' });
+    const setPhone = (mockPrisma.user.update as jest.Mock).mock.calls[0][0].data.phone as string;
+    expect(setPhone).not.toContain('+233201234567');
+    expect(JSON.parse(setPhone)).toHaveProperty('ciphertext');
+
+    jest.clearAllMocks();
+    stubProfileRead();
+    (mockPrisma.user.update as jest.Mock).mockResolvedValue({});
+    await authService.updateProfile('user-uuid-1', { phone: '' });
+    expect((mockPrisma.user.update as jest.Mock).mock.calls[0][0].data).toEqual({ phone: null });
+  });
+
+  it('rejects a duplicate index number with 409', async () => {
+    // first findUnique = the user being edited; second = the dup lookup.
+    (mockPrisma.user.findUnique as jest.Mock)
+      .mockResolvedValueOnce({ id: 'user-uuid-1', role: 'student', indexNumber: '10543210' })
+      .mockResolvedValueOnce({ id: 'someone-else', indexNumber: '99999999' });
+
+    await expect(authService.updateProfile('user-uuid-1', { indexNumber: '99999999' }))
+      .rejects.toMatchObject({ statusCode: 409 });
+    expect(mockPrisma.user.update).not.toHaveBeenCalled();
+  });
+
+  it('ignores indexNumber for non-student roles', async () => {
+    stubProfileRead({ id: 'sup-1', role: 'academic_supervisor', indexNumber: null });
+    (mockPrisma.user.update as jest.Mock).mockResolvedValue({});
+
+    await authService.updateProfile('sup-1', { indexNumber: '12345', firstName: 'Akua' });
+
+    // only the name change is applied — indexNumber is dropped for non-students.
+    expect(mockPrisma.user.update).toHaveBeenCalledWith(
+      expect.objectContaining({ data: { firstName: 'Akua' } }),
+    );
+    const writtenData = (mockPrisma.user.update as jest.Mock).mock.calls[0][0].data;
+    expect(writtenData).not.toHaveProperty('indexNumber');
   });
 });
 

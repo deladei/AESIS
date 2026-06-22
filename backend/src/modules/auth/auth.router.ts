@@ -7,6 +7,7 @@ const router = Router();
 
 router.get('/programmes',               asyncHandler(ctrl.programmesHandler));
 router.get('/me',                       authenticate, asyncHandler(ctrl.meHandler));
+router.patch('/me',                     authenticate, asyncHandler(ctrl.updateMeHandler));
 router.post('/register',                asyncHandler(ctrl.registerHandler));
 router.post('/login',                   asyncHandler(ctrl.loginHandler));
 router.get('/verify-email',             asyncHandler(ctrl.verifyEmailHandler));

@@ -1,5 +1,6 @@
-import { Loader2, BadgeCheck, ShieldAlert, Mail, Phone, Hash, MapPin, Building2, CalendarDays, GraduationCap, UserRound } from 'lucide-react';
-import { useProfile, type Profile } from '@/hooks/useProfile';
+import { useState } from 'react';
+import { Loader2, BadgeCheck, ShieldAlert, Mail, Phone, Hash, MapPin, Building2, CalendarDays, GraduationCap, UserRound, Pencil, X } from 'lucide-react';
+import { useProfile, useUpdateProfile, type Profile, type UpdateProfileInput } from '@/hooks/useProfile';
 import { regionLabel } from '@/lib/regions';
 
 const ROLE_LABELS: Record<Profile['role'], string> = {
@@ -44,8 +45,106 @@ function Field({ icon: Icon, label, value }: { icon: React.ElementType; label: s
   );
 }
 
+function EditProfileForm({ profile, onDone }: { profile: Profile; onDone: () => void }) {
+  const isStudent = profile.role === 'student';
+  const update = useUpdateProfile();
+  const [firstName, setFirstName]   = useState(profile.firstName);
+  const [lastName, setLastName]     = useState(profile.lastName);
+  const [gender, setGender]         = useState<Profile['gender']>(profile.gender);
+  const [phone, setPhone]           = useState(profile.phone ?? '');
+  const [indexNumber, setIndexNumber] = useState(profile.indexNumber ?? '');
+
+  const inputCls = 'w-full rounded-lg border border-[#c7c5d4] bg-white px-3 py-2 text-sm text-[#0b1c30] focus:border-[#15157d] focus:outline-none focus:ring-1 focus:ring-[#15157d]';
+  const labelCls = 'mb-1 block text-[11px] font-semibold uppercase tracking-wide text-[#757684]';
+
+  // Send only changed fields. Empty phone is meaningful (clears it), so always
+  // send it when it differs; index number is student-only.
+  function buildPatch(): UpdateProfileInput {
+    const patch: UpdateProfileInput = {};
+    if (firstName.trim() !== profile.firstName) patch.firstName = firstName.trim();
+    if (lastName.trim()  !== profile.lastName)  patch.lastName  = lastName.trim();
+    if (gender && gender !== profile.gender)     patch.gender    = gender;
+    if (phone !== (profile.phone ?? ''))         patch.phone     = phone.trim();
+    if (isStudent && indexNumber.trim() !== (profile.indexNumber ?? '')) {
+      patch.indexNumber = indexNumber.trim();
+    }
+    return patch;
+  }
+
+  async function handleSave() {
+    const patch = buildPatch();
+    if (Object.keys(patch).length === 0) { onDone(); return; }
+    try {
+      await update.mutateAsync(patch);
+      onDone();
+    } catch { /* error surfaced below */ }
+  }
+
+  const errMsg = update.isError
+    ? ((update.error as { response?: { data?: { error?: { message?: string } } } })?.response?.data?.error?.message
+        ?? 'Could not save changes. Please try again.')
+    : null;
+
+  return (
+    <section className="mt-6 rounded-2xl border border-[#c7c5d4]/40 bg-white p-6 shadow-sm">
+      <div className="mb-4 flex items-center justify-between">
+        <h2 className="text-sm font-bold text-[#15157d]">Edit profile</h2>
+        <button onClick={onDone} className="text-[#757684] hover:text-[#0b1c30]" aria-label="Cancel">
+          <X className="h-4 w-4" />
+        </button>
+      </div>
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+        <div>
+          <label className={labelCls} htmlFor="pf-first">First name</label>
+          <input id="pf-first" className={inputCls} value={firstName} onChange={(e) => setFirstName(e.target.value)} />
+        </div>
+        <div>
+          <label className={labelCls} htmlFor="pf-last">Last name</label>
+          <input id="pf-last" className={inputCls} value={lastName} onChange={(e) => setLastName(e.target.value)} />
+        </div>
+        <div>
+          <label className={labelCls} htmlFor="pf-gender">Gender</label>
+          <select id="pf-gender" className={inputCls} value={gender ?? ''} onChange={(e) => setGender((e.target.value || null) as Profile['gender'])}>
+            <option value="">—</option>
+            <option value="male">Male</option>
+            <option value="female">Female</option>
+            <option value="other">Other</option>
+          </select>
+        </div>
+        <div>
+          <label className={labelCls} htmlFor="pf-phone">Phone</label>
+          <input id="pf-phone" className={inputCls} value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="e.g. +233 20 123 4567" />
+        </div>
+        {isStudent && (
+          <div>
+            <label className={labelCls} htmlFor="pf-index">Index number</label>
+            <input id="pf-index" className={inputCls} value={indexNumber} onChange={(e) => setIndexNumber(e.target.value)} />
+          </div>
+        )}
+      </div>
+
+      {errMsg && <p className="mt-4 text-sm text-[#ba1a1a]">{errMsg}</p>}
+
+      <div className="mt-5 flex items-center gap-3">
+        <button
+          onClick={handleSave}
+          disabled={update.isPending}
+          className="inline-flex items-center gap-2 rounded-lg bg-[#15157d] px-4 py-2 text-sm font-semibold text-white hover:bg-[#1e1ea0] disabled:opacity-60"
+        >
+          {update.isPending && <Loader2 className="h-4 w-4 animate-spin" />}
+          Save changes
+        </button>
+        <button onClick={onDone} className="rounded-lg px-4 py-2 text-sm font-semibold text-[#464652] hover:bg-[#f1f1f5]">
+          Cancel
+        </button>
+      </div>
+    </section>
+  );
+}
+
 export default function ProfilePage() {
   const { data: profile, isLoading, isError, refetch } = useProfile();
+  const [editing, setEditing] = useState(false);
 
   if (isLoading) {
     return (
@@ -81,7 +180,7 @@ export default function ProfilePage() {
           <div className="flex h-16 w-16 shrink-0 items-center justify-center rounded-full bg-[#e1e0ff] text-xl font-bold text-[#15157d]">
             {initials}
           </div>
-          <div className="min-w-0">
+          <div className="min-w-0 flex-1">
             <h1 className="truncate text-xl font-bold text-[#0b1c30]">{fullName}</h1>
             <p className="truncate text-sm text-[#464652]">{profile.email}</p>
             <div className="mt-2 flex flex-wrap items-center gap-2">
@@ -99,10 +198,21 @@ export default function ProfilePage() {
               )}
             </div>
           </div>
+          {!editing && (
+            <button
+              onClick={() => setEditing(true)}
+              className="inline-flex shrink-0 items-center gap-2 self-start rounded-lg border border-[#c7c5d4] px-3 py-2 text-sm font-semibold text-[#15157d] hover:bg-[#eff4ff]"
+            >
+              <Pencil className="h-4 w-4" /> Edit profile
+            </button>
+          )}
         </div>
       </div>
 
+      {editing && <EditProfileForm profile={profile} onDone={() => setEditing(false)} />}
+
       {/* Account details */}
+      {!editing && (
       <section className="mt-6 rounded-2xl border border-[#c7c5d4]/40 bg-white p-6 shadow-sm">
         <h2 className="mb-4 text-sm font-bold text-[#15157d]">Account details</h2>
         <div className="grid grid-cols-1 gap-5 sm:grid-cols-2">
@@ -119,6 +229,7 @@ export default function ProfilePage() {
           <Field icon={CalendarDays} label="Last sign-in" value={fmtDate(profile.lastLoginAt)} />
         </div>
       </section>
+      )}
 
       {/* Placement (students only) */}
       {isStudent && (
