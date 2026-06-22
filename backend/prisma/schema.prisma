@@ -31,6 +31,14 @@ enum PlacementStatus {
   failed
 }
 
+// Self-reported at registration. `other` covers anyone who does not identify
+// as male/female; the field is nullable so seeded/legacy accounts are unaffected.
+enum Gender {
+  male
+  female
+  other
+}
+
 // The 16 administrative regions of Ghana (2019 demarcation). A student's
 // internship placement sits in exactly one region; an academic supervisor is
 // assigned to exactly one region and supervises every intern placed there.
@@ -243,6 +251,10 @@ model User {
   firstName           String             @map("first_name")
   lastName            String             @map("last_name")
   phone               String? // AES-256-GCM encrypted at app layer
+  // Self-reported at registration. `gender` applies to every role; `indexNumber`
+  // is the student's university index/matric number (unique, students only).
+  gender              Gender?            @map("gender")
+  indexNumber         String?            @unique @map("index_number")
   departmentId        String             @map("department_id")
   department          Department         @relation(fields: [departmentId], references: [id])
   programmeId         String?            @map("programme_id")

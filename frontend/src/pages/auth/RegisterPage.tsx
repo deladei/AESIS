@@ -27,6 +27,8 @@ interface FormState {
   email: string;
   password: string;
   role: SelfRegisterRole;
+  gender: '' | 'male' | 'female' | 'other';
+  indexNumber: string;
   programmeId: string;
   // Student placement (created at registration)
   region: string;
@@ -56,6 +58,8 @@ export default function RegisterPage() {
     email:                  '',
     password:               '',
     role:                   'student',
+    gender:                 '',
+    indexNumber:            '',
     programmeId:            '',
     region:                 '',
     companyName:            '',
@@ -123,7 +127,9 @@ export default function RegisterPage() {
     if (!form.lastName.trim()) e.lastName = 'Required';
     if (!form.email.includes('@') || !form.email.includes('.')) e.email = 'Enter a valid email address';
     if (form.password.length < 8) e.password = 'Minimum 8 characters';
+    if (!form.gender) e.gender = 'Select your gender';
     if (form.role === 'student') {
+      if (!form.indexNumber.trim()) e.indexNumber = 'Required';
       if (!form.programmeId) e.programmeId = 'Select a programme';
       if (!form.region) e.region = 'Select your placement region';
       if (!form.companyName.trim()) e.companyName = 'Required';
@@ -151,8 +157,10 @@ export default function RegisterPage() {
         email:     form.email,
         password:  form.password,
         role:      form.role,
+        gender:    form.gender as 'male' | 'female' | 'other',
         ...(form.role === 'student'
           ? {
+              indexNumber:            form.indexNumber.trim(),
               programmeId:            form.programmeId,
               region:                 form.region,
               companyName:            form.companyName,
@@ -321,6 +329,37 @@ export default function RegisterPage() {
             </div>
             {errors.password && <p className="mt-1 text-xs text-red-400">{errors.password}</p>}
           </div>
+
+          <div>
+            <label htmlFor="gender" className="block text-sm font-medium text-slate-300 mb-1.5">Gender</label>
+            <select
+              id="gender"
+              value={form.gender}
+              onChange={(e) => setField('gender', e.target.value as FormState['gender'])}
+              className={`${fieldClass(!!errors.gender)} cursor-pointer ${form.gender ? 'text-slate-100' : 'text-slate-500'}`}
+            >
+              <option value="" disabled>Select gender</option>
+              <option value="female" className="text-slate-100">Female</option>
+              <option value="male" className="text-slate-100">Male</option>
+              <option value="other" className="text-slate-100">Other</option>
+            </select>
+            {errors.gender && <p className="mt-1 text-xs text-red-400">{errors.gender}</p>}
+          </div>
+
+          {form.role === 'student' && (
+            <div>
+              <label htmlFor="indexNumber" className="block text-sm font-medium text-slate-300 mb-1.5">Index number</label>
+              <input
+                id="indexNumber"
+                type="text"
+                placeholder="e.g. 10543210"
+                value={form.indexNumber}
+                onChange={(e) => setField('indexNumber', e.target.value)}
+                className={fieldClass(!!errors.indexNumber)}
+              />
+              {errors.indexNumber && <p className="mt-1 text-xs text-red-400">{errors.indexNumber}</p>}
+            </div>
+          )}
 
           {form.role === 'student' && (
             <div ref={programmeRef}>

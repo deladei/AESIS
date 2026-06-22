@@ -20,7 +20,10 @@ export const registerSchema = z.object({
   email:       emailField,
   password:    z.string().min(8, 'Password must be at least 8 characters').max(128),
   role:        z.enum(SELF_REGISTERABLE_ROLES),
+  gender:      z.enum(['male', 'female', 'other']),
   programmeId: z.string().uuid('Invalid programme ID').optional(),
+  // Student university index/matric number (unique). Required for students below.
+  indexNumber: z.string().trim().min(3, 'Index number is too short').max(40).optional(),
   // Student placement fields
   region:                 z.enum(REGION_VALUES).optional(),
   companyName:            z.string().trim().min(2).max(200).optional(),
@@ -32,6 +35,7 @@ export const registerSchema = z.object({
 }).superRefine((data, ctx) => {
   if (data.role !== 'student') return;
   if (!data.programmeId)            ctx.addIssue({ code: 'custom', path: ['programmeId'],            message: 'Students must select a programme' });
+  if (!data.indexNumber)           ctx.addIssue({ code: 'custom', path: ['indexNumber'],           message: 'Index number is required' });
   if (!data.region)                ctx.addIssue({ code: 'custom', path: ['region'],                message: 'Select your placement region' });
   if (!data.companyName)           ctx.addIssue({ code: 'custom', path: ['companyName'],           message: 'Company name is required' });
   if (!data.companyAddress)        ctx.addIssue({ code: 'custom', path: ['companyAddress'],        message: 'Company address is required' });

@@ -83,6 +83,12 @@ export async function resetPasswordConfirmHandler(req: Request, res: Response) {
   return ok(res, result);
 }
 
+export async function meHandler(req: Request, res: Response) {
+  const userId = req.user!.sub;
+  const profile = await authService.getProfile(userId);
+  return ok(res, { profile });
+}
+
 export async function programmesHandler(_req: Request, res: Response) {
   const programmes = await prisma.academicProgramme.findMany({
     select: { id: true, name: true, code: true },

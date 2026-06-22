@@ -31,6 +31,7 @@ import AdminDashboard       from '@/pages/admin/AdminDashboard';
 import AdminInterns         from '@/pages/admin/AdminInterns';
 import FeedbackCenter       from '@/pages/shared/FeedbackCenter';
 import AIInsights           from '@/pages/shared/AIInsights';
+import ProfilePage          from '@/pages/shared/ProfilePage';
 import Attestation          from '@/pages/public/Attestation';
 
 type UserRole = 'student' | 'academic_supervisor' | 'coordinator' | 'admin';
@@ -172,6 +173,14 @@ export const router = createBrowserRouter([
     element: <RequireAuth roles={['academic_supervisor', 'coordinator', 'admin']} />,
     children: [
       { path: '/ai-insights', element: <AIInsights /> },
+    ],
+  },
+
+  // Profile — shared screen for every authenticated role, in their own shell
+  {
+    element: <RequireAuth roles={['student', 'academic_supervisor', 'coordinator', 'admin']} />,
+    children: [
+      { path: '/profile', element: <ProfilePage /> },
     ],
   },
 

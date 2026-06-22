@@ -28,7 +28,11 @@ export interface RegisterInput {
   email:        string;
   password:     string;
   role:         SelfRegisterRole;
+  gender:       'male' | 'female' | 'other';
   programmeId?: string;
+  // Student-only university index / matric number (unique). Required by the API
+  // when role=student.
+  indexNumber?: string;
   // Student-only: the full placement is created at registration and a regional
   // academic supervisor is auto-assigned. Required by the API when role=student.
   region?:                 string;

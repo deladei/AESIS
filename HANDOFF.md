@@ -2069,3 +2069,29 @@ Same pattern as S41's flag columns. Do this **before/while** Render finishes bui
 **Note.** Row drill-down still links to `/coordinator/interns/:placementId` (InternDetail) — admin is authorized there and it renders in AdminShell, so it works; only the detail page's eyebrow reads "Coordinator". Left as-is (out of scope).
 
 **Verified:** `tsc --noEmit` clean, `vite build` green (only pre-existing >500 kB chunk warning). No backend/schema change.
+
+### Session 53 — 2026-06-22 — Gender + index number at registration, and a Profile screen (every role)
+
+**Ask.** Continue the end-of-S52 WIP: add **gender** + student **index/matric number** to sign-up, and ship a **Profile** page that surfaces everything the system knows about the signed-in user.
+
+**DB (additive, CREATE-only — migration `20260621160000_user_gender_index_number`).** New `Gender` enum (`male|female|other`); nullable `User.gender` + nullable, **unique** `User.indexNumber` (`index_number`). Nullable → no backfill; Postgres allows multiple NULLs under the unique index, so legacy/seeded rows are untouched.
+
+**Backend.**
+- `auth.schema.ts` — `registerSchema` now requires `gender` for **all** self-registering roles; `indexNumber` (trim, 3–40) is **required for students** via the existing `superRefine` (ignored for other roles).
+- `auth.service.ts`:
+  - `register()` persists `gender` + (students only) `indexNumber`, with a pre-insert **unique index-number check → 409** (mirrors the email check); index number is forced `null` for non-students.
+  - New **`getProfile(userId)`** — returns identity + role + gender + indexNumber + decrypted phone (best-effort `safeDecrypt`, never throws) + department/programme names + `supervisedRegion` + timestamps; for **students** also attaches the latest placement (company/region/dates/company+academic supervisor names, address `safeDecrypt`-ed). 404 if the user is gone.
+- `auth.controller.ts` + `auth.router.ts` — **`GET /api/v1/auth/me`** (behind `authenticate`) → `{ profile }`.
+
+**Frontend.**
+- `RegisterPage.tsx` — **Gender** select (all roles) + **Index number** input (students only); wired into form state, validation, and payload (index trimmed, student-only).
+- `AuthContext.tsx` — `RegisterInput` gains `gender` (required) + optional `indexNumber`.
+- New `hooks/useProfile.ts` (`GET /auth/me`, `Profile`/`ProfilePlacement` types) + new shared page `pages/shared/ProfilePage.tsx` — header card (avatar/role/verified badge), Account-details grid (email/gender/phone/index/programme/department/region/member-since/last-sign-in), and a student-only Placement card. Light shell theme; honest `—` for empty fields.
+- `router.tsx` — `/profile` shared route for **all four roles** (rendered in each role's own shell).
+- Nav entry points: "My Profile" added to `StudentShell`, `SupervisorShell`, `AdminShell` nav, and to `AccountMenu` (coordinator/admin topbar dropdown).
+
+**Verification.** Backend `tsc --noEmit` clean; auth Jest **37/37** (new: dup-index 409, gender+index persisted on create, `getProfile` 404 / student-with-placement / non-student-skips-placement; updated `validInput`/`validBody` to carry gender+index). Frontend `tsc --noEmit` clean + `vite build` green (only pre-existing >500 kB chunk warning).
+
+**Stopped here — follow-ups.**
+1. Gender/index are **nullable** → all pre-S53 accounts have `gender = null` / `indexNumber = null`; Profile shows `—` for them. No profile **edit** endpoint yet — values are set at registration only (add a `PATCH /auth/me` if back-fill/self-edit is wanted).
+2. Carried (S48–S50): Cloudinary creds on Render `aesis-backend` (attachment uploads 503 until set); `ENVIRONMENT=production` on the engine; 🔐 rotate pasted secrets; reconcile render.yaml Redis (`fromService: aesis-redis`) vs live Upstash before any blueprint sync; Prisma migration-history reconciliation (S41); legacy placements `region = null`.

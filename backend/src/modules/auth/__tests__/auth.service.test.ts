@@ -6,6 +6,7 @@ jest.mock('../../../config/prisma', () => ({
   prisma: {
     academicProgramme: { findUnique: jest.fn() },
     user:              { findUnique: jest.fn(), findFirst: jest.fn(), create: jest.fn(), update: jest.fn(), updateMany: jest.fn() },
+    placement:         { findFirst: jest.fn() },
     refreshToken:      { create: jest.fn(), findFirst: jest.fn(), update: jest.fn(), updateMany: jest.fn() },
     $transaction:      jest.fn(),
   },
@@ -73,6 +74,8 @@ describe('authService.register', () => {
     email:       'student@cs.edu',
     password:    'Password@123',
     role:        'student' as const,
+    gender:      'female' as const,
+    indexNumber: '10543210',
     programmeId: 'prog-uuid-1',
     region:                 'greater_accra' as const,
     companyName:            'TechBridge Ghana',
@@ -117,6 +120,81 @@ describe('authService.register', () => {
     (mockPrisma.academicProgramme.findUnique as jest.Mock).mockResolvedValue(fakeProgramme);
     (mockPrisma.user.findUnique as jest.Mock).mockResolvedValue(fakeUser());
     await expect(authService.register(validInput)).rejects.toMatchObject({ statusCode: 409 });
+  });
+
+  it('throws 409 if index number already exists', async () => {
+    (mockPrisma.academicProgramme.findUnique as jest.Mock).mockResolvedValue(fakeProgramme);
+    // First findUnique = email lookup (free), second = index-number lookup (taken).
+    (mockPrisma.user.findUnique as jest.Mock)
+      .mockResolvedValueOnce(null)
+      .mockResolvedValueOnce(fakeUser({ indexNumber: '10543210' }));
+    await expect(authService.register(validInput)).rejects.toMatchObject({ statusCode: 409 });
+  });
+
+  it('persists gender and index number on the created student', async () => {
+    (mockPrisma.academicProgramme.findUnique as jest.Mock).mockResolvedValue(fakeProgramme);
+    (mockPrisma.user.findUnique as jest.Mock).mockResolvedValue(null);
+    (mockPrisma.user.create as jest.Mock).mockResolvedValue({
+      id: 'user-uuid-1', email: validInput.email, firstName: 'Ada', lastName: 'Okonkwo', role: 'student',
+    });
+
+    await authService.register(validInput);
+
+    expect(mockPrisma.user.create).toHaveBeenCalledWith(
+      expect.objectContaining({ data: expect.objectContaining({ gender: 'female', indexNumber: '10543210' }) }),
+    );
+  });
+});
+
+// ─────────────────────────────────────────────────────────────
+describe('authService.getProfile', () => {
+  beforeEach(() => jest.clearAllMocks());
+
+  it('throws 404 when the user does not exist', async () => {
+    (mockPrisma.user.findUnique as jest.Mock).mockResolvedValue(null);
+    await expect(authService.getProfile('missing-id')).rejects.toMatchObject({ statusCode: 404 });
+  });
+
+  it('returns the student profile with the latest placement', async () => {
+    (mockPrisma.user.findUnique as jest.Mock).mockResolvedValue({
+      id: 'user-uuid-1', firstName: 'Ada', lastName: 'Okonkwo', email: 'student@cs.edu',
+      role: 'student', gender: 'female', indexNumber: '10543210', phone: null,
+      isVerified: true, supervisedRegion: null, createdAt: new Date(), lastLoginAt: null,
+      department: { name: 'Computer Science', code: 'CS' },
+      programme:  { name: 'B.Sc. Computer Science', code: 'BSC-CS' },
+    });
+    (mockPrisma.placement.findFirst as jest.Mock).mockResolvedValue({
+      id: 'placement-uuid-1', placementStatus: 'active', region: 'greater_accra',
+      startDate: new Date('2026-07-01'), endDate: new Date('2026-09-30'),
+      company: { name: 'TechBridge Ghana', address: null },
+      companySupervisor:  { firstName: 'Kwabena', lastName: 'Mensah' },
+      academicSupervisor: { firstName: 'Akua', lastName: 'Boateng' },
+    });
+
+    const profile = await authService.getProfile('user-uuid-1');
+
+    expect(profile).toMatchObject({
+      role: 'student', gender: 'female', indexNumber: '10543210',
+      department: 'Computer Science', programme: 'B.Sc. Computer Science',
+    });
+    expect(profile.placement).toMatchObject({
+      status: 'active', region: 'greater_accra', companyName: 'TechBridge Ghana',
+      companySupervisor: 'Kwabena Mensah', academicSupervisor: 'Akua Boateng',
+    });
+  });
+
+  it('does not look up a placement for non-student roles', async () => {
+    (mockPrisma.user.findUnique as jest.Mock).mockResolvedValue({
+      id: 'sup-1', firstName: 'Akua', lastName: 'Boateng', email: 'sup@cs.edu',
+      role: 'academic_supervisor', gender: 'female', indexNumber: null, phone: null,
+      isVerified: true, supervisedRegion: 'greater_accra', createdAt: new Date(), lastLoginAt: null,
+      department: { name: 'Computer Science', code: 'CS' }, programme: null,
+    });
+
+    const profile = await authService.getProfile('sup-1');
+
+    expect(profile.placement).toBeNull();
+    expect(mockPrisma.placement.findFirst).not.toHaveBeenCalled();
   });
 });
 

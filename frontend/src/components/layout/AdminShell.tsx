@@ -6,7 +6,7 @@ import { MobileNav } from './MobileNav';
 import {
   LayoutDashboard, Users, Sparkles, MessageSquareText, FolderOpen,
   FileBarChart, Search, Bell, Settings, HelpCircle, GraduationCap, LogOut,
-  ClipboardCheck,
+  ClipboardCheck, UserRound,
 } from 'lucide-react';
 
 interface NavItem {
@@ -24,6 +24,7 @@ const navItems: NavItem[] = [
   { label: 'AI Insights',     href: '/ai-insights', icon: Sparkles },
   { label: 'Feedback Center', href: '/feedback', icon: MessageSquareText },
   { label: 'Resources',       href: '/admin/dashboard', icon: FolderOpen },
+  { label: 'My Profile',      href: '/profile',         icon: UserRound },
 ];
 
 interface AdminShellProps {

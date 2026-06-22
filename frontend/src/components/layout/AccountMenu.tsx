@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
-import { Settings, LogOut, ShieldCheck } from 'lucide-react';
+import { Settings, LogOut, ShieldCheck, UserRound } from 'lucide-react';
 import { useClickOutside } from '@/hooks/useClickOutside';
 import { useAuth } from '@/contexts/AuthContext';
 
@@ -39,6 +39,10 @@ export default function AccountMenu({ user }: { user: { name: string; email: str
             </span>
           </div>
           <div className="py-1">
+            <Link to="/profile" onClick={() => setOpen(false)}
+              className="flex items-center gap-3 px-4 py-2 text-sm text-[#0b1c30] transition-colors hover:bg-[#eff4ff]">
+              <UserRound className="h-4 w-4 text-[#15157d]" /> My Profile
+            </Link>
             <Link to="/coordinator/settings" onClick={() => setOpen(false)}
               className="flex items-center gap-3 px-4 py-2 text-sm text-[#0b1c30] transition-colors hover:bg-[#eff4ff]">
               <Settings className="h-4 w-4 text-[#15157d]" /> Settings
