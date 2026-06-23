@@ -42,12 +42,12 @@ export class RouteErrorBoundary extends Component<Props, State> {
 
     return (
       <div className="flex min-h-[60vh] items-center justify-center p-6">
-        <div className="max-w-md rounded-xl border border-slate-200 bg-[var(--h-ffffff)] p-8 text-center shadow-sm">
+        <div className="max-w-md rounded-xl border border-[var(--h-c4c5d5-60)] bg-[var(--h-ffffff)] p-8 text-center shadow-sm">
           <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-red-50">
             <AlertTriangle className="h-6 w-6 text-red-500" />
           </div>
-          <h2 className="text-lg font-semibold text-slate-900">This page hit a snag</h2>
-          <p className="mt-2 text-sm text-slate-500">
+          <h2 className="text-lg font-semibold text-[var(--h-0b1c30)]">This page hit a snag</h2>
+          <p className="mt-2 text-sm text-[var(--h-64748b)]">
             Something went wrong while loading this view. The rest of the app is still working —
             you can retry, or use the menu to go elsewhere.
           </p>

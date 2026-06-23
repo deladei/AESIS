@@ -134,6 +134,12 @@
     --h-f8f9ff-80: rgba(248, 249, 255, 0.8);
     --h-ffdad6-30: rgba(255, 218, 214, 0.3);
     --h-ffdad6-40: rgba(255, 218, 214, 0.4);
+    /* Solid card/popover surface. ~37 components use bg-[var(--h-ffffff)] but it
+       was never generated, so it resolved to an invalid (transparent) value —
+       harmless in light (body is near-white) but in dark left cards surface-less.
+       Declared white here and overridden in .dark to match its own alpha
+       variants below (rgba(21,29,48) = #151d30). */
+    --h-ffffff: #ffffff;
     --h-ffffff-10: rgba(255, 255, 255, 0.1);
     --h-ffffff-20: rgba(255, 255, 255, 0.2);
     --h-ffffff-60: rgba(255, 255, 255, 0.6);
@@ -268,6 +274,7 @@
     --h-f8f9ff-80: rgba(11, 18, 32, 0.8);
     --h-ffdad6-30: rgba(58, 26, 26, 0.3);
     --h-ffdad6-40: rgba(58, 26, 26, 0.4);
+    --h-ffffff: #151d30;
     --h-ffffff-10: rgba(21, 29, 48, 0.1);
     --h-ffffff-20: rgba(21, 29, 48, 0.2);
     --h-ffffff-60: rgba(21, 29, 48, 0.6);
