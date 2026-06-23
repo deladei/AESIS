@@ -26,7 +26,7 @@ export default function CohortSettings() {
   if (isLoading) {
     return (
       <div className="flex h-64 items-center justify-center">
-        <Loader2 className="h-6 w-6 animate-spin text-[#15157d]" />
+        <Loader2 className="h-6 w-6 animate-spin text-[var(--h-15157d)]" />
       </div>
     );
   }
@@ -34,7 +34,7 @@ export default function CohortSettings() {
   if (isError || !config) {
     return (
       <div className="mx-auto max-w-4xl p-6">
-        <div className="flex items-center gap-3 rounded-xl bg-[#fde7e7] p-6 text-[#8a1c1c]">
+        <div className="flex items-center gap-3 rounded-xl bg-[var(--h-fde7e7)] p-6 text-[var(--h-8a1c1c)]">
           <AlertCircle className="h-5 w-5 shrink-0" />
           <p className="text-sm font-medium">
             No cohort configuration found for the active academic year.
@@ -71,26 +71,26 @@ export default function CohortSettings() {
   return (
     <div className="mx-auto max-w-4xl space-y-6 p-6">
       <header>
-        <h1 className="text-xl font-bold text-[#0b1c30]">Cohort Settings</h1>
-        <p className="mt-1 text-sm text-[#757684]">
+        <h1 className="text-xl font-bold text-[var(--h-0b1c30)]">Cohort Settings</h1>
+        <p className="mt-1 text-sm text-[var(--h-757684)]">
           Active academic year · {config.academicYearLabel}
         </p>
       </header>
 
-      <section className="rounded-xl bg-white p-8 shadow-sm">
+      <section className="rounded-xl bg-[var(--h-ffffff)] p-8 shadow-sm">
         <div className="mb-6 flex items-center gap-3">
-          <div className="flex h-10 w-10 items-center justify-center rounded-full bg-[#eff4ff] text-[#15157d]">
+          <div className="flex h-10 w-10 items-center justify-center rounded-full bg-[var(--h-eff4ff)] text-[var(--h-15157d)]">
             <Clock className="h-5 w-5" />
           </div>
           <div>
-            <h2 className="text-sm font-bold text-[#0b1c30]">Weekly attendance minimum</h2>
-            <p className="text-xs text-[#757684]">
+            <h2 className="text-sm font-bold text-[var(--h-0b1c30)]">Weekly attendance minimum</h2>
+            <p className="text-xs text-[var(--h-757684)]">
               Drives each intern's cumulative-hours target and shortfall flag.
             </p>
           </div>
         </div>
 
-        <label htmlFor="minWeeklyHours" className="mb-2 block text-sm font-medium text-[#444653]">
+        <label htmlFor="minWeeklyHours" className="mb-2 block text-sm font-medium text-[var(--h-444653)]">
           Minimum hours per week
         </label>
         <div className="flex flex-wrap items-center gap-4">
@@ -103,9 +103,9 @@ export default function CohortSettings() {
               step={1}
               value={hours}
               onChange={(e) => setHours(e.target.value)}
-              className="w-32 rounded-lg border border-[#c4c5d5] px-4 py-2.5 pr-14 text-base font-semibold text-[#0b1c30] outline-none focus:border-[#15157d] focus:ring-2 focus:ring-[#e1e0ff]"
+              className="w-32 rounded-lg border border-[var(--h-c4c5d5)] px-4 py-2.5 pr-14 text-base font-semibold text-[var(--h-0b1c30)] outline-none focus:border-[var(--h-15157d)] focus:ring-2 focus:ring-[var(--h-e1e0ff)]"
             />
-            <span className="pointer-events-none absolute right-4 top-1/2 -translate-y-1/2 text-sm text-[#757684]">
+            <span className="pointer-events-none absolute right-4 top-1/2 -translate-y-1/2 text-sm text-[var(--h-757684)]">
               h/wk
             </span>
           </div>
@@ -113,7 +113,7 @@ export default function CohortSettings() {
           <button
             onClick={save}
             disabled={!dirty || update.isPending}
-            className="inline-flex items-center gap-2 rounded-lg bg-[#15157d] px-5 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-[#1f1fa0] disabled:cursor-not-allowed disabled:bg-[#c4c5d5]"
+            className="inline-flex items-center gap-2 rounded-lg bg-[var(--h-15157d)] px-5 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-[var(--h-1f1fa0)] disabled:cursor-not-allowed disabled:bg-[var(--h-c4c5d5)]"
           >
             {update.isPending ? (
               <Loader2 className="h-4 w-4 animate-spin" />
@@ -124,28 +124,28 @@ export default function CohortSettings() {
           </button>
 
           {update.isSuccess && savedField === 'hours' && !dirty && (
-            <span className="inline-flex items-center gap-1.5 text-sm font-medium text-[#1b7a45]">
+            <span className="inline-flex items-center gap-1.5 text-sm font-medium text-[var(--h-1b7a45)]">
               <Check className="h-4 w-4" /> Saved
             </span>
           )}
           {update.isError && savedField === 'hours' && (
-            <span className="inline-flex items-center gap-1.5 text-sm font-medium text-[#8a1c1c]">
+            <span className="inline-flex items-center gap-1.5 text-sm font-medium text-[var(--h-8a1c1c)]">
               <AlertCircle className="h-4 w-4" /> Couldn't save — try again
             </span>
           )}
         </div>
 
         {!valid && hours.trim() !== '' && (
-          <p className="mt-2 text-xs font-medium text-[#8a1c1c]">
+          <p className="mt-2 text-xs font-medium text-[var(--h-8a1c1c)]">
             Enter a whole number of hours between 0 and 168.
           </p>
         )}
 
-        <p className="mt-5 border-t border-[#eef1ff] pt-4 text-sm text-[#444653]">
+        <p className="mt-5 border-t border-[var(--h-eef1ff)] pt-4 text-sm text-[var(--h-444653)]">
           {valid && parsed > 0 ? (
             <>
               Interns are expected to log{' '}
-              <span className="font-semibold text-[#0b1c30]">{expected} hours</span> over the{' '}
+              <span className="font-semibold text-[var(--h-0b1c30)]">{expected} hours</span> over the{' '}
               {config.totalWeeks}-week placement ({parsed} h/week × {config.totalWeeks} weeks).
             </>
           ) : (
@@ -154,20 +154,20 @@ export default function CohortSettings() {
         </p>
       </section>
 
-      <section className="rounded-xl bg-white p-8 shadow-sm">
+      <section className="rounded-xl bg-[var(--h-ffffff)] p-8 shadow-sm">
         <div className="mb-6 flex items-center gap-3">
-          <div className="flex h-10 w-10 items-center justify-center rounded-full bg-[#eff4ff] text-[#15157d]">
+          <div className="flex h-10 w-10 items-center justify-center rounded-full bg-[var(--h-eff4ff)] text-[var(--h-15157d)]">
             <Gauge className="h-5 w-5" />
           </div>
           <div>
-            <h2 className="text-sm font-bold text-[#0b1c30]">Performance threshold</h2>
-            <p className="text-xs text-[#757684]">
+            <h2 className="text-sm font-bold text-[var(--h-0b1c30)]">Performance threshold</h2>
+            <p className="text-xs text-[var(--h-757684)]">
               Interns whose average logbook quality score falls below this are flagged for attention.
             </p>
           </div>
         </div>
 
-        <label htmlFor="performanceThreshold" className="mb-2 block text-sm font-medium text-[#444653]">
+        <label htmlFor="performanceThreshold" className="mb-2 block text-sm font-medium text-[var(--h-444653)]">
           Minimum average score
         </label>
         <div className="flex flex-wrap items-center gap-4">
@@ -180,9 +180,9 @@ export default function CohortSettings() {
               step={1}
               value={threshold}
               onChange={(e) => setThreshold(e.target.value)}
-              className="w-32 rounded-lg border border-[#c4c5d5] px-4 py-2.5 pr-14 text-base font-semibold text-[#0b1c30] outline-none focus:border-[#15157d] focus:ring-2 focus:ring-[#e1e0ff]"
+              className="w-32 rounded-lg border border-[var(--h-c4c5d5)] px-4 py-2.5 pr-14 text-base font-semibold text-[var(--h-0b1c30)] outline-none focus:border-[var(--h-15157d)] focus:ring-2 focus:ring-[var(--h-e1e0ff)]"
             />
-            <span className="pointer-events-none absolute right-4 top-1/2 -translate-y-1/2 text-sm text-[#757684]">
+            <span className="pointer-events-none absolute right-4 top-1/2 -translate-y-1/2 text-sm text-[var(--h-757684)]">
               /100
             </span>
           </div>
@@ -190,7 +190,7 @@ export default function CohortSettings() {
           <button
             onClick={saveThreshold}
             disabled={!dirtyT || update.isPending}
-            className="inline-flex items-center gap-2 rounded-lg bg-[#15157d] px-5 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-[#1f1fa0] disabled:cursor-not-allowed disabled:bg-[#c4c5d5]"
+            className="inline-flex items-center gap-2 rounded-lg bg-[var(--h-15157d)] px-5 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-[var(--h-1f1fa0)] disabled:cursor-not-allowed disabled:bg-[var(--h-c4c5d5)]"
           >
             {update.isPending && savedField === 'threshold' ? (
               <Loader2 className="h-4 w-4 animate-spin" />
@@ -201,28 +201,28 @@ export default function CohortSettings() {
           </button>
 
           {update.isSuccess && savedField === 'threshold' && !dirtyT && (
-            <span className="inline-flex items-center gap-1.5 text-sm font-medium text-[#1b7a45]">
+            <span className="inline-flex items-center gap-1.5 text-sm font-medium text-[var(--h-1b7a45)]">
               <Check className="h-4 w-4" /> Saved
             </span>
           )}
           {update.isError && savedField === 'threshold' && (
-            <span className="inline-flex items-center gap-1.5 text-sm font-medium text-[#8a1c1c]">
+            <span className="inline-flex items-center gap-1.5 text-sm font-medium text-[var(--h-8a1c1c)]">
               <AlertCircle className="h-4 w-4" /> Couldn't save — try again
             </span>
           )}
         </div>
 
         {!validT && threshold.trim() !== '' && (
-          <p className="mt-2 text-xs font-medium text-[#8a1c1c]">
+          <p className="mt-2 text-xs font-medium text-[var(--h-8a1c1c)]">
             Enter a whole number between 0 and 100.
           </p>
         )}
 
-        <p className="mt-5 border-t border-[#eef1ff] pt-4 text-sm text-[#444653]">
+        <p className="mt-5 border-t border-[var(--h-eef1ff)] pt-4 text-sm text-[var(--h-444653)]">
           {validT && parsedT > 0 ? (
             <>
               Interns averaging below{' '}
-              <span className="font-semibold text-[#0b1c30]">{parsedT}/100</span> are flagged as needing
+              <span className="font-semibold text-[var(--h-0b1c30)]">{parsedT}/100</span> are flagged as needing
               attention on the dashboard and Oversight.
             </>
           ) : (

@@ -6,9 +6,9 @@ import SupervisorPicker from '@/components/shared/SupervisorPicker';
 function InfoBlock({ label, value, sub }: { label: string; value: string; sub?: string }) {
   return (
     <div>
-      <p className="mb-0.5 text-xs font-semibold tracking-wide text-[#757684]">{label}</p>
-      <p className="text-sm text-[#0b1c30]">{value}</p>
-      {sub && <p className="text-xs text-[#757684]">{sub}</p>}
+      <p className="mb-0.5 text-xs font-semibold tracking-wide text-[var(--h-757684)]">{label}</p>
+      <p className="text-sm text-[var(--h-0b1c30)]">{value}</p>
+      {sub && <p className="text-xs text-[var(--h-757684)]">{sub}</p>}
     </div>
   );
 }
@@ -45,20 +45,20 @@ export default function PlacementApproval() {
   };
 
   if (isLoading) {
-    return <div className="flex h-64 items-center justify-center p-6"><Loader2 className="h-6 w-6 animate-spin text-[#15157d]" /></div>;
+    return <div className="flex h-64 items-center justify-center p-6"><Loader2 className="h-6 w-6 animate-spin text-[var(--h-15157d)]" /></div>;
   }
 
   return (
     <div className="mx-auto max-w-4xl space-y-6 p-6">
       <div>
-        <h1 className="text-xl font-bold text-[#0b1c30]">Placement Approval</h1>
-        <p className="mt-0.5 text-sm text-[#757684]">{placements.length} pending review</p>
+        <h1 className="text-xl font-bold text-[var(--h-0b1c30)]">Placement Approval</h1>
+        <p className="mt-0.5 text-sm text-[var(--h-757684)]">{placements.length} pending review</p>
       </div>
 
       {placements.length === 0 && (
-        <div className="rounded-xl border border-[#c4c5d5]/60 bg-white p-10 text-center">
+        <div className="rounded-xl border border-[var(--h-c4c5d5-60)] bg-[var(--h-ffffff)] p-10 text-center">
           <CheckCircle2 className="mx-auto mb-3 h-10 w-10 text-emerald-500" />
-          <p className="text-sm text-[#757684]">No pending placements to review.</p>
+          <p className="text-sm text-[var(--h-757684)]">No pending placements to review.</p>
         </div>
       )}
 
@@ -73,24 +73,24 @@ export default function PlacementApproval() {
         return (
           <div
             key={p.id}
-            className={`rounded-xl border bg-white transition-colors ${
-              done ? 'border-emerald-300' : 'border-[#c4c5d5]/60'
+            className={`rounded-xl border bg-[var(--h-ffffff)] transition-colors ${
+              done ? 'border-emerald-300' : 'border-[var(--h-c4c5d5-60)]'
             }`}
           >
             <button
               onClick={() => setExpanded(isExpanded ? null : p.id)}
-              className={`flex w-full cursor-pointer items-center gap-4 px-5 py-4 text-left transition-colors hover:bg-[#eff4ff] ${isExpanded ? 'rounded-t-xl' : 'rounded-xl'}`}
+              className={`flex w-full cursor-pointer items-center gap-4 px-5 py-4 text-left transition-colors hover:bg-[var(--h-eff4ff)] ${isExpanded ? 'rounded-t-xl' : 'rounded-xl'}`}
             >
-              <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-[#e1e0ff]">
-                <span className="text-[11px] font-bold text-[#15157d]">
+              <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-[var(--h-e1e0ff)]">
+                <span className="text-[11px] font-bold text-[var(--h-15157d)]">
                   {studentName.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase()}
                 </span>
               </div>
               <div className="min-w-0 flex-1">
                 <div className="mb-0.5 flex items-center gap-2">
-                  <span className="text-sm font-semibold text-[#0b1c30]">{studentName}</span>
+                  <span className="text-sm font-semibold text-[var(--h-0b1c30)]">{studentName}</span>
                 </div>
-                <p className="text-xs text-[#757684]">{companyName} · Submitted {formatDate(p.createdAt)}</p>
+                <p className="text-xs text-[var(--h-757684)]">{companyName} · Submitted {formatDate(p.createdAt)}</p>
               </div>
               <div className="flex shrink-0 items-center gap-3">
                 {done ? (
@@ -102,12 +102,12 @@ export default function PlacementApproval() {
                     <Clock className="h-3.5 w-3.5" /> Pending
                   </span>
                 )}
-                {isExpanded ? <ChevronUp className="h-4 w-4 text-[#757684]" /> : <ChevronDown className="h-4 w-4 text-[#757684]" />}
+                {isExpanded ? <ChevronUp className="h-4 w-4 text-[var(--h-757684)]" /> : <ChevronDown className="h-4 w-4 text-[var(--h-757684)]" />}
               </div>
             </button>
 
             {isExpanded && (
-              <div className="border-t border-[#c4c5d5]/60 px-5 pb-5">
+              <div className="border-t border-[var(--h-c4c5d5-60)] px-5 pb-5">
                 <div className="my-4 grid gap-4 sm:grid-cols-2">
                   <InfoBlock label="Company"         value={companyName} />
                   <InfoBlock label="Student email"   value={p.student?.email ?? '—'} />
@@ -118,8 +118,8 @@ export default function PlacementApproval() {
                 {!done && (
                   <div className="flex flex-col gap-3">
                     <div>
-                      <label className="mb-1.5 block text-xs font-semibold text-[#757684]">
-                        Academic supervisor <span className="font-normal text-[#9a9bad]">(optional — can assign later)</span>
+                      <label className="mb-1.5 block text-xs font-semibold text-[var(--h-757684)]">
+                        Academic supervisor <span className="font-normal text-[var(--h-9a9bad)]">(optional — can assign later)</span>
                       </label>
                       <SupervisorPicker
                         supervisors={supervisors}
@@ -159,7 +159,7 @@ export default function PlacementApproval() {
                           value={rejectionReasons[p.id] || ''}
                           onChange={(e) => setRejectionReasons((prev) => ({ ...prev, [p.id]: e.target.value }))}
                           placeholder="Provide a reason for rejection (required — sent to student)…"
-                          className="w-full resize-none rounded-lg border border-red-200 bg-white px-4 py-3 text-sm text-[#0b1c30] placeholder-[#9a9bad] transition-colors focus:border-red-500 focus:outline-none focus:ring-1 focus:ring-red-500"
+                          className="w-full resize-none rounded-lg border border-red-200 bg-[var(--h-ffffff)] px-4 py-3 text-sm text-[var(--h-0b1c30)] placeholder-[var(--h-9a9bad)] transition-colors focus:border-red-500 focus:outline-none focus:ring-1 focus:ring-red-500"
                         />
                         <button
                           onClick={() => reject(p.id)}

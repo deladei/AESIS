@@ -13,39 +13,39 @@ export default function CompaniesList() {
   return (
     <div className="p-6">
       <div className="mb-6">
-        <p className="mb-1 text-xs font-semibold tracking-wide text-[#15157d]">Coordinator</p>
-        <h2 className="text-3xl font-bold tracking-tight text-[#0b1c30]">Host Companies</h2>
-        <p className="mt-1 text-sm text-[#757684]">Organisations hosting student placements.</p>
+        <p className="mb-1 text-xs font-semibold tracking-wide text-[var(--h-15157d)]">Coordinator</p>
+        <h2 className="text-3xl font-bold tracking-tight text-[var(--h-0b1c30)]">Host Companies</h2>
+        <p className="mt-1 text-sm text-[var(--h-757684)]">Organisations hosting student placements.</p>
       </div>
 
       {isLoading ? (
-        <div className="flex justify-center py-20"><Loader2 className="h-6 w-6 animate-spin text-[#15157d]" /></div>
+        <div className="flex justify-center py-20"><Loader2 className="h-6 w-6 animate-spin text-[var(--h-15157d)]" /></div>
       ) : companies.length === 0 ? (
-        <div className="flex flex-col items-center gap-2 rounded-xl border border-[#c4c5d5]/60 bg-white py-16 text-center">
-          <Inbox className="h-7 w-7 text-[#c4c5d5]" />
-          <p className="text-sm text-[#757684]">No companies registered yet.</p>
+        <div className="flex flex-col items-center gap-2 rounded-xl border border-[var(--h-c4c5d5-60)] bg-[var(--h-ffffff)] py-16 text-center">
+          <Inbox className="h-7 w-7 text-[var(--h-c4c5d5)]" />
+          <p className="text-sm text-[var(--h-757684)]">No companies registered yet.</p>
         </div>
       ) : (
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
           {companies.map((c) => (
-            <div key={c.id} className="rounded-xl border border-[#c4c5d5]/60 bg-white p-5">
+            <div key={c.id} className="rounded-xl border border-[var(--h-c4c5d5-60)] bg-[var(--h-ffffff)] p-5">
               <div className="flex items-start gap-3">
-                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-[#e5eeff]">
-                  <Building2 className="h-5 w-5 text-[#15157d]" />
+                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-[var(--h-e5eeff)]">
+                  <Building2 className="h-5 w-5 text-[var(--h-15157d)]" />
                 </div>
                 <div className="min-w-0">
-                  <p className="truncate text-sm font-bold text-[#0b1c30]">{c.name}</p>
-                  <p className="truncate text-xs text-[#757684]">{c.industry ?? 'Host company'}</p>
+                  <p className="truncate text-sm font-bold text-[var(--h-0b1c30)]">{c.name}</p>
+                  <p className="truncate text-xs text-[var(--h-757684)]">{c.industry ?? 'Host company'}</p>
                 </div>
               </div>
-              <div className="mt-4 flex items-center justify-between text-xs text-[#444653]">
+              <div className="mt-4 flex items-center justify-between text-xs text-[var(--h-444653)]">
                 <span className="inline-flex items-center gap-1">
-                  <Users className="h-3.5 w-3.5 text-[#757684]" />
+                  <Users className="h-3.5 w-3.5 text-[var(--h-757684)]" />
                   {c._count?.placements ?? 0} placement{(c._count?.placements ?? 0) === 1 ? '' : 's'}
                 </span>
                 {c.website && (
                   <a href={c.website} target="_blank" rel="noopener noreferrer"
-                    className="inline-flex items-center gap-1 font-semibold text-[#15157d] hover:underline">
+                    className="inline-flex items-center gap-1 font-semibold text-[var(--h-15157d)] hover:underline">
                     <Globe className="h-3.5 w-3.5" /> Website
                   </a>
                 )}

@@ -42,7 +42,7 @@ export class RouteErrorBoundary extends Component<Props, State> {
 
     return (
       <div className="flex min-h-[60vh] items-center justify-center p-6">
-        <div className="max-w-md rounded-xl border border-slate-200 bg-white p-8 text-center shadow-sm">
+        <div className="max-w-md rounded-xl border border-slate-200 bg-[var(--h-ffffff)] p-8 text-center shadow-sm">
           <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-red-50">
             <AlertTriangle className="h-6 w-6 text-red-500" />
           </div>
@@ -53,7 +53,7 @@ export class RouteErrorBoundary extends Component<Props, State> {
           </p>
           <button
             onClick={this.handleRetry}
-            className="mt-6 inline-flex items-center gap-2 rounded-lg bg-[#15157d] px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-[#2e3192]"
+            className="mt-6 inline-flex items-center gap-2 rounded-lg bg-[var(--h-15157d)] px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-[var(--h-2e3192)]"
           >
             <RotateCcw className="h-4 w-4" />
             Try again

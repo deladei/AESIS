@@ -41,34 +41,34 @@ function SupervisorRow({
   return (
     <div>
       <div className="mb-2 flex items-center gap-2">
-        <div className="flex h-8 w-8 items-center justify-center rounded-full bg-[#e1e0ff] text-[#15157d]">
+        <div className="flex h-8 w-8 items-center justify-center rounded-full bg-[var(--h-e1e0ff)] text-[var(--h-15157d)]">
           {icon}
         </div>
-        <p className="text-sm font-bold text-[#191c1e]">{label}</p>
+        <p className="text-sm font-bold text-[var(--h-191c1e)]">{label}</p>
       </div>
       {supervisor ? (
         <div className="pl-10 text-sm">
-          <p className="font-semibold text-[#191c1e]">{supervisor.name}</p>
+          <p className="font-semibold text-[var(--h-191c1e)]">{supervisor.name}</p>
           {supervisor.organization && (
-            <p className="text-xs text-[#424654]">{supervisor.organization}</p>
+            <p className="text-xs text-[var(--h-424654)]">{supervisor.organization}</p>
           )}
           <a
             href={`mailto:${supervisor.email}`}
-            className="mt-1 flex items-center gap-1.5 text-xs text-[#15157d] hover:underline"
+            className="mt-1 flex items-center gap-1.5 text-xs text-[var(--h-15157d)] hover:underline"
           >
             <Mail className="h-3.5 w-3.5" /> {supervisor.email}
           </a>
           {supervisor.phone && (
             <a
               href={`tel:${supervisor.phone}`}
-              className="mt-0.5 flex items-center gap-1.5 text-xs text-[#15157d] hover:underline"
+              className="mt-0.5 flex items-center gap-1.5 text-xs text-[var(--h-15157d)] hover:underline"
             >
               <Phone className="h-3.5 w-3.5" /> {supervisor.phone}
             </a>
           )}
         </div>
       ) : (
-        <p className="pl-10 text-xs text-[#737785]">Not yet assigned</p>
+        <p className="pl-10 text-xs text-[var(--h-737785)]">Not yet assigned</p>
       )}
     </div>
   );
@@ -103,7 +103,7 @@ export default function StudentDashboard() {
   if (placementsLoading || subsLoading) {
     return (
       <div className="flex h-64 items-center justify-center">
-        <Loader2 className="h-6 w-6 animate-spin text-[#15157d]" />
+        <Loader2 className="h-6 w-6 animate-spin text-[var(--h-15157d)]" />
       </div>
     );
   }
@@ -111,13 +111,13 @@ export default function StudentDashboard() {
   if (!active) {
     return (
       <div className="p-8">
-        <h1 className="text-4xl font-extrabold tracking-tight text-[#191c1e]">
+        <h1 className="text-4xl font-extrabold tracking-tight text-[var(--h-191c1e)]">
           Welcome back, {user?.firstName}
         </h1>
-        <div className="mt-8 rounded-xl bg-white p-10 text-center">
-          <BookOpen className="mx-auto mb-3 h-8 w-8 text-[#15157d]" />
-          <p className="text-base font-semibold text-[#191c1e]">No active placement yet</p>
-          <p className="mt-1 text-sm text-[#424654]">
+        <div className="mt-8 rounded-xl bg-[var(--h-ffffff)] p-10 text-center">
+          <BookOpen className="mx-auto mb-3 h-8 w-8 text-[var(--h-15157d)]" />
+          <p className="text-base font-semibold text-[var(--h-191c1e)]">No active placement yet</p>
+          <p className="mt-1 text-sm text-[var(--h-424654)]">
             Once your placement is approved, your internship progress and feedback will appear here.
           </p>
         </div>
@@ -159,10 +159,10 @@ export default function StudentDashboard() {
     <div className="p-8">
       {/* Header */}
       <header className="mb-12">
-        <h1 className="mb-2 text-4xl font-extrabold tracking-tight text-[#191c1e]">
+        <h1 className="mb-2 text-4xl font-extrabold tracking-tight text-[var(--h-191c1e)]">
           Welcome back, {user?.firstName}
         </h1>
-        <p className="text-[#424654]">
+        <p className="text-[var(--h-424654)]">
           {companyName ? `Intern @ ${companyName}` : 'Internship in progress'}
         </p>
       </header>
@@ -171,42 +171,42 @@ export default function StudentDashboard() {
         {/* ── Progress & Stats ─────────────────────────────────── */}
         <div className="col-span-12 grid grid-cols-1 gap-8 md:grid-cols-2 lg:col-span-8">
           {/* Internship Completion */}
-          <div className="col-span-1 flex flex-col justify-between rounded-xl bg-white p-8 md:col-span-2">
+          <div className="col-span-1 flex flex-col justify-between rounded-xl bg-[var(--h-ffffff)] p-8 md:col-span-2">
             <div className="mb-6 flex items-start justify-between">
               <div>
-                <h3 className="mb-1 text-sm font-semibold text-[#424654]">
+                <h3 className="mb-1 text-sm font-semibold text-[var(--h-424654)]">
                   Internship completion
                 </h3>
-                <p className="text-3xl font-extrabold text-[#191c1e]">
+                <p className="text-3xl font-extrabold text-[var(--h-191c1e)]">
                   {weekTotal != null ? `Week ${weekCurrent} of ${weekTotal}` : '—'}
                 </p>
               </div>
-              <span className="rounded-full bg-[#e1e0ff] px-3 py-1 text-xs font-semibold text-[#15157d]">
+              <span className="rounded-full bg-[var(--h-e1e0ff)] px-3 py-1 text-xs font-semibold text-[var(--h-15157d)]">
                 {pct}% complete
               </span>
             </div>
-            <div className="mb-4 h-4 w-full overflow-hidden rounded-full bg-[#e7e8eb]">
+            <div className="mb-4 h-4 w-full overflow-hidden rounded-full bg-[var(--h-e7e8eb)]">
               <div
                 className="h-full rounded-full transition-all"
                 style={{ width: `${pct}%`, background: 'linear-gradient(135deg,#15157d 0%,#2e3192 100%)' }}
               />
             </div>
-            <div className="flex justify-between text-xs font-medium text-[#424654]">
+            <div className="flex justify-between text-xs font-medium text-[var(--h-424654)]">
               <span>Started: {formatDate(active.startDate)}</span>
               <span>Ends: {formatDate(active.endDate)}</span>
             </div>
           </div>
 
           {/* Logbook status breakdown — driven by the entries state machine */}
-          <div className="col-span-1 rounded-xl bg-[#f3f3f7] p-8 md:col-span-2">
+          <div className="col-span-1 rounded-xl bg-[var(--h-f3f3f7)] p-8 md:col-span-2">
             <div className="mb-4 flex items-center gap-3">
-              <div className="flex h-10 w-10 items-center justify-center rounded-full bg-white text-[#15157d]">
+              <div className="flex h-10 w-10 items-center justify-center rounded-full bg-[var(--h-ffffff)] text-[var(--h-15157d)]">
                 <NotebookPen className="h-5 w-5" />
               </div>
-              <p className="text-sm font-medium text-[#424654]">
+              <p className="text-sm font-medium text-[var(--h-424654)]">
                 Logbook status
                 {expectedLogs != null && (
-                  <span className="ml-2 text-xs text-[#737785]">
+                  <span className="ml-2 text-xs text-[var(--h-737785)]">
                     {logsSubmitted} of {expectedLogs} weeks logged
                   </span>
                 )}
@@ -214,11 +214,11 @@ export default function StudentDashboard() {
             </div>
             <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
               {([
-                { label: 'Approved',  value: breakdown.approved,          cls: 'bg-[#e9f9ef] text-[#1b7a45]' },
-                { label: 'In review', value: breakdown.pendingReview,     cls: 'bg-[#eef1ff] text-[#15157d]' },
-                { label: 'Revision',  value: breakdown.revisionRequested, cls: 'bg-[#fff4e0] text-[#9a6700]' },
-                { label: 'Rejected',  value: breakdown.rejected,          cls: 'bg-[#fde7e7] text-[#8a1c1c]' },
-                { label: 'In progress', value: breakdown.inProgress,      cls: 'bg-white text-[#424654]' },
+                { label: 'Approved',  value: breakdown.approved,          cls: 'bg-[var(--h-e9f9ef)] text-[var(--h-1b7a45)]' },
+                { label: 'In review', value: breakdown.pendingReview,     cls: 'bg-[var(--h-eef1ff)] text-[var(--h-15157d)]' },
+                { label: 'Revision',  value: breakdown.revisionRequested, cls: 'bg-[var(--h-fff4e0)] text-[var(--h-9a6700)]' },
+                { label: 'Rejected',  value: breakdown.rejected,          cls: 'bg-[var(--h-fde7e7)] text-[var(--h-8a1c1c)]' },
+                { label: 'In progress', value: breakdown.inProgress,      cls: 'bg-[var(--h-ffffff)] text-[var(--h-424654)]' },
               ]).map((b) => (
                 <div key={b.label} className={`rounded-lg px-3 py-3 text-center ${b.cls}`}>
                   <p className="text-2xl font-extrabold">{b.value}</p>
@@ -229,45 +229,45 @@ export default function StudentDashboard() {
           </div>
 
           {/* Avg Quality (AI) */}
-          <div className="flex items-center gap-6 rounded-xl bg-[#f3f3f7] p-8">
-            <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-white text-[#15157d]">
+          <div className="flex items-center gap-6 rounded-xl bg-[var(--h-f3f3f7)] p-8">
+            <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-[var(--h-ffffff)] text-[var(--h-15157d)]">
               <Gauge className="h-6 w-6" />
             </div>
             <div>
-              <p className="text-sm font-medium text-[#424654]">Avg Quality Score</p>
-              <p className="text-2xl font-extrabold text-[#191c1e]">
+              <p className="text-sm font-medium text-[var(--h-424654)]">Avg Quality Score</p>
+              <p className="text-2xl font-extrabold text-[var(--h-191c1e)]">
                 {avgQuality != null ? `${avgQuality} / 100` : '—'}
               </p>
             </div>
           </div>
 
           {/* Attendance Hours — cumulative logged vs the cohort's weekly minimum */}
-          <div className="flex items-center gap-6 rounded-xl bg-[#f3f3f7] p-8">
-            <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-white text-[#15157d]">
+          <div className="flex items-center gap-6 rounded-xl bg-[var(--h-f3f3f7)] p-8">
+            <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-[var(--h-ffffff)] text-[var(--h-15157d)]">
               <Clock className="h-6 w-6" />
             </div>
             <div className="min-w-0">
-              <p className="text-sm font-medium text-[#424654]">Attendance Hours</p>
+              <p className="text-sm font-medium text-[var(--h-424654)]">Attendance Hours</p>
               {hours.expected > 0 ? (
                 <>
-                  <p className="text-2xl font-extrabold text-[#191c1e]">
+                  <p className="text-2xl font-extrabold text-[var(--h-191c1e)]">
                     {hours.logged}
-                    <span className="text-base font-bold text-[#737785]"> / {hours.expected} h</span>
+                    <span className="text-base font-bold text-[var(--h-737785)]"> / {hours.expected} h</span>
                   </p>
                   {hours.shortfall ? (
-                    <span className="mt-1 inline-flex w-fit items-center rounded-full bg-[#fde7e7] px-2 py-0.5 text-xs font-semibold text-[#8a1c1c]">
+                    <span className="mt-1 inline-flex w-fit items-center rounded-full bg-[var(--h-fde7e7)] px-2 py-0.5 text-xs font-semibold text-[var(--h-8a1c1c)]">
                       {Math.round((hours.expected - hours.logged) * 100) / 100} h below target
                     </span>
                   ) : (
-                    <p className="mt-0.5 text-xs font-medium text-[#1b7a45]">
+                    <p className="mt-0.5 text-xs font-medium text-[var(--h-1b7a45)]">
                       On track · {hours.perWeekMin} h/week
                     </p>
                   )}
                 </>
               ) : (
-                <p className="text-2xl font-extrabold text-[#191c1e]">
+                <p className="text-2xl font-extrabold text-[var(--h-191c1e)]">
                   {hours.logged} h
-                  <span className="ml-2 align-middle text-xs font-medium text-[#737785]">logged</span>
+                  <span className="ml-2 align-middle text-xs font-medium text-[var(--h-737785)]">logged</span>
                 </p>
               )}
             </div>
@@ -277,8 +277,8 @@ export default function StudentDashboard() {
         {/* ── Quick Actions + Notifications ────────────────────── */}
         <div className="col-span-12 space-y-8 lg:col-span-4">
           {/* Quick Actions */}
-          <div className="rounded-xl bg-[#e7e8eb] p-6">
-            <h3 className="mb-4 font-bold text-[#191c1e]">Quick Actions</h3>
+          <div className="rounded-xl bg-[var(--h-e7e8eb)] p-6">
+            <h3 className="mb-4 font-bold text-[var(--h-191c1e)]">Quick Actions</h3>
             <div className="space-y-3">
               {[
                 { label: 'New Logbook Entry', to: '/student/logbook' },
@@ -288,7 +288,7 @@ export default function StudentDashboard() {
                 <Link
                   key={action.to}
                   to={action.to}
-                  className="group flex w-full items-center justify-between rounded-lg bg-white px-4 py-3 text-left text-[#424654] transition-all hover:text-[#15157d]"
+                  className="group flex w-full items-center justify-between rounded-lg bg-[var(--h-ffffff)] px-4 py-3 text-left text-[var(--h-424654)] transition-all hover:text-[var(--h-15157d)]"
                 >
                   <span className="text-sm font-medium">{action.label}</span>
                   <ArrowRight className="h-4 w-4 opacity-50 transition-transform group-hover:translate-x-1" />
@@ -298,8 +298,8 @@ export default function StudentDashboard() {
           </div>
 
           {/* Your supervisors */}
-          <div className="rounded-xl bg-white p-6">
-            <h3 className="mb-5 font-bold text-[#191c1e]">Your Supervisors</h3>
+          <div className="rounded-xl bg-[var(--h-ffffff)] p-6">
+            <h3 className="mb-5 font-bold text-[var(--h-191c1e)]">Your Supervisors</h3>
             <div className="space-y-5">
               <SupervisorRow
                 label="Academic Supervisor"
@@ -316,16 +316,16 @@ export default function StudentDashboard() {
 
           {/* Learning objectives — progress counts confirmed entry links only */}
           {objectives.length > 0 && (
-            <div className="rounded-xl bg-white p-6">
+            <div className="rounded-xl bg-[var(--h-ffffff)] p-6">
               <div className="mb-5 flex items-center gap-2">
-                <Target className="h-5 w-5 text-[#15157d]" />
-                <h3 className="font-bold text-[#191c1e]">Learning Objectives</h3>
+                <Target className="h-5 w-5 text-[var(--h-15157d)]" />
+                <h3 className="font-bold text-[var(--h-191c1e)]">Learning Objectives</h3>
               </div>
               <div className="space-y-3">
                 {objectives.map((o) => (
                   <div key={o.id} className="flex items-center justify-between gap-3">
-                    <p className="min-w-0 truncate text-sm text-[#424654]">{o.title}</p>
-                    <span className="shrink-0 rounded-full bg-[#e1e0ff] px-2 py-0.5 text-xs font-semibold text-[#15157d]">
+                    <p className="min-w-0 truncate text-sm text-[var(--h-424654)]">{o.title}</p>
+                    <span className="shrink-0 rounded-full bg-[var(--h-e1e0ff)] px-2 py-0.5 text-xs font-semibold text-[var(--h-15157d)]">
                       {o.confirmedEntryCount} {o.confirmedEntryCount === 1 ? 'entry' : 'entries'}
                     </span>
                   </div>
@@ -335,13 +335,13 @@ export default function StudentDashboard() {
           )}
 
           {/* Notifications */}
-          <div className="rounded-xl bg-white p-6">
+          <div className="rounded-xl bg-[var(--h-ffffff)] p-6">
             <div className="mb-6 flex items-center justify-between">
-              <h3 className="font-bold text-[#191c1e]">Notifications</h3>
-              {hasUnread && <span className="h-2 w-2 rounded-full bg-[#ba1a1a]" />}
+              <h3 className="font-bold text-[var(--h-191c1e)]">Notifications</h3>
+              {hasUnread && <span className="h-2 w-2 rounded-full bg-[var(--h-ba1a1a)]" />}
             </div>
             {recentNotifications.length === 0 ? (
-              <p className="py-6 text-center text-sm text-[#737785]">You're all caught up.</p>
+              <p className="py-6 text-center text-sm text-[var(--h-737785)]">You're all caught up.</p>
             ) : (
               <div className="space-y-6">
                 {recentNotifications.map((n: Notification) => {
@@ -350,18 +350,18 @@ export default function StudentDashboard() {
                     <div key={n.id} className="flex gap-4">
                       <div
                         className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full ${
-                          positive ? 'bg-[#e1e0ff]' : 'bg-[#ffdbcf]'
+                          positive ? 'bg-[var(--h-e1e0ff)]' : 'bg-[var(--h-ffdbcf)]'
                         }`}
                       >
                         {positive ? (
-                          <CheckCircle2 className="h-4 w-4 text-[#15157d]" />
+                          <CheckCircle2 className="h-4 w-4 text-[var(--h-15157d)]" />
                         ) : (
-                          <CalendarClock className="h-4 w-4 text-[#812800]" />
+                          <CalendarClock className="h-4 w-4 text-[var(--h-812800)]" />
                         )}
                       </div>
                       <div className="min-w-0">
-                        <p className="text-sm font-semibold text-[#191c1e]">{n.title}</p>
-                        <p className="text-xs text-[#424654]">{n.body}</p>
+                        <p className="text-sm font-semibold text-[var(--h-191c1e)]">{n.title}</p>
+                        <p className="text-xs text-[var(--h-424654)]">{n.body}</p>
                       </div>
                     </div>
                   );
@@ -370,7 +370,7 @@ export default function StudentDashboard() {
             )}
             <Link
               to="/student/notifications"
-              className="mt-6 block w-full rounded py-2 text-center text-xs font-bold text-[#15157d] transition-colors hover:bg-[#f3f3f7]"
+              className="mt-6 block w-full rounded py-2 text-center text-xs font-bold text-[var(--h-15157d)] transition-colors hover:bg-[var(--h-f3f3f7)]"
             >
               View All Notifications
             </Link>
@@ -379,25 +379,25 @@ export default function StudentDashboard() {
 
         {/* ── Supervisor Feedback ──────────────────────────────── */}
         <div className="col-span-12">
-          <div className="rounded-xl bg-[#f3f3f7] p-8">
+          <div className="rounded-xl bg-[var(--h-f3f3f7)] p-8">
             <div className="mb-8 flex flex-col justify-between gap-4 md:flex-row md:items-center">
               <div>
-                <h3 className="text-2xl font-extrabold text-[#191c1e]">Supervisor Feedback</h3>
-                <p className="text-sm text-[#424654]">Latest performance review and comments</p>
+                <h3 className="text-2xl font-extrabold text-[var(--h-191c1e)]">Supervisor Feedback</h3>
+                <p className="text-sm text-[var(--h-424654)]">Latest performance review and comments</p>
               </div>
               <Link
                 to="/student/submissions"
-                className="flex items-center gap-2 text-sm font-bold text-[#15157d]"
+                className="flex items-center gap-2 text-sm font-bold text-[var(--h-15157d)]"
               >
                 Full History <ExternalLink className="h-4 w-4" />
               </Link>
             </div>
 
             {feedbackCards.length === 0 ? (
-              <div className="rounded-xl bg-white p-10 text-center">
-                <GraduationCap className="mx-auto mb-3 h-8 w-8 text-[#15157d]" />
-                <p className="text-sm font-semibold text-[#191c1e]">No supervisor feedback yet</p>
-                <p className="mt-1 text-sm text-[#424654]">
+              <div className="rounded-xl bg-[var(--h-ffffff)] p-10 text-center">
+                <GraduationCap className="mx-auto mb-3 h-8 w-8 text-[var(--h-15157d)]" />
+                <p className="text-sm font-semibold text-[var(--h-191c1e)]">No supervisor feedback yet</p>
+                <p className="mt-1 text-sm text-[var(--h-424654)]">
                   Once your supervisor reviews a submitted logbook, their comments will show here.
                 </p>
               </div>
@@ -411,22 +411,22 @@ export default function StudentDashboard() {
                   return (
                     <div
                       key={fb.id}
-                      className={`rounded-xl bg-white p-6 ${flagged ? '' : 'border-l-4 border-[#15157d]'}`}
+                      className={`rounded-xl bg-[var(--h-ffffff)] p-6 ${flagged ? '' : 'border-l-4 border-[var(--h-15157d)]'}`}
                     >
                       <div className="mb-4 flex items-center gap-3">
-                        <div className="flex h-10 w-10 items-center justify-center rounded-full bg-[#e7e8eb]">
-                          <GraduationCap className="h-5 w-5 text-[#424654]" />
+                        <div className="flex h-10 w-10 items-center justify-center rounded-full bg-[var(--h-e7e8eb)]">
+                          <GraduationCap className="h-5 w-5 text-[var(--h-424654)]" />
                         </div>
                         <div>
-                          <p className="text-sm font-bold text-[#191c1e]">{reviewer}</p>
-                          <p className="text-xs font-medium text-[#424654]">
+                          <p className="text-sm font-bold text-[var(--h-191c1e)]">{reviewer}</p>
+                          <p className="text-xs font-medium text-[var(--h-424654)]">
                             Week {sub.weekNumber} · {flagged ? 'Flagged' : 'Approved'}
                           </p>
                         </div>
                       </div>
-                      <p className="mb-4 text-sm italic text-[#424654]">"{fb.feedbackText}"</p>
+                      <p className="mb-4 text-sm italic text-[var(--h-424654)]">"{fb.feedbackText}"</p>
                       {fb.rating != null ? (
-                        <div className="flex gap-1 text-[#15157d]">
+                        <div className="flex gap-1 text-[var(--h-15157d)]">
                           {[1, 2, 3, 4, 5].map((i) => (
                             <Star
                               key={i}
@@ -436,7 +436,7 @@ export default function StudentDashboard() {
                           ))}
                         </div>
                       ) : (
-                        <p className="text-[10px] text-[#737785]">{timeAgo(fb.createdAt)}</p>
+                        <p className="text-[10px] text-[var(--h-737785)]">{timeAgo(fb.createdAt)}</p>
                       )}
                     </div>
                   );

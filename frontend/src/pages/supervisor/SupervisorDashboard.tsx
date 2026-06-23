@@ -42,17 +42,17 @@ function formatWhen(iso: string | null) {
 const statusBadge: Record<string, { label: string; classes: string }> = {
   approved:     { label: 'Approved',       classes: 'bg-emerald-100 text-emerald-800' },
   submitted:    { label: 'Pending review', classes: 'bg-amber-100 text-amber-800' },
-  under_review: { label: 'In review',      classes: 'bg-[#e1e0ff] text-[#373a9b]' },
-  late:         { label: 'Late',           classes: 'bg-[#ffdad6] text-[#93000a]' },
-  flagged:      { label: 'Flagged',        classes: 'bg-[#ffdad6] text-[#93000a]' },
-  draft:        { label: 'Draft',          classes: 'bg-[#e5eeff] text-[#464652]' },
-  pending:      { label: 'Pending',        classes: 'bg-[#e5eeff] text-[#464652]' },
+  under_review: { label: 'In review',      classes: 'bg-[var(--h-e1e0ff)] text-[var(--h-373a9b)]' },
+  late:         { label: 'Late',           classes: 'bg-[var(--h-ffdad6)] text-[var(--h-93000a)]' },
+  flagged:      { label: 'Flagged',        classes: 'bg-[var(--h-ffdad6)] text-[var(--h-93000a)]' },
+  draft:        { label: 'Draft',          classes: 'bg-[var(--h-e5eeff)] text-[var(--h-464652)]' },
+  pending:      { label: 'Pending',        classes: 'bg-[var(--h-e5eeff)] text-[var(--h-464652)]' },
 };
 
 const avatarTints = [
-  'bg-[#2e3192] text-[#9da1ff]',
-  'bg-[#8a4cfc] text-[#fffbff]',
-  'bg-[#6ffbbe] text-[#002113]',
+  'bg-[var(--h-2e3192)] text-[var(--h-9da1ff)]',
+  'bg-[var(--h-8a4cfc)] text-[var(--h-fffbff)]',
+  'bg-[var(--h-6ffbbe)] text-[var(--h-002113)]',
 ];
 
 export default function SupervisorDashboard() {
@@ -61,7 +61,7 @@ export default function SupervisorDashboard() {
   if (isLoading) {
     return (
       <div className="flex h-64 items-center justify-center">
-        <Loader2 className="h-6 w-6 animate-spin text-[#15157d]" />
+        <Loader2 className="h-6 w-6 animate-spin text-[var(--h-15157d)]" />
       </div>
     );
   }
@@ -90,18 +90,18 @@ export default function SupervisorDashboard() {
       {/* Welcome & stat summary */}
       <section className="flex flex-col items-start justify-between gap-6 md:flex-row md:items-end">
         <div>
-          <h1 className="text-[32px] font-semibold leading-tight tracking-tight text-[#0b1c30]">Supervisor Overview</h1>
-          <p className="mt-1 text-base text-[#464652]">
+          <h1 className="text-[32px] font-semibold leading-tight tracking-tight text-[var(--h-0b1c30)]">Supervisor Overview</h1>
+          <p className="mt-1 text-base text-[var(--h-464652)]">
             Monitoring {overview.assignedStudents} active internship{overview.assignedStudents === 1 ? '' : 's'}.
           </p>
         </div>
         <div className="flex flex-wrap gap-4">
-          <StatTile label="Active Interns"  value={String(overview.assignedStudents)} valueClass="text-[#15157d]" />
-          <StatTile label="Pending Reviews" value={String(overview.pendingReview).padStart(2, '0')} valueClass="text-[#712ae2]" />
+          <StatTile label="Active Interns"  value={String(overview.assignedStudents)} valueClass="text-[var(--h-15157d)]" />
+          <StatTile label="Pending Reviews" value={String(overview.pendingReview).padStart(2, '0')} valueClass="text-[var(--h-712ae2)]" />
           <StatTile
             label="Avg. Pulse"
             value={overview.avgQualityScore != null ? `${Math.round(overview.avgQualityScore)}%` : '—'}
-            valueClass="text-[#22c087]"
+            valueClass="text-[var(--h-22c087)]"
           />
         </div>
       </section>
@@ -111,11 +111,11 @@ export default function SupervisorDashboard() {
         {/* Pulse Check Board */}
         <section className="col-span-12 space-y-4 lg:col-span-8">
           <div className="flex items-center justify-between">
-            <h2 className="flex items-center gap-2 text-2xl font-semibold text-[#0b1c30]">
-              <Activity className="h-6 w-6 text-[#22c087]" />
+            <h2 className="flex items-center gap-2 text-2xl font-semibold text-[var(--h-0b1c30)]">
+              <Activity className="h-6 w-6 text-[var(--h-22c087)]" />
               Pulse Check Board
             </h2>
-            <Link to="/supervisor/review" className="flex items-center gap-1 text-sm font-semibold text-[#15157d] hover:underline">
+            <Link to="/supervisor/review" className="flex items-center gap-1 text-sm font-semibold text-[var(--h-15157d)] hover:underline">
               View Detailed Metrics <ArrowRight className="h-4 w-4" />
             </Link>
           </div>
@@ -130,22 +130,22 @@ export default function SupervisorDashboard() {
                 const atRisk = s.riskTier === 'high';
                 const top = (s.avgQualityScore ?? 0) >= 85 && !atRisk;
                 const badge = atRisk
-                  ? { label: 'At Risk', classes: 'bg-[#ffdad6] text-[#93000a]' }
+                  ? { label: 'At Risk', classes: 'bg-[var(--h-ffdad6)] text-[var(--h-93000a)]' }
                   : top
-                    ? { label: 'Top Performer', classes: 'bg-[#6ffbbe] text-[#002113]' }
-                    : { label: 'On Track', classes: 'bg-[#dce9ff] text-[#464652]' };
-                const barColor = atRisk ? 'bg-[#ba1a1a]' : top ? 'bg-[#4edea3]' : 'bg-[#15157d]';
+                    ? { label: 'Top Performer', classes: 'bg-[var(--h-6ffbbe)] text-[var(--h-002113)]' }
+                    : { label: 'On Track', classes: 'bg-[var(--h-dce9ff)] text-[var(--h-464652)]' };
+                const barColor = atRisk ? 'bg-[var(--h-ba1a1a)]' : top ? 'bg-[var(--h-4edea3)]' : 'bg-[var(--h-15157d)]';
 
                 return (
-                  <div key={s.placementId} className="rounded-xl border border-[#c7c5d4]/20 bg-white/70 p-4 backdrop-blur transition-all hover:shadow-lg">
+                  <div key={s.placementId} className="rounded-xl border border-[var(--h-c7c5d4-20)] bg-[var(--h-ffffff-70)] p-4 backdrop-blur transition-all hover:shadow-lg">
                     <div className="mb-4 flex items-start justify-between">
                       <div className="flex items-center gap-3">
-                        <div className="flex h-12 w-12 items-center justify-center rounded-lg bg-[#e1e0ff] text-sm font-bold text-[#15157d]">
+                        <div className="flex h-12 w-12 items-center justify-center rounded-lg bg-[var(--h-e1e0ff)] text-sm font-bold text-[var(--h-15157d)]">
                           {initials(s)}
                         </div>
                         <div>
-                          <h3 className="text-sm font-bold text-[#0b1c30]">{fullName(s)}</h3>
-                          <p className="text-xs text-[#464652]">Intern</p>
+                          <h3 className="text-sm font-bold text-[var(--h-0b1c30)]">{fullName(s)}</h3>
+                          <p className="text-xs text-[var(--h-464652)]">Intern</p>
                         </div>
                       </div>
                       <span className={`rounded-full px-2.5 py-1 text-[11px] font-semibold ${badge.classes}`}>
@@ -154,13 +154,13 @@ export default function SupervisorDashboard() {
                     </div>
                     <div className="space-y-3">
                       <div className="flex items-center justify-between text-sm">
-                        <span className="text-[#464652]">Weekly Engagement</span>
-                        <span className="font-semibold text-[#15157d]">{eng != null ? `${eng}%` : '—'}</span>
+                        <span className="text-[var(--h-464652)]">Weekly Engagement</span>
+                        <span className="font-semibold text-[var(--h-15157d)]">{eng != null ? `${eng}%` : '—'}</span>
                       </div>
                       <div className="h-2 w-full rounded-full bg-slate-200">
                         <div className={`h-2 rounded-full transition-all duration-700 ${barColor}`} style={{ width: `${eng ?? 0}%` }} />
                       </div>
-                      <div className="flex items-center gap-4 text-xs text-[#464652]">
+                      <div className="flex items-center gap-4 text-xs text-[var(--h-464652)]">
                         <span className="flex items-center gap-1"><CheckCircle2 className="h-3.5 w-3.5" /> {done}/{total} Tasks</span>
                         <span className="flex items-center gap-1"><MessageSquare className="h-3.5 w-3.5" /> {reviewedCount(s)} Reviewed</span>
                       </div>
@@ -174,31 +174,31 @@ export default function SupervisorDashboard() {
 
         {/* AI Alerts */}
         <aside className="col-span-12 space-y-4 lg:col-span-4">
-          <h2 className="flex items-center gap-2 text-2xl font-semibold text-[#0b1c30]">
-            <Sparkles className="h-6 w-6 text-[#712ae2]" />
+          <h2 className="flex items-center gap-2 text-2xl font-semibold text-[var(--h-0b1c30)]">
+            <Sparkles className="h-6 w-6 text-[var(--h-712ae2)]" />
             AI Alerts
           </h2>
           <div className="flex flex-col gap-4">
             {highRisk.length > 0 ? (
               <AlertCard glow>
                 <div className="mb-1 flex items-center gap-2">
-                  <AlertTriangle className="h-4 w-4 text-[#712ae2]" />
-                  <span className="text-sm font-semibold text-[#712ae2]">Urgent support needed</span>
+                  <AlertTriangle className="h-4 w-4 text-[var(--h-712ae2)]" />
+                  <span className="text-sm font-semibold text-[var(--h-712ae2)]">Urgent support needed</span>
                 </div>
-                <p className="text-base leading-tight text-[#0b1c30]">
-                  <span className="font-bold text-[#15157d]">{fullName(highRisk[0])}</span> is flagged{' '}
-                  <span className="font-semibold text-[#ba1a1a]">high risk</span>
+                <p className="text-base leading-tight text-[var(--h-0b1c30)]">
+                  <span className="font-bold text-[var(--h-15157d)]">{fullName(highRisk[0])}</span> is flagged{' '}
+                  <span className="font-semibold text-[var(--h-ba1a1a)]">high risk</span>
                   {highRisk[0].riskScore != null ? ` (score ${Math.round(highRisk[0].riskScore)})` : ''}.
                   {highRisk.length > 1 ? ` ${highRisk.length - 1} other student${highRisk.length - 1 === 1 ? '' : 's'} also need attention.` : ''}
                 </p>
-                <div className="rounded-lg border border-[#ba1a1a]/10 bg-[#ffdad6]/30 p-3">
-                  <p className="text-sm italic text-[#93000a]">
+                <div className="rounded-lg border border-[var(--h-ba1a1a-10)] bg-[var(--h-ffdad6-30)] p-3">
+                  <p className="text-sm italic text-[var(--h-93000a)]">
                     AI recommends an immediate check-in before the next deadline to prevent further drop-off.
                   </p>
                 </div>
                 <Link
                   to="/supervisor/review"
-                  className="flex w-full items-center justify-center gap-2 rounded-lg border border-[#712ae2] py-2 text-sm font-semibold text-[#712ae2] transition-colors hover:bg-[#712ae2]/5"
+                  className="flex w-full items-center justify-center gap-2 rounded-lg border border-[var(--h-712ae2)] py-2 text-sm font-semibold text-[var(--h-712ae2)] transition-colors hover:bg-[var(--h-712ae2-5)]"
                 >
                   <CalendarClock className="h-4 w-4" />
                   Schedule Check-in
@@ -207,10 +207,10 @@ export default function SupervisorDashboard() {
             ) : (
               <AlertCard glow>
                 <div className="mb-1 flex items-center gap-2">
-                  <CheckCircle2 className="h-4 w-4 text-[#22c087]" />
-                  <span className="text-sm font-semibold text-[#22c087]">All clear</span>
+                  <CheckCircle2 className="h-4 w-4 text-[var(--h-22c087)]" />
+                  <span className="text-sm font-semibold text-[var(--h-22c087)]">All clear</span>
                 </div>
-                <p className="text-base leading-tight text-[#0b1c30]">
+                <p className="text-base leading-tight text-[var(--h-0b1c30)]">
                   No interns are currently flagged high risk. Keep up the proactive supervision.
                 </p>
               </AlertCard>
@@ -219,19 +219,19 @@ export default function SupervisorDashboard() {
             {topPerformer && (
               <AlertCard glow>
                 <div className="mb-1 flex items-center gap-2">
-                  <Zap className="h-4 w-4 text-[#22c087]" />
-                  <span className="text-sm font-semibold text-[#22c087]">Growth opportunity</span>
+                  <Zap className="h-4 w-4 text-[var(--h-22c087)]" />
+                  <span className="text-sm font-semibold text-[var(--h-22c087)]">Growth opportunity</span>
                 </div>
-                <p className="text-base leading-tight text-[#0b1c30]">
-                  <span className="font-bold text-[#15157d]">{fullName(topPerformer)}</span> is leading the cohort
+                <p className="text-base leading-tight text-[var(--h-0b1c30)]">
+                  <span className="font-bold text-[var(--h-15157d)]">{fullName(topPerformer)}</span> is leading the cohort
                   {topPerformer.avgQualityScore != null ? ` with a ${Math.round(topPerformer.avgQualityScore)}% quality average` : ''}.
                 </p>
-                <p className="text-sm text-[#464652]">
+                <p className="text-sm text-[var(--h-464652)]">
                   AI suggests assigning a stretch task to maintain momentum.
                 </p>
                 <Link
                   to="/supervisor/review"
-                  className="flex w-full items-center justify-center gap-2 rounded-lg border border-[#712ae2] py-2 text-sm font-semibold text-[#712ae2] transition-colors hover:bg-[#712ae2]/5"
+                  className="flex w-full items-center justify-center gap-2 rounded-lg border border-[var(--h-712ae2)] py-2 text-sm font-semibold text-[var(--h-712ae2)] transition-colors hover:bg-[var(--h-712ae2-5)]"
                 >
                   <ArrowUpCircle className="h-4 w-4" />
                   Assign Stretch Task
@@ -244,53 +244,53 @@ export default function SupervisorDashboard() {
         {/* Recent Submissions */}
         <section className="col-span-12 space-y-4">
           <div className="flex items-center justify-between">
-            <h2 className="text-2xl font-semibold text-[#0b1c30]">Recent Submissions</h2>
+            <h2 className="text-2xl font-semibold text-[var(--h-0b1c30)]">Recent Submissions</h2>
             <div className="flex gap-2">
-              <span className="rounded-full bg-[#8a4cfc] px-3 py-1 text-xs font-semibold text-white">{overview.pendingReview} Pending</span>
-              <span className="rounded-full bg-[#e5eeff] px-3 py-1 text-xs font-semibold text-[#464652]">{reviewedTotal} Reviewed</span>
+              <span className="rounded-full bg-[var(--h-8a4cfc)] px-3 py-1 text-xs font-semibold text-white">{overview.pendingReview} Pending</span>
+              <span className="rounded-full bg-[var(--h-e5eeff)] px-3 py-1 text-xs font-semibold text-[var(--h-464652)]">{reviewedTotal} Reviewed</span>
             </div>
           </div>
 
-          <div className="overflow-hidden rounded-xl border border-[#c7c5d4]/20 bg-white shadow-sm">
+          <div className="overflow-hidden rounded-xl border border-[var(--h-c7c5d4-20)] bg-[var(--h-ffffff)] shadow-sm">
             {pendingRows.length === 0 ? (
-              <p className="px-6 py-10 text-center text-sm text-[#464652]">No submissions awaiting review.</p>
+              <p className="px-6 py-10 text-center text-sm text-[var(--h-464652)]">No submissions awaiting review.</p>
             ) : (
               <div className="overflow-x-auto">
               <table className="w-full border-collapse text-left">
-                <thead className="border-b border-[#c7c5d4]/30 bg-[#eff4ff]">
+                <thead className="border-b border-[var(--h-c7c5d4-30)] bg-[var(--h-eff4ff)]">
                   <tr>
                     {['Intern', 'Task title', 'Submission date', 'Status', 'Action'].map((h, i) => (
                       <th
                         key={h}
-                        className={`px-6 py-4 text-xs font-semibold tracking-wide text-[#464652] ${i === 4 ? 'text-right' : ''}`}
+                        className={`px-6 py-4 text-xs font-semibold tracking-wide text-[var(--h-464652)] ${i === 4 ? 'text-right' : ''}`}
                       >
                         {h}
                       </th>
                     ))}
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-[#c7c5d4]/20">
+                <tbody className="divide-y divide-[var(--h-c7c5d4-20)]">
                   {pendingRows.map(({ s, w }, idx) => {
                     const badge = statusBadge[w!.status] ?? statusBadge.pending;
                     return (
-                      <tr key={s.placementId} className="transition-colors hover:bg-[#eff4ff]">
+                      <tr key={s.placementId} className="transition-colors hover:bg-[var(--h-eff4ff)]">
                         <td className="px-6 py-4">
                           <div className="flex items-center gap-3">
                             <div className={`flex h-8 w-8 items-center justify-center rounded-full text-xs font-bold ${avatarTints[idx % avatarTints.length]}`}>
                               {initials(s)}
                             </div>
-                            <span className="text-base text-[#0b1c30]">{fullName(s)}</span>
+                            <span className="text-base text-[var(--h-0b1c30)]">{fullName(s)}</span>
                           </div>
                         </td>
-                        <td className="px-6 py-4 text-base text-[#0b1c30]">Week {w!.week} Logbook</td>
-                        <td className="px-6 py-4 text-sm text-[#464652]">{formatWhen(s.lastSubmittedAt)}</td>
+                        <td className="px-6 py-4 text-base text-[var(--h-0b1c30)]">Week {w!.week} Logbook</td>
+                        <td className="px-6 py-4 text-sm text-[var(--h-464652)]">{formatWhen(s.lastSubmittedAt)}</td>
                         <td className="px-6 py-4">
                           <span className={`rounded-full px-3 py-1 text-xs font-bold ${badge.classes}`}>{badge.label}</span>
                         </td>
                         <td className="px-6 py-4 text-right">
                           <Link
                             to="/supervisor/review"
-                            className="inline-block rounded-lg bg-[#15157d] px-4 py-1.5 text-sm font-semibold text-white transition-transform hover:bg-[#2e3192] active:scale-95"
+                            className="inline-block rounded-lg bg-[var(--h-15157d)] px-4 py-1.5 text-sm font-semibold text-white transition-transform hover:bg-[var(--h-2e3192)] active:scale-95"
                           >
                             Review
                           </Link>
@@ -302,8 +302,8 @@ export default function SupervisorDashboard() {
               </table>
               </div>
             )}
-            <div className="flex justify-center bg-[#eff4ff]/50 p-4">
-              <Link to="/supervisor/review" className="flex items-center gap-2 text-sm font-semibold text-[#464652] transition-colors hover:text-[#15157d]">
+            <div className="flex justify-center bg-[var(--h-eff4ff-50)] p-4">
+              <Link to="/supervisor/review" className="flex items-center gap-2 text-sm font-semibold text-[var(--h-464652)] transition-colors hover:text-[var(--h-15157d)]">
                 View all submissions <ChevronDown className="h-4 w-4" />
               </Link>
             </div>
@@ -317,8 +317,8 @@ export default function SupervisorDashboard() {
 // ── small presentational helpers ─────────────────────────────────
 function StatTile({ label, value, valueClass }: { label: string; value: string; valueClass: string }) {
   return (
-    <div className="flex flex-col rounded-xl border border-[#c7c5d4]/20 bg-white p-4 shadow-sm">
-      <span className="text-xs font-semibold text-[#464652]">{label}</span>
+    <div className="flex flex-col rounded-xl border border-[var(--h-c7c5d4-20)] bg-[var(--h-ffffff)] p-4 shadow-sm">
+      <span className="text-xs font-semibold text-[var(--h-464652)]">{label}</span>
       <span className={`text-2xl font-bold ${valueClass}`}>{value}</span>
     </div>
   );
@@ -327,7 +327,7 @@ function StatTile({ label, value, valueClass }: { label: string; value: string; 
 function AlertCard({ children, glow }: { children: React.ReactNode; glow?: boolean }) {
   return (
     <div
-      className="space-y-3 rounded-xl bg-white/70 p-5 backdrop-blur"
+      className="space-y-3 rounded-xl bg-[var(--h-ffffff-70)] p-5 backdrop-blur"
       style={glow ? { boxShadow: '0 0 15px -3px rgba(113,42,226,0.15), 0 4px 6px -2px rgba(113,42,226,0.05)', border: '1px solid rgba(113,42,226,0.2)' } : undefined}
     >
       {children}
@@ -337,9 +337,9 @@ function AlertCard({ children, glow }: { children: React.ReactNode; glow?: boole
 
 function EmptyPanel({ icon: Icon, text }: { icon: React.ElementType; text: string }) {
   return (
-    <div className="rounded-xl border border-[#c7c5d4]/20 bg-white p-10 text-center">
-      <Icon className="mx-auto mb-3 h-8 w-8 text-[#8a4cfc]" />
-      <p className="text-sm text-[#464652]">{text}</p>
+    <div className="rounded-xl border border-[var(--h-c7c5d4-20)] bg-[var(--h-ffffff)] p-10 text-center">
+      <Icon className="mx-auto mb-3 h-8 w-8 text-[var(--h-8a4cfc)]" />
+      <p className="text-sm text-[var(--h-464652)]">{text}</p>
     </div>
   );
 }

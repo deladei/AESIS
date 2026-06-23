@@ -5,12 +5,12 @@ import { getSocket } from '@/lib/socket';
 import { queryClient } from '@/lib/queryClient';
 
 const notifConfig: Record<string, { icon: React.ElementType; iconClass: string; bg: string }> = {
-  risk_alert:           { icon: AlertTriangle,  iconClass: 'text-[#b3261e]', bg: 'bg-[#ffe2dc] border-[#f5b8ad]' },
-  feedback_received:    { icon: MessageSquare,  iconClass: 'text-[#15157d]', bg: 'bg-[#e1e8ff] border-[#bcc8ff]' },
-  submission_reminder:  { icon: Clock,          iconClass: 'text-[#9a6700]', bg: 'bg-[#fff4e0] border-[#f3d690]' },
-  placement_approved:   { icon: CheckCircle2,   iconClass: 'text-[#1b7a45]', bg: 'bg-[#dcf5e6] border-[#aee3c2]' },
-  escalation:           { icon: AlertTriangle,  iconClass: 'text-[#b45309]', bg: 'bg-[#ffedd5] border-[#fed7aa]' },
-  system:               { icon: FileText,       iconClass: 'text-[#64748b]', bg: 'bg-[#eef0f5] border-[#d8dce6]' },
+  risk_alert:           { icon: AlertTriangle,  iconClass: 'text-[var(--h-b3261e)]', bg: 'bg-[var(--h-ffe2dc)] border-[var(--h-f5b8ad)]' },
+  feedback_received:    { icon: MessageSquare,  iconClass: 'text-[var(--h-15157d)]', bg: 'bg-[var(--h-e1e8ff)] border-[var(--h-bcc8ff)]' },
+  submission_reminder:  { icon: Clock,          iconClass: 'text-[var(--h-9a6700)]', bg: 'bg-[var(--h-fff4e0)] border-[var(--h-f3d690)]' },
+  placement_approved:   { icon: CheckCircle2,   iconClass: 'text-[var(--h-1b7a45)]', bg: 'bg-[var(--h-dcf5e6)] border-[var(--h-aee3c2)]' },
+  escalation:           { icon: AlertTriangle,  iconClass: 'text-[var(--h-b45309)]', bg: 'bg-[var(--h-ffedd5)] border-[var(--h-fed7aa)]' },
+  system:               { icon: FileText,       iconClass: 'text-[var(--h-64748b)]', bg: 'bg-[var(--h-eef0f5)] border-[var(--h-d8dce6)]' },
 };
 
 function formatDate(iso: string) {
@@ -43,7 +43,7 @@ export default function NotificationInbox() {
   if (isLoading) {
     return (
       <div className="flex h-64 items-center justify-center p-6">
-        <Loader2 className="h-6 w-6 animate-spin text-[#8a4cfc]" />
+        <Loader2 className="h-6 w-6 animate-spin text-[var(--h-8a4cfc)]" />
       </div>
     );
   }
@@ -52,9 +52,9 @@ export default function NotificationInbox() {
     <div className="mx-auto max-w-3xl space-y-5 px-6 py-6">
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-3">
-          <h1 className="text-xl font-bold text-[#0b1c30]">Notifications</h1>
+          <h1 className="text-xl font-bold text-[var(--h-0b1c30)]">Notifications</h1>
           {unread > 0 && (
-            <span className="rounded-full border border-[#bcc8ff] bg-[#e1e8ff] px-2 py-0.5 font-mono text-xs text-[#15157d]">
+            <span className="rounded-full border border-[var(--h-bcc8ff)] bg-[var(--h-e1e8ff)] px-2 py-0.5 font-mono text-xs text-[var(--h-15157d)]">
               {unread} unread
             </span>
           )}
@@ -63,7 +63,7 @@ export default function NotificationInbox() {
           <button
             onClick={() => markAllRead.mutate()}
             disabled={markAllRead.isPending}
-            className="cursor-pointer text-xs font-medium text-[#712ae2] transition-colors hover:text-[#5a1fc0] disabled:opacity-60"
+            className="cursor-pointer text-xs font-medium text-[var(--h-712ae2)] transition-colors hover:text-[var(--h-5a1fc0)] disabled:opacity-60"
           >
             Mark all read
           </button>
@@ -71,9 +71,9 @@ export default function NotificationInbox() {
       </div>
 
       {notifications.length === 0 ? (
-        <div className="flex flex-col items-center justify-center rounded-xl border border-dashed border-[#d8dce6] bg-white py-20 text-center">
-          <Bell className="mb-4 h-10 w-10 text-[#cbd2e0]" />
-          <p className="text-sm text-[#64748b]">No notifications yet</p>
+        <div className="flex flex-col items-center justify-center rounded-xl border border-dashed border-[var(--h-d8dce6)] bg-[var(--h-ffffff)] py-20 text-center">
+          <Bell className="mb-4 h-10 w-10 text-[var(--h-cbd2e0)]" />
+          <p className="text-sm text-[var(--h-64748b)]">No notifications yet</p>
         </div>
       ) : (
         <div className="space-y-2">
@@ -86,8 +86,8 @@ export default function NotificationInbox() {
                 onClick={() => { if (!n.isRead) markRead.mutate(n.id); }}
                 className={`flex cursor-pointer items-start gap-4 rounded-xl border px-5 py-4 transition-colors ${
                   n.isRead
-                    ? 'border-[#e2e6ef] bg-white hover:bg-[#f8f9ff]'
-                    : 'border-[#bcc8ff] bg-[#f4f6ff] hover:bg-[#eef2ff]'
+                    ? 'border-[var(--h-e2e6ef)] bg-[var(--h-ffffff)] hover:bg-[var(--h-f8f9ff)]'
+                    : 'border-[var(--h-bcc8ff)] bg-[var(--h-f4f6ff)] hover:bg-[var(--h-eef2ff)]'
                 }`}
               >
                 <div className={`mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border ${cfg.bg}`}>
@@ -95,14 +95,14 @@ export default function NotificationInbox() {
                 </div>
                 <div className="min-w-0 flex-1">
                   <div className="mb-0.5 flex items-center gap-2">
-                    <p className={`text-sm font-semibold ${n.isRead ? 'text-[#464652]' : 'text-[#0b1c30]'}`}>
+                    <p className={`text-sm font-semibold ${n.isRead ? 'text-[var(--h-464652)]' : 'text-[var(--h-0b1c30)]'}`}>
                       {n.title}
                     </p>
-                    {!n.isRead && <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-[#15157d]" />}
+                    {!n.isRead && <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-[var(--h-15157d)]" />}
                   </div>
-                  <p className="text-xs leading-relaxed text-[#64748b]">{n.body}</p>
+                  <p className="text-xs leading-relaxed text-[var(--h-64748b)]">{n.body}</p>
                 </div>
-                <span className="mt-0.5 shrink-0 whitespace-nowrap text-xs text-[#94a3b8]">
+                <span className="mt-0.5 shrink-0 whitespace-nowrap text-xs text-[var(--h-94a3b8)]">
                   {formatDate(n.createdAt)}
                 </span>
               </div>

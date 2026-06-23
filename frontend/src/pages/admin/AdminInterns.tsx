@@ -14,11 +14,11 @@ export default function AdminInterns() {
   return (
     <div className="p-6">
       <div className="mb-6">
-        <p className="mb-1 text-xs font-semibold tracking-wide text-[#15157d]">Admin</p>
-        <h2 className="text-3xl font-bold tracking-tight text-[#0b1c30]">
+        <p className="mb-1 text-xs font-semibold tracking-wide text-[var(--h-15157d)]">Admin</p>
+        <h2 className="text-3xl font-bold tracking-tight text-[var(--h-0b1c30)]">
           {attentionOnly ? 'Interns needing attention' : 'All Interns'}
         </h2>
-        <p className="mt-1 text-sm text-[#757684]">Sort, filter, and drill into every active placement.</p>
+        <p className="mt-1 text-sm text-[var(--h-757684)]">Sort, filter, and drill into every active placement.</p>
       </div>
       <InternStatusTable pageSize={20} initialFilters={attentionOnly ? { attention: true } : undefined} />
     </div>

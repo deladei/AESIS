@@ -5,6 +5,278 @@
 @tailwind utilities;
 
 @layer base {
+  /* === AESIS theme tokens (generated) — light == original colors === */
+  :root {
+    --h-002113: #002113;
+    --h-0b1c30: #0b1c30;
+    --h-15157d: #15157d;
+    --h-15633a: #15633a;
+    --h-191c1e: #191c1e;
+    --h-1a7f43: #1a7f43;
+    --h-1b7a45: #1b7a45;
+    --h-1e1ea0: #1e1ea0;
+    --h-1f1fa0: #1f1fa0;
+    --h-1f2a3a: #1f2a3a;
+    --h-22c087: #22c087;
+    --h-2e3192: #2e3192;
+    --h-373a9b: #373a9b;
+    --h-424654: #424654;
+    --h-444653: #444653;
+    --h-464652: #464652;
+    --h-4edea3: #4edea3;
+    --h-5a1fc0: #5a1fc0;
+    --h-645efb: #645efb;
+    --h-64748b: #64748b;
+    --h-6f1717: #6f1717;
+    --h-6ffbbe: #6ffbbe;
+    --h-712ae2: #712ae2;
+    --h-737785: #737785;
+    --h-757684: #757684;
+    --h-777683: #777683;
+    --h-7a2018: #7a2018;
+    --h-812800: #812800;
+    --h-89ceff: #89ceff;
+    --h-8a1c1c: #8a1c1c;
+    --h-8a4cfc: #8a4cfc;
+    --h-93000a: #93000a;
+    --h-94a3b8: #94a3b8;
+    --h-9a6700: #9a6700;
+    --h-9a9bad: #9a9bad;
+    --h-9da1ff: #9da1ff;
+    --h-aee3c2: #aee3c2;
+    --h-b3261e: #b3261e;
+    --h-b45309: #b45309;
+    --h-b9c0d0: #b9c0d0;
+    --h-ba1a1a: #ba1a1a;
+    --h-bcc8ff: #bcc8ff;
+    --h-bdbfca: #bdbfca;
+    --h-c4c5d5: #c4c5d5;
+    --h-c7c5d4: #c7c5d4;
+    --h-cbd2e0: #cbd2e0;
+    --h-d8dce6: #d8dce6;
+    --h-d99a00: #d99a00;
+    --h-dcc9ff: #dcc9ff;
+    --h-dce9ff: #dce9ff;
+    --h-dcf5e6: #dcf5e6;
+    --h-e1e0ff: #e1e0ff;
+    --h-e1e8ff: #e1e8ff;
+    --h-e2e6ef: #e2e6ef;
+    --h-e5eeff: #e5eeff;
+    --h-e6dcff: #e6dcff;
+    --h-e6f6ec: #e6f6ec;
+    --h-e7e8eb: #e7e8eb;
+    --h-e8ebf2: #e8ebf2;
+    --h-e9f9ef: #e9f9ef;
+    --h-ede9ff: #ede9ff;
+    --h-eef0f5: #eef0f5;
+    --h-eef1ff: #eef1ff;
+    --h-eef2ff: #eef2ff;
+    --h-eff4ff: #eff4ff;
+    --h-f0f2f7: #f0f2f7;
+    --h-f0faf4: #f0faf4;
+    --h-f1b4b4: #f1b4b4;
+    --h-f1ecff: #f1ecff;
+    --h-f1f1f5: #f1f1f5;
+    --h-f3d690: #f3d690;
+    --h-f3f3f7: #f3f3f7;
+    --h-f4f6ff: #f4f6ff;
+    --h-f5b8ad: #f5b8ad;
+    --h-f5f8ff: #f5f8ff;
+    --h-f6f2ff: #f6f2ff;
+    --h-f7f8fb: #f7f8fb;
+    --h-f8f9ff: #f8f9ff;
+    --h-fbfcfe: #fbfcfe;
+    --h-fde7e7: #fde7e7;
+    --h-fed7aa: #fed7aa;
+    --h-ffdad6: #ffdad6;
+    --h-ffdbcf: #ffdbcf;
+    --h-ffe2dc: #ffe2dc;
+    --h-ffedd5: #ffedd5;
+    --h-fff1ee: #fff1ee;
+    --h-fff4e0: #fff4e0;
+    --h-fffaf5: #fffaf5;
+    --h-fffbff: #fffbff;
+    --h-0b1c30-40: rgba(11, 28, 48, 0.4);
+    --h-15157d-10: rgba(21, 21, 125, 0.1);
+    --h-15157d-20: rgba(21, 21, 125, 0.2);
+    --h-15157d-30: rgba(21, 21, 125, 0.3);
+    --h-15157d-40: rgba(21, 21, 125, 0.4);
+    --h-15157d-5: rgba(21, 21, 125, 0.05);
+    --h-15157d-50: rgba(21, 21, 125, 0.5);
+    --h-22c087-10: rgba(34, 192, 135, 0.1);
+    --h-645efb-10: rgba(100, 94, 251, 0.1);
+    --h-6f1717-80: rgba(111, 23, 23, 0.8);
+    --h-712ae2-10: rgba(113, 42, 226, 0.1);
+    --h-712ae2-20: rgba(113, 42, 226, 0.2);
+    --h-712ae2-30: rgba(113, 42, 226, 0.3);
+    --h-712ae2-5: rgba(113, 42, 226, 0.05);
+    --h-7a2018-80: rgba(122, 32, 24, 0.8);
+    --h-8a4cfc-30: rgba(138, 76, 252, 0.3);
+    --h-ba1a1a-10: rgba(186, 26, 26, 0.1);
+    --h-ba1a1a-20: rgba(186, 26, 26, 0.2);
+    --h-ba1a1a-5: rgba(186, 26, 26, 0.05);
+    --h-c4c5d5-30: rgba(196, 197, 213, 0.3);
+    --h-c4c5d5-40: rgba(196, 197, 213, 0.4);
+    --h-c4c5d5-50: rgba(196, 197, 213, 0.5);
+    --h-c4c5d5-60: rgba(196, 197, 213, 0.6);
+    --h-c4c5d5-70: rgba(196, 197, 213, 0.7);
+    --h-c7c5d4-10: rgba(199, 197, 212, 0.1);
+    --h-c7c5d4-20: rgba(199, 197, 212, 0.2);
+    --h-c7c5d4-30: rgba(199, 197, 212, 0.3);
+    --h-c7c5d4-40: rgba(199, 197, 212, 0.4);
+    --h-c7c5d4-50: rgba(199, 197, 212, 0.5);
+    --h-dce9ff-30: rgba(220, 233, 255, 0.3);
+    --h-dce9ff-40: rgba(220, 233, 255, 0.4);
+    --h-dce9ff-50: rgba(220, 233, 255, 0.5);
+    --h-e1e0ff-60: rgba(225, 224, 255, 0.6);
+    --h-eff4ff-50: rgba(239, 244, 255, 0.5);
+    --h-f8f9ff-50: rgba(248, 249, 255, 0.5);
+    --h-f8f9ff-80: rgba(248, 249, 255, 0.8);
+    --h-ffdad6-30: rgba(255, 218, 214, 0.3);
+    --h-ffdad6-40: rgba(255, 218, 214, 0.4);
+    --h-ffffff-10: rgba(255, 255, 255, 0.1);
+    --h-ffffff-20: rgba(255, 255, 255, 0.2);
+    --h-ffffff-60: rgba(255, 255, 255, 0.6);
+    --h-ffffff-70: rgba(255, 255, 255, 0.7);
+    --h-ffffff-90: rgba(255, 255, 255, 0.9);
+  }
+  .dark {
+    --h-002113: #bbf7d0;
+    --h-0b1c30: #e8eefc;
+    --h-15157d: #7b7bf5;
+    --h-15633a: #34d399;
+    --h-191c1e: #e8eefc;
+    --h-1a7f43: #34d399;
+    --h-1b7a45: #34d399;
+    --h-1e1ea0: #8a8af7;
+    --h-1f1fa0: #8a8af7;
+    --h-1f2a3a: #cdd7ea;
+    --h-22c087: #34d399;
+    --h-2e3192: #8a8af7;
+    --h-373a9b: #8a8af7;
+    --h-424654: #9aa6be;
+    --h-444653: #b3bccf;
+    --h-464652: #b3bccf;
+    --h-4edea3: #4edea3;
+    --h-5a1fc0: #9d6bff;
+    --h-645efb: #8f8aff;
+    --h-64748b: #9aa6be;
+    --h-6f1717: #fca5a5;
+    --h-6ffbbe: #6ffbbe;
+    --h-712ae2: #9d6bff;
+    --h-737785: #a3adc2;
+    --h-757684: #a3adc2;
+    --h-777683: #a3adc2;
+    --h-7a2018: #fca5a5;
+    --h-812800: #fca5a5;
+    --h-89ceff: #89ceff;
+    --h-8a1c1c: #f87171;
+    --h-8a4cfc: #9d6bff;
+    --h-93000a: #fca5a5;
+    --h-94a3b8: #6b7689;
+    --h-9a6700: #fbbf24;
+    --h-9a9bad: #8b95ab;
+    --h-9da1ff: #9da1ff;
+    --h-aee3c2: #1c3d28;
+    --h-b3261e: #f87171;
+    --h-b45309: #fbbf24;
+    --h-b9c0d0: #2a3346;
+    --h-ba1a1a: #f87171;
+    --h-bcc8ff: #bcc8ff;
+    --h-bdbfca: #2a3346;
+    --h-c4c5d5: #2a3346;
+    --h-c7c5d4: #2a3346;
+    --h-cbd2e0: #283143;
+    --h-d8dce6: #283143;
+    --h-d99a00: #fbbf24;
+    --h-dcc9ff: #2a2150;
+    --h-dce9ff: #1c2742;
+    --h-dcf5e6: #15301f;
+    --h-e1e0ff: #232a4a;
+    --h-e1e8ff: #232a4a;
+    --h-e2e6ef: #222b3d;
+    --h-e5eeff: #1c2742;
+    --h-e6dcff: #2a2150;
+    --h-e6f6ec: #15301f;
+    --h-e7e8eb: #222b3d;
+    --h-e8ebf2: #222b3d;
+    --h-e9f9ef: #15301f;
+    --h-ede9ff: #232049;
+    --h-eef0f5: #1a2233;
+    --h-eef1ff: #1c2742;
+    --h-eef2ff: #121a2e;
+    --h-eff4ff: #111a2e;
+    --h-f0f2f7: #222b3d;
+    --h-f0faf4: #122a1c;
+    --h-f1b4b4: #4a241c;
+    --h-f1ecff: #232049;
+    --h-f1f1f5: #0e1626;
+    --h-f3d690: #4a3a1a;
+    --h-f3f3f7: #121826;
+    --h-f4f6ff: #0e1626;
+    --h-f5b8ad: #4a241c;
+    --h-f5f8ff: #0e1626;
+    --h-f6f2ff: #161430;
+    --h-f7f8fb: #0e1626;
+    --h-f8f9ff: #0b1220;
+    --h-fbfcfe: #131b2c;
+    --h-fde7e7: #3a1a1a;
+    --h-fed7aa: #4a3a1a;
+    --h-ffdad6: #3a1a1a;
+    --h-ffdbcf: #3a1a1a;
+    --h-ffe2dc: #3a1a1a;
+    --h-ffedd5: #3a2e12;
+    --h-fff1ee: #331816;
+    --h-fff4e0: #3a2e12;
+    --h-fffaf5: #0e1626;
+    --h-fffbff: #0b1220;
+    --h-0b1c30-40: rgba(232, 238, 252, 0.4);
+    --h-15157d-10: rgba(123, 123, 245, 0.1);
+    --h-15157d-20: rgba(123, 123, 245, 0.2);
+    --h-15157d-30: rgba(123, 123, 245, 0.3);
+    --h-15157d-40: rgba(123, 123, 245, 0.4);
+    --h-15157d-5: rgba(123, 123, 245, 0.05);
+    --h-15157d-50: rgba(123, 123, 245, 0.5);
+    --h-22c087-10: rgba(52, 211, 153, 0.1);
+    --h-645efb-10: rgba(143, 138, 255, 0.1);
+    --h-6f1717-80: rgba(252, 165, 165, 0.8);
+    --h-712ae2-10: rgba(157, 107, 255, 0.1);
+    --h-712ae2-20: rgba(157, 107, 255, 0.2);
+    --h-712ae2-30: rgba(157, 107, 255, 0.3);
+    --h-712ae2-5: rgba(157, 107, 255, 0.05);
+    --h-7a2018-80: rgba(252, 165, 165, 0.8);
+    --h-8a4cfc-30: rgba(157, 107, 255, 0.3);
+    --h-ba1a1a-10: rgba(248, 113, 113, 0.1);
+    --h-ba1a1a-20: rgba(248, 113, 113, 0.2);
+    --h-ba1a1a-5: rgba(248, 113, 113, 0.05);
+    --h-c4c5d5-30: rgba(42, 51, 70, 0.3);
+    --h-c4c5d5-40: rgba(42, 51, 70, 0.4);
+    --h-c4c5d5-50: rgba(42, 51, 70, 0.5);
+    --h-c4c5d5-60: rgba(42, 51, 70, 0.6);
+    --h-c4c5d5-70: rgba(42, 51, 70, 0.7);
+    --h-c7c5d4-10: rgba(42, 51, 70, 0.1);
+    --h-c7c5d4-20: rgba(42, 51, 70, 0.2);
+    --h-c7c5d4-30: rgba(42, 51, 70, 0.3);
+    --h-c7c5d4-40: rgba(42, 51, 70, 0.4);
+    --h-c7c5d4-50: rgba(42, 51, 70, 0.5);
+    --h-dce9ff-30: rgba(28, 39, 66, 0.3);
+    --h-dce9ff-40: rgba(28, 39, 66, 0.4);
+    --h-dce9ff-50: rgba(28, 39, 66, 0.5);
+    --h-e1e0ff-60: rgba(35, 42, 74, 0.6);
+    --h-eff4ff-50: rgba(17, 26, 46, 0.5);
+    --h-f8f9ff-50: rgba(11, 18, 32, 0.5);
+    --h-f8f9ff-80: rgba(11, 18, 32, 0.8);
+    --h-ffdad6-30: rgba(58, 26, 26, 0.3);
+    --h-ffdad6-40: rgba(58, 26, 26, 0.4);
+    --h-ffffff-10: rgba(21, 29, 48, 0.1);
+    --h-ffffff-20: rgba(21, 29, 48, 0.2);
+    --h-ffffff-60: rgba(21, 29, 48, 0.6);
+    --h-ffffff-70: rgba(21, 29, 48, 0.7);
+    --h-ffffff-90: rgba(21, 29, 48, 0.9);
+  }
+}
+
+@layer base {
   :root {
     --background: 222 47% 4%;
     --foreground: 210 40% 96%;
@@ -36,7 +308,8 @@
 
 @layer base {
   body {
-    @apply bg-slate-950 text-slate-100 font-sans;
+    @apply bg-[var(--h-f8f9ff)] text-[var(--h-0b1c30)] font-sans;
+    transition: background-color .2s ease, color .2s ease;
     font-family: 'Fira Sans', sans-serif;
   }
   code, .font-mono {
@@ -45,8 +318,8 @@
   /* iOS Safari renders <option> with the system background — without explicit
      colors, dark-themed selects show invisible white-on-white options. */
   select option {
-    color: #0f172a;
-    background-color: #ffffff;
+    color: var(--h-0b1c30);
+    background-color: var(--h-ffffff);
   }
 
   /* Interactive elements get a pointer cursor (Tailwind preflight resets it). */
@@ -59,7 +332,7 @@
 
   /* Visible keyboard focus across the app — only on keyboard nav, not on click. */
   :focus-visible {
-    outline: 2px solid #15157d;
+    outline: 2px solid var(--h-15157d);
     outline-offset: 2px;
     border-radius: 3px;
   }

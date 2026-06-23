@@ -101,12 +101,12 @@ function fmtDate(d: string): string {
 }
 
 const STATUS_META: Record<EntryStatus | 'not_started', { label: string; cls: string; Icon: React.ElementType }> = {
-  not_started:  { label: 'Not started',  cls: 'bg-[#eef0f5] text-[#64748b] border-[#d8dce6]', Icon: Calendar },
-  draft:        { label: 'Draft',        cls: 'bg-[#fff4e0] text-[#9a6700] border-[#f3d690]', Icon: Clock },
-  submitted:    { label: 'Submitted',    cls: 'bg-[#e1e8ff] text-[#15157d] border-[#bcc8ff]', Icon: Send },
-  returned:     { label: 'Returned',     cls: 'bg-[#ffe2dc] text-[#b3261e] border-[#f5b8ad]', Icon: RotateCcw },
-  acknowledged: { label: 'Acknowledged', cls: 'bg-[#dcf5e6] text-[#1b7a45] border-[#aee3c2]', Icon: CheckCircle2 },
-  rejected:     { label: 'Rejected',     cls: 'bg-[#fde7e7] text-[#8a1c1c] border-[#f1b4b4]', Icon: XCircle },
+  not_started:  { label: 'Not started',  cls: 'bg-[var(--h-eef0f5)] text-[var(--h-64748b)] border-[var(--h-d8dce6)]', Icon: Calendar },
+  draft:        { label: 'Draft',        cls: 'bg-[var(--h-fff4e0)] text-[var(--h-9a6700)] border-[var(--h-f3d690)]', Icon: Clock },
+  submitted:    { label: 'Submitted',    cls: 'bg-[var(--h-e1e8ff)] text-[var(--h-15157d)] border-[var(--h-bcc8ff)]', Icon: Send },
+  returned:     { label: 'Returned',     cls: 'bg-[var(--h-ffe2dc)] text-[var(--h-b3261e)] border-[var(--h-f5b8ad)]', Icon: RotateCcw },
+  acknowledged: { label: 'Acknowledged', cls: 'bg-[var(--h-dcf5e6)] text-[var(--h-1b7a45)] border-[var(--h-aee3c2)]', Icon: CheckCircle2 },
+  rejected:     { label: 'Rejected',     cls: 'bg-[var(--h-fde7e7)] text-[var(--h-8a1c1c)] border-[var(--h-f1b4b4)]', Icon: XCircle },
 };
 
 function StatusPill({ status }: { status: EntryStatus | 'not_started' }) {
@@ -296,7 +296,7 @@ export default function LogbookEditor() {
   if (placementsLoading || entriesLoading) {
     return (
       <div className="flex h-64 items-center justify-center">
-        <Loader2 className="h-6 w-6 animate-spin text-[#8a4cfc]" />
+        <Loader2 className="h-6 w-6 animate-spin text-[var(--h-8a4cfc)]" />
       </div>
     );
   }
@@ -304,9 +304,9 @@ export default function LogbookEditor() {
   if (!activePlacement) {
     return (
       <div className="mx-auto max-w-xl px-6 py-20 text-center">
-        <BookOpen className="mx-auto mb-4 h-12 w-12 text-[#8a4cfc]" />
-        <h2 className="mb-1 text-lg font-bold text-[#0b1c30]">No active placement</h2>
-        <p className="text-sm text-[#464652]">
+        <BookOpen className="mx-auto mb-4 h-12 w-12 text-[var(--h-8a4cfc)]" />
+        <h2 className="mb-1 text-lg font-bold text-[var(--h-0b1c30)]">No active placement</h2>
+        <p className="text-sm text-[var(--h-464652)]">
           Your logbook opens once your placement is approved. Check back after coordinator approval.
         </p>
       </div>
@@ -316,11 +316,11 @@ export default function LogbookEditor() {
   if (schedule.length === 0) {
     return (
       <div className="mx-auto max-w-xl px-6 py-20 text-center">
-        <Calendar className="mx-auto mb-4 h-12 w-12 text-[#8a4cfc]" />
-        <h2 className="mb-1 text-lg font-bold text-[#0b1c30]">Your placement hasn't started yet</h2>
-        <p className="text-sm text-[#464652]">
+        <Calendar className="mx-auto mb-4 h-12 w-12 text-[var(--h-8a4cfc)]" />
+        <h2 className="mb-1 text-lg font-bold text-[var(--h-0b1c30)]">Your placement hasn't started yet</h2>
+        <p className="text-sm text-[var(--h-464652)]">
           {activePlacement.startDate
-            ? <>The first logbook week opens on <span className="font-semibold text-[#0b1c30]">{fmtDate(activePlacement.startDate)}</span>, your placement start date.</>
+            ? <>The first logbook week opens on <span className="font-semibold text-[var(--h-0b1c30)]">{fmtDate(activePlacement.startDate)}</span>, your placement start date.</>
             : 'The first logbook week opens on the placement start date.'}
         </p>
       </div>
@@ -329,13 +329,13 @@ export default function LogbookEditor() {
 
   const busy = saveDraft.isPending || submitEntry.isPending;
   const inputCls =
-    'w-full rounded-lg border border-[#d8dce6] bg-white px-3 py-2 text-sm text-[#0b1c30] placeholder-[#94a3b8] transition-colors focus:border-[#8a4cfc] focus:outline-none focus:ring-1 focus:ring-[#8a4cfc]';
+    'w-full rounded-lg border border-[var(--h-d8dce6)] bg-[var(--h-ffffff)] px-3 py-2 text-sm text-[var(--h-0b1c30)] placeholder-[var(--h-94a3b8)] transition-colors focus:border-[var(--h-8a4cfc)] focus:outline-none focus:ring-1 focus:ring-[var(--h-8a4cfc)]';
 
   return (
     <div className="mx-auto max-w-6xl px-6 py-6">
       <div className="mb-6">
-        <h1 className="text-xl font-bold text-[#0b1c30]">Logbook</h1>
-        <p className="mt-0.5 text-sm text-[#464652]">
+        <h1 className="text-xl font-bold text-[var(--h-0b1c30)]">Logbook</h1>
+        <p className="mt-0.5 text-sm text-[var(--h-464652)]">
           {activePlacement.company?.name ?? 'Your placement'} · weekly entries
         </p>
       </div>
@@ -343,8 +343,8 @@ export default function LogbookEditor() {
       <div className="grid gap-6 lg:grid-cols-[260px_1fr]">
         {/* Week rail */}
         <aside className="lg:sticky lg:top-6 lg:self-start">
-          <div className="overflow-hidden rounded-xl border border-[#e2e6ef] bg-white">
-            <div className="border-b border-[#e2e6ef] px-4 py-3 text-xs font-semibold uppercase tracking-wide text-[#64748b]">
+          <div className="overflow-hidden rounded-xl border border-[var(--h-e2e6ef)] bg-[var(--h-ffffff)]">
+            <div className="border-b border-[var(--h-e2e6ef)] px-4 py-3 text-xs font-semibold uppercase tracking-wide text-[var(--h-64748b)]">
               Weeks
             </div>
             <div className="max-h-[60vh] overflow-y-auto">
@@ -356,15 +356,15 @@ export default function LogbookEditor() {
                   <button
                     key={w.weekNumber}
                     onClick={() => setSelectedWeek(w.weekNumber)}
-                    className={`flex w-full items-center justify-between gap-2 border-b border-[#f0f2f7] px-4 py-3 text-left transition-colors last:border-0 ${
-                      active ? 'bg-[#f1ecff]' : 'hover:bg-[#f8f9ff]'
+                    className={`flex w-full items-center justify-between gap-2 border-b border-[var(--h-f0f2f7)] px-4 py-3 text-left transition-colors last:border-0 ${
+                      active ? 'bg-[var(--h-f1ecff)]' : 'hover:bg-[var(--h-f8f9ff)]'
                     }`}
                   >
                     <div className="min-w-0">
-                      <p className={`text-sm font-semibold ${active ? 'text-[#15157d]' : 'text-[#0b1c30]'}`}>
+                      <p className={`text-sm font-semibold ${active ? 'text-[var(--h-15157d)]' : 'text-[var(--h-0b1c30)]'}`}>
                         Week {w.label}
                       </p>
-                      <p className="truncate text-[11px] text-[#64748b]">{fmtRange(w.periodStart, w.periodEnd)}</p>
+                      <p className="truncate text-[11px] text-[var(--h-64748b)]">{fmtRange(w.periodStart, w.periodEnd)}</p>
                     </div>
                     <StatusPill status={st} />
                   </button>
@@ -379,50 +379,50 @@ export default function LogbookEditor() {
           <section className="space-y-5">
             <div className="flex flex-wrap items-center justify-between gap-3">
               <div>
-                <h2 className="text-lg font-bold text-[#0b1c30]">Week {scheduleWeek.label}</h2>
-                <p className="text-sm text-[#464652]">{fmtRange(scheduleWeek.periodStart, scheduleWeek.periodEnd)}</p>
+                <h2 className="text-lg font-bold text-[var(--h-0b1c30)]">Week {scheduleWeek.label}</h2>
+                <p className="text-sm text-[var(--h-464652)]">{fmtRange(scheduleWeek.periodStart, scheduleWeek.periodEnd)}</p>
               </div>
               <StatusPill status={status} />
             </div>
 
             {/* Status banners */}
             {status === 'submitted' && (
-              <div className="flex items-start gap-2 rounded-lg border border-[#bcc8ff] bg-[#eef1ff] px-4 py-3 text-sm text-[#15157d]">
+              <div className="flex items-start gap-2 rounded-lg border border-[var(--h-bcc8ff)] bg-[var(--h-eef1ff)] px-4 py-3 text-sm text-[var(--h-15157d)]">
                 <Send className="mt-0.5 h-4 w-4 shrink-0" />
                 <span>This week is submitted and awaiting your supervisor's review. It's read-only until they respond.</span>
               </div>
             )}
             {status === 'acknowledged' && (
-              <div className="flex items-start gap-2 rounded-lg border border-[#aee3c2] bg-[#e9f9ef] px-4 py-3 text-sm text-[#1b7a45]">
+              <div className="flex items-start gap-2 rounded-lg border border-[var(--h-aee3c2)] bg-[var(--h-e9f9ef)] px-4 py-3 text-sm text-[var(--h-1b7a45)]">
                 <Lock className="mt-0.5 h-4 w-4 shrink-0" />
                 <span>Your supervisor acknowledged this week. It's finalized and locked.</span>
               </div>
             )}
             {status === 'returned' && (
-              <div className="rounded-lg border border-[#f5b8ad] bg-[#fff1ee] px-4 py-3 text-sm text-[#b3261e]">
+              <div className="rounded-lg border border-[var(--h-f5b8ad)] bg-[var(--h-fff1ee)] px-4 py-3 text-sm text-[var(--h-b3261e)]">
                 <div className="flex items-center gap-2 font-semibold">
                   <RotateCcw className="h-4 w-4" /> Returned for revision
                 </div>
-                {returnComment && <p className="mt-1 pl-6 text-[#7a2018]">"{returnComment}"</p>}
-                <p className="mt-1 pl-6 text-[#7a2018]/80">Edit your entry below and resubmit.</p>
+                {returnComment && <p className="mt-1 pl-6 text-[var(--h-7a2018)]">"{returnComment}"</p>}
+                <p className="mt-1 pl-6 text-[var(--h-7a2018-80)]">Edit your entry below and resubmit.</p>
               </div>
             )}
             {status === 'rejected' && (
-              <div className="rounded-lg border border-[#f1b4b4] bg-[#fde7e7] px-4 py-3 text-sm text-[#8a1c1c]">
+              <div className="rounded-lg border border-[var(--h-f1b4b4)] bg-[var(--h-fde7e7)] px-4 py-3 text-sm text-[var(--h-8a1c1c)]">
                 <div className="flex items-center gap-2 font-semibold">
                   <XCircle className="h-4 w-4" /> This week was rejected
                 </div>
-                {rejectComment && <p className="mt-1 pl-6 text-[#6f1717]">"{rejectComment}"</p>}
-                <p className="mt-1 pl-6 text-[#6f1717]/80">This week is closed and can no longer be edited.</p>
+                {rejectComment && <p className="mt-1 pl-6 text-[var(--h-6f1717)]">"{rejectComment}"</p>}
+                <p className="mt-1 pl-6 text-[var(--h-6f1717-80)]">This week is closed and can no longer be edited.</p>
               </div>
             )}
 
             <fieldset disabled={!editable || busy} className="space-y-5 disabled:opacity-70">
               {/* Hours */}
-              <div className="rounded-xl border border-[#e2e6ef] bg-white p-5">
-                <label htmlFor="hours" className="mb-1.5 block text-sm font-semibold text-[#0b1c30]">
+              <div className="rounded-xl border border-[var(--h-e2e6ef)] bg-[var(--h-ffffff)] p-5">
+                <label htmlFor="hours" className="mb-1.5 block text-sm font-semibold text-[var(--h-0b1c30)]">
                   Hours logged
-                  <span className="ml-2 text-xs font-normal text-[#64748b]">Total hours worked this week</span>
+                  <span className="ml-2 text-xs font-normal text-[var(--h-64748b)]">Total hours worked this week</span>
                 </label>
                 <input
                   id="hours" type="number" min={0} max={168} step="0.5"
@@ -432,15 +432,15 @@ export default function LogbookEditor() {
               </div>
 
               {/* Activities */}
-              <div className="rounded-xl border border-[#e2e6ef] bg-white p-5">
+              <div className="rounded-xl border border-[var(--h-e2e6ef)] bg-[var(--h-ffffff)] p-5">
                 <div className="mb-3 flex items-center justify-between">
                   <div>
-                    <h3 className="text-sm font-semibold text-[#0b1c30]">Activities</h3>
-                    <p className="text-xs text-[#64748b]">What you worked on, day by day</p>
+                    <h3 className="text-sm font-semibold text-[var(--h-0b1c30)]">Activities</h3>
+                    <p className="text-xs text-[var(--h-64748b)]">What you worked on, day by day</p>
                   </div>
                   <button
                     type="button" onClick={addActivity}
-                    className="inline-flex items-center gap-1 rounded-lg bg-[#f1ecff] px-3 py-1.5 text-sm font-medium text-[#712ae2] transition-colors hover:bg-[#e6dcff] disabled:opacity-50"
+                    className="inline-flex items-center gap-1 rounded-lg bg-[var(--h-f1ecff)] px-3 py-1.5 text-sm font-medium text-[var(--h-712ae2)] transition-colors hover:bg-[var(--h-e6dcff)] disabled:opacity-50"
                   >
                     <Plus className="h-4 w-4" /> Add activity
                   </button>
@@ -448,12 +448,12 @@ export default function LogbookEditor() {
 
                 <div className="space-y-4">
                   {activities.length === 0 && (
-                    <p className="rounded-lg border border-dashed border-[#d8dce6] py-6 text-center text-sm text-[#94a3b8]">
+                    <p className="rounded-lg border border-dashed border-[var(--h-d8dce6)] py-6 text-center text-sm text-[var(--h-94a3b8)]">
                       No activities yet — add one to describe your week.
                     </p>
                   )}
                   {activities.map((a, i) => (
-                    <div key={i} className="rounded-lg border border-[#e8ebf2] bg-[#fbfcfe] p-4">
+                    <div key={i} className="rounded-lg border border-[var(--h-e8ebf2)] bg-[var(--h-fbfcfe)] p-4">
                       <div className="mb-2 flex items-center justify-between gap-3">
                         <input
                           type="date" value={a.activityDate}
@@ -463,7 +463,7 @@ export default function LogbookEditor() {
                         />
                         <button
                           type="button" onClick={() => removeActivity(i)}
-                          className="rounded-md p-1.5 text-[#94a3b8] transition-colors hover:bg-[#ffe2dc] hover:text-[#b3261e]"
+                          className="rounded-md p-1.5 text-[var(--h-94a3b8)] transition-colors hover:bg-[var(--h-ffe2dc)] hover:text-[var(--h-b3261e)]"
                           aria-label="Remove activity"
                         >
                           <Trash2 className="h-4 w-4" />
@@ -478,7 +478,7 @@ export default function LogbookEditor() {
                       {/* Competency tags */}
                       <div className="mt-2 flex flex-wrap items-center gap-1.5">
                         {a.competencyTags.map((t) => (
-                          <span key={t} className="inline-flex items-center gap-1 rounded-full bg-[#e1e8ff] px-2 py-0.5 text-xs font-medium text-[#15157d]">
+                          <span key={t} className="inline-flex items-center gap-1 rounded-full bg-[var(--h-e1e8ff)] px-2 py-0.5 text-xs font-medium text-[var(--h-15157d)]">
                             {t}
                             <button type="button" onClick={() => removeTag(i, t)} aria-label={`Remove ${t}`}>
                               <X className="h-3 w-3" />
@@ -492,14 +492,14 @@ export default function LogbookEditor() {
                             if (e.key === 'Enter') { e.preventDefault(); addTag(i, tagDrafts[i] ?? ''); }
                           }}
                           placeholder="+ competency"
-                          className="min-w-[120px] flex-1 rounded-md border border-transparent bg-transparent px-1.5 py-0.5 text-xs text-[#0b1c30] placeholder-[#94a3b8] focus:border-[#d8dce6] focus:outline-none"
+                          className="min-w-[120px] flex-1 rounded-md border border-transparent bg-transparent px-1.5 py-0.5 text-xs text-[var(--h-0b1c30)] placeholder-[var(--h-94a3b8)] focus:border-[var(--h-d8dce6)] focus:outline-none"
                         />
                       </div>
                       <div className="mt-1.5 flex flex-wrap gap-1">
                         {COMPETENCY_SUGGESTIONS.filter((s) => !a.competencyTags.includes(s)).slice(0, 5).map((s) => (
                           <button
                             key={s} type="button" onClick={() => addTag(i, s)}
-                            className="rounded px-1.5 py-0.5 text-[11px] text-[#64748b] transition-colors hover:text-[#712ae2]"
+                            className="rounded px-1.5 py-0.5 text-[11px] text-[var(--h-64748b)] transition-colors hover:text-[var(--h-712ae2)]"
                           >
                             + {s}
                           </button>
@@ -511,10 +511,10 @@ export default function LogbookEditor() {
               </div>
 
               {/* Reflection */}
-              <div className="rounded-xl border border-[#e2e6ef] bg-white p-5 space-y-4">
-                <h3 className="text-sm font-semibold text-[#0b1c30]">Reflection</h3>
+              <div className="rounded-xl border border-[var(--h-e2e6ef)] bg-[var(--h-ffffff)] p-5 space-y-4">
+                <h3 className="text-sm font-semibold text-[var(--h-0b1c30)]">Reflection</h3>
                 <div>
-                  <label htmlFor="learning" className="mb-1.5 block text-sm font-medium text-[#0b1c30]">
+                  <label htmlFor="learning" className="mb-1.5 block text-sm font-medium text-[var(--h-0b1c30)]">
                     What did you learn?
                   </label>
                   <textarea
@@ -525,7 +525,7 @@ export default function LogbookEditor() {
                   />
                 </div>
                 <div>
-                  <label htmlFor="challenges" className="mb-1.5 block text-sm font-medium text-[#0b1c30]">
+                  <label htmlFor="challenges" className="mb-1.5 block text-sm font-medium text-[var(--h-0b1c30)]">
                     Challenges faced
                   </label>
                   <textarea
@@ -535,11 +535,11 @@ export default function LogbookEditor() {
                     className={`${inputCls} resize-none`}
                   />
                 </div>
-                <label className="flex items-center gap-2 text-sm text-[#464652]">
+                <label className="flex items-center gap-2 text-sm text-[var(--h-464652)]">
                   <input
                     type="checkbox" checked={supervisorVisible}
                     onChange={(e) => setSupervisorVisible(e.target.checked)}
-                    className="h-4 w-4 rounded border-[#d8dce6] text-[#8a4cfc] focus:ring-[#8a4cfc]"
+                    className="h-4 w-4 rounded border-[var(--h-d8dce6)] text-[var(--h-8a4cfc)] focus:ring-[var(--h-8a4cfc)]"
                   />
                   Share this reflection with my company supervisor
                 </label>
@@ -547,21 +547,21 @@ export default function LogbookEditor() {
 
               {/* Learning objectives — map this week's work (confirm AI suggestions) */}
               {existing?.id && (
-                <div className="rounded-xl border border-[#e2e6ef] bg-white p-5">
+                <div className="rounded-xl border border-[var(--h-e2e6ef)] bg-[var(--h-ffffff)] p-5">
                   <EntryObjectives entryId={existing.id} placementId={activePlacement?.id} editable={editable} />
                 </div>
               )}
 
               {/* Evidence — photos / documents. Available once the week is saved. */}
               {existing?.id && (
-                <div className="rounded-xl border border-[#e2e6ef] bg-white p-5">
+                <div className="rounded-xl border border-[var(--h-e2e6ef)] bg-[var(--h-ffffff)] p-5">
                   <EntryAttachments entryId={existing.id} editable={editable} />
                 </div>
               )}
             </fieldset>
 
             {error && (
-              <div className="flex items-start gap-2 rounded-lg border border-[#f5b8ad] bg-[#fff1ee] px-4 py-3 text-sm text-[#b3261e]">
+              <div className="flex items-start gap-2 rounded-lg border border-[var(--h-f5b8ad)] bg-[var(--h-fff1ee)] px-4 py-3 text-sm text-[var(--h-b3261e)]">
                 <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" /> {error}
               </div>
             )}
@@ -571,10 +571,10 @@ export default function LogbookEditor() {
               <div className="flex flex-wrap gap-3">
                 <button
                   type="button" onClick={handleSave} disabled={busy}
-                  className="inline-flex flex-1 items-center justify-center gap-2 rounded-lg border border-[#d8dce6] bg-white px-4 py-2.5 text-sm font-medium text-[#464652] transition-colors hover:border-[#b9c0d0] hover:text-[#0b1c30] disabled:opacity-60"
+                  className="inline-flex flex-1 items-center justify-center gap-2 rounded-lg border border-[var(--h-d8dce6)] bg-[var(--h-ffffff)] px-4 py-2.5 text-sm font-medium text-[var(--h-464652)] transition-colors hover:border-[var(--h-b9c0d0)] hover:text-[var(--h-0b1c30)] disabled:opacity-60"
                 >
                   {saved ? (
-                    <><CheckCircle2 className="h-4 w-4 text-[#1b7a45]" /> Saved</>
+                    <><CheckCircle2 className="h-4 w-4 text-[var(--h-1b7a45)]" /> Saved</>
                   ) : saveDraft.isPending ? (
                     <><Loader2 className="h-4 w-4 animate-spin" /> Saving…</>
                   ) : (
@@ -583,7 +583,7 @@ export default function LogbookEditor() {
                 </button>
                 <button
                   type="button" onClick={handleSubmit} disabled={busy}
-                  className="inline-flex flex-1 items-center justify-center gap-2 rounded-lg bg-[#15157d] px-4 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-[#1f1fa0] disabled:cursor-not-allowed disabled:opacity-60"
+                  className="inline-flex flex-1 items-center justify-center gap-2 rounded-lg bg-[var(--h-15157d)] px-4 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-[var(--h-1f1fa0)] disabled:cursor-not-allowed disabled:opacity-60"
                 >
                   {submitEntry.isPending ? (
                     <><Loader2 className="h-4 w-4 animate-spin" /> Submitting…</>

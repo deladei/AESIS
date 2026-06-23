@@ -118,19 +118,19 @@ export default function EntryReview() {
   if (isLoading) {
     return (
       <div className="flex h-64 items-center justify-center">
-        <Loader2 className="h-6 w-6 animate-spin text-[#8a4cfc]" />
+        <Loader2 className="h-6 w-6 animate-spin text-[var(--h-8a4cfc)]" />
       </div>
     );
   }
 
   const inputCls =
-    'w-full rounded-lg border border-[#d8dce6] bg-white px-3 py-2.5 text-sm text-[#0b1c30] placeholder-[#94a3b8] transition-colors focus:border-[#8a4cfc] focus:outline-none focus:ring-1 focus:ring-[#8a4cfc]';
+    'w-full rounded-lg border border-[var(--h-d8dce6)] bg-[var(--h-ffffff)] px-3 py-2.5 text-sm text-[var(--h-0b1c30)] placeholder-[var(--h-94a3b8)] transition-colors focus:border-[var(--h-8a4cfc)] focus:outline-none focus:ring-1 focus:ring-[var(--h-8a4cfc)]';
 
   return (
     <div className="mx-auto max-w-7xl px-6 py-6">
       <div className="mb-6">
-        <h1 className="text-xl font-bold text-[#0b1c30]">Review logbooks</h1>
-        <p className="mt-0.5 text-sm text-[#464652]">
+        <h1 className="text-xl font-bold text-[var(--h-0b1c30)]">Review logbooks</h1>
+        <p className="mt-0.5 text-sm text-[var(--h-464652)]">
           {queue.length === 0
             ? 'No weeks awaiting your review.'
             : `${queue.length} week${queue.length === 1 ? '' : 's'} awaiting your review`}
@@ -140,14 +140,14 @@ export default function EntryReview() {
       <div className="grid gap-6 lg:grid-cols-[320px_1fr]">
         {/* Queue */}
         <aside className="lg:sticky lg:top-6 lg:self-start">
-          <div className="overflow-hidden rounded-xl border border-[#e2e6ef] bg-white">
-            <div className="border-b border-[#e2e6ef] px-4 py-3 text-xs font-semibold uppercase tracking-wide text-[#64748b]">
+          <div className="overflow-hidden rounded-xl border border-[var(--h-e2e6ef)] bg-[var(--h-ffffff)]">
+            <div className="border-b border-[var(--h-e2e6ef)] px-4 py-3 text-xs font-semibold uppercase tracking-wide text-[var(--h-64748b)]">
               Awaiting review
             </div>
             {queue.length === 0 ? (
               <div className="px-4 py-10 text-center">
-                <Inbox className="mx-auto mb-2 h-7 w-7 text-[#cbd2e0]" />
-                <p className="text-sm text-[#94a3b8]">You're all caught up.</p>
+                <Inbox className="mx-auto mb-2 h-7 w-7 text-[var(--h-cbd2e0)]" />
+                <p className="text-sm text-[var(--h-94a3b8)]">You're all caught up.</p>
               </div>
             ) : (
               <div className="max-h-[68vh] overflow-y-auto">
@@ -158,22 +158,22 @@ export default function EntryReview() {
                     <button
                       key={e.id}
                       onClick={() => setSelectedId(e.id)}
-                      className={`w-full border-b border-[#f0f2f7] px-4 py-3 text-left transition-colors last:border-0 ${
-                        active ? 'bg-[#f1ecff]' : 'hover:bg-[#f8f9ff]'
+                      className={`w-full border-b border-[var(--h-f0f2f7)] px-4 py-3 text-left transition-colors last:border-0 ${
+                        active ? 'bg-[var(--h-f1ecff)]' : 'hover:bg-[var(--h-f8f9ff)]'
                       }`}
                     >
                       <div className="flex items-center justify-between gap-2">
-                        <p className={`truncate text-sm font-semibold ${active ? 'text-[#15157d]' : 'text-[#0b1c30]'}`}>
+                        <p className={`truncate text-sm font-semibold ${active ? 'text-[var(--h-15157d)]' : 'text-[var(--h-0b1c30)]'}`}>
                           {studentName(e)}
                         </p>
-                        <span className="shrink-0 rounded-full bg-[#e1e8ff] px-2 py-0.5 text-[11px] font-semibold text-[#15157d]">
+                        <span className="shrink-0 rounded-full bg-[var(--h-e1e8ff)] px-2 py-0.5 text-[11px] font-semibold text-[var(--h-15157d)]">
                           Wk {e.weekNumber}
                         </span>
                       </div>
-                      <p className="mt-0.5 truncate text-xs text-[#64748b]">
+                      <p className="mt-0.5 truncate text-xs text-[var(--h-64748b)]">
                         {e.placement?.company?.name ?? 'Placement'}
                       </p>
-                      <div className="mt-1.5 flex items-center gap-2 text-[11px] text-[#94a3b8]">
+                      <div className="mt-1.5 flex items-center gap-2 text-[11px] text-[var(--h-94a3b8)]">
                         {e.submittedAt && (
                           <span className="inline-flex items-center gap-1">
                             <Clock className="h-3 w-3" /> {fmtDate(e.submittedAt)}
@@ -181,7 +181,7 @@ export default function EntryReview() {
                         )}
                         {rel != null && (
                           <span className={`inline-flex items-center gap-1 rounded-full px-1.5 py-0.5 font-medium ${
-                            rel >= 60 ? 'bg-[#dcf5e6] text-[#1b7a45]' : 'bg-[#fff4e0] text-[#9a6700]'
+                            rel >= 60 ? 'bg-[var(--h-dcf5e6)] text-[var(--h-1b7a45)]' : 'bg-[var(--h-fff4e0)] text-[var(--h-9a6700)]'
                           }`}>
                             <Sparkles className="h-3 w-3" /> {rel}%
                           </span>
@@ -198,34 +198,34 @@ export default function EntryReview() {
         {/* Detail + action */}
         <section>
           {!selectedId ? (
-            <div className="rounded-xl border border-dashed border-[#d8dce6] bg-white py-24 text-center">
-              <CheckCircle2 className="mx-auto mb-3 h-10 w-10 text-[#aee3c2]" />
-              <h2 className="text-base font-semibold text-[#0b1c30]">Nothing to review</h2>
-              <p className="mt-1 text-sm text-[#64748b]">Submitted weeks from your interns will appear here.</p>
+            <div className="rounded-xl border border-dashed border-[var(--h-d8dce6)] bg-[var(--h-ffffff)] py-24 text-center">
+              <CheckCircle2 className="mx-auto mb-3 h-10 w-10 text-[var(--h-aee3c2)]" />
+              <h2 className="text-base font-semibold text-[var(--h-0b1c30)]">Nothing to review</h2>
+              <p className="mt-1 text-sm text-[var(--h-64748b)]">Submitted weeks from your interns will appear here.</p>
             </div>
           ) : detailLoading || !detail ? (
-            <div className="flex h-64 items-center justify-center rounded-xl border border-[#e2e6ef] bg-white">
-              <Loader2 className="h-6 w-6 animate-spin text-[#8a4cfc]" />
+            <div className="flex h-64 items-center justify-center rounded-xl border border-[var(--h-e2e6ef)] bg-[var(--h-ffffff)]">
+              <Loader2 className="h-6 w-6 animate-spin text-[var(--h-8a4cfc)]" />
             </div>
           ) : (
             <div className="grid gap-5 xl:grid-cols-[1fr_300px]">
               {/* Entry content */}
               <div className="space-y-5">
-                <div className="rounded-xl border border-[#e2e6ef] bg-white p-5">
+                <div className="rounded-xl border border-[var(--h-e2e6ef)] bg-[var(--h-ffffff)] p-5">
                   <div className="flex flex-wrap items-start justify-between gap-2">
                     <div>
-                      <h2 className="text-lg font-bold text-[#0b1c30]">{studentName(detail)}</h2>
-                      <p className="text-sm text-[#464652]">
+                      <h2 className="text-lg font-bold text-[var(--h-0b1c30)]">{studentName(detail)}</h2>
+                      <p className="text-sm text-[var(--h-464652)]">
                         Week {detail.weekNumber} · {fmtRange(detail.periodStart, detail.periodEnd)}
                       </p>
-                      <p className="mt-0.5 text-xs text-[#64748b]">
+                      <p className="mt-0.5 text-xs text-[var(--h-64748b)]">
                         {detail.placement?.company?.name ?? '—'}
                         {detail.submittedAt && ` · Submitted ${fmtDate(detail.submittedAt, true)}`}
                         {detail.version > 1 && ` · Revision ${detail.version}`}
                       </p>
                     </div>
                     {detail.hoursLogged != null && (
-                      <span className="rounded-lg bg-[#eff4ff] px-3 py-1.5 text-sm font-semibold text-[#15157d]">
+                      <span className="rounded-lg bg-[var(--h-eff4ff)] px-3 py-1.5 text-sm font-semibold text-[var(--h-15157d)]">
                         {Number(detail.hoursLogged)} hrs
                       </span>
                     )}
@@ -233,24 +233,24 @@ export default function EntryReview() {
                 </div>
 
                 {/* Activities */}
-                <div className="rounded-xl border border-[#e2e6ef] bg-white p-5">
-                  <h3 className="mb-3 flex items-center gap-2 text-sm font-semibold text-[#0b1c30]">
-                    <FileText className="h-4 w-4 text-[#8a4cfc]" /> Activities
+                <div className="rounded-xl border border-[var(--h-e2e6ef)] bg-[var(--h-ffffff)] p-5">
+                  <h3 className="mb-3 flex items-center gap-2 text-sm font-semibold text-[var(--h-0b1c30)]">
+                    <FileText className="h-4 w-4 text-[var(--h-8a4cfc)]" /> Activities
                   </h3>
                   <div className="space-y-3">
                     {(detail.activities ?? []).length === 0 && (
-                      <p className="text-sm text-[#94a3b8]">No activities recorded.</p>
+                      <p className="text-sm text-[var(--h-94a3b8)]">No activities recorded.</p>
                     )}
                     {(detail.activities ?? []).map((a, i) => (
-                      <div key={i} className="rounded-lg border border-[#eef0f5] bg-[#fbfcfe] p-3">
-                        <p className="mb-1 inline-flex items-center gap-1 text-xs font-medium text-[#64748b]">
+                      <div key={i} className="rounded-lg border border-[var(--h-eef0f5)] bg-[var(--h-fbfcfe)] p-3">
+                        <p className="mb-1 inline-flex items-center gap-1 text-xs font-medium text-[var(--h-64748b)]">
                           <CalendarDays className="h-3 w-3" /> {fmtDate(a.activityDate)}
                         </p>
-                        <p className="whitespace-pre-wrap text-sm text-[#0b1c30]">{a.description}</p>
+                        <p className="whitespace-pre-wrap text-sm text-[var(--h-0b1c30)]">{a.description}</p>
                         {a.competencyTags.length > 0 && (
                           <div className="mt-2 flex flex-wrap gap-1.5">
                             {a.competencyTags.map((t) => (
-                              <span key={t} className="inline-flex items-center gap-1 rounded-full bg-[#e1e8ff] px-2 py-0.5 text-[11px] font-medium text-[#15157d]">
+                              <span key={t} className="inline-flex items-center gap-1 rounded-full bg-[var(--h-e1e8ff)] px-2 py-0.5 text-[11px] font-medium text-[var(--h-15157d)]">
                                 <Tag className="h-2.5 w-2.5" /> {t}
                               </span>
                             ))}
@@ -263,40 +263,40 @@ export default function EntryReview() {
 
                 {/* Reflection */}
                 {detail.reflection ? (
-                  <div className="rounded-xl border border-[#e2e6ef] bg-white p-5 space-y-3">
-                    <h3 className="text-sm font-semibold text-[#0b1c30]">Reflection</h3>
+                  <div className="rounded-xl border border-[var(--h-e2e6ef)] bg-[var(--h-ffffff)] p-5 space-y-3">
+                    <h3 className="text-sm font-semibold text-[var(--h-0b1c30)]">Reflection</h3>
                     <div>
-                      <p className="mb-1 text-xs font-semibold uppercase tracking-wide text-[#64748b]">What they learned</p>
-                      <p className="whitespace-pre-wrap text-sm text-[#0b1c30]">{detail.reflection.learning}</p>
+                      <p className="mb-1 text-xs font-semibold uppercase tracking-wide text-[var(--h-64748b)]">What they learned</p>
+                      <p className="whitespace-pre-wrap text-sm text-[var(--h-0b1c30)]">{detail.reflection.learning}</p>
                     </div>
                     <div>
-                      <p className="mb-1 text-xs font-semibold uppercase tracking-wide text-[#64748b]">Challenges</p>
-                      <p className="whitespace-pre-wrap text-sm text-[#0b1c30]">{detail.reflection.challenges}</p>
+                      <p className="mb-1 text-xs font-semibold uppercase tracking-wide text-[var(--h-64748b)]">Challenges</p>
+                      <p className="whitespace-pre-wrap text-sm text-[var(--h-0b1c30)]">{detail.reflection.challenges}</p>
                     </div>
                   </div>
                 ) : (
-                  <div className="rounded-xl border border-[#e2e6ef] bg-white p-5">
-                    <p className="text-sm text-[#94a3b8]">No reflection submitted for this week.</p>
+                  <div className="rounded-xl border border-[var(--h-e2e6ef)] bg-[var(--h-ffffff)] p-5">
+                    <p className="text-sm text-[var(--h-94a3b8)]">No reflection submitted for this week.</p>
                   </div>
                 )}
 
                 {/* Event history */}
                 {detail.events && detail.events.length > 0 && (
-                  <div className="rounded-xl border border-[#e2e6ef] bg-white p-5">
-                    <h3 className="mb-3 text-sm font-semibold text-[#0b1c30]">History</h3>
+                  <div className="rounded-xl border border-[var(--h-e2e6ef)] bg-[var(--h-ffffff)] p-5">
+                    <h3 className="mb-3 text-sm font-semibold text-[var(--h-0b1c30)]">History</h3>
                     <ol className="space-y-2">
                       {detail.events.map((ev) => (
-                        <li key={ev.id} className="flex items-start gap-2 text-xs text-[#464652]">
-                          <span className="mt-1 h-1.5 w-1.5 shrink-0 rounded-full bg-[#8a4cfc]" />
+                        <li key={ev.id} className="flex items-start gap-2 text-xs text-[var(--h-464652)]">
+                          <span className="mt-1 h-1.5 w-1.5 shrink-0 rounded-full bg-[var(--h-8a4cfc)]" />
                           <span>
-                            <span className="font-medium text-[#0b1c30]">
+                            <span className="font-medium text-[var(--h-0b1c30)]">
                               {ev.fromStatus ? `${STATUS_LABEL[ev.fromStatus]} → ` : ''}{STATUS_LABEL[ev.toStatus]}
                             </span>
-                            <span className="text-[#94a3b8]"> · {fmtDate(ev.createdAt, true)}</span>
+                            <span className="text-[var(--h-94a3b8)]"> · {fmtDate(ev.createdAt, true)}</span>
                             {ev.score != null && (
-                              <span className="mt-0.5 block font-semibold text-[#15157d]">Score: {Number(ev.score)}/100</span>
+                              <span className="mt-0.5 block font-semibold text-[var(--h-15157d)]">Score: {Number(ev.score)}/100</span>
                             )}
-                            {ev.comment && <span className="mt-0.5 block italic text-[#64748b]">"{ev.comment}"</span>}
+                            {ev.comment && <span className="mt-0.5 block italic text-[var(--h-64748b)]">"{ev.comment}"</span>}
                           </span>
                         </li>
                       ))}
@@ -307,58 +307,58 @@ export default function EntryReview() {
 
               {/* AI panel + actions */}
               <div className="space-y-4">
-                <div className="rounded-xl border border-[#e2e6ef] bg-white p-5">
-                  <h3 className="mb-3 flex items-center gap-2 text-sm font-semibold text-[#0b1c30]">
-                    <Sparkles className="h-4 w-4 text-[#8a4cfc]" /> AI assessment
+                <div className="rounded-xl border border-[var(--h-e2e6ef)] bg-[var(--h-ffffff)] p-5">
+                  <h3 className="mb-3 flex items-center gap-2 text-sm font-semibold text-[var(--h-0b1c30)]">
+                    <Sparkles className="h-4 w-4 text-[var(--h-8a4cfc)]" /> AI assessment
                   </h3>
                   {detail.assessments && detail.assessments.length > 0 ? (
                     <div className="space-y-3">
                       {relevancePct(detail) != null && (
                         <div>
                           <div className="mb-1 flex justify-between text-xs">
-                            <span className="text-[#64748b]">CS relevance</span>
-                            <span className="font-mono text-[#0b1c30]">{relevancePct(detail)}%</span>
+                            <span className="text-[var(--h-64748b)]">CS relevance</span>
+                            <span className="font-mono text-[var(--h-0b1c30)]">{relevancePct(detail)}%</span>
                           </div>
-                          <div className="h-1.5 w-full rounded-full bg-[#eef0f5]">
+                          <div className="h-1.5 w-full rounded-full bg-[var(--h-eef0f5)]">
                             <div
-                              className={`h-1.5 rounded-full ${relevancePct(detail)! >= 60 ? 'bg-[#1b7a45]' : 'bg-[#d99a00]'}`}
+                              className={`h-1.5 rounded-full ${relevancePct(detail)! >= 60 ? 'bg-[var(--h-1b7a45)]' : 'bg-[var(--h-d99a00)]'}`}
                               style={{ width: `${relevancePct(detail)}%` }}
                             />
                           </div>
                         </div>
                       )}
                       {aiSummary?.headline && (
-                        <p className="text-sm leading-relaxed text-[#0b1c30]">{aiSummary.headline}</p>
+                        <p className="text-sm leading-relaxed text-[var(--h-0b1c30)]">{aiSummary.headline}</p>
                       )}
                       {aiSummary?.concerns && aiSummary.concerns.length > 0 && (
                         <div>
-                          <p className="mb-1 text-xs font-semibold uppercase tracking-wide text-[#9a6700]">Concerns</p>
-                          <ul className="list-inside list-disc space-y-0.5 text-xs text-[#464652]">
+                          <p className="mb-1 text-xs font-semibold uppercase tracking-wide text-[var(--h-9a6700)]">Concerns</p>
+                          <ul className="list-inside list-disc space-y-0.5 text-xs text-[var(--h-464652)]">
                             {aiSummary.concerns.map((c, i) => <li key={i}>{c}</li>)}
                           </ul>
                         </div>
                       )}
-                      <p className="text-[11px] text-[#94a3b8]">AI scores are advisory. Your review is final.</p>
+                      <p className="text-[11px] text-[var(--h-94a3b8)]">AI scores are advisory. Your review is final.</p>
                     </div>
                   ) : (
                     <div className="py-6 text-center">
-                      <Loader2 className="mx-auto mb-2 h-5 w-5 animate-spin text-[#cbd2e0]" />
-                      <p className="text-xs text-[#94a3b8]">AI analysis pending or unavailable.</p>
+                      <Loader2 className="mx-auto mb-2 h-5 w-5 animate-spin text-[var(--h-cbd2e0)]" />
+                      <p className="text-xs text-[var(--h-94a3b8)]">AI analysis pending or unavailable.</p>
                     </div>
                   )}
                 </div>
 
                 {/* Action card */}
-                <div className="rounded-xl border border-[#e2e6ef] bg-white p-5">
+                <div className="rounded-xl border border-[var(--h-e2e6ef)] bg-[var(--h-ffffff)] p-5">
                   {doneMsg ? (
-                    <div className="flex items-start gap-2 text-sm text-[#1b7a45]">
+                    <div className="flex items-start gap-2 text-sm text-[var(--h-1b7a45)]">
                       <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0" /> {doneMsg}
                     </div>
                   ) : (
                     <>
-                      <label htmlFor="score" className="mb-1.5 block text-sm font-semibold text-[#0b1c30]">
+                      <label htmlFor="score" className="mb-1.5 block text-sm font-semibold text-[var(--h-0b1c30)]">
                         Score
-                        <span className="ml-2 text-xs font-normal text-[#64748b]">Out of 100 · required to acknowledge</span>
+                        <span className="ml-2 text-xs font-normal text-[var(--h-64748b)]">Out of 100 · required to acknowledge</span>
                       </label>
                       <input
                         id="score" type="number" min={0} max={100} step={1} value={score}
@@ -366,9 +366,9 @@ export default function EntryReview() {
                         placeholder="0–100"
                         className={`${inputCls} mb-4`}
                       />
-                      <label htmlFor="comment" className="mb-1.5 block text-sm font-semibold text-[#0b1c30]">
+                      <label htmlFor="comment" className="mb-1.5 block text-sm font-semibold text-[var(--h-0b1c30)]">
                         Feedback
-                        <span className="ml-2 text-xs font-normal text-[#64748b]">Required to return</span>
+                        <span className="ml-2 text-xs font-normal text-[var(--h-64748b)]">Required to return</span>
                       </label>
                       <textarea
                         id="comment" rows={5} value={comment}
@@ -377,14 +377,14 @@ export default function EntryReview() {
                         className={`${inputCls} resize-none`}
                       />
                       {error && (
-                        <div className="mt-2 flex items-start gap-2 text-xs text-[#b3261e]">
+                        <div className="mt-2 flex items-start gap-2 text-xs text-[var(--h-b3261e)]">
                           <AlertCircle className="mt-0.5 h-3.5 w-3.5 shrink-0" /> {error}
                         </div>
                       )}
                       <div className="mt-3 space-y-2">
                         <button
                           type="button" onClick={handleAcknowledge} disabled={busy}
-                          className="inline-flex w-full items-center justify-center gap-2 rounded-lg bg-[#15157d] px-4 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-[#1f1fa0] disabled:cursor-not-allowed disabled:opacity-60"
+                          className="inline-flex w-full items-center justify-center gap-2 rounded-lg bg-[var(--h-15157d)] px-4 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-[var(--h-1f1fa0)] disabled:cursor-not-allowed disabled:opacity-60"
                         >
                           {acknowledge.isPending
                             ? <Loader2 className="h-4 w-4 animate-spin" />
@@ -393,7 +393,7 @@ export default function EntryReview() {
                         </button>
                         <button
                           type="button" onClick={handleReturn} disabled={busy}
-                          className="inline-flex w-full items-center justify-center gap-2 rounded-lg border border-[#f5b8ad] bg-[#fff1ee] px-4 py-2.5 text-sm font-semibold text-[#b3261e] transition-colors hover:bg-[#ffe2dc] disabled:cursor-not-allowed disabled:opacity-60"
+                          className="inline-flex w-full items-center justify-center gap-2 rounded-lg border border-[var(--h-f5b8ad)] bg-[var(--h-fff1ee)] px-4 py-2.5 text-sm font-semibold text-[var(--h-b3261e)] transition-colors hover:bg-[var(--h-ffe2dc)] disabled:cursor-not-allowed disabled:opacity-60"
                         >
                           {returnEntry.isPending
                             ? <Loader2 className="h-4 w-4 animate-spin" />
@@ -402,7 +402,7 @@ export default function EntryReview() {
                         </button>
                         <button
                           type="button" onClick={handleReject} disabled={busy}
-                          className="inline-flex w-full items-center justify-center gap-2 rounded-lg px-4 py-2.5 text-sm font-semibold text-[#b3261e] transition-colors hover:bg-[#fff1ee] disabled:cursor-not-allowed disabled:opacity-60"
+                          className="inline-flex w-full items-center justify-center gap-2 rounded-lg px-4 py-2.5 text-sm font-semibold text-[var(--h-b3261e)] transition-colors hover:bg-[var(--h-fff1ee)] disabled:cursor-not-allowed disabled:opacity-60"
                         >
                           {rejectEntry.isPending
                             ? <Loader2 className="h-4 w-4 animate-spin" />

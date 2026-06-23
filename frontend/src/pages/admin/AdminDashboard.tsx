@@ -29,11 +29,11 @@ type Pulse = AdminData['pulseBoard'][number];
 
 function pulseBadge(p: Pulse, isTop: boolean): { label: string; tone: string } {
   if (isTop && p.riskTier !== 'high' && p.engagementPct >= 80) {
-    return { label: 'Top Performer', tone: 'bg-[#6ffbbe] text-[#002113]' };
+    return { label: 'Top Performer', tone: 'bg-[var(--h-6ffbbe)] text-[var(--h-002113)]' };
   }
-  if (p.riskTier === 'high')   return { label: 'Needs Support', tone: 'bg-[#ffdad6] text-[#93000a]' };
+  if (p.riskTier === 'high')   return { label: 'Needs Support', tone: 'bg-[var(--h-ffdad6)] text-[var(--h-93000a)]' };
   if (p.riskTier === 'medium') return { label: 'Watch',         tone: 'bg-amber-100 text-amber-800' };
-  return { label: 'On Track', tone: 'bg-[#dce9ff] text-[#464652]' };
+  return { label: 'On Track', tone: 'bg-[var(--h-dce9ff)] text-[var(--h-464652)]' };
 }
 
 const STATUS_TONE: Record<string, { label: string; tone: string }> = {
@@ -47,9 +47,9 @@ export default function AdminDashboard() {
   const { data, isLoading, isError, refetch } = useAdminDashboard();
 
   const stats = [
-    { label: 'Active Interns',  value: data ? String(data.overview.activeInterns)  : '—', tone: 'text-[#15157d]' },
-    { label: 'Pending Reviews', value: data ? String(data.overview.pendingReviews) : '—', tone: 'text-[#712ae2]' },
-    { label: 'Avg. Pulse',      value: data ? `${data.overview.avgEngagement}%`    : '—', tone: 'text-[#22c087]' },
+    { label: 'Active Interns',  value: data ? String(data.overview.activeInterns)  : '—', tone: 'text-[var(--h-15157d)]' },
+    { label: 'Pending Reviews', value: data ? String(data.overview.pendingReviews) : '—', tone: 'text-[var(--h-712ae2)]' },
+    { label: 'Avg. Pulse',      value: data ? `${data.overview.avgEngagement}%`    : '—', tone: 'text-[var(--h-22c087)]' },
   ];
 
   return (
@@ -57,8 +57,8 @@ export default function AdminDashboard() {
       {/* Welcome & stats */}
       <section className="flex flex-col items-end justify-between gap-6 md:flex-row">
         <div className="w-full">
-          <h2 className="text-3xl font-semibold tracking-tight text-[#0b1c30]">Supervisor Overview</h2>
-          <p className="mt-1 text-[#464652]">
+          <h2 className="text-3xl font-semibold tracking-tight text-[var(--h-0b1c30)]">Supervisor Overview</h2>
+          <p className="mt-1 text-[var(--h-464652)]">
             {data
               ? `Monitoring ${data.overview.activeInterns} active internship${data.overview.activeInterns === 1 ? '' : 's'} across all departments.`
               : 'Monitoring active internships across all departments.'}
@@ -66,8 +66,8 @@ export default function AdminDashboard() {
         </div>
         <div className="flex gap-4">
           {stats.map((s) => (
-            <div key={s.label} className="flex flex-col rounded-xl border border-[#c7c5d4]/30 bg-white p-4 shadow-sm">
-              <span className="text-xs font-medium text-[#464652]">{s.label}</span>
+            <div key={s.label} className="flex flex-col rounded-xl border border-[var(--h-c7c5d4-30)] bg-[var(--h-ffffff)] p-4 shadow-sm">
+              <span className="text-xs font-medium text-[var(--h-464652)]">{s.label}</span>
               <span className={`text-2xl font-bold ${s.tone}`}>{s.value}</span>
             </div>
           ))}
@@ -86,11 +86,11 @@ export default function AdminDashboard() {
         {/* Pulse Check Board */}
         <section className="col-span-12 space-y-4 lg:col-span-8">
           <div className="flex items-center justify-between">
-            <h3 className="flex items-center gap-2 text-2xl font-semibold text-[#0b1c30]">
-              <Activity className="h-6 w-6 text-[#22c087]" />
+            <h3 className="flex items-center gap-2 text-2xl font-semibold text-[var(--h-0b1c30)]">
+              <Activity className="h-6 w-6 text-[var(--h-22c087)]" />
               Pulse Check Board
             </h3>
-            <Link to="/ai-insights" className="flex items-center gap-1 text-sm font-medium text-[#15157d] hover:underline">
+            <Link to="/ai-insights" className="flex items-center gap-1 text-sm font-medium text-[var(--h-15157d)] hover:underline">
               View detailed metrics <ArrowRight className="h-4 w-4" />
             </Link>
           </div>
@@ -98,11 +98,11 @@ export default function AdminDashboard() {
           {isLoading ? (
             <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
               {[0, 1, 2, 3].map((i) => (
-                <div key={i} className="h-40 animate-pulse rounded-xl border border-[#c7c5d4]/30 bg-white/60" />
+                <div key={i} className="h-40 animate-pulse rounded-xl border border-[var(--h-c7c5d4-30)] bg-[var(--h-ffffff-60)]" />
               ))}
             </div>
           ) : data && data.pulseBoard.length === 0 ? (
-            <div className="rounded-xl border border-dashed border-[#c7c5d4]/50 bg-white/60 p-8 text-center text-sm text-[#464652]">
+            <div className="rounded-xl border border-dashed border-[var(--h-c7c5d4-50)] bg-[var(--h-ffffff-60)] p-8 text-center text-sm text-[var(--h-464652)]">
               No active interns yet.
             </div>
           ) : (
@@ -111,13 +111,13 @@ export default function AdminDashboard() {
                 const badge = pulseBadge(p, i === 0);
                 const isTop = badge.label === 'Top Performer';
                 return (
-                  <div key={p.placementId} className="rounded-xl border border-[#c7c5d4]/30 bg-white/70 p-4 backdrop-blur transition-all hover:shadow-lg">
+                  <div key={p.placementId} className="rounded-xl border border-[var(--h-c7c5d4-30)] bg-[var(--h-ffffff-70)] p-4 backdrop-blur transition-all hover:shadow-lg">
                     <div className="mb-4 flex items-start justify-between">
                       <div className="flex items-center gap-3">
-                        <div className="flex h-12 w-12 items-center justify-center rounded-lg bg-[#e1e0ff] text-sm font-bold text-[#15157d]">{initials(p.name)}</div>
+                        <div className="flex h-12 w-12 items-center justify-center rounded-lg bg-[var(--h-e1e0ff)] text-sm font-bold text-[var(--h-15157d)]">{initials(p.name)}</div>
                         <div>
-                          <h4 className="text-sm font-bold text-[#0b1c30]">{p.name}</h4>
-                          <p className="text-xs text-[#464652]">{p.department ?? 'Unassigned department'}</p>
+                          <h4 className="text-sm font-bold text-[var(--h-0b1c30)]">{p.name}</h4>
+                          <p className="text-xs text-[var(--h-464652)]">{p.department ?? 'Unassigned department'}</p>
                         </div>
                       </div>
                       <span className={`rounded-full px-2 py-1 text-[10px] font-bold ${badge.tone}`}>
@@ -126,13 +126,13 @@ export default function AdminDashboard() {
                     </div>
                     <div className="space-y-3">
                       <div className="flex items-center justify-between text-sm">
-                        <span className="text-[#464652]">Weekly engagement</span>
-                        <span className="font-semibold text-[#15157d]">{p.engagementPct}%</span>
+                        <span className="text-[var(--h-464652)]">Weekly engagement</span>
+                        <span className="font-semibold text-[var(--h-15157d)]">{p.engagementPct}%</span>
                       </div>
                       <div className="h-2 w-full rounded-full bg-slate-200">
-                        <div className={`h-2 rounded-full ${isTop ? 'bg-[#4edea3]' : 'bg-[#15157d]'}`} style={{ width: `${p.engagementPct}%` }} />
+                        <div className={`h-2 rounded-full ${isTop ? 'bg-[var(--h-4edea3)]' : 'bg-[var(--h-15157d)]'}`} style={{ width: `${p.engagementPct}%` }} />
                       </div>
-                      <div className="flex items-center gap-4 text-xs text-[#464652]">
+                      <div className="flex items-center gap-4 text-xs text-[var(--h-464652)]">
                         <span className="flex items-center gap-1"><CheckCircle2 className="h-3.5 w-3.5" /> {p.submittedWeeks}/{p.totalWeeks} weeks</span>
                         <span className="flex items-center gap-1"><MessageCircle className="h-3.5 w-3.5" /> {p.feedbackCount} feedback</span>
                       </div>
@@ -146,39 +146,39 @@ export default function AdminDashboard() {
 
         {/* AI Alerts — no backend feature yet; demo content behind a Sample badge */}
         <aside className="col-span-12 space-y-4 lg:col-span-4">
-          <h3 className="flex items-center gap-2 text-2xl font-semibold text-[#0b1c30]">
-            <Sparkles className="h-6 w-6 text-[#712ae2]" />
+          <h3 className="flex items-center gap-2 text-2xl font-semibold text-[var(--h-0b1c30)]">
+            <Sparkles className="h-6 w-6 text-[var(--h-712ae2)]" />
             AI Alerts
-            <span className="rounded-full bg-[#ede9ff] px-2 py-0.5 text-[10px] font-semibold text-[#712ae2]">Sample</span>
+            <span className="rounded-full bg-[var(--h-ede9ff)] px-2 py-0.5 text-[10px] font-semibold text-[var(--h-712ae2)]">Sample</span>
           </h3>
           <div className="flex flex-col gap-4">
             {/* Urgent */}
-            <div className="space-y-3 rounded-xl border border-[#712ae2]/20 bg-white/70 p-5 shadow-[0_0_15px_-3px_rgba(113,42,226,0.15)] backdrop-blur">
+            <div className="space-y-3 rounded-xl border border-[var(--h-712ae2-20)] bg-[var(--h-ffffff-70)] p-5 shadow-[0_0_15px_-3px_rgba(113,42,226,0.15)] backdrop-blur">
               <div className="flex items-center gap-2">
-                <AlertTriangle className="h-4 w-4 text-[#712ae2]" />
-                <span className="text-xs font-bold tracking-wide text-[#712ae2]">Urgent support needed</span>
+                <AlertTriangle className="h-4 w-4 text-[var(--h-712ae2)]" />
+                <span className="text-xs font-bold tracking-wide text-[var(--h-712ae2)]">Urgent support needed</span>
               </div>
-              <p className="text-sm leading-tight text-[#0b1c30]">
-                <span className="font-bold text-[#15157d]">Kwesi Boateng</span> has missed 3 daily standups and submission frequency has dropped by 45% this week.
+              <p className="text-sm leading-tight text-[var(--h-0b1c30)]">
+                <span className="font-bold text-[var(--h-15157d)]">Kwesi Boateng</span> has missed 3 daily standups and submission frequency has dropped by 45% this week.
               </p>
-              <div className="rounded-lg border border-[#ba1a1a]/10 bg-[#ffdad6]/30 p-3">
-                <p className="text-sm italic text-[#93000a]">"AI predicts potential burnout or blockers in the 'Authentication' module."</p>
+              <div className="rounded-lg border border-[var(--h-ba1a1a-10)] bg-[var(--h-ffdad6-30)] p-3">
+                <p className="text-sm italic text-[var(--h-93000a)]">"AI predicts potential burnout or blockers in the 'Authentication' module."</p>
               </div>
-              <button className="flex w-full items-center justify-center gap-2 rounded-lg border border-[#712ae2] py-2 text-sm font-medium text-[#712ae2] transition-colors hover:bg-[#712ae2]/5">
+              <button className="flex w-full items-center justify-center gap-2 rounded-lg border border-[var(--h-712ae2)] py-2 text-sm font-medium text-[var(--h-712ae2)] transition-colors hover:bg-[var(--h-712ae2-5)]">
                 <CalendarClock className="h-4 w-4" /> Schedule check-in
               </button>
             </div>
             {/* Growth */}
-            <div className="space-y-3 rounded-xl border border-[#712ae2]/20 bg-white/70 p-5 shadow-[0_0_15px_-3px_rgba(113,42,226,0.15)] backdrop-blur">
+            <div className="space-y-3 rounded-xl border border-[var(--h-712ae2-20)] bg-[var(--h-ffffff-70)] p-5 shadow-[0_0_15px_-3px_rgba(113,42,226,0.15)] backdrop-blur">
               <div className="flex items-center gap-2">
-                <Zap className="h-4 w-4 text-[#22c087]" />
-                <span className="text-xs font-bold tracking-wide text-[#22c087]">Growth opportunity</span>
+                <Zap className="h-4 w-4 text-[var(--h-22c087)]" />
+                <span className="text-xs font-bold tracking-wide text-[var(--h-22c087)]">Growth opportunity</span>
               </div>
-              <p className="text-sm leading-tight text-[#0b1c30]">
-                <span className="font-bold text-[#15157d]">Akua Sarpong</span> has completed her curriculum 2 weeks ahead of schedule.
+              <p className="text-sm leading-tight text-[var(--h-0b1c30)]">
+                <span className="font-bold text-[var(--h-15157d)]">Akua Sarpong</span> has completed her curriculum 2 weeks ahead of schedule.
               </p>
-              <p className="text-sm text-[#464652]">AI suggests assigning "Lead Architect Shadowing" to maintain momentum.</p>
-              <button className="flex w-full items-center justify-center gap-2 rounded-lg border border-[#712ae2] py-2 text-sm font-medium text-[#712ae2] transition-colors hover:bg-[#712ae2]/5">
+              <p className="text-sm text-[var(--h-464652)]">AI suggests assigning "Lead Architect Shadowing" to maintain momentum.</p>
+              <button className="flex w-full items-center justify-center gap-2 rounded-lg border border-[var(--h-712ae2)] py-2 text-sm font-medium text-[var(--h-712ae2)] transition-colors hover:bg-[var(--h-712ae2-5)]">
                 <ArrowUpCircle className="h-4 w-4" /> Promote to level 2
               </button>
             </div>
@@ -188,21 +188,21 @@ export default function AdminDashboard() {
         {/* Recent Submissions */}
         <section className="col-span-12 space-y-4">
           <div className="flex items-center justify-between">
-            <h3 className="text-2xl font-semibold text-[#0b1c30]">Recent Submissions</h3>
+            <h3 className="text-2xl font-semibold text-[var(--h-0b1c30)]">Recent Submissions</h3>
             <div className="flex gap-2">
-              <span className="rounded-full bg-[#8a4cfc] px-3 py-1 text-xs font-medium text-[#fffbff]">
+              <span className="rounded-full bg-[var(--h-8a4cfc)] px-3 py-1 text-xs font-medium text-[var(--h-fffbff)]">
                 {data?.submissionCounts.pending ?? 0} Pending
               </span>
-              <span className="rounded-full bg-[#e5eeff] px-3 py-1 text-xs font-medium text-[#464652]">
+              <span className="rounded-full bg-[var(--h-e5eeff)] px-3 py-1 text-xs font-medium text-[var(--h-464652)]">
                 {data?.submissionCounts.reviewed ?? 0} Reviewed
               </span>
             </div>
           </div>
-          <div className="overflow-hidden rounded-xl border border-[#c7c5d4]/30 bg-white shadow-sm">
+          <div className="overflow-hidden rounded-xl border border-[var(--h-c7c5d4-30)] bg-[var(--h-ffffff)] shadow-sm">
             <div className="overflow-x-auto">
               <table className="w-full border-collapse text-left">
-                <thead className="border-b border-[#c7c5d4]/30 bg-[#eff4ff]">
-                  <tr className="text-xs font-medium text-[#464652]">
+                <thead className="border-b border-[var(--h-c7c5d4-30)] bg-[var(--h-eff4ff)]">
+                  <tr className="text-xs font-medium text-[var(--h-464652)]">
                     <th className="px-6 py-4">Intern</th>
                     <th className="px-6 py-4">Week</th>
                     <th className="px-6 py-4">Submission date</th>
@@ -210,36 +210,36 @@ export default function AdminDashboard() {
                     <th className="px-6 py-4 text-right">Action</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-[#c7c5d4]/20">
+                <tbody className="divide-y divide-[var(--h-c7c5d4-20)]">
                   {isLoading && (
-                    <tr><td colSpan={5} className="px-6 py-8 text-center text-sm text-[#464652]">Loading submissions…</td></tr>
+                    <tr><td colSpan={5} className="px-6 py-8 text-center text-sm text-[var(--h-464652)]">Loading submissions…</td></tr>
                   )}
                   {data && data.recentSubmissions.length === 0 && (
-                    <tr><td colSpan={5} className="px-6 py-8 text-center text-sm text-[#464652]">No submissions yet.</td></tr>
+                    <tr><td colSpan={5} className="px-6 py-8 text-center text-sm text-[var(--h-464652)]">No submissions yet.</td></tr>
                   )}
                   {data?.recentSubmissions.map((s) => {
                     const status = STATUS_TONE[s.status] ?? { label: s.status, tone: 'bg-slate-100 text-slate-700' };
                     const isPending = s.status === 'submitted' || s.status === 'under_review';
                     return (
-                      <tr key={s.id} className="transition-colors hover:bg-[#eff4ff]">
+                      <tr key={s.id} className="transition-colors hover:bg-[var(--h-eff4ff)]">
                         <td className="px-6 py-4">
                           <div className="flex items-center gap-3">
-                            <div className="flex h-8 w-8 items-center justify-center rounded-full bg-[#2e3192] text-xs font-bold text-[#9da1ff]">{initials(s.internName)}</div>
-                            <span className="text-sm text-[#0b1c30]">{s.internName}</span>
+                            <div className="flex h-8 w-8 items-center justify-center rounded-full bg-[var(--h-2e3192)] text-xs font-bold text-[var(--h-9da1ff)]">{initials(s.internName)}</div>
+                            <span className="text-sm text-[var(--h-0b1c30)]">{s.internName}</span>
                           </div>
                         </td>
-                        <td className="px-6 py-4 text-sm text-[#0b1c30]">Week {s.weekNumber}</td>
-                        <td className="px-6 py-4 text-sm text-[#464652]">{formatDate(s.submittedAt)}</td>
+                        <td className="px-6 py-4 text-sm text-[var(--h-0b1c30)]">Week {s.weekNumber}</td>
+                        <td className="px-6 py-4 text-sm text-[var(--h-464652)]">{formatDate(s.submittedAt)}</td>
                         <td className="px-6 py-4">
                           <span className={`rounded-full px-3 py-1 text-xs font-bold ${status.tone}`}>{status.label}</span>
                         </td>
                         <td className="px-6 py-4 text-right">
                           {isPending ? (
-                            <Link to={`/supervisor/review?submissionId=${s.id}`} className="inline-block rounded-lg bg-[#15157d] px-4 py-1.5 text-sm font-semibold text-white transition-transform active:scale-95">
+                            <Link to={`/supervisor/review?submissionId=${s.id}`} className="inline-block rounded-lg bg-[var(--h-15157d)] px-4 py-1.5 text-sm font-semibold text-white transition-transform active:scale-95">
                               Review
                             </Link>
                           ) : (
-                            <Link to={`/supervisor/review?submissionId=${s.id}`} aria-label="View submission" className="inline-block text-[#464652] transition-colors hover:text-[#15157d]">
+                            <Link to={`/supervisor/review?submissionId=${s.id}`} aria-label="View submission" className="inline-block text-[var(--h-464652)] transition-colors hover:text-[var(--h-15157d)]">
                               <MoreVertical className="h-5 w-5" />
                             </Link>
                           )}
@@ -250,8 +250,8 @@ export default function AdminDashboard() {
                 </tbody>
               </table>
             </div>
-            <div className="flex justify-center bg-[#eff4ff]/50 p-4">
-              <Link to="/ai-insights" className="flex items-center gap-2 text-sm font-medium text-[#464652] transition-colors hover:text-[#15157d]">
+            <div className="flex justify-center bg-[var(--h-eff4ff-50)] p-4">
+              <Link to="/ai-insights" className="flex items-center gap-2 text-sm font-medium text-[var(--h-464652)] transition-colors hover:text-[var(--h-15157d)]">
                 View all submissions <ChevronDown className="h-4 w-4" />
               </Link>
             </div>

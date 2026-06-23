@@ -34,12 +34,12 @@ function fmtDate(d: string | null): string {
 function Field({ icon: Icon, label, value }: { icon: React.ElementType; label: string; value: string | null }) {
   return (
     <div className="flex items-start gap-3">
-      <div className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-[#eff4ff] text-[#15157d]">
+      <div className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-[var(--h-eff4ff)] text-[var(--h-15157d)]">
         <Icon className="h-4 w-4" />
       </div>
       <div className="min-w-0">
-        <p className="text-[11px] font-semibold uppercase tracking-wide text-[#757684]">{label}</p>
-        <p className="truncate text-sm font-medium text-[#0b1c30]">{value && value.trim() ? value : '—'}</p>
+        <p className="text-[11px] font-semibold uppercase tracking-wide text-[var(--h-757684)]">{label}</p>
+        <p className="truncate text-sm font-medium text-[var(--h-0b1c30)]">{value && value.trim() ? value : '—'}</p>
       </div>
     </div>
   );
@@ -54,8 +54,8 @@ function EditProfileForm({ profile, onDone }: { profile: Profile; onDone: () => 
   const [phone, setPhone]           = useState(profile.phone ?? '');
   const [indexNumber, setIndexNumber] = useState(profile.indexNumber ?? '');
 
-  const inputCls = 'w-full rounded-lg border border-[#c7c5d4] bg-white px-3 py-2 text-sm text-[#0b1c30] focus:border-[#15157d] focus:outline-none focus:ring-1 focus:ring-[#15157d]';
-  const labelCls = 'mb-1 block text-[11px] font-semibold uppercase tracking-wide text-[#757684]';
+  const inputCls = 'w-full rounded-lg border border-[var(--h-c7c5d4)] bg-[var(--h-ffffff)] px-3 py-2 text-sm text-[var(--h-0b1c30)] focus:border-[var(--h-15157d)] focus:outline-none focus:ring-1 focus:ring-[var(--h-15157d)]';
+  const labelCls = 'mb-1 block text-[11px] font-semibold uppercase tracking-wide text-[var(--h-757684)]';
 
   // Send only changed fields. Empty phone is meaningful (clears it), so always
   // send it when it differs; index number is student-only.
@@ -86,10 +86,10 @@ function EditProfileForm({ profile, onDone }: { profile: Profile; onDone: () => 
     : null;
 
   return (
-    <section className="mt-6 rounded-2xl border border-[#c7c5d4]/40 bg-white p-6 shadow-sm">
+    <section className="mt-6 rounded-2xl border border-[var(--h-c7c5d4-40)] bg-[var(--h-ffffff)] p-6 shadow-sm">
       <div className="mb-4 flex items-center justify-between">
-        <h2 className="text-sm font-bold text-[#15157d]">Edit profile</h2>
-        <button onClick={onDone} className="text-[#757684] hover:text-[#0b1c30]" aria-label="Cancel">
+        <h2 className="text-sm font-bold text-[var(--h-15157d)]">Edit profile</h2>
+        <button onClick={onDone} className="text-[var(--h-757684)] hover:text-[var(--h-0b1c30)]" aria-label="Cancel">
           <X className="h-4 w-4" />
         </button>
       </div>
@@ -123,18 +123,18 @@ function EditProfileForm({ profile, onDone }: { profile: Profile; onDone: () => 
         )}
       </div>
 
-      {errMsg && <p className="mt-4 text-sm text-[#ba1a1a]">{errMsg}</p>}
+      {errMsg && <p className="mt-4 text-sm text-[var(--h-ba1a1a)]">{errMsg}</p>}
 
       <div className="mt-5 flex items-center gap-3">
         <button
           onClick={handleSave}
           disabled={update.isPending}
-          className="inline-flex items-center gap-2 rounded-lg bg-[#15157d] px-4 py-2 text-sm font-semibold text-white hover:bg-[#1e1ea0] disabled:opacity-60"
+          className="inline-flex items-center gap-2 rounded-lg bg-[var(--h-15157d)] px-4 py-2 text-sm font-semibold text-white hover:bg-[var(--h-1e1ea0)] disabled:opacity-60"
         >
           {update.isPending && <Loader2 className="h-4 w-4 animate-spin" />}
           Save changes
         </button>
-        <button onClick={onDone} className="rounded-lg px-4 py-2 text-sm font-semibold text-[#464652] hover:bg-[#f1f1f5]">
+        <button onClick={onDone} className="rounded-lg px-4 py-2 text-sm font-semibold text-[var(--h-464652)] hover:bg-[var(--h-f1f1f5)]">
           Cancel
         </button>
       </div>
@@ -149,7 +149,7 @@ export default function ProfilePage() {
   if (isLoading) {
     return (
       <div className="flex h-full items-center justify-center p-12">
-        <Loader2 className="h-6 w-6 animate-spin text-[#15157d]" />
+        <Loader2 className="h-6 w-6 animate-spin text-[var(--h-15157d)]" />
       </div>
     );
   }
@@ -157,10 +157,10 @@ export default function ProfilePage() {
   if (isError || !profile) {
     return (
       <div className="mx-auto max-w-2xl px-6 py-12 text-center">
-        <p className="text-sm text-[#ba1a1a]">Couldn't load your profile.</p>
+        <p className="text-sm text-[var(--h-ba1a1a)]">Couldn't load your profile.</p>
         <button
           onClick={() => refetch()}
-          className="mt-3 rounded-lg bg-[#15157d] px-4 py-2 text-sm font-semibold text-white hover:bg-[#1e1ea0]"
+          className="mt-3 rounded-lg bg-[var(--h-15157d)] px-4 py-2 text-sm font-semibold text-white hover:bg-[var(--h-1e1ea0)]"
         >
           Try again
         </button>
@@ -175,24 +175,24 @@ export default function ProfilePage() {
   return (
     <div className="mx-auto max-w-3xl px-6 py-8">
       {/* Header card */}
-      <div className="rounded-2xl border border-[#c7c5d4]/40 bg-white p-6 shadow-sm">
+      <div className="rounded-2xl border border-[var(--h-c7c5d4-40)] bg-[var(--h-ffffff)] p-6 shadow-sm">
         <div className="flex items-center gap-4">
-          <div className="flex h-16 w-16 shrink-0 items-center justify-center rounded-full bg-[#e1e0ff] text-xl font-bold text-[#15157d]">
+          <div className="flex h-16 w-16 shrink-0 items-center justify-center rounded-full bg-[var(--h-e1e0ff)] text-xl font-bold text-[var(--h-15157d)]">
             {initials}
           </div>
           <div className="min-w-0 flex-1">
-            <h1 className="truncate text-xl font-bold text-[#0b1c30]">{fullName}</h1>
-            <p className="truncate text-sm text-[#464652]">{profile.email}</p>
+            <h1 className="truncate text-xl font-bold text-[var(--h-0b1c30)]">{fullName}</h1>
+            <p className="truncate text-sm text-[var(--h-464652)]">{profile.email}</p>
             <div className="mt-2 flex flex-wrap items-center gap-2">
-              <span className="inline-flex items-center gap-1 rounded-full bg-[#eff4ff] px-2.5 py-0.5 text-[11px] font-semibold text-[#15157d]">
+              <span className="inline-flex items-center gap-1 rounded-full bg-[var(--h-eff4ff)] px-2.5 py-0.5 text-[11px] font-semibold text-[var(--h-15157d)]">
                 {ROLE_LABELS[profile.role]}
               </span>
               {profile.isVerified ? (
-                <span className="inline-flex items-center gap-1 rounded-full bg-[#e6f6ec] px-2.5 py-0.5 text-[11px] font-semibold text-[#1a7f43]">
+                <span className="inline-flex items-center gap-1 rounded-full bg-[var(--h-e6f6ec)] px-2.5 py-0.5 text-[11px] font-semibold text-[var(--h-1a7f43)]">
                   <BadgeCheck className="h-3 w-3" /> Verified
                 </span>
               ) : (
-                <span className="inline-flex items-center gap-1 rounded-full bg-[#fff4e0] px-2.5 py-0.5 text-[11px] font-semibold text-[#9a6700]">
+                <span className="inline-flex items-center gap-1 rounded-full bg-[var(--h-fff4e0)] px-2.5 py-0.5 text-[11px] font-semibold text-[var(--h-9a6700)]">
                   <ShieldAlert className="h-3 w-3" /> Unverified
                 </span>
               )}
@@ -201,7 +201,7 @@ export default function ProfilePage() {
           {!editing && (
             <button
               onClick={() => setEditing(true)}
-              className="inline-flex shrink-0 items-center gap-2 self-start rounded-lg border border-[#c7c5d4] px-3 py-2 text-sm font-semibold text-[#15157d] hover:bg-[#eff4ff]"
+              className="inline-flex shrink-0 items-center gap-2 self-start rounded-lg border border-[var(--h-c7c5d4)] px-3 py-2 text-sm font-semibold text-[var(--h-15157d)] hover:bg-[var(--h-eff4ff)]"
             >
               <Pencil className="h-4 w-4" /> Edit profile
             </button>
@@ -213,8 +213,8 @@ export default function ProfilePage() {
 
       {/* Account details */}
       {!editing && (
-      <section className="mt-6 rounded-2xl border border-[#c7c5d4]/40 bg-white p-6 shadow-sm">
-        <h2 className="mb-4 text-sm font-bold text-[#15157d]">Account details</h2>
+      <section className="mt-6 rounded-2xl border border-[var(--h-c7c5d4-40)] bg-[var(--h-ffffff)] p-6 shadow-sm">
+        <h2 className="mb-4 text-sm font-bold text-[var(--h-15157d)]">Account details</h2>
         <div className="grid grid-cols-1 gap-5 sm:grid-cols-2">
           <Field icon={Mail} label="Email" value={profile.email} />
           <Field icon={UserRound} label="Gender" value={profile.gender ? GENDER_LABELS[profile.gender] : null} />
@@ -233,8 +233,8 @@ export default function ProfilePage() {
 
       {/* Placement (students only) */}
       {isStudent && (
-        <section className="mt-6 rounded-2xl border border-[#c7c5d4]/40 bg-white p-6 shadow-sm">
-          <h2 className="mb-4 text-sm font-bold text-[#15157d]">Placement</h2>
+        <section className="mt-6 rounded-2xl border border-[var(--h-c7c5d4-40)] bg-[var(--h-ffffff)] p-6 shadow-sm">
+          <h2 className="mb-4 text-sm font-bold text-[var(--h-15157d)]">Placement</h2>
           {profile.placement ? (
             <div className="grid grid-cols-1 gap-5 sm:grid-cols-2">
               <Field icon={Building2} label="Company" value={profile.placement.companyName} />
@@ -251,7 +251,7 @@ export default function ProfilePage() {
               <Field icon={GraduationCap} label="Academic supervisor" value={profile.placement.academicSupervisor} />
             </div>
           ) : (
-            <p className="text-sm text-[#464652]">No placement on record yet.</p>
+            <p className="text-sm text-[var(--h-464652)]">No placement on record yet.</p>
           )}
         </section>
       )}

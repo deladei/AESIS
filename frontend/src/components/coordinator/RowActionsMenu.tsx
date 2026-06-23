@@ -60,7 +60,7 @@ export default function RowActionsMenu({ placementId, internName, flagged = fals
     flash('Flag removed');
   };
 
-  const item = 'flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-[#0b1c30] transition-colors hover:bg-[#eff4ff]';
+  const item = 'flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-[var(--h-0b1c30)] transition-colors hover:bg-[var(--h-eff4ff)]';
 
   return (
     <>
@@ -68,20 +68,20 @@ export default function RowActionsMenu({ placementId, internName, flagged = fals
         <button
           onClick={() => setOpen((v) => !v)}
           aria-label={`Actions for ${internName}`} aria-haspopup="menu" aria-expanded={open}
-          className="inline-flex rounded p-1 text-[#757684] transition-colors hover:bg-[#dce9ff] hover:text-[#15157d]"
+          className="inline-flex rounded p-1 text-[var(--h-757684)] transition-colors hover:bg-[var(--h-dce9ff)] hover:text-[var(--h-15157d)]"
         >
           <MoreVertical className="h-4 w-4" />
         </button>
         {open && (
           <>
             <div className="fixed inset-0 z-10" onClick={() => setOpen(false)} />
-            <div role="menu" className="absolute right-0 z-20 mt-1 w-52 overflow-hidden rounded-lg border border-[#c4c5d5]/70 bg-white py-1 shadow-lg">
-              <button className={item} onClick={() => go(`/coordinator/interns/${placementId}`)}><User className="h-4 w-4 text-[#757684]" /> View profile</button>
-              <button className={item} onClick={() => go(`/coordinator/interns/${placementId}`)}><FileText className="h-4 w-4 text-[#757684]" /> View logs</button>
-              <button className={item} onClick={() => { setOpen(false); setModal('reassign'); }}><UserCheck className="h-4 w-4 text-[#757684]" /> Reassign supervisor</button>
-              <button className={item} onClick={() => { setOpen(false); setModal('message'); }}><MessageSquare className="h-4 w-4 text-[#757684]" /> Message</button>
+            <div role="menu" className="absolute right-0 z-20 mt-1 w-52 overflow-hidden rounded-lg border border-[var(--h-c4c5d5-70)] bg-[var(--h-ffffff)] py-1 shadow-lg">
+              <button className={item} onClick={() => go(`/coordinator/interns/${placementId}`)}><User className="h-4 w-4 text-[var(--h-757684)]" /> View profile</button>
+              <button className={item} onClick={() => go(`/coordinator/interns/${placementId}`)}><FileText className="h-4 w-4 text-[var(--h-757684)]" /> View logs</button>
+              <button className={item} onClick={() => { setOpen(false); setModal('reassign'); }}><UserCheck className="h-4 w-4 text-[var(--h-757684)]" /> Reassign supervisor</button>
+              <button className={item} onClick={() => { setOpen(false); setModal('message'); }}><MessageSquare className="h-4 w-4 text-[var(--h-757684)]" /> Message</button>
               <button className={item} onClick={doRemind} disabled={remind.isPending}>
-                {remind.isPending ? <Loader2 className="h-4 w-4 animate-spin text-[#757684]" /> : <BellRing className="h-4 w-4 text-[#757684]" />} Send reminder
+                {remind.isPending ? <Loader2 className="h-4 w-4 animate-spin text-[var(--h-757684)]" /> : <BellRing className="h-4 w-4 text-[var(--h-757684)]" />} Send reminder
               </button>
               {flagged ? (
                 <button className={item} onClick={doUnflag} disabled={setFlag.isPending}>
@@ -89,7 +89,7 @@ export default function RowActionsMenu({ placementId, internName, flagged = fals
                 </button>
               ) : (
                 <button className={item} onClick={() => { setOpen(false); setModal('flag'); }}>
-                  <Flag className="h-4 w-4 text-[#757684]" /> Flag for attention
+                  <Flag className="h-4 w-4 text-[var(--h-757684)]" /> Flag for attention
                 </button>
               )}
             </div>
@@ -99,20 +99,20 @@ export default function RowActionsMenu({ placementId, internName, flagged = fals
 
       {modal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 p-4" onClick={() => setModal(null)}>
-          <div className="w-full max-w-md rounded-xl bg-white p-5 shadow-xl" onClick={(e) => e.stopPropagation()}>
+          <div className="w-full max-w-md rounded-xl bg-[var(--h-ffffff)] p-5 shadow-xl" onClick={(e) => e.stopPropagation()}>
             <div className="mb-3 flex items-center justify-between">
-              <h3 className="text-base font-bold text-[#0b1c30]">
+              <h3 className="text-base font-bold text-[var(--h-0b1c30)]">
                 {modal === 'reassign' ? 'Reassign supervisor' : modal === 'flag' ? `Flag ${internName}` : `Message ${internName}`}
               </h3>
-              <button onClick={() => setModal(null)} aria-label="Close" className="rounded p-1 text-[#757684] hover:bg-[#eff4ff]"><X className="h-4 w-4" /></button>
+              <button onClick={() => setModal(null)} aria-label="Close" className="rounded p-1 text-[var(--h-757684)] hover:bg-[var(--h-eff4ff)]"><X className="h-4 w-4" /></button>
             </div>
 
             {modal === 'flag' ? (
               <>
-                <label className="mb-1 block text-xs font-semibold text-[#757684]">Reason (optional)</label>
-                <textarea value={reason} onChange={(e) => setReason(e.target.value)} rows={3} maxLength={500} placeholder="Why are you flagging this intern for attention?" className="w-full resize-none rounded-lg border border-[#c4c5d5]/70 px-3 py-2 text-sm text-[#0b1c30] focus:border-[#15157d] focus:outline-none" />
+                <label className="mb-1 block text-xs font-semibold text-[var(--h-757684)]">Reason (optional)</label>
+                <textarea value={reason} onChange={(e) => setReason(e.target.value)} rows={3} maxLength={500} placeholder="Why are you flagging this intern for attention?" className="w-full resize-none rounded-lg border border-[var(--h-c4c5d5-70)] px-3 py-2 text-sm text-[var(--h-0b1c30)] focus:border-[var(--h-15157d)] focus:outline-none" />
                 <div className="mt-4 flex justify-end gap-2">
-                  <button onClick={() => setModal(null)} className="rounded-lg border border-[#c4c5d5]/70 px-4 py-2 text-sm font-medium text-[#444653] hover:bg-[#eff4ff]">Cancel</button>
+                  <button onClick={() => setModal(null)} className="rounded-lg border border-[var(--h-c4c5d5-70)] px-4 py-2 text-sm font-medium text-[var(--h-444653)] hover:bg-[var(--h-eff4ff)]">Cancel</button>
                   <button onClick={doFlag} disabled={setFlag.isPending} className="inline-flex items-center gap-2 rounded-lg bg-amber-500 px-4 py-2 text-sm font-semibold text-white hover:bg-amber-600 disabled:opacity-50">
                     {setFlag.isPending && <Loader2 className="h-4 w-4 animate-spin" />} Flag
                   </button>
@@ -120,24 +120,24 @@ export default function RowActionsMenu({ placementId, internName, flagged = fals
               </>
             ) : modal === 'reassign' ? (
               <>
-                <label className="mb-1 block text-xs font-semibold text-[#757684]">Academic supervisor</label>
-                <select value={supId} onChange={(e) => setSupId(e.target.value)} className="w-full rounded-lg border border-[#c4c5d5]/70 px-3 py-2 text-sm focus:border-[#15157d] focus:outline-none">
+                <label className="mb-1 block text-xs font-semibold text-[var(--h-757684)]">Academic supervisor</label>
+                <select value={supId} onChange={(e) => setSupId(e.target.value)} className="w-full rounded-lg border border-[var(--h-c4c5d5-70)] px-3 py-2 text-sm focus:border-[var(--h-15157d)] focus:outline-none">
                   <option value="">Select a supervisor…</option>
                   {supervisors.map((s) => <option key={s.id} value={s.id}>{s.firstName} {s.lastName}</option>)}
                 </select>
                 <div className="mt-4 flex justify-end gap-2">
-                  <button onClick={() => setModal(null)} className="rounded-lg border border-[#c4c5d5]/70 px-4 py-2 text-sm font-medium text-[#444653] hover:bg-[#eff4ff]">Cancel</button>
-                  <button onClick={doReassign} disabled={!supId || assign.isPending} className="inline-flex items-center gap-2 rounded-lg bg-[#15157d] px-4 py-2 text-sm font-semibold text-white hover:opacity-90 disabled:opacity-50">
+                  <button onClick={() => setModal(null)} className="rounded-lg border border-[var(--h-c4c5d5-70)] px-4 py-2 text-sm font-medium text-[var(--h-444653)] hover:bg-[var(--h-eff4ff)]">Cancel</button>
+                  <button onClick={doReassign} disabled={!supId || assign.isPending} className="inline-flex items-center gap-2 rounded-lg bg-[var(--h-15157d)] px-4 py-2 text-sm font-semibold text-white hover:opacity-90 disabled:opacity-50">
                     {assign.isPending && <Loader2 className="h-4 w-4 animate-spin" />} Reassign
                   </button>
                 </div>
               </>
             ) : (
               <>
-                <textarea value={msg} onChange={(e) => setMsg(e.target.value)} rows={4} maxLength={2000} placeholder="Write a message — it reaches the intern's notifications." className="w-full resize-none rounded-lg border border-[#c4c5d5]/70 px-3 py-2 text-sm text-[#0b1c30] focus:border-[#15157d] focus:outline-none" />
+                <textarea value={msg} onChange={(e) => setMsg(e.target.value)} rows={4} maxLength={2000} placeholder="Write a message — it reaches the intern's notifications." className="w-full resize-none rounded-lg border border-[var(--h-c4c5d5-70)] px-3 py-2 text-sm text-[var(--h-0b1c30)] focus:border-[var(--h-15157d)] focus:outline-none" />
                 <div className="mt-4 flex justify-end gap-2">
-                  <button onClick={() => setModal(null)} className="rounded-lg border border-[#c4c5d5]/70 px-4 py-2 text-sm font-medium text-[#444653] hover:bg-[#eff4ff]">Cancel</button>
-                  <button onClick={doMessage} disabled={!msg.trim() || message.isPending} className="inline-flex items-center gap-2 rounded-lg bg-[#15157d] px-4 py-2 text-sm font-semibold text-white hover:opacity-90 disabled:opacity-50">
+                  <button onClick={() => setModal(null)} className="rounded-lg border border-[var(--h-c4c5d5-70)] px-4 py-2 text-sm font-medium text-[var(--h-444653)] hover:bg-[var(--h-eff4ff)]">Cancel</button>
+                  <button onClick={doMessage} disabled={!msg.trim() || message.isPending} className="inline-flex items-center gap-2 rounded-lg bg-[var(--h-15157d)] px-4 py-2 text-sm font-semibold text-white hover:opacity-90 disabled:opacity-50">
                     {message.isPending && <Loader2 className="h-4 w-4 animate-spin" />} Send
                   </button>
                 </div>
@@ -148,7 +148,7 @@ export default function RowActionsMenu({ placementId, internName, flagged = fals
       )}
 
       {toast && (
-        <div className="fixed bottom-4 right-4 z-50 rounded-lg bg-[#0b1c30] px-4 py-2 text-sm font-medium text-white shadow-lg">{toast}</div>
+        <div className="fixed bottom-4 right-4 z-50 rounded-lg bg-[var(--h-0b1c30)] px-4 py-2 text-sm font-medium text-white shadow-lg">{toast}</div>
       )}
     </>
   );

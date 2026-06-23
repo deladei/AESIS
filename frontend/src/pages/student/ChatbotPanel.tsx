@@ -111,19 +111,19 @@ export default function ChatbotPanel() {
   };
 
   return (
-    <div className="flex h-[calc(100vh-0px)] flex-col bg-[#f7f8fb]">
+    <div className="flex h-[calc(100vh-0px)] flex-col bg-[var(--h-f7f8fb)]">
       {/* Header */}
-      <div className="flex shrink-0 items-center gap-3 border-b border-[#e2e6ef] bg-white px-6 py-4">
-        <div className="flex h-9 w-9 items-center justify-center rounded-lg border border-[#dcc9ff] bg-[#f1ecff]">
-          <Sparkles className="h-[18px] w-[18px] text-[#712ae2]" />
+      <div className="flex shrink-0 items-center gap-3 border-b border-[var(--h-e2e6ef)] bg-[var(--h-ffffff)] px-6 py-4">
+        <div className="flex h-9 w-9 items-center justify-center rounded-lg border border-[var(--h-dcc9ff)] bg-[var(--h-f1ecff)]">
+          <Sparkles className="h-[18px] w-[18px] text-[var(--h-712ae2)]" />
         </div>
         <div>
-          <h1 className="text-sm font-semibold text-[#0b1c30]">AESIS Assistant</h1>
-          <p className="text-xs text-[#64748b]">CS Internship Knowledge Base · regulation-grounded</p>
+          <h1 className="text-sm font-semibold text-[var(--h-0b1c30)]">AESIS Assistant</h1>
+          <p className="text-xs text-[var(--h-64748b)]">CS Internship Knowledge Base · regulation-grounded</p>
         </div>
         <div className="ml-auto flex items-center gap-1.5">
-          <span className="h-2 w-2 rounded-full bg-[#1b7a45]" />
-          <span className="text-xs text-[#64748b]">Online</span>
+          <span className="h-2 w-2 rounded-full bg-[var(--h-1b7a45)]" />
+          <span className="text-xs text-[var(--h-64748b)]">Online</span>
         </div>
       </div>
 
@@ -132,23 +132,23 @@ export default function ChatbotPanel() {
         {messages.map((msg) => (
           <div key={msg.id} className={`flex gap-3 ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
             {msg.role === 'assistant' && (
-              <div className="mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-full border border-[#dcc9ff] bg-[#f1ecff]">
-                <Bot className="h-3.5 w-3.5 text-[#712ae2]" />
+              <div className="mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-full border border-[var(--h-dcc9ff)] bg-[var(--h-f1ecff)]">
+                <Bot className="h-3.5 w-3.5 text-[var(--h-712ae2)]" />
               </div>
             )}
             <div className={`max-w-[75%] rounded-xl px-4 py-3 text-sm leading-relaxed ${
               msg.role === 'user'
-                ? 'rounded-tr-sm bg-[#15157d] text-white'
-                : 'rounded-tl-sm border border-[#e2e6ef] bg-white text-[#1f2a3a]'
+                ? 'rounded-tr-sm bg-[var(--h-15157d)] text-white'
+                : 'rounded-tl-sm border border-[var(--h-e2e6ef)] bg-[var(--h-ffffff)] text-[var(--h-1f2a3a)]'
             }`}>
               {msg.content}
               {msg.streaming && (
-                <span className="ml-0.5 inline-block h-3.5 w-0.5 animate-pulse bg-[#712ae2]" />
+                <span className="ml-0.5 inline-block h-3.5 w-0.5 animate-pulse bg-[var(--h-712ae2)]" />
               )}
             </div>
             {msg.role === 'user' && (
-              <div className="mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-full border border-[#d8dce6] bg-[#eef0f5]">
-                <User className="h-3.5 w-3.5 text-[#64748b]" />
+              <div className="mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-full border border-[var(--h-d8dce6)] bg-[var(--h-eef0f5)]">
+                <User className="h-3.5 w-3.5 text-[var(--h-64748b)]" />
               </div>
             )}
           </div>
@@ -159,13 +159,13 @@ export default function ChatbotPanel() {
       {/* Suggested questions */}
       {messages.length === 1 && (
         <div className="shrink-0 px-6 pb-3">
-          <p className="mb-2 text-xs text-[#64748b]">Suggested questions</p>
+          <p className="mb-2 text-xs text-[var(--h-64748b)]">Suggested questions</p>
           <div className="flex flex-wrap gap-2">
             {SUGGESTED_QUESTIONS.map((q) => (
               <button
                 key={q}
                 onClick={() => sendMessage(q)}
-                className="cursor-pointer rounded-full border border-[#d8dce6] bg-white px-3 py-1.5 text-xs text-[#464652] transition-colors hover:border-[#8a4cfc] hover:bg-[#f6f2ff] hover:text-[#712ae2]"
+                className="cursor-pointer rounded-full border border-[var(--h-d8dce6)] bg-[var(--h-ffffff)] px-3 py-1.5 text-xs text-[var(--h-464652)] transition-colors hover:border-[var(--h-8a4cfc)] hover:bg-[var(--h-f6f2ff)] hover:text-[var(--h-712ae2)]"
               >
                 {q}
               </button>
@@ -175,8 +175,8 @@ export default function ChatbotPanel() {
       )}
 
       {/* Input */}
-      <div className="shrink-0 border-t border-[#e2e6ef] bg-white px-6 pb-6 pt-3">
-        <div className="flex items-end gap-3 rounded-xl border border-[#d8dce6] bg-white p-3 transition-colors focus-within:border-[#8a4cfc] focus-within:ring-1 focus-within:ring-[#8a4cfc]">
+      <div className="shrink-0 border-t border-[var(--h-e2e6ef)] bg-[var(--h-ffffff)] px-6 pb-6 pt-3">
+        <div className="flex items-end gap-3 rounded-xl border border-[var(--h-d8dce6)] bg-[var(--h-ffffff)] p-3 transition-colors focus-within:border-[var(--h-8a4cfc)] focus-within:ring-1 focus-within:ring-[var(--h-8a4cfc)]">
           <textarea
             ref={inputRef}
             rows={1}
@@ -184,13 +184,13 @@ export default function ChatbotPanel() {
             onChange={(e) => setInput(e.target.value)}
             onKeyDown={handleKeyDown}
             placeholder="Ask about regulations, deadlines, or procedures…"
-            className="scrollbar-thin max-h-32 flex-1 resize-none bg-transparent text-sm text-[#0b1c30] placeholder-[#94a3b8] focus:outline-none"
+            className="scrollbar-thin max-h-32 flex-1 resize-none bg-transparent text-sm text-[var(--h-0b1c30)] placeholder-[var(--h-94a3b8)] focus:outline-none"
             style={{ minHeight: '24px' }}
           />
           <button
             onClick={() => sendMessage(input)}
             disabled={!input.trim() || loading}
-            className="flex h-8 w-8 shrink-0 cursor-pointer items-center justify-center rounded-lg bg-[#15157d] transition-colors hover:bg-[#1f1fa0] disabled:cursor-not-allowed disabled:opacity-40"
+            className="flex h-8 w-8 shrink-0 cursor-pointer items-center justify-center rounded-lg bg-[var(--h-15157d)] transition-colors hover:bg-[var(--h-1f1fa0)] disabled:cursor-not-allowed disabled:opacity-40"
             aria-label="Send message"
           >
             {loading ? (
@@ -200,7 +200,7 @@ export default function ChatbotPanel() {
             )}
           </button>
         </div>
-        <p className="mt-2 text-center text-xs text-[#94a3b8]">
+        <p className="mt-2 text-center text-xs text-[var(--h-94a3b8)]">
           Answers are grounded in CS Department regulations only. Not general web knowledge.
         </p>
       </div>
