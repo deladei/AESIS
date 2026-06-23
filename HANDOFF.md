@@ -2141,3 +2141,17 @@ Same pattern as S41's flag columns. Do this **before/while** Render finishes bui
 1. Dark mode is swept across all roles but only **spot-checked via build**, not visually QA'd per-role — some token mappings in the 44-file sweep may read off in dark (verify supervisor/coordinator/admin surfaces in the browser).
 2. Logbook table rows link to `/student/logbook` generally; the editor selects the latest week by default — there's **no deep-link to a specific week** (would need a `?week=` param in `LogbookEditor`).
 3. Carried from S53/S54: Cloudinary creds on Render; `ENVIRONMENT=production` on engine; 🔐 rotate pasted secrets; render.yaml Redis vs live Upstash; Prisma migration-history reconciliation (S41); legacy placements `region = null`.
+
+### Session 56 — 2026-06-22 — Fix: prod logs out on page refresh (backend cookie, 1 commit `8e46fb4`, pushed prod)
+
+**Ask.** On prod, a hard refresh logged the user out instead of rehydrating the session. Auto mode.
+
+**Root cause.** Refresh-token cookie was set `SameSite=Strict` (`backend/src/shared/utils/token.ts`). In prod the SPA (`aesis.vercel.app`) and API (`aesis.onrender.com`) are **different registrable domains → cross-site**. Browsers never attach a `SameSite=Strict` cookie to a cross-site request, so the page-load `POST /auth/refresh` XHR went out **with no cookie → 401 → AuthContext treated it as not-logged-in → logout** on every refresh. Login itself worked (it returns the access token in the body); only the silent-refresh rehydrate path was broken. Same bug would also have silently weakened the `withCredentials` refresh on first paint.
+
+**Fix (`8e46fb4`).**
+- `token.ts`: `refreshCookieOptions`/`clearCookieOptions` now `SameSite=None; Secure` in prod, `lax` locally (localhost is same-site, no HTTPS). `secure` follows `isProd`. Extracted `isProd` + `cookieSameSite` consts.
+- `app.ts`: `app.set('trust proxy', 1)` in prod so `req.secure`/`req.ip` reflect the original request behind Render's TLS-terminating edge (correct Secure-cookie + per-client rate-limit behavior).
+
+**Verification.** `tsc --noEmit` clean; auth Jest **42/42**. CORS already correct (`origin: FRONTEND_URL` + `credentials:true`); cookie `path` unchanged (`/api/v1/auth/refresh`). Pushed `main` → Render auto-deploy.
+
+**Note.** Prod verification is browser-only (this box has no Render access): after deploy, log in on `aesis.vercel.app`, hard-refresh → should stay logged in. Confirm DevTools shows the `aesis_refresh` Set-Cookie with `SameSite=None; Secure`.
