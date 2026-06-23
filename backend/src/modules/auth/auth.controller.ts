@@ -61,7 +61,7 @@ export async function refreshHandler(req: Request, res: Response) {
     refreshCookieOptions(env.REFRESH_TOKEN_EXPIRY_DAYS),
   );
 
-  return ok(res, { accessToken: result.accessToken });
+  return ok(res, { accessToken: result.accessToken, user: result.user });
 }
 
 export async function logoutHandler(req: Request, res: Response) {

@@ -381,6 +381,28 @@ describe('authService.verifyEmail', () => {
 describe('authService.refresh', () => {
   beforeEach(() => jest.clearAllMocks());
 
+  it('rotates the token and returns accessToken + full user (rehydrates session on refresh)', async () => {
+    (mockPrisma.refreshToken.findFirst as jest.Mock).mockResolvedValue({
+      id: 'rt-1', userId: 'user-uuid-1', revokedAt: null,
+      expiresAt: new Date(Date.now() + 999999),
+      user: {
+        id: 'user-uuid-1', role: 'student', isVerified: true,
+        email: 'kofi@cs.edu', firstName: 'Kofi', lastName: 'Mensah',
+      },
+    });
+    (mockPrisma.$transaction as jest.Mock).mockResolvedValue([{}, {}]);
+
+    const result = await authService.refresh('valid-token');
+    expect(result.accessToken).toEqual(expect.any(String));
+    expect(result.refreshToken).toEqual(expect.any(String));
+    // The frontend's silent-refresh rehydrate needs the user; missing it logged
+    // every user out on page refresh.
+    expect(result.user).toEqual({
+      id: 'user-uuid-1', email: 'kofi@cs.edu',
+      firstName: 'Kofi', lastName: 'Mensah', role: 'student',
+    });
+  });
+
   it('throws 401 for unknown token', async () => {
     (mockPrisma.refreshToken.findFirst as jest.Mock).mockResolvedValue(null);
     await expect(authService.refresh('unknown-token')).rejects.toMatchObject({ statusCode: 401 });

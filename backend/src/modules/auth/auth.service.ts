@@ -321,7 +321,14 @@ export async function refresh(rawToken: string) {
 
   const stored = await prisma.refreshToken.findFirst({
     where:   { tokenHash },
-    include: { user: { select: { id: true, role: true, isVerified: true } } },
+    include: {
+      user: {
+        select: {
+          id: true, role: true, isVerified: true,
+          email: true, firstName: true, lastName: true,
+        },
+      },
+    },
   });
 
   if (!stored)                      throw new AppError(401, 'Invalid refresh token');
@@ -344,7 +351,17 @@ export async function refresh(rawToken: string) {
 
   const accessToken = signAccessToken({ sub: stored.user.id, role: stored.user.role });
 
-  return { accessToken, refreshToken: newRaw };
+  return {
+    accessToken,
+    refreshToken: newRaw,
+    user: {
+      id:        stored.user.id,
+      email:     stored.user.email,
+      firstName: stored.user.firstName,
+      lastName:  stored.user.lastName,
+      role:      stored.user.role,
+    },
+  };
 }
 
 // ── Logout ────────────────────────────────────────────────────
