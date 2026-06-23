@@ -2114,3 +2114,30 @@ Same pattern as S41's flag columns. Do this **before/while** Render finishes bui
 **Verification.** Backend `tsc --noEmit` clean; auth Jest **42/42** (added: update 404, name+gender, phone encrypt + empty-clears, dup-index 409, non-student ignores index). Frontend `tsc --noEmit` clean + `vite build` green (pre-existing >500 kB chunk warning only).
 
 **Note.** Closes S53 follow-up #1. Phone wasn't collected at registration, so this is also the first place a user can set it.
+
+### Session 55 — 2026-06-22 — Student dashboard redesign: dark mode + weekly logbook table + top-nav (frontend-only, 3 commits, pushed prod)
+
+**Ask.** Finish the approved student-dashboard revamp — system dark mode, a weekly logbook table, and a top-nav with a bell dropdown. Frontend-only; no backend/DB/migration. Auto-commit+push to prod each part.
+
+**Context.** Session opened mid-flight: a prior dark-mode **token sweep** (44 files → globals.css `.dark` block + `tailwind.config.js darkMode:'class'`) was already on disk uncommitted but **dead** — the `.dark` CSS vars existed and nothing ever applied the `dark` class. tsc + vite build were already clean on the swept tree.
+
+**Commit 1 — dark mode wiring (`9c6f4d4`).**
+- New `contexts/ThemeContext.tsx` — `ThemeProvider` + `useTheme()`; theme `light|dark`, persisted to `localStorage['aesis-theme']`, falls back to `prefers-color-scheme`; applies/removes `dark` on `documentElement`.
+- New `components/layout/ThemeToggle.tsx` — Sun/Moon button.
+- `main.tsx` wraps `<App/>` in `<ThemeProvider>`; `index.html` gains a **no-flash inline script** that applies stored/system theme before first paint.
+- `ThemeToggle` wired into all four role shells (student/supervisor/coordinator/admin) topbars. CSS grew 56.9→60.3 kB (dark tokens).
+
+**Commit 2 — weekly logbook table (`7a2c716`).**
+- Extracted the week-scheduling helpers (`buildSchedule`, `ScheduleWeek`, `toYMD/localYMD/ymd/addDaysYMD`, `fmtRange/fmtDate`, `SCHEDULE_WEEKS`) **out of `LogbookEditor.tsx` into new `lib/schedule.ts`**; editor now imports them (kept `defaultActivityDate` local). Single source for both surfaces — no drift.
+- New `components/student/WeeklyLogbookTable.tsx` — full-width table (Week / Period / Hours / Status / Edit·View), overlays `useEntries` onto the 6-week schedule so not-yet-started weeks read "Not started"; hours coerce Prisma Decimal-as-string → `—` when unset. Added full-width to `StudentDashboard` above Supervisor Feedback.
+- Bug caught by tsc: `(entry?.status as EntryStatus) ?? 'not_started'` — the cast removed null, making `?? 'not_started'` dead and narrowing to `EntryStatus` → TS2367. Fixed by dropping the cast (`entry?.status ?? 'not_started'`).
+
+**Commit 3 — top-nav + bell dropdown (`7d540dc`).**
+- Rewrote `StudentShell.tsx`: sidebar → **horizontal top-nav** (brand · inline nav · right cluster). Replaced the plain bell `Link` with the existing **role-agnostic `NotificationBell`** (unread badge + recent-events dropdown + per-item `n.link` deep-link). New in-file `AccountDropdown` (identity, "Student" role badge, My Profile, Sign out) — did NOT reuse `AccountMenu` (coordinator-hardcoded label + `/coordinator/settings`). Mobile keeps `MobileNav` hamburger with the full item set (Notifications + Profile folded in).
+
+**Verification.** Frontend `tsc --noEmit` clean + `vite build` green on each commit (pre-existing >500 kB chunk warning only). No backend touched; no tests added (frontend has no test runner). All three pushed to `main` → Vercel auto-build.
+
+**Stopped here — follow-ups.**
+1. Dark mode is swept across all roles but only **spot-checked via build**, not visually QA'd per-role — some token mappings in the 44-file sweep may read off in dark (verify supervisor/coordinator/admin surfaces in the browser).
+2. Logbook table rows link to `/student/logbook` generally; the editor selects the latest week by default — there's **no deep-link to a specific week** (would need a `?week=` param in `LogbookEditor`).
+3. Carried from S53/S54: Cloudinary creds on Render; `ENVIRONMENT=production` on engine; 🔐 rotate pasted secrets; render.yaml Redis vs live Upstash; Prisma migration-history reconciliation (S41); legacy placements `region = null`.
