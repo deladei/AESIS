@@ -10,6 +10,7 @@ import { useMyPlacements } from '@/hooks/usePlacements';
 import { useSubmissions, useSubmission, type LogbookSubmission } from '@/hooks/useLogbook';
 import { useStudentDashboard } from '@/hooks/useStudentDashboard';
 import { useNotifications, type Notification } from '@/hooks/useNotifications';
+import { WeeklyLogbookTable } from '@/components/student/WeeklyLogbookTable';
 
 function formatDate(iso: string | null): string {
   if (!iso) return '—';
@@ -375,6 +376,11 @@ export default function StudentDashboard() {
               View All Notifications
             </Link>
           </div>
+        </div>
+
+        {/* ── Weekly Logbook table ─────────────────────────────── */}
+        <div className="col-span-12">
+          <WeeklyLogbookTable placementId={active.id} startDate={active.startDate} />
         </div>
 
         {/* ── Supervisor Feedback ──────────────────────────────── */}

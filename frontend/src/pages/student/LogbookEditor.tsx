@@ -11,72 +11,14 @@ import {
 } from '@/hooks/useEntries';
 import { EntryObjectives } from '@/components/objectives/EntryObjectives';
 import { EntryAttachments } from '@/components/attachments/EntryAttachments';
+import {
+  type ScheduleWeek, buildSchedule, toYMD, localYMD, ymd, fmtRange, fmtDate,
+} from '@/lib/schedule';
 
 const COMPETENCY_SUGGESTIONS = [
   'Problem Solving', 'Teamwork', 'Communication', 'Technical Writing',
   'Debugging', 'Version Control', 'Testing', 'Code Review', 'Time Management',
 ];
-
-// ── Date helpers (UTC-safe; the API uses date-only YYYY-MM-DD) ──
-function toYMD(d: Date): string {
-  return d.toISOString().slice(0, 10);
-}
-// "Today" as the user's LOCAL calendar date. The placement start is a local
-// calendar pick (<input type=date>, plain YYYY-MM-DD), so comparing it against a
-// UTC-derived today (toISOString) is off by a day for any device not on UTC —
-// an already-arrived start could still read as "hasn't started". Build the YMD
-// from local Y/M/D instead.
-function localYMD(d: Date): string {
-  const y = d.getFullYear();
-  const m = String(d.getMonth() + 1).padStart(2, '0');
-  const day = String(d.getDate()).padStart(2, '0');
-  return `${y}-${m}-${day}`;
-}
-function ymd(iso: string): string {
-  return iso.slice(0, 10);
-}
-function addDaysYMD(start: Date, days: number): Date {
-  const d = new Date(start);
-  d.setUTCDate(d.getUTCDate() + days);
-  return d;
-}
-
-interface ScheduleWeek {
-  weekNumber:  number; // absolute index from the placement start — stable storage key
-  label:       number; // 1..12 position within the visible window — display only
-  periodStart: string;
-  periodEnd:   string;
-}
-
-const SCHEDULE_WEEKS = 6;
-
-// The internship is a fixed 6-week programme. The schedule is anchored at the
-// placement start (week 1) and reveals one week at a time as real time passes —
-// so a brand-new placement shows only Week 1, and weeks appear as the student
-// reaches them, never exceeding week 6. `weekNumber` and `label` are identical
-// (1..6); `weekNumber` is the stable storage key for saved entries.
-function buildSchedule(startDate: string | null): ScheduleWeek[] {
-  if (!startDate) return [];
-  const start = new Date(`${ymd(startDate)}T00:00:00Z`);
-  const today = new Date(`${localYMD(new Date())}T00:00:00Z`);
-  if (today.getTime() < start.getTime()) return []; // placement hasn't started yet
-
-  const weekMs = 7 * 86_400_000;
-  const currentOffset = Math.floor((today.getTime() - start.getTime()) / weekMs);
-  const lastOffset = Math.min(currentOffset, SCHEDULE_WEEKS - 1); // never past week 6
-
-  const weeks: ScheduleWeek[] = [];
-  for (let off = 0; off <= lastOffset; off++) {
-    const periodStart = addDaysYMD(start, off * 7);
-    weeks.push({
-      weekNumber:  off + 1,
-      label:       off + 1,
-      periodStart: toYMD(periodStart),
-      periodEnd:   toYMD(addDaysYMD(periodStart, 6)),
-    });
-  }
-  return weeks;
-}
 
 // Default a new activity to today when today falls inside the week; otherwise
 // clamp to the week's bounds. (YMD strings compare correctly lexicographically.)
@@ -85,19 +27,6 @@ function defaultActivityDate(week: ScheduleWeek): string {
   if (today < week.periodStart) return week.periodStart;
   if (today > week.periodEnd) return week.periodEnd;
   return today;
-}
-
-function fmtRange(start: string, end: string): string {
-  const opts: Intl.DateTimeFormatOptions = { day: 'numeric', month: 'short' };
-  const s = new Date(`${start}T00:00:00Z`).toLocaleDateString('en-GB', { ...opts, timeZone: 'UTC' });
-  const e = new Date(`${end}T00:00:00Z`).toLocaleDateString('en-GB', { ...opts, year: 'numeric', timeZone: 'UTC' });
-  return `${s} – ${e}`;
-}
-
-function fmtDate(d: string): string {
-  return new Date(`${ymd(d)}T00:00:00Z`).toLocaleDateString('en-GB', {
-    day: 'numeric', month: 'short', year: 'numeric', timeZone: 'UTC',
-  });
 }
 
 const STATUS_META: Record<EntryStatus | 'not_started', { label: string; cls: string; Icon: React.ElementType }> = {
