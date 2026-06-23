@@ -4,7 +4,7 @@ import { SYSTEM_MAX_WEEKS } from '../../shared/utils/quality';
 // Engagement is measured off the active weekly-entry pipeline. A week "counts as
 // submitted" once its entry has actually been submitted (submittedAt set);
 // "pending" is awaiting supervisor action, "reviewed" is acted on.
-const REVIEWED_ENTRY_STATUSES = ['acknowledged', 'returned', 'rejected'] as const;
+const REVIEWED_ENTRY_STATUSES = ['acknowledged', 'returned'] as const;
 
 const PULSE_LIMIT  = 6;
 const RECENT_LIMIT = 6;

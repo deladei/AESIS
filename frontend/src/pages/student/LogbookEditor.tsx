@@ -2,7 +2,7 @@ import { useState, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   Loader2, Plus, X, Trash2, CheckCircle2, Clock, RotateCcw, Lock,
-  Send, Calendar, AlertCircle, BookOpen, XCircle,
+  Send, Calendar, AlertCircle, BookOpen,
 } from 'lucide-react';
 import { useMyPlacements } from '@/hooks/usePlacements';
 import {
@@ -35,7 +35,6 @@ const STATUS_META: Record<EntryStatus | 'not_started', { label: string; cls: str
   submitted:    { label: 'Submitted',    cls: 'bg-[var(--h-e1e8ff)] text-[var(--h-15157d)] border-[var(--h-bcc8ff)]', Icon: Send },
   returned:     { label: 'Returned',     cls: 'bg-[var(--h-ffe2dc)] text-[var(--h-b3261e)] border-[var(--h-f5b8ad)]', Icon: RotateCcw },
   acknowledged: { label: 'Acknowledged', cls: 'bg-[var(--h-dcf5e6)] text-[var(--h-1b7a45)] border-[var(--h-aee3c2)]', Icon: CheckCircle2 },
-  rejected:     { label: 'Rejected',     cls: 'bg-[var(--h-fde7e7)] text-[var(--h-8a1c1c)] border-[var(--h-f1b4b4)]', Icon: XCircle },
 };
 
 function StatusPill({ status }: { status: EntryStatus | 'not_started' }) {
@@ -133,12 +132,6 @@ export default function LogbookEditor() {
   const returnComment = useMemo(() => {
     if (status !== 'returned' || !detail?.events) return null;
     const ev = [...detail.events].reverse().find((e) => e.toStatus === 'returned');
-    return ev?.comment ?? null;
-  }, [status, detail?.events]);
-
-  const rejectComment = useMemo(() => {
-    if (status !== 'rejected' || !detail?.events) return null;
-    const ev = [...detail.events].reverse().find((e) => e.toStatus === 'rejected');
     return ev?.comment ?? null;
   }, [status, detail?.events]);
 
@@ -334,15 +327,6 @@ export default function LogbookEditor() {
                 </div>
                 {returnComment && <p className="mt-1 pl-6 text-[var(--h-7a2018)]">"{returnComment}"</p>}
                 <p className="mt-1 pl-6 text-[var(--h-7a2018-80)]">Edit your entry below and resubmit.</p>
-              </div>
-            )}
-            {status === 'rejected' && (
-              <div className="rounded-lg border border-[var(--h-f1b4b4)] bg-[var(--h-fde7e7)] px-4 py-3 text-sm text-[var(--h-8a1c1c)]">
-                <div className="flex items-center gap-2 font-semibold">
-                  <XCircle className="h-4 w-4" /> This week was rejected
-                </div>
-                {rejectComment && <p className="mt-1 pl-6 text-[var(--h-6f1717)]">"{rejectComment}"</p>}
-                <p className="mt-1 pl-6 text-[var(--h-6f1717-80)]">This week is closed and can no longer be edited.</p>
               </div>
             )}
 

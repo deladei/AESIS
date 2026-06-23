@@ -141,7 +141,7 @@ export async function getCoordinatorDashboard(opts: { academicYearId?: string } 
 export type StudentSortKey = 'name' | 'department' | 'supervisor' | 'progress' | 'score' | 'status';
 export type SortDir = 'asc' | 'desc';
 export type StatusFilter =
-  | 'draft' | 'submitted' | 'returned' | 'acknowledged' | 'rejected' | 'not_started';
+  | 'draft' | 'submitted' | 'returned' | 'acknowledged' | 'not_started';
 
 export interface StudentListFilters {
   page:            number;
@@ -160,7 +160,7 @@ export interface StudentListFilters {
 const COMPUTED_SORTS: StudentSortKey[] = ['progress', 'score', 'status'];
 // Stable ordering for the "status" sort (worst-progressed first when desc).
 const STATUS_ORDER: Record<StatusFilter, number> = {
-  not_started: 0, draft: 1, submitted: 2, returned: 3, rejected: 4, acknowledged: 5,
+  not_started: 0, draft: 1, submitted: 2, returned: 3, acknowledged: 4,
 };
 
 const STUDENT_SELECT = {
@@ -531,7 +531,7 @@ export async function getStudentDetail(placementId: string) {
       take:    10,
       select:  { riskTier: true, riskScore: true, computedAt: true },
     }),
-    // Supervisor feedback = entry events that carry a comment (return/reject/acknowledge).
+    // Supervisor feedback = entry events that carry a comment (return/acknowledge).
     prisma.entryEvent.findMany({
       where:   { entry: { placementId }, comment: { not: null } },
       orderBy: { createdAt: 'desc' },

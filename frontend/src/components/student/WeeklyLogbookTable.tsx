@@ -1,7 +1,7 @@
 import { useMemo } from 'react';
 import { Link } from 'react-router-dom';
 import {
-  Calendar, Clock, Send, RotateCcw, CheckCircle2, XCircle, ArrowRight,
+  Calendar, Clock, Send, RotateCcw, CheckCircle2, ArrowRight,
 } from 'lucide-react';
 import { useEntries, type EntryStatus } from '@/hooks/useEntries';
 import { buildSchedule, fmtRange } from '@/lib/schedule';
@@ -14,7 +14,6 @@ const STATUS_META: Record<WeekStatus, { label: string; cls: string; Icon: React.
   submitted:    { label: 'Submitted',    cls: 'bg-[var(--h-e1e8ff)] text-[var(--h-15157d)] border-[var(--h-bcc8ff)]', Icon: Send },
   returned:     { label: 'Returned',     cls: 'bg-[var(--h-ffe2dc)] text-[var(--h-b3261e)] border-[var(--h-f5b8ad)]', Icon: RotateCcw },
   acknowledged: { label: 'Acknowledged', cls: 'bg-[var(--h-dcf5e6)] text-[var(--h-1b7a45)] border-[var(--h-aee3c2)]', Icon: CheckCircle2 },
-  rejected:     { label: 'Rejected',     cls: 'bg-[var(--h-fde7e7)] text-[var(--h-8a1c1c)] border-[var(--h-f1b4b4)]', Icon: XCircle },
 };
 
 function StatusPill({ status }: { status: WeekStatus }) {

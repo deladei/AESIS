@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import {
   ChevronRight, CheckCircle2, AlertCircle, Loader2,
-  Calendar, Clock, Send, RotateCcw, XCircle, Sparkles,
+  Calendar, Clock, Send, RotateCcw, Sparkles,
 } from 'lucide-react';
 import { useMyPlacements } from '@/hooks/usePlacements';
 import { useEntries, useEntry, type EntryStatus } from '@/hooks/useEntries';
@@ -12,17 +12,15 @@ const STATUS_META: Record<EntryStatus, { label: string; cls: string; Icon: React
   submitted:    { label: 'Submitted',    cls: 'bg-[var(--h-e1e8ff)] text-[var(--h-15157d)] border-[var(--h-bcc8ff)]', Icon: Send },
   returned:     { label: 'Returned',     cls: 'bg-[var(--h-ffe2dc)] text-[var(--h-b3261e)] border-[var(--h-f5b8ad)]', Icon: RotateCcw },
   acknowledged: { label: 'Acknowledged', cls: 'bg-[var(--h-dcf5e6)] text-[var(--h-1b7a45)] border-[var(--h-aee3c2)]', Icon: CheckCircle2 },
-  rejected:     { label: 'Rejected',     cls: 'bg-[var(--h-fde7e7)] text-[var(--h-8a1c1c)] border-[var(--h-f1b4b4)]', Icon: XCircle },
 };
 
-// Week-chip tint per status — green = acknowledged, red = returned/rejected,
+// Week-chip tint per status — green = acknowledged, red = returned,
 // indigo = submitted, amber = draft.
 const CHIP_CLS: Record<EntryStatus, string> = {
   draft:        'border-[var(--h-f3d690)] bg-[var(--h-fff4e0)] text-[var(--h-9a6700)]',
   submitted:    'border-[var(--h-bcc8ff)] bg-[var(--h-e1e8ff)] text-[var(--h-15157d)]',
   returned:     'border-[var(--h-f5b8ad)] bg-[var(--h-ffe2dc)] text-[var(--h-b3261e)]',
   acknowledged: 'border-[var(--h-aee3c2)] bg-[var(--h-dcf5e6)] text-[var(--h-1b7a45)]',
-  rejected:     'border-[var(--h-f1b4b4)] bg-[var(--h-fde7e7)] text-[var(--h-8a1c1c)]',
 };
 
 function StatusPill({ status }: { status: EntryStatus }) {
@@ -40,8 +38,8 @@ function FlowTracker({ status }: { status: EntryStatus }) {
   const reached =
     status === 'draft' ? -1 :
     status === 'submitted' ? 1 :
-    2; // acknowledged / returned / rejected — a decision was made
-  const flaggedDecision = status === 'returned' || status === 'rejected';
+    2; // acknowledged / returned — a decision was made
+  const flaggedDecision = status === 'returned';
 
   return (
     <div className="flex items-center gap-0">
@@ -93,7 +91,7 @@ function EntryDetail({ entryId, status }: { entryId: string; status: EntryStatus
   const { data: detail, isLoading } = useEntry(entryId);
 
   const decisionEvent = detail?.events
-    ? [...detail.events].reverse().find((e) => ['acknowledged', 'returned', 'rejected'].includes(e.toStatus))
+    ? [...detail.events].reverse().find((e) => ['acknowledged', 'returned'].includes(e.toStatus))
     : undefined;
   const aiSummary = detail?.assessments?.find((a) => a.summary != null)?.summary;
   const summaryText = typeof aiSummary === 'string' ? aiSummary : null;
@@ -148,7 +146,7 @@ export default function SubmissionHistory() {
 
   const sorted    = [...entries].sort((a, b) => b.weekNumber - a.weekNumber);
   const submitted = entries.filter((e) => e.submittedAt != null);
-  const flagged   = entries.filter((e) => e.status === 'returned' || e.status === 'rejected');
+  const flagged   = entries.filter((e) => e.status === 'returned');
   const TOTAL_WEEKS = 6; // fixed 6-week programme
   const progress  = Math.min(100, Math.round((submitted.length / TOTAL_WEEKS) * 100));
 

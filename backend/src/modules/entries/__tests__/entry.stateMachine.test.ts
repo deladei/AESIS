@@ -31,13 +31,6 @@ describe('entry state machine', () => {
       });
     });
 
-    it('supervisor rejects submitted -> rejected', () => {
-      expect(resolveTransition('submitted', 'reject', 'academic_supervisor')).toEqual({
-        to: 'rejected',
-        bumpsVersion: false,
-      });
-    });
-
     it('admin may perform any transition (break-glass)', () => {
       expect(resolveTransition('submitted', 'acknowledge', 'admin').to).toBe('acknowledged');
       expect(resolveTransition('draft', 'submit', 'admin').to).toBe('submitted');
@@ -51,13 +44,8 @@ describe('entry state machine', () => {
       ['acknowledged', 'reopen'],
       ['draft', 'acknowledge'],
       ['draft', 'return'],
-      ['draft', 'reject'],
       ['returned', 'acknowledge'],
-      ['returned', 'reject'],
       ['submitted', 'submit'],
-      ['rejected', 'submit'], // terminal is locked
-      ['rejected', 'reopen'],
-      ['acknowledged', 'reject'],
     ];
     it.each(cases)('cannot %s -> %s', (from, action) => {
       try {
@@ -107,20 +95,18 @@ describe('entry state machine', () => {
   });
 
   describe('status predicates', () => {
-    it('acknowledged and rejected are terminal', () => {
+    it('acknowledged is terminal', () => {
       expect(isTerminal('acknowledged')).toBe(true);
-      expect(isTerminal('rejected')).toBe(true);
       expect(isTerminal('submitted')).toBe(false);
       expect(isTerminal('draft')).toBe(false);
       expect(isTerminal('returned')).toBe(false);
     });
 
-    it('draft and returned are editable; submitted/acknowledged/rejected are not', () => {
+    it('draft and returned are editable; submitted/acknowledged are not', () => {
       expect(isEditable('draft')).toBe(true);
       expect(isEditable('returned')).toBe(true);
       expect(isEditable('submitted')).toBe(false);
       expect(isEditable('acknowledged')).toBe(false);
-      expect(isEditable('rejected')).toBe(false);
     });
   });
 });

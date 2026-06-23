@@ -6,7 +6,6 @@ import {
   submitHandler,
   acknowledgeHandler,
   returnHandler,
-  rejectHandler,
   getEntryHandler,
   getTrailHandler,
   listEntriesHandler,
@@ -27,7 +26,6 @@ router.get('/:id/trail', asyncHandler(getTrailHandler)); // append-only audit tr
 router.post('/:id/submit', asyncHandler(submitHandler));
 router.post('/:id/acknowledge', asyncHandler(acknowledgeHandler));
 router.post('/:id/return', asyncHandler(returnHandler));
-router.post('/:id/reject', asyncHandler(rejectHandler));
 
 // Image/document evidence for a week. mergeParams carries `:id` (the entry) in.
 router.use('/:id/attachments', attachmentsRouter);

@@ -17,7 +17,7 @@ import {
   assertPlacementAccess,
   type Actor,
 } from './entries.policy';
-import type { SaveDraftInput, ReturnInput, RejectInput, AcknowledgeInput, ListQuery } from './entries.schema';
+import type { SaveDraftInput, ReturnInput, AcknowledgeInput, ListQuery } from './entries.schema';
 
 const ENTRY_INCLUDE = {
   activities: { orderBy: { activityDate: 'asc' } },
@@ -321,7 +321,7 @@ export async function submitEntry(actor: Actor, entryId: string) {
 async function applySupervisorTransition(
   actor: Actor,
   entryId: string,
-  action: Extract<TransitionAction, 'acknowledge' | 'return' | 'reject'>,
+  action: Extract<TransitionAction, 'acknowledge' | 'return'>,
   opts: { comment?: string; score?: number },
 ) {
   const loaded = await loadEntryWithOwnership(entryId);
@@ -332,11 +332,8 @@ async function applySupervisorTransition(
     const entry = await tx.logbookEntry.findUniqueOrThrow({ where: { id: entryId } });
     const status = entry.status as EntryStatus;
 
-    // Terminal actions (acknowledge/reject) are idempotent; return is not.
-    if (
-      (action === 'acknowledge' && status === 'acknowledged') ||
-      (action === 'reject' && status === 'rejected')
-    ) {
+    // The terminal action (acknowledge) is idempotent; return is not.
+    if (action === 'acknowledge' && status === 'acknowledged') {
       return null;
     }
 
@@ -368,15 +365,11 @@ async function applySupervisorTransition(
     const title =
       action === 'acknowledge'
         ? `Week ${entry.weekNumber} acknowledged`
-        : action === 'reject'
-          ? `Week ${entry.weekNumber} rejected`
-          : `Week ${entry.weekNumber} returned for revision`;
+        : `Week ${entry.weekNumber} returned for revision`;
     const body =
       action === 'acknowledge'
         ? `Your supervisor acknowledged your Week ${entry.weekNumber} logbook.`
-        : action === 'reject'
-          ? `Your supervisor rejected Week ${entry.weekNumber}: ${opts.comment ?? ''}`.trim()
-          : `Your supervisor returned Week ${entry.weekNumber}: ${opts.comment ?? ''}`.trim();
+        : `Your supervisor returned Week ${entry.weekNumber}: ${opts.comment ?? ''}`.trim();
 
     const notification = await tx.notification.create({
       data: {
@@ -412,10 +405,6 @@ export function acknowledgeEntry(actor: Actor, entryId: string, input: Acknowled
 
 export function returnEntry(actor: Actor, entryId: string, input: ReturnInput) {
   return applySupervisorTransition(actor, entryId, 'return', { comment: input.comment });
-}
-
-export function rejectEntry(actor: Actor, entryId: string, input: RejectInput) {
-  return applySupervisorTransition(actor, entryId, 'reject', { comment: input.comment });
 }
 
 // ── READS (role-scoped) ───────────────────────────────────────

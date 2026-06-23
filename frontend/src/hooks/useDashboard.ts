@@ -94,7 +94,7 @@ export interface CoordinatorStudent {
 
 export type StudentSortKey = 'name' | 'department' | 'supervisor' | 'progress' | 'score' | 'status';
 export type StudentStatusFilter =
-  | 'draft' | 'submitted' | 'returned' | 'acknowledged' | 'rejected' | 'not_started';
+  | 'draft' | 'submitted' | 'returned' | 'acknowledged' | 'not_started';
 
 export interface StudentListParams {
   page?:           number;

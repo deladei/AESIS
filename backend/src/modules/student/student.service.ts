@@ -5,19 +5,18 @@ import { decryptPII } from '../../shared/utils/crypto';
 
 // Entry states whose logged hours count toward attendance. A `draft` has not
 // logged attendance yet; every other (submitted+) state has.
-const HOURS_LOGGED_STATUSES = ['submitted', 'returned', 'acknowledged', 'rejected'];
+const HOURS_LOGGED_STATUSES = ['submitted', 'returned', 'acknowledged'];
 
 // Maps the entries state machine (the active weekly workflow) onto the
-// intern-facing status buckets. `draft` => in progress; there is no synthetic
-// bucket — `rejected` is a real terminal state (see entry.stateMachine.ts).
-type EntryStatusName = 'draft' | 'submitted' | 'returned' | 'acknowledged' | 'rejected';
+// intern-facing status buckets. `draft` => in progress. A week the supervisor
+// won't accept is `returned` for revision (see entry.stateMachine.ts).
+type EntryStatusName = 'draft' | 'submitted' | 'returned' | 'acknowledged';
 
 function statusBreakdownOf(entries: { status: EntryStatusName }[]) {
   const breakdown = {
     approved: 0,           // acknowledged
     pendingReview: 0,      // submitted
     revisionRequested: 0,  // returned
-    rejected: 0,           // rejected
     inProgress: 0,         // draft
     total: entries.length,
   };
@@ -25,7 +24,6 @@ function statusBreakdownOf(entries: { status: EntryStatusName }[]) {
     if (e.status === 'acknowledged') breakdown.approved++;
     else if (e.status === 'submitted') breakdown.pendingReview++;
     else if (e.status === 'returned') breakdown.revisionRequested++;
-    else if (e.status === 'rejected') breakdown.rejected++;
     else breakdown.inProgress++;
   }
   return breakdown;

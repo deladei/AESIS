@@ -8,7 +8,6 @@ const STATUS_CLS: Record<string, string> = {
   submitted:    'bg-[var(--h-e1e8ff)] text-[var(--h-15157d)]',
   acknowledged: 'bg-[var(--h-dcf5e6)] text-[var(--h-1b7a45)]',
   returned:     'bg-[var(--h-ffe2dc)] text-[var(--h-b3261e)]',
-  rejected:     'bg-[var(--h-fde7e7)] text-[var(--h-8a1c1c)]',
   draft:        'bg-[var(--h-fff4e0)] text-[var(--h-9a6700)]',
 };
 const RISK_CLS: Record<string, string> = {

@@ -12,7 +12,6 @@ export interface StatusBreakdown {
   approved:          number; // acknowledged
   pendingReview:     number; // submitted
   revisionRequested: number; // returned
-  rejected:          number; // rejected
   inProgress:        number; // draft
   total:             number;
 }

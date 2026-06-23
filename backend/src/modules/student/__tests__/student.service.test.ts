@@ -136,7 +136,7 @@ describe('getStudentDashboard', () => {
     expect(result.logsSubmitted).toBe(0);
     expect(result.supervisors).toEqual({ academic: null, company: null });
     expect(result.statusBreakdown).toEqual({
-      approved: 0, pendingReview: 0, revisionRequested: 0, rejected: 0, inProgress: 0, total: 0,
+      approved: 0, pendingReview: 0, revisionRequested: 0, inProgress: 0, total: 0,
     });
     expect(result.hours).toEqual({ logged: 0, expected: 0, perWeekMin: 0, shortfall: false });
   });
@@ -149,7 +149,7 @@ describe('getStudentDashboard', () => {
         logbookEntries: [
           { status: 'acknowledged', hoursLogged: '40' },    // counted
           { status: 'submitted',    hoursLogged: '37.5' },   // counted (Decimal-as-string)
-          { status: 'rejected',     hoursLogged: '40' },     // counted — time was still worked
+          { status: 'returned',     hoursLogged: '40' },     // counted — time was still worked
           { status: 'returned',     hoursLogged: '40' },     // counted
           { status: 'draft',        hoursLogged: '10' },     // EXCLUDED — not yet submitted
           { status: 'submitted',    hoursLogged: null },     // null ignored, never concatenated
@@ -189,7 +189,7 @@ describe('getStudentDashboard', () => {
           { status: 'acknowledged' },
           { status: 'submitted' },
           { status: 'returned' },
-          { status: 'rejected' },
+          { status: 'returned' },
           { status: 'draft' },
         ],
       }),
@@ -200,8 +200,7 @@ describe('getStudentDashboard', () => {
     expect(result.statusBreakdown).toEqual({
       approved: 2,           // acknowledged
       pendingReview: 1,      // submitted
-      revisionRequested: 1,  // returned
-      rejected: 1,           // rejected
+      revisionRequested: 2,  // returned
       inProgress: 1,         // draft
       total: 6,
     });

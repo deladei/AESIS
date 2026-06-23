@@ -24,7 +24,6 @@ import {
   submitEntry,
   acknowledgeEntry,
   returnEntry,
-  rejectEntry,
   getEntry,
   getEntryTrail,
   listEntries,
@@ -273,52 +272,6 @@ describe('append-only event log', () => {
     await expect(
       prisma.$executeRawUnsafe(`DELETE FROM entry_event WHERE id='${ev.id}'`),
     ).rejects.toThrow();
-  });
-});
-
-// ── Reject (terminal decline) ─────────────────────────────────
-describe('reject workflow', () => {
-  itdb('reject moves submitted -> rejected (terminal) and locks the week', async () => {
-    const draft = await saveDraft(studentA, { ...week(50), placementId: placementA });
-    await submitEntry(studentA, draft.id);
-    const rejected = await rejectEntry(supervisorA, draft.id, { comment: 'Out of scope for the placement' });
-    expect(rejected.status).toBe('rejected');
-
-    // terminal: no further edits
-    await expect(saveDraft(studentA, { ...week(50), placementId: placementA })).rejects.toMatchObject({
-      statusCode: 409,
-    });
-
-    const ev = await eventsFor(draft.id);
-    expect(ev.map((e) => e.toStatus)).toEqual(['draft', 'submitted', 'rejected']);
-    expect(ev[2].eventType).toBe('transitioned');
-    expect(ev[2].comment).toBe('Out of scope for the placement');
-  });
-
-  itdb('reject is idempotent — re-rejecting writes no second event', async () => {
-    const draft = await saveDraft(studentA, { ...week(51), placementId: placementA });
-    await submitEntry(studentA, draft.id);
-    await rejectEntry(supervisorA, draft.id, { comment: 'no' });
-    await rejectEntry(supervisorA, draft.id, { comment: 'no again' });
-    const ev = await eventsFor(draft.id);
-    expect(ev.filter((e) => e.toStatus === 'rejected')).toHaveLength(1);
-  });
-
-  itdb('cannot reject a draft (409) and a student cannot reject (403)', async () => {
-    const draft = await saveDraft(studentA, { ...week(52), placementId: placementA });
-    await expect(rejectEntry(supervisorA, draft.id, { comment: 'x' })).rejects.toMatchObject({ statusCode: 409 });
-    await submitEntry(studentA, draft.id);
-    await expect(rejectEntry(studentA, draft.id, { comment: 'x' })).rejects.toMatchObject({ statusCode: 403 });
-  });
-
-  itdb('a student is notified when their week is rejected', async () => {
-    const draft = await saveDraft(studentA, { ...week(53), placementId: placementA });
-    await submitEntry(studentA, draft.id);
-    await rejectEntry(supervisorA, draft.id, { comment: 'declined' });
-    const notif = await prisma.notification.findFirst({
-      where: { userId: studentA.id, metadata: { path: ['entryId'], equals: draft.id } },
-    });
-    expect(notif?.title).toContain('rejected');
   });
 });
 

@@ -138,7 +138,7 @@ export default function StudentDashboard() {
   const pct          = stats?.completionPct ?? 0;
   const avgQuality   = stats?.avgQualityScore ?? null;
   const breakdown    = stats?.statusBreakdown
-    ?? { approved: 0, pendingReview: 0, revisionRequested: 0, rejected: 0, inProgress: 0, total: 0 };
+    ?? { approved: 0, pendingReview: 0, revisionRequested: 0, inProgress: 0, total: 0 };
   const hours        = stats?.hours
     ?? { logged: 0, expected: 0, perWeekMin: 0, shortfall: false };
   const objectives   = stats?.objectives ?? [];
@@ -213,12 +213,11 @@ export default function StudentDashboard() {
                 )}
               </p>
             </div>
-            <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
+            <div className="grid grid-cols-2 gap-3 sm:grid-cols-2 lg:grid-cols-4">
               {([
                 { label: 'Approved',  value: breakdown.approved,          cls: 'bg-[var(--h-e9f9ef)] text-[var(--h-1b7a45)]' },
                 { label: 'In review', value: breakdown.pendingReview,     cls: 'bg-[var(--h-eef1ff)] text-[var(--h-15157d)]' },
                 { label: 'Revision',  value: breakdown.revisionRequested, cls: 'bg-[var(--h-fff4e0)] text-[var(--h-9a6700)]' },
-                { label: 'Rejected',  value: breakdown.rejected,          cls: 'bg-[var(--h-fde7e7)] text-[var(--h-8a1c1c)]' },
                 { label: 'In progress', value: breakdown.inProgress,      cls: 'bg-[var(--h-ffffff)] text-[var(--h-424654)]' },
               ]).map((b) => (
                 <div key={b.label} className={`rounded-lg px-3 py-3 text-center ${b.cls}`}>

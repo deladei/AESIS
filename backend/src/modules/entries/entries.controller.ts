@@ -4,7 +4,6 @@ import { ok, created } from '../../shared/utils/response';
 import {
   saveDraftSchema,
   returnSchema,
-  rejectSchema,
   acknowledgeSchema,
   listQuerySchema,
 } from './entries.schema';
@@ -13,7 +12,6 @@ import {
   submitEntry,
   acknowledgeEntry,
   returnEntry,
-  rejectEntry,
   getEntry,
   getEntryTrail,
   listEntries,
@@ -51,13 +49,6 @@ export async function returnHandler(req: Request, res: Response) {
   const { id } = idParam.parse(req.params);
   const input = returnSchema.parse(req.body);
   const entry = await returnEntry(actorOf(req), id, input);
-  return ok(res, entry);
-}
-
-export async function rejectHandler(req: Request, res: Response) {
-  const { id } = idParam.parse(req.params);
-  const input = rejectSchema.parse(req.body);
-  const entry = await rejectEntry(actorOf(req), id, input);
   return ok(res, entry);
 }
 

@@ -19,7 +19,6 @@ const STATUS_META: Record<string, { label: string; cls: string }> = {
   submitted:    { label: 'Submitted',    cls: 'bg-[var(--h-e1e8ff)] text-[var(--h-15157d)]' },
   acknowledged: { label: 'Acknowledged', cls: 'bg-[var(--h-dcf5e6)] text-[var(--h-1b7a45)]' },
   returned:     { label: 'Returned',     cls: 'bg-[var(--h-ffe2dc)] text-[var(--h-b3261e)]' },
-  rejected:     { label: 'Rejected',     cls: 'bg-[var(--h-fde7e7)] text-[var(--h-8a1c1c)]' },
   draft:        { label: 'Draft',        cls: 'bg-[var(--h-fff4e0)] text-[var(--h-9a6700)]' },
   not_started:  { label: 'Not started',  cls: 'bg-[var(--h-eef0f5)] text-[var(--h-64748b)]' },
 };
@@ -294,7 +293,6 @@ export default function InternStatusTable({ pageSize = 20, viewAllHref, scopeYea
             <option value="submitted">Submitted</option>
             <option value="returned">Returned</option>
             <option value="acknowledged">Acknowledged</option>
-            <option value="rejected">Rejected</option>
           </select>
           <select value={filters.programmeId ?? ''} onChange={(e) => setFilter('programmeId', e.target.value)} className={selectCls} aria-label="Filter by department">
             <option value="">All departments</option>

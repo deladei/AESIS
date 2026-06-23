@@ -12,7 +12,7 @@ const studentsQuerySchema = z.object({
   programmeId:    z.string().uuid().optional(),
   supervisorId:   z.union([z.literal('unassigned'), z.string().uuid()]).optional(),
   academicYearId: z.string().uuid().optional(),
-  status:         z.enum(['draft', 'submitted', 'returned', 'acknowledged', 'rejected', 'not_started']).optional(),
+  status:         z.enum(['draft', 'submitted', 'returned', 'acknowledged', 'not_started']).optional(),
   attention:      z.enum(['true', 'false']).transform((v) => v === 'true').optional(),
   sortBy:         z.enum(['name', 'department', 'supervisor', 'progress', 'score', 'status']).optional(),
   sortDir:        z.enum(['asc', 'desc']).optional(),
