@@ -28,6 +28,11 @@ import aiRouter            from './modules/ai/ai.router';
 export function createApp() {
   const app = express();
 
+  // Render terminates TLS at its edge and forwards over HTTP; trust the proxy
+  // so req.secure / req.ip reflect the original request (needed for Secure
+  // cookies and correct per-client rate limiting in prod).
+  if (env.NODE_ENV === 'production') app.set('trust proxy', 1);
+
   // ── Security headers ──────────────────────────────────────────
   app.use(helmet({
     contentSecurityPolicy: {

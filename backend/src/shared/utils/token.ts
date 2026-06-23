@@ -29,11 +29,20 @@ export function generateSecureToken(): string {
 
 export const REFRESH_COOKIE_NAME = 'aesis_refresh';
 
+// In prod the SPA (aesis.vercel.app) and the API (aesis.onrender.com) are on
+// different registrable domains, so the refresh cookie is cross-site. A
+// browser only attaches a cross-site cookie when it is `SameSite=None; Secure`
+// — with `SameSite=Strict` it is silently dropped on the page-load /auth/refresh
+// XHR, so every hard refresh looked like a logout. Locally everything is
+// same-site (localhost), so keep `lax` there (works without HTTPS).
+const isProd = env.NODE_ENV === 'production';
+const cookieSameSite: 'none' | 'lax' = isProd ? 'none' : 'lax';
+
 export function refreshCookieOptions(expiryDays: number) {
   return {
     httpOnly:  true,
-    secure:    env.NODE_ENV === 'production',
-    sameSite:  'strict' as const,
+    secure:    isProd,
+    sameSite:  cookieSameSite,
     path:      '/api/v1/auth/refresh',
     maxAge:    expiryDays * 24 * 60 * 60 * 1000, // ms
   };
@@ -42,8 +51,8 @@ export function refreshCookieOptions(expiryDays: number) {
 export function clearCookieOptions() {
   return {
     httpOnly:  true,
-    secure:    env.NODE_ENV === 'production',
-    sameSite:  'strict' as const,
+    secure:    isProd,
+    sameSite:  cookieSameSite,
     path:      '/api/v1/auth/refresh',
     maxAge:    0,
   };
