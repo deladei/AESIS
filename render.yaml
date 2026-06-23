@@ -23,11 +23,11 @@ services:
         sync: false
       - key: MONGO_URI
         sync: false
+      # Live Redis is an EXTERNAL Upstash instance (set in the dashboard, S47),
+      # NOT a Render-managed keyvalue. Keep sync:false so a blueprint sync never
+      # overrides the live Upstash URL with an empty Render instance. See #4.
       - key: REDIS_URL
-        fromService:
-          name: aesis-redis
-          type: keyvalue
-          property: connectionString
+        sync: false
       - key: JWT_SECRET
         generateValue: true
       - key: JWT_EXPIRY
@@ -75,6 +75,10 @@ services:
     dockerfilePath: Dockerfile
     healthCheckPath: /health
     envVars:
+      # Reported back in /health; defaults to "development" in settings.py if
+      # unset (the cosmetic env:development the engine showed since S47).
+      - key: ENVIRONMENT
+        value: production
       # NOTE: the FastAPI code reads POSTGRES_DSN (ai/config/database.py),
       # NOT DATABASE_URL. Point this at the Neon string (same value as the
       # backend's DATABASE_URL) in the dashboard. See HANDOFF S45.
@@ -82,11 +86,9 @@ services:
         sync: false
       - key: MONGO_URI
         sync: false
+      # External Upstash (dashboard, S47) — keep sync:false (see #4 / backend note).
       - key: REDIS_URL
-        fromService:
-          name: aesis-redis
-          type: keyvalue
-          property: connectionString
+        sync: false
       # FastAPI validates the inbound x-api-key against env AI_API_KEY
       # (ai/config/settings.py + routers/*._require_internal), NOT
       # AI_ENGINE_API_KEY. Its VALUE must equal the backend's
@@ -94,10 +96,7 @@ services:
       - key: AI_API_KEY
         sync: false
       - key: CELERY_BROKER_URL
-        fromService:
-          name: aesis-redis
-          type: keyvalue
-          property: connectionString
+        sync: false
       - key: GROQ_API_KEY
         sync: false
       - key: GROQ_MODEL
@@ -113,40 +112,34 @@ services:
     dockerfilePath: Dockerfile
     dockerCommand: celery -A tasks.celery_app worker --loglevel=info -Q analysis,risk --concurrency=2
     envVars:
+      - key: ENVIRONMENT
+        value: production
       # Worker shares the AI image — reads POSTGRES_DSN, not DATABASE_URL.
       # Set to the Neon string in the dashboard. See HANDOFF S45.
       - key: POSTGRES_DSN
         sync: false
       - key: MONGO_URI
         sync: false
+      # External Upstash (dashboard, S47) — keep sync:false (see #4 / backend note).
       - key: REDIS_URL
-        fromService:
-          name: aesis-redis
-          type: keyvalue
-          property: connectionString
+        sync: false
       # Worker shares the AI image; same key var as the engine: AI_API_KEY
       # (value = backend's AI_ENGINE_API_KEY). Not AI_ENGINE_API_KEY.
       - key: AI_API_KEY
         sync: false
       - key: CELERY_BROKER_URL
-        fromService:
-          name: aesis-redis
-          type: keyvalue
-          property: connectionString
+        sync: false
 
-  # ── Redis / Key Value (Render managed) ─────────────────────────────────────
-  # Declared as a first-class managed dependency so REDIS_URL is auto-wired to a
-  # real, reachable, same-region instance — instead of a dangling external URL
-  # (`sync: false`) that, when unreachable, hung the AI rate limiter. Backs the
-  # AI rate limiter, caches, and the Celery broker.
-  # ipAllowList: [] = private network only (no public access).
-  - type: keyvalue
-    name: aesis-redis
-    region: oregon
-    plan: free
-    maxmemoryPolicy: noeviction   # don't evict Celery broker messages / rate-limit keys
-    ipAllowList: []
-
+# ── Redis (EXTERNAL — Upstash) ───────────────────────────────────────────────
+# NOTE (Session 57 reconcile, #4): live Redis is an EXTERNAL Upstash instance,
+# set per-service in the dashboard (REDIS_URL / CELERY_BROKER_URL, sync:false) —
+# the SAME pattern as Neon Postgres below. There is intentionally NO Render
+# `keyvalue` block: an earlier render.yaml declared a managed `aesis-redis` and
+# wired every service to it via `fromService`, which on a blueprint sync would
+# override the live Upstash URLs with an empty Render instance (broker data lost,
+# AI rate limiter hung). Do not re-add a managed redis unless you also migrate
+# the broker off Upstash. See HANDOFF S47.
+#
 # NOTE (Session 45): the prod Postgres is now a FREE Neon instance (external,
 # non-expiring) — host ep-autumn-waterfall-a6nt7o2h.us-west-2.aws.neon.tech.
 # It is NOT a Render-managed resource, so there is no `databases:` block. Each
