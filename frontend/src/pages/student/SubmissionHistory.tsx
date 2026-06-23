@@ -23,8 +23,11 @@ const CHIP_CLS: Record<EntryStatus, string> = {
   acknowledged: 'border-[var(--h-aee3c2)] bg-[var(--h-dcf5e6)] text-[var(--h-1b7a45)]',
 };
 
+// Neutral fallback so an unknown/stale status never crashes the pill (and page).
+const FALLBACK_META = { label: 'Unknown', cls: 'bg-[var(--h-eef0f5)] text-[var(--h-64748b)] border-[var(--h-d8dce6)]', Icon: Clock };
+
 function StatusPill({ status }: { status: EntryStatus }) {
-  const { label, cls, Icon } = STATUS_META[status];
+  const { label, cls, Icon } = STATUS_META[status] ?? FALLBACK_META;
   return (
     <span className={`inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[11px] font-semibold ${cls}`}>
       <Icon className="h-3 w-3" /> {label}
@@ -201,7 +204,7 @@ export default function SubmissionHistory() {
                   onClick={() => setSelectedId(isOpen ? null : e.id)}
                   className="flex w-full cursor-pointer items-center gap-4 px-5 py-4 text-left transition-colors hover:bg-[var(--h-f8f9ff)]"
                 >
-                  <div className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border ${CHIP_CLS[status]}`}>
+                  <div className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border ${CHIP_CLS[status] ?? FALLBACK_META.cls}`}>
                     <span className="font-mono text-xs font-bold">W{e.weekNumber}</span>
                   </div>
 

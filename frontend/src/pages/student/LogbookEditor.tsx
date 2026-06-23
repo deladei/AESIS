@@ -38,7 +38,8 @@ const STATUS_META: Record<EntryStatus | 'not_started', { label: string; cls: str
 };
 
 function StatusPill({ status }: { status: EntryStatus | 'not_started' }) {
-  const { label, cls, Icon } = STATUS_META[status];
+  // Tolerate an unknown/stale status — fall back to neutral, never throw.
+  const { label, cls, Icon } = STATUS_META[status] ?? STATUS_META.not_started;
   return (
     <span className={`inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[11px] font-semibold ${cls}`}>
       <Icon className="h-3 w-3" /> {label}

@@ -17,7 +17,9 @@ const STATUS_META: Record<WeekStatus, { label: string; cls: string; Icon: React.
 };
 
 function StatusPill({ status }: { status: WeekStatus }) {
-  const { label, cls, Icon } = STATUS_META[status];
+  // Tolerate an unknown/stale status (e.g. a legacy value still in flight) —
+  // fall back to the neutral pill rather than crashing the page.
+  const { label, cls, Icon } = STATUS_META[status] ?? STATUS_META.not_started;
   return (
     <span className={`inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[11px] font-semibold ${cls}`}>
       <Icon className="h-3 w-3" /> {label}
