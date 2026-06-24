@@ -2202,3 +2202,23 @@ Same pattern as S41's flag columns. Do this **before/while** Render finishes bui
 1. **USER actions queued:** #1 set Cloudinary vars; #3 rotate the 4 secrets; #5 Part B baseline prod `_prisma_migrations`; #6 set region on legacy placements (if any exist). All have runbooks above.
 2. #2/#4 land fully on the next blueprint sync (or set `ENVIRONMENT` in dashboard now); render.yaml is now sync-safe.
 3. Carried unchanged: logbook table no per-week deep-link (S55 #2); pilot on free/suspendable tiers.
+
+---
+
+### Session 59 — 2026-06-23
+
+**Work done — logbook editor "cook" (frontend-only, commit `9f0a59b`, pushed prod).**
+Reframed `frontend/src/pages/student/LogbookEditor.tsx` around the student's real mental model: **pick a week → pick a day → log that day.** No migration — `EntryActivity.activityDate` already carries daily granularity; payload still sends the whole week's activities (day rail is a view/filter, not a data split).
+
+Added:
+1. **Day rail inside each week** — 7 calendar-day chips (Mon–Sun, derived from `periodStart` via new `buildDays`/`addDaysYMD`), weekend cells muted, per-day filled count badge / empty dot. Activities filtered to the selected day; `Add activity` defaults to it; editing a row's date moves the active day. Empty-day state is a tap-to-add dashed button.
+2. **Completeness ring** — live weighted % (hours 25 / activity 35 / learning 20 / challenges 10 / competency 10) + momentum microcopy + days-logged summary. SVG ring, advisory, never implies a grade (CLAUDE.md hard rule).
+3. **Smart competency detection** — local regex `COMPETENCY_KEYWORDS` scans typed description text → surfaces matching competencies as a "Detected" (Sparkles) chip row to tap-confirm. Zero AI call / latency / spend; human-confirm before a tag counts (hard rule). Static generic suggestions still below, minus detected/already-added.
+4. **Debounced autosave** (~1.6s) on genuine edits with real content, guarded by a serialized `baselineRef` so it never loops on reloaded data; `lastSavedAt` + cloud pill ("Saving…/Saved/Not saved yet"). Manual Save/Submit reset the same baseline.
+
+VERIFIED: `npx tsc --noEmit` clean; `vite build` green (26s).
+
+**Stopped here — follow-ups.**
+1. All S58 user-action queue still open (Cloudinary vars, secret rotation, migrate baseline Part B, legacy region backfill).
+2. Logbook still has no per-week deep-link from `WeeklyLogbookTable` (dashboard) into the editor — link goes to `/student/logbook` generically; could pass `?week=` to preselect. Carried from S55 #2.
+3. Autosave is fail-silent by design (manual Save surfaces errors); if prod shows silent-save confusion, consider a subtle error toast on autosave failure.
