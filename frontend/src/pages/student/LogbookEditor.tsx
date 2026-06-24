@@ -1,8 +1,8 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   Loader2, Plus, X, Trash2, CheckCircle2, Clock, RotateCcw, Lock,
-  Send, Calendar, AlertCircle, BookOpen,
+  Send, Calendar, AlertCircle, BookOpen, Sparkles, Cloud, CloudOff,
 } from 'lucide-react';
 import { useMyPlacements } from '@/hooks/usePlacements';
 import {
@@ -12,7 +12,7 @@ import {
 import { EntryObjectives } from '@/components/objectives/EntryObjectives';
 import { EntryAttachments } from '@/components/attachments/EntryAttachments';
 import {
-  type ScheduleWeek, buildSchedule, toYMD, localYMD, ymd, fmtRange, fmtDate,
+  type ScheduleWeek, buildSchedule, toYMD, localYMD, ymd, fmtRange, fmtDate, addDaysYMD,
 } from '@/lib/schedule';
 
 const COMPETENCY_SUGGESTIONS = [
@@ -20,9 +20,45 @@ const COMPETENCY_SUGGESTIONS = [
   'Debugging', 'Version Control', 'Testing', 'Code Review', 'Time Management',
 ];
 
-// Default a new activity to today when today falls inside the week; otherwise
-// clamp to the week's bounds. (YMD strings compare correctly lexicographically.)
-function defaultActivityDate(week: ScheduleWeek): string {
+// Local, zero-cost competency detection. Scans what the student actually typed
+// and surfaces matching competencies inline — no AI call, no latency, no spend.
+// Advisory only: the student still taps to confirm before a tag is added.
+const COMPETENCY_KEYWORDS: Record<string, RegExp> = {
+  'Debugging':          /\b(bug|debug|fix(ed|ing)?|error|crash|stack ?trace|exception|troubleshoot)\b/i,
+  'Testing':            /\b(test(s|ed|ing)?|unit test|jest|pytest|qa|coverage|assert)\b/i,
+  'Version Control':    /\b(git|commit(ted)?|branch|merge|pull request|\bpr\b|rebase|push(ed)?)\b/i,
+  'Code Review':        /\b(review(ed|ing)?|feedback|pull request|\bpr\b|approv(e|ed))\b/i,
+  'Technical Writing':  /\b(document(ed|ation)?|readme|wiki|spec|wrote up|notes|report)\b/i,
+  'Teamwork':           /\b(team|pair(ed| programming)?|collaborat|stand-?up|colleague|together)\b/i,
+  'Communication':      /\b(present(ed|ation)?|email|call|meeting|demo|explain(ed)?|client)\b/i,
+  'Problem Solving':    /\b(solv(e|ed|ing)|figure(d)? out|root cause|analy(s|z)e|design(ed)? a)\b/i,
+  'Time Management':    /\b(deadline|schedul|prioriti(s|z)e|sprint|on time|backlog|planned)\b/i,
+};
+
+function detectCompetencies(text: string, already: string[]): string[] {
+  if (!text.trim()) return [];
+  return Object.entries(COMPETENCY_KEYWORDS)
+    .filter(([name, re]) => !already.includes(name) && re.test(text))
+    .map(([name]) => name);
+}
+
+const WEEKDAY_SHORT = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+const WEEKDAY_LONG = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+
+interface DayCell { ymd: string; dow: number; dom: number; isWeekend: boolean; }
+
+// Expand a schedule week into its seven calendar days (anchored at periodStart).
+function buildDays(week: ScheduleWeek): DayCell[] {
+  const start = new Date(`${week.periodStart}T00:00:00Z`);
+  return Array.from({ length: 7 }, (_, i) => {
+    const d = addDaysYMD(start, i);
+    const dow = d.getUTCDay();
+    return { ymd: toYMD(d), dow, dom: d.getUTCDate(), isWeekend: dow === 0 || dow === 6 };
+  });
+}
+
+// Default the active day to today when today sits inside the week; else clamp.
+function defaultDay(week: ScheduleWeek): string {
   const today = localYMD(new Date());
   if (today < week.periodStart) return week.periodStart;
   if (today > week.periodEnd) return week.periodEnd;
@@ -47,9 +83,59 @@ function StatusPill({ status }: { status: EntryStatus | 'not_started' }) {
   );
 }
 
+// ── Completeness ring ──────────────────────────────────────────────────────
+// Live, weighted progress that nudges the student toward a strong week without
+// implying a grade. Pure presentation over data already in the form.
+const RING_MSG: { min: number; text: string }[] = [
+  { min: 100, text: "Picture-perfect week — ready to submit." },
+  { min: 75,  text: 'Almost there — add a finishing touch.' },
+  { min: 40,  text: 'Good momentum — keep filling it in.' },
+  { min: 1,   text: 'Nice start — every detail counts.' },
+  { min: 0,   text: 'Pick a day and log your first activity.' },
+];
+
+function CompletenessRing({ pct }: { pct: number }) {
+  const r = 26;
+  const c = 2 * Math.PI * r;
+  const dash = (pct / 100) * c;
+  const tone =
+    pct >= 100 ? 'var(--h-1b7a45)' : pct >= 40 ? 'var(--h-8a4cfc)' : 'var(--h-9a6700)';
+  return (
+    <div className="relative h-[68px] w-[68px] shrink-0">
+      <svg viewBox="0 0 64 64" className="h-full w-full -rotate-90">
+        <circle cx="32" cy="32" r={r} fill="none" stroke="var(--h-eef0f5)" strokeWidth="7" />
+        <circle
+          cx="32" cy="32" r={r} fill="none" stroke={tone} strokeWidth="7" strokeLinecap="round"
+          strokeDasharray={`${dash} ${c}`} className="transition-all duration-500 ease-out"
+        />
+      </svg>
+      <span className="absolute inset-0 flex items-center justify-center text-sm font-extrabold text-[var(--h-0b1c30)]">
+        {pct}%
+      </span>
+    </div>
+  );
+}
+
 const emptyActivity = (date: string): EntryActivity => ({
   activityDate: date, description: '', competencyTags: [],
 });
+
+// Stable serialization of the editable form — used to detect real changes so
+// autosave fires only on genuine edits (and never loops on reloaded data).
+function serializeForm(
+  hours: string, activities: EntryActivity[], learning: string,
+  challenges: string, supervisorVisible: boolean,
+): string {
+  return JSON.stringify({
+    hours: hours.trim(),
+    activities: activities
+      .map((a) => ({ d: a.activityDate, t: a.description.trim(), c: [...a.competencyTags].sort() }))
+      .filter((a) => a.t.length > 0),
+    learning: learning.trim(),
+    challenges: challenges.trim(),
+    supervisorVisible,
+  });
+}
 
 export default function LogbookEditor() {
   const navigate = useNavigate();
@@ -95,6 +181,11 @@ export default function LogbookEditor() {
   const [saved, setSaved] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  // Day rail + autosave bookkeeping.
+  const [selectedDay, setSelectedDay] = useState<string | null>(null);
+  const [lastSavedAt, setLastSavedAt] = useState<number | null>(null);
+  const baselineRef = useRef<string>(''); // serialized last-persisted form
+
   const saveDraft = useSaveEntryDraft();
   const submitEntry = useSubmitEntry();
 
@@ -104,31 +195,42 @@ export default function LogbookEditor() {
     setError(null);
     setSaved(false);
     setTagDrafts({});
+    setSelectedDay(defaultDay(scheduleWeek));
+    setLastSavedAt(null);
+
+    let nextHours = '';
+    let nextActs: EntryActivity[] = [];
+    let nextLearning = '';
+    let nextChallenges = '';
+    let nextVisible = true;
+
     if (detail && detail.weekNumber === selectedWeek) {
-      setHours(detail.hoursLogged != null ? String(detail.hoursLogged) : '');
-      setActivities(
-        (detail.activities ?? []).map((a) => ({
-          activityDate: ymd(a.activityDate),
-          description: a.description,
-          competencyTags: a.competencyTags ?? [],
-        })),
-      );
-      setLearning(detail.reflection?.learning ?? '');
-      setChallenges(detail.reflection?.challenges ?? '');
-      setSupervisorVisible(detail.reflection?.supervisorVisible ?? true);
+      nextHours = detail.hoursLogged != null ? String(detail.hoursLogged) : '';
+      nextActs = (detail.activities ?? []).map((a) => ({
+        activityDate: ymd(a.activityDate),
+        description: a.description,
+        competencyTags: a.competencyTags ?? [],
+      }));
+      nextLearning = detail.reflection?.learning ?? '';
+      nextChallenges = detail.reflection?.challenges ?? '';
+      nextVisible = detail.reflection?.supervisorVisible ?? true;
     } else if (!existing) {
-      // Fresh week — start blank with one activity row on the period start.
-      setHours('');
-      setActivities([emptyActivity(defaultActivityDate(scheduleWeek))]);
-      setLearning('');
-      setChallenges('');
-      setSupervisorVisible(true);
+      nextActs = []; // start empty — the day rail invites the first activity
     }
+
+    setHours(nextHours);
+    setActivities(nextActs);
+    setLearning(nextLearning);
+    setChallenges(nextChallenges);
+    setSupervisorVisible(nextVisible);
+    // Seed the baseline so autosave doesn't fire on freshly loaded data.
+    baselineRef.current = serializeForm(nextHours, nextActs, nextLearning, nextChallenges, nextVisible);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedWeek, detail?.id, detail?.version]);
 
   const status: EntryStatus | 'not_started' = existing?.status ?? 'not_started';
   const editable = status === 'not_started' || status === 'draft' || status === 'returned';
+  const busy = saveDraft.isPending || submitEntry.isPending;
 
   const returnComment = useMemo(() => {
     if (status !== 'returned' || !detail?.events) return null;
@@ -140,9 +242,12 @@ export default function LogbookEditor() {
   const updateActivity = (i: number, patch: Partial<EntryActivity>) =>
     setActivities((prev) => prev.map((a, j) => (j === i ? { ...a, ...patch } : a)));
   const addActivity = () =>
-    setActivities((prev) => [...prev, emptyActivity(scheduleWeek ? defaultActivityDate(scheduleWeek) : toYMD(new Date()))]);
-  const removeActivity = (i: number) =>
-    setActivities((prev) => prev.filter((_, j) => j !== i));
+    setActivities((prev) => [
+      ...prev,
+      emptyActivity(selectedDay ?? (scheduleWeek ? defaultDay(scheduleWeek) : toYMD(new Date()))),
+    ]);
+  const removeActivity = (idx: number) =>
+    setActivities((prev) => prev.filter((_, j) => j !== idx));
   const addTag = (i: number, raw: string) => {
     const tag = raw.trim();
     if (!tag) return;
@@ -158,7 +263,7 @@ export default function LogbookEditor() {
   const removeTag = (i: number, tag: string) =>
     updateActivity(i, { competencyTags: activities[i].competencyTags.filter((t) => t !== tag) });
 
-  function buildPayload() {
+  const buildPayload = useCallback(() => {
     if (!activePlacement || !scheduleWeek) return null;
     const cleanActivities = activities
       .filter((a) => a.description.trim().length > 0)
@@ -179,7 +284,7 @@ export default function LogbookEditor() {
           ? { learning: learning.trim(), challenges: challenges.trim(), supervisorVisible }
           : undefined,
     };
-  }
+  }, [activePlacement, scheduleWeek, activities, hours, learning, challenges, supervisorVisible]);
 
   const apiErr = (e: unknown) =>
     ((e as { response?: { data?: { message?: string } } })?.response?.data?.message) ??
@@ -191,6 +296,8 @@ export default function LogbookEditor() {
     setError(null);
     try {
       await saveDraft.mutateAsync(payload);
+      baselineRef.current = serializeForm(hours, activities, learning, challenges, supervisorVisible);
+      setLastSavedAt(Date.now());
       setSaved(true);
       setTimeout(() => setSaved(false), 2500);
     } catch (e) {
@@ -214,6 +321,66 @@ export default function LogbookEditor() {
       setError(apiErr(e));
     }
   };
+
+  // ── Debounced autosave ──
+  // Fires ~1.6s after the student stops typing, only on genuine edits with real
+  // content. Kills the lost-work risk without a Save click. Manual Save/Submit
+  // still work and reset the same baseline.
+  const hasContent =
+    activities.some((a) => a.description.trim()) || hours.trim() !== '' ||
+    learning.trim() !== '' || challenges.trim() !== '';
+
+  useEffect(() => {
+    if (!editable || busy) return;
+    const current = serializeForm(hours, activities, learning, challenges, supervisorVisible);
+    if (current === baselineRef.current || !hasContent) return;
+    const t = setTimeout(async () => {
+      const payload = buildPayload();
+      if (!payload) return;
+      try {
+        await saveDraft.mutateAsync(payload);
+        baselineRef.current = current;
+        setLastSavedAt(Date.now());
+      } catch {
+        /* silent — manual Save surfaces errors */
+      }
+    }, 1600);
+    return () => clearTimeout(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [hours, activities, learning, challenges, supervisorVisible, editable, busy]);
+
+  // ── Derived view data ──
+  const days = useMemo(() => (scheduleWeek ? buildDays(scheduleWeek) : []), [scheduleWeek]);
+
+  // Activities bucketed by day for the rail's dots/counts.
+  const countByDay = useMemo(() => {
+    const m = new Map<string, number>();
+    activities.forEach((a) => {
+      if (a.description.trim()) m.set(a.activityDate, (m.get(a.activityDate) ?? 0) + 1);
+    });
+    return m;
+  }, [activities]);
+
+  // The day's activities, paired with their index into the full array so edits
+  // write back to the right row.
+  const dayActivities = useMemo(
+    () => activities.map((a, i) => ({ a, i })).filter((x) => x.a.activityDate === selectedDay),
+    [activities, selectedDay],
+  );
+
+  const daysLogged = countByDay.size;
+
+  // Weighted completeness over what's already typed (advisory, not a grade).
+  const completeness = useMemo(() => {
+    let pct = 0;
+    if (Number(hours) > 0) pct += 25;
+    if (activities.some((a) => a.description.trim())) pct += 35;
+    if (learning.trim()) pct += 20;
+    if (challenges.trim()) pct += 10;
+    if (activities.some((a) => a.competencyTags.length > 0)) pct += 10;
+    return pct;
+  }, [hours, activities, learning, challenges]);
+  const ringMsg = RING_MSG.find((m) => completeness >= m.min)?.text ?? '';
 
   // ── Loading / empty states ──
   if (placementsLoading || entriesLoading) {
@@ -250,9 +417,10 @@ export default function LogbookEditor() {
     );
   }
 
-  const busy = saveDraft.isPending || submitEntry.isPending;
   const inputCls =
     'w-full rounded-lg border border-[var(--h-d8dce6)] bg-[var(--h-ffffff)] px-3 py-2 text-sm text-[var(--h-0b1c30)] placeholder-[var(--h-94a3b8)] transition-colors focus:border-[var(--h-8a4cfc)] focus:outline-none focus:ring-1 focus:ring-[var(--h-8a4cfc)]';
+
+  const selectedDow = selectedDay ? new Date(`${selectedDay}T00:00:00Z`).getUTCDay() : 1;
 
   return (
     <div className="mx-auto max-w-6xl px-6 py-6">
@@ -308,6 +476,31 @@ export default function LogbookEditor() {
               <StatusPill status={status} />
             </div>
 
+            {/* Completeness banner — live progress over the form */}
+            {editable && (
+              <div className="flex items-center gap-4 rounded-xl border border-[var(--h-e2e6ef)] bg-gradient-to-br from-[var(--h-faf8ff)] to-[var(--h-ffffff)] p-4">
+                <CompletenessRing pct={completeness} />
+                <div className="min-w-0 flex-1">
+                  <p className="text-sm font-bold text-[var(--h-0b1c30)]">{ringMsg}</p>
+                  <p className="mt-0.5 text-xs text-[var(--h-64748b)]">
+                    {daysLogged > 0
+                      ? <>{daysLogged} {daysLogged === 1 ? 'day' : 'days'} logged · {activities.filter((a) => a.description.trim()).length} {activities.filter((a) => a.description.trim()).length === 1 ? 'activity' : 'activities'} this week</>
+                      : 'Hours, activities, reflection and competencies each add to your week.'}
+                  </p>
+                </div>
+                {/* Autosave indicator */}
+                <div className="hidden shrink-0 items-center gap-1.5 text-xs font-medium text-[var(--h-64748b)] sm:flex">
+                  {saveDraft.isPending ? (
+                    <><Loader2 className="h-3.5 w-3.5 animate-spin" /> Saving…</>
+                  ) : lastSavedAt ? (
+                    <><Cloud className="h-3.5 w-3.5 text-[var(--h-1b7a45)]" /> Saved</>
+                  ) : (
+                    <><CloudOff className="h-3.5 w-3.5" /> Not saved yet</>
+                  )}
+                </div>
+              </div>
+            )}
+
             {/* Status banners */}
             {status === 'submitted' && (
               <div className="flex items-start gap-2 rounded-lg border border-[var(--h-bcc8ff)] bg-[var(--h-eef1ff)] px-4 py-3 text-sm text-[var(--h-15157d)]">
@@ -345,13 +538,54 @@ export default function LogbookEditor() {
                 />
               </div>
 
-              {/* Activities */}
+              {/* Activities — day-by-day */}
               <div className="rounded-xl border border-[var(--h-e2e6ef)] bg-[var(--h-ffffff)] p-5">
-                <div className="mb-3 flex items-center justify-between">
-                  <div>
-                    <h3 className="text-sm font-semibold text-[var(--h-0b1c30)]">Activities</h3>
-                    <p className="text-xs text-[var(--h-64748b)]">What you worked on, day by day</p>
-                  </div>
+                <div className="mb-3">
+                  <h3 className="text-sm font-semibold text-[var(--h-0b1c30)]">Daily activities</h3>
+                  <p className="text-xs text-[var(--h-64748b)]">Pick a day, then log what you worked on</p>
+                </div>
+
+                {/* Day rail */}
+                <div className="mb-4 grid grid-cols-7 gap-1.5">
+                  {days.map((d) => {
+                    const n = countByDay.get(d.ymd) ?? 0;
+                    const active = d.ymd === selectedDay;
+                    return (
+                      <button
+                        key={d.ymd}
+                        type="button"
+                        onClick={() => setSelectedDay(d.ymd)}
+                        className={`relative flex flex-col items-center gap-0.5 rounded-lg border py-2 transition-colors ${
+                          active
+                            ? 'border-[var(--h-8a4cfc)] bg-[var(--h-f1ecff)]'
+                            : d.isWeekend
+                              ? 'border-transparent bg-[var(--h-f8f9fc)] hover:bg-[var(--h-eef0f5)]'
+                              : 'border-[var(--h-eef0f5)] bg-[var(--h-ffffff)] hover:border-[var(--h-d8dce6)]'
+                        }`}
+                      >
+                        <span className={`text-[10px] font-bold uppercase tracking-wide ${active ? 'text-[var(--h-712ae2)]' : d.isWeekend ? 'text-[var(--h-94a3b8)]' : 'text-[var(--h-64748b)]'}`}>
+                          {WEEKDAY_SHORT[d.dow]}
+                        </span>
+                        <span className={`text-sm font-bold ${active ? 'text-[var(--h-15157d)]' : 'text-[var(--h-0b1c30)]'}`}>
+                          {d.dom}
+                        </span>
+                        {n > 0 ? (
+                          <span className="flex h-4 min-w-4 items-center justify-center rounded-full bg-[var(--h-1b7a45)] px-1 text-[9px] font-bold text-white">
+                            {n}
+                          </span>
+                        ) : (
+                          <span className="h-1.5 w-1.5 rounded-full bg-[var(--h-e2e6ef)]" />
+                        )}
+                      </button>
+                    );
+                  })}
+                </div>
+
+                {/* Selected-day header + add */}
+                <div className="mb-3 flex items-center justify-between gap-3">
+                  <p className="text-sm font-semibold text-[var(--h-0b1c30)]">
+                    {selectedDay ? `${WEEKDAY_LONG[selectedDow]} · ${fmtDate(selectedDay)}` : 'Select a day'}
+                  </p>
                   <button
                     type="button" onClick={addActivity}
                     className="inline-flex items-center gap-1 rounded-lg bg-[var(--h-f1ecff)] px-3 py-1.5 text-sm font-medium text-[var(--h-712ae2)] transition-colors hover:bg-[var(--h-e6dcff)] disabled:opacity-50"
@@ -361,66 +595,91 @@ export default function LogbookEditor() {
                 </div>
 
                 <div className="space-y-4">
-                  {activities.length === 0 && (
-                    <p className="rounded-lg border border-dashed border-[var(--h-d8dce6)] py-6 text-center text-sm text-[var(--h-94a3b8)]">
-                      No activities yet — add one to describe your week.
-                    </p>
+                  {dayActivities.length === 0 && (
+                    <button
+                      type="button" onClick={addActivity}
+                      className="w-full rounded-lg border border-dashed border-[var(--h-d8dce6)] py-7 text-center text-sm text-[var(--h-94a3b8)] transition-colors hover:border-[var(--h-8a4cfc)] hover:text-[var(--h-712ae2)]"
+                    >
+                      Nothing logged for {selectedDay ? WEEKDAY_LONG[selectedDow] : 'this day'} yet — tap to add an activity.
+                    </button>
                   )}
-                  {activities.map((a, i) => (
-                    <div key={i} className="rounded-lg border border-[var(--h-e8ebf2)] bg-[var(--h-fbfcfe)] p-4">
-                      <div className="mb-2 flex items-center justify-between gap-3">
-                        <input
-                          type="date" value={a.activityDate}
-                          min={scheduleWeek.periodStart} max={scheduleWeek.periodEnd}
-                          onChange={(e) => updateActivity(i, { activityDate: e.target.value })}
-                          className={`${inputCls} max-w-[180px]`}
-                        />
-                        <button
-                          type="button" onClick={() => removeActivity(i)}
-                          className="rounded-md p-1.5 text-[var(--h-94a3b8)] transition-colors hover:bg-[var(--h-ffe2dc)] hover:text-[var(--h-b3261e)]"
-                          aria-label="Remove activity"
-                        >
-                          <Trash2 className="h-4 w-4" />
-                        </button>
-                      </div>
-                      <textarea
-                        rows={2} value={a.description}
-                        onChange={(e) => updateActivity(i, { description: e.target.value })}
-                        placeholder="Describe what you did…"
-                        className={`${inputCls} resize-none`}
-                      />
-                      {/* Competency tags */}
-                      <div className="mt-2 flex flex-wrap items-center gap-1.5">
-                        {a.competencyTags.map((t) => (
-                          <span key={t} className="inline-flex items-center gap-1 rounded-full bg-[var(--h-e1e8ff)] px-2 py-0.5 text-xs font-medium text-[var(--h-15157d)]">
-                            {t}
-                            <button type="button" onClick={() => removeTag(i, t)} aria-label={`Remove ${t}`}>
-                              <X className="h-3 w-3" />
-                            </button>
-                          </span>
-                        ))}
-                        <input
-                          type="text" value={tagDrafts[i] ?? ''}
-                          onChange={(e) => setTagDrafts((d) => ({ ...d, [i]: e.target.value }))}
-                          onKeyDown={(e) => {
-                            if (e.key === 'Enter') { e.preventDefault(); addTag(i, tagDrafts[i] ?? ''); }
-                          }}
-                          placeholder="+ competency"
-                          className="min-w-[120px] flex-1 rounded-md border border-transparent bg-transparent px-1.5 py-0.5 text-xs text-[var(--h-0b1c30)] placeholder-[var(--h-94a3b8)] focus:border-[var(--h-d8dce6)] focus:outline-none"
-                        />
-                      </div>
-                      <div className="mt-1.5 flex flex-wrap gap-1">
-                        {COMPETENCY_SUGGESTIONS.filter((s) => !a.competencyTags.includes(s)).slice(0, 5).map((s) => (
+                  {dayActivities.map(({ a, i }) => {
+                    const detected = detectCompetencies(a.description, a.competencyTags);
+                    return (
+                      <div key={i} className="rounded-lg border border-[var(--h-e8ebf2)] bg-[var(--h-fbfcfe)] p-4">
+                        <div className="mb-2 flex items-center justify-between gap-3">
+                          <input
+                            type="date" value={a.activityDate}
+                            min={scheduleWeek.periodStart} max={scheduleWeek.periodEnd}
+                            onChange={(e) => {
+                              updateActivity(i, { activityDate: e.target.value });
+                              setSelectedDay(e.target.value);
+                            }}
+                            className={`${inputCls} max-w-[180px]`}
+                          />
                           <button
-                            key={s} type="button" onClick={() => addTag(i, s)}
-                            className="rounded px-1.5 py-0.5 text-[11px] text-[var(--h-64748b)] transition-colors hover:text-[var(--h-712ae2)]"
+                            type="button" onClick={() => removeActivity(i)}
+                            className="rounded-md p-1.5 text-[var(--h-94a3b8)] transition-colors hover:bg-[var(--h-ffe2dc)] hover:text-[var(--h-b3261e)]"
+                            aria-label="Remove activity"
                           >
-                            + {s}
+                            <Trash2 className="h-4 w-4" />
                           </button>
-                        ))}
+                        </div>
+                        <textarea
+                          rows={2} value={a.description}
+                          onChange={(e) => updateActivity(i, { description: e.target.value })}
+                          placeholder="Describe what you did…"
+                          className={`${inputCls} resize-none`}
+                        />
+                        {/* Competency tags */}
+                        <div className="mt-2 flex flex-wrap items-center gap-1.5">
+                          {a.competencyTags.map((t) => (
+                            <span key={t} className="inline-flex items-center gap-1 rounded-full bg-[var(--h-e1e8ff)] px-2 py-0.5 text-xs font-medium text-[var(--h-15157d)]">
+                              {t}
+                              <button type="button" onClick={() => removeTag(i, t)} aria-label={`Remove ${t}`}>
+                                <X className="h-3 w-3" />
+                              </button>
+                            </span>
+                          ))}
+                          <input
+                            type="text" value={tagDrafts[i] ?? ''}
+                            onChange={(e) => setTagDrafts((d) => ({ ...d, [i]: e.target.value }))}
+                            onKeyDown={(e) => {
+                              if (e.key === 'Enter') { e.preventDefault(); addTag(i, tagDrafts[i] ?? ''); }
+                            }}
+                            placeholder="+ competency"
+                            className="min-w-[120px] flex-1 rounded-md border border-transparent bg-transparent px-1.5 py-0.5 text-xs text-[var(--h-0b1c30)] placeholder-[var(--h-94a3b8)] focus:border-[var(--h-d8dce6)] focus:outline-none"
+                          />
+                        </div>
+                        {/* Smart, typed-from-text detection (advisory; tap to confirm) */}
+                        {detected.length > 0 && (
+                          <div className="mt-2 flex flex-wrap items-center gap-1.5 rounded-md bg-[var(--h-f1ecff)] px-2 py-1.5">
+                            <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-[var(--h-712ae2)]">
+                              <Sparkles className="h-3 w-3" /> Detected
+                            </span>
+                            {detected.map((s) => (
+                              <button
+                                key={s} type="button" onClick={() => addTag(i, s)}
+                                className="rounded-full border border-[var(--h-d3c4ff)] bg-[var(--h-ffffff)] px-2 py-0.5 text-[11px] font-medium text-[var(--h-712ae2)] transition-colors hover:bg-[var(--h-e6dcff)]"
+                              >
+                                + {s}
+                              </button>
+                            ))}
+                          </div>
+                        )}
+                        <div className="mt-1.5 flex flex-wrap gap-1">
+                          {COMPETENCY_SUGGESTIONS.filter((s) => !a.competencyTags.includes(s) && !detected.includes(s)).slice(0, 5).map((s) => (
+                            <button
+                              key={s} type="button" onClick={() => addTag(i, s)}
+                              className="rounded px-1.5 py-0.5 text-[11px] text-[var(--h-64748b)] transition-colors hover:text-[var(--h-712ae2)]"
+                            >
+                              + {s}
+                            </button>
+                          ))}
+                        </div>
                       </div>
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
               </div>
 
