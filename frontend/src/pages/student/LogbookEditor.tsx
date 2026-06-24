@@ -45,24 +45,29 @@ function detectCompetencies(text: string, already: string[]): string[] {
 const WEEKDAY_SHORT = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 const WEEKDAY_LONG = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
 
-interface DayCell { ymd: string; dow: number; dom: number; isWeekend: boolean; }
+interface DayCell { ymd: string; dow: number; dom: number; }
 
-// Expand a schedule week into its seven calendar days (anchored at periodStart).
+// Expand a schedule week into its working days only — Mon–Fri (weekends excluded
+// from the logbook). Anchored on periodStart, scanning the full 7-day span.
 function buildDays(week: ScheduleWeek): DayCell[] {
   const start = new Date(`${week.periodStart}T00:00:00Z`);
-  return Array.from({ length: 7 }, (_, i) => {
+  const cells: DayCell[] = [];
+  for (let i = 0; i < 7; i++) {
     const d = addDaysYMD(start, i);
     const dow = d.getUTCDay();
-    return { ymd: toYMD(d), dow, dom: d.getUTCDate(), isWeekend: dow === 0 || dow === 6 };
-  });
+    if (dow === 0 || dow === 6) continue; // skip Sun/Sat
+    cells.push({ ymd: toYMD(d), dow, dom: d.getUTCDate() });
+  }
+  return cells;
 }
 
-// Default the active day to today when today sits inside the week; else clamp.
+// Default the active day to today when today is a working day inside the week;
+// otherwise fall back to the week's first weekday.
 function defaultDay(week: ScheduleWeek): string {
+  const days = buildDays(week);
   const today = localYMD(new Date());
-  if (today < week.periodStart) return week.periodStart;
-  if (today > week.periodEnd) return week.periodEnd;
-  return today;
+  if (days.some((d) => d.ymd === today)) return today;
+  return days[0]?.ymd ?? week.periodStart;
 }
 
 const STATUS_META: Record<EntryStatus | 'not_started', { label: string; cls: string; Icon: React.ElementType }> = {
@@ -545,8 +550,8 @@ export default function LogbookEditor() {
                   <p className="text-xs text-[var(--h-64748b)]">Pick a day, then log what you worked on</p>
                 </div>
 
-                {/* Day rail */}
-                <div className="mb-4 grid grid-cols-7 gap-1.5">
+                {/* Day rail — Mon–Fri */}
+                <div className="mb-4 grid grid-cols-5 gap-1.5">
                   {days.map((d) => {
                     const n = countByDay.get(d.ymd) ?? 0;
                     const active = d.ymd === selectedDay;
@@ -558,12 +563,10 @@ export default function LogbookEditor() {
                         className={`relative flex flex-col items-center gap-0.5 rounded-lg border py-2 transition-colors ${
                           active
                             ? 'border-[var(--h-8a4cfc)] bg-[var(--h-f1ecff)]'
-                            : d.isWeekend
-                              ? 'border-transparent bg-[var(--h-f8f9fc)] hover:bg-[var(--h-eef0f5)]'
-                              : 'border-[var(--h-eef0f5)] bg-[var(--h-ffffff)] hover:border-[var(--h-d8dce6)]'
+                            : 'border-[var(--h-eef0f5)] bg-[var(--h-ffffff)] hover:border-[var(--h-d8dce6)]'
                         }`}
                       >
-                        <span className={`text-[10px] font-bold uppercase tracking-wide ${active ? 'text-[var(--h-712ae2)]' : d.isWeekend ? 'text-[var(--h-94a3b8)]' : 'text-[var(--h-64748b)]'}`}>
+                        <span className={`text-[10px] font-bold uppercase tracking-wide ${active ? 'text-[var(--h-712ae2)]' : 'text-[var(--h-64748b)]'}`}>
                           {WEEKDAY_SHORT[d.dow]}
                         </span>
                         <span className={`text-sm font-bold ${active ? 'text-[var(--h-15157d)]' : 'text-[var(--h-0b1c30)]'}`}>
