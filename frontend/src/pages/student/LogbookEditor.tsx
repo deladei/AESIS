@@ -529,7 +529,10 @@ export default function LogbookEditor() {
               </div>
             )}
 
-            <fieldset disabled={!editable || busy} className="space-y-5 disabled:opacity-70">
+            {/* Only lock the form when the week is genuinely read-only — never
+                during a background autosave (that greys out the whole sheet and
+                makes "Add activity" feel unclickable). */}
+            <fieldset disabled={!editable} className="space-y-5 disabled:opacity-70">
               {/* Hours */}
               <div className="rounded-xl border border-[var(--h-e2e6ef)] bg-[var(--h-ffffff)] p-5">
                 <label htmlFor="hours" className="mb-1.5 block text-sm font-semibold text-[var(--h-0b1c30)]">
