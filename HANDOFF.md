@@ -2243,3 +2243,29 @@ VERIFIED: `npx tsc --noEmit` clean; `vite build` green (26s).
 3. **No frontend yet** — spine is backend-only. Needs: coordinator grade console (enter components / aggregate / override / release), supervisor component entry (own 3), student released-total view.
 4. **No router/integration test** for the grade endpoints (service unit-tested only; `itdb` suites can't run without reachable Postgres on this box).
 5. Carried (S58): Cloudinary vars on Render; rotate 4 secrets; migrate baseline Part B; legacy region backfill; render.yaml blueprint-sync items; per-week logbook deep-link (S55 #2).
+
+### Session 61 — 2026-06-29 — Final-grade Batch B: company-supervisor industry-score magic link (commit `1e13588`, pushed prod)
+
+**Ask.** Continue S60 final-grade work — Batch B: the tokenised company-supervisor industry-score submission channel (S60 follow-up #2) + its frontend. Caveman mode.
+
+**State found.** Backend Batch B was already authored on disk (token model + migration + public router + service/schema/controller wiring), uncommitted. Verified, then built the frontend on top, shipped both as one feature commit.
+
+**Shipped — backend (`backend/src/modules/grades/` + schema + migration `20260629120000_grade_industry_token`).**
+- **DB (additive / CREATE-only):** new `grade_industry_token` model — single-use, expiring magic-link token for one placement's industry score (hash-only stored, consumed-on-submit).
+- **Coordinator issue:** `POST /grades/:placementId/industry-invite` mints the token → returns `{ token, url, expiresAt }` (coordinator/admin only, reuses grade authz).
+- **Public submit channel (no auth):** `grades.public.router.ts` → `GET /grade-invite/:token` (form context: organisation, student, dates) + `POST /grade-invite/:token` (`{ raw }` 0–100, single-use). Writes the `industry` component via the same service path → audited. Wired in `app.ts`.
+- Token helpers in `grades.token.ts`. Backend `tsc` clean, grades service Jest **27/27** (was 18/18 in S60 — Batch B added 9).
+
+**Shipped — frontend.**
+- Hooks (`frontend/src/hooks/useGrade.ts`): `useInviteIndustry` (coordinator mint), `useIndustryContext` + `useSubmitIndustryScore` (public token form).
+- Public page `frontend/src/pages/public/IndustryScore.tsx` at route `/grade/:token` (no account/shell — mirrors the existing `/attest/:token` Attestation page layout).
+- `GradePanel.tsx` "Request via link" control: mints the link, copy-to-clipboard, "New link" re-mint; hidden once grade `released`.
+- Frontend `tsc --noEmit` clean (exit 0).
+
+**Verification.** Backend `tsc` clean + grades 27/27; frontend `tsc` clean. Committed + pushed `main` → Render + Vercel auto-deploy. Migration applies via Render `startCommand` (`npx prisma migrate deploy && node dist/server.js`) — no manual DB step.
+
+**Stopped here — follow-ups.**
+1. **Verify deploy** on Render: migration `20260629120000_grade_industry_token` applied to Neon; industry-invite + public `/grade-invite/:token` endpoints respond (free-plan cold start ~min).
+2. **Still no router/integration test** for grade endpoints (service unit-tested only; `itdb` suites need reachable Postgres — can't run on this box). Carried from S60 #4.
+3. **Remaining grade frontend** (S60 #3): coordinator full grade console (aggregate/override/release UI beyond the invite control), academic-supervisor own-3-component entry, student released-total view — GradePanel exists but full role-scoped flows not all wired/verified.
+4. Carried (S58): Cloudinary vars; rotate 4 secrets; migrate baseline Part B; legacy region backfill; render.yaml blueprint-sync items; per-week logbook deep-link (S55 #2).
