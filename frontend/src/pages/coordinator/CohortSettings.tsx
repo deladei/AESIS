@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
-import { Clock, Loader2, Check, AlertCircle, Gauge, Scale } from 'lucide-react';
+import { Clock, Loader2, Check, AlertCircle, Gauge, Scale, Send, CheckCircle2 } from 'lucide-react';
 import { useCohortConfig, useUpdateCohortConfig } from '@/hooks/useCohortConfig';
+import { useReleaseCohort } from '@/hooks/useGrade';
 
 const WEIGHT_FIELDS = [
   { key: 'weightIndustry',   label: 'Industry',   hint: 'Company supervisor' },
@@ -9,6 +10,81 @@ const WEIGHT_FIELDS = [
   { key: 'weightLogbook',    label: 'Logbook',    hint: 'Weekly logbook' },
 ] as const;
 type WeightKey = (typeof WEIGHT_FIELDS)[number]['key'];
+
+/**
+ * Bulk-release every signed-off (approved) grade in the cohort at once. Release
+ * is terminal, so the action is two-step: a primary button reveals an explicit
+ * confirm. Draft grades are skipped server-side; released grades are untouched.
+ */
+function BulkReleaseCard({ academicYearId, yearLabel }: { academicYearId: string; yearLabel: string }) {
+  const release = useReleaseCohort();
+  const [confirming, setConfirming] = useState(false);
+  const result = release.data;
+
+  return (
+    <section className="rounded-xl bg-[var(--h-ffffff)] p-8 shadow-sm">
+      <div className="mb-6 flex items-center gap-3">
+        <div className="flex h-10 w-10 items-center justify-center rounded-full bg-[var(--h-eff4ff)] text-[var(--h-15157d)]">
+          <Send className="h-5 w-5" />
+        </div>
+        <div>
+          <h2 className="text-sm font-bold text-[var(--h-0b1c30)]">Release all grades</h2>
+          <p className="text-xs text-[var(--h-757684)]">
+            Make every signed-off grade in {yearLabel} visible to its student in one step.
+          </p>
+        </div>
+      </div>
+
+      {!confirming ? (
+        <button
+          onClick={() => { setConfirming(true); release.reset(); }}
+          className="inline-flex items-center gap-2 rounded-lg bg-[var(--h-1b7a45)] px-5 py-2.5 text-sm font-semibold text-white transition-colors hover:opacity-90"
+        >
+          <Send className="h-4 w-4" /> Release signed-off grades
+        </button>
+      ) : (
+        <div className="flex flex-wrap items-center gap-3">
+          <span className="text-sm text-[var(--h-444653)]">
+            Release every signed-off grade in {yearLabel}? This is final and can't be undone.
+          </span>
+          <button
+            onClick={() => release.mutate(academicYearId, { onSuccess: () => setConfirming(false) })}
+            disabled={release.isPending}
+            className="inline-flex items-center gap-2 rounded-lg bg-[var(--h-1b7a45)] px-5 py-2.5 text-sm font-semibold text-white transition-colors hover:opacity-90 disabled:cursor-not-allowed disabled:bg-[var(--h-c4c5d5)]"
+          >
+            {release.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
+            Confirm release
+          </button>
+          <button
+            onClick={() => setConfirming(false)}
+            disabled={release.isPending}
+            className="rounded-lg border border-[var(--h-c4c5d5)] px-4 py-2.5 text-sm font-semibold text-[var(--h-444653)] hover:bg-[var(--h-f3f3f7)]"
+          >
+            Cancel
+          </button>
+        </div>
+      )}
+
+      {release.isSuccess && result && (
+        <p className="mt-4 inline-flex items-center gap-1.5 border-t border-[var(--h-eef1ff)] pt-4 text-sm font-medium text-[var(--h-1b7a45)]">
+          <CheckCircle2 className="h-4 w-4" />
+          {result.released === 0
+            ? 'No grades were ready to release — none had been signed off.'
+            : `Released ${result.released} grade${result.released === 1 ? '' : 's'} to students.`}
+        </p>
+      )}
+      {release.isError && (
+        <p className="mt-4 inline-flex items-center gap-1.5 text-sm font-medium text-[var(--h-8a1c1c)]">
+          <AlertCircle className="h-4 w-4" /> Couldn't release — try again.
+        </p>
+      )}
+      <p className="mt-3 text-xs text-[var(--h-757684)]">
+        Only grades you've already aggregated and signed off are released. Drafts are skipped, and
+        already-released grades are unchanged.
+      </p>
+    </section>
+  );
+}
 
 /**
  * Cohort Settings — coordinator configuration for the active academic year.
@@ -350,6 +426,8 @@ export default function CohortSettings() {
           weights the next time they're aggregated.
         </p>
       </section>
+
+      <BulkReleaseCard academicYearId={config.academicYearId} yearLabel={config.academicYearLabel} />
     </div>
   );
 }

@@ -1,11 +1,13 @@
 import { useEffect, useMemo, useState } from 'react';
 import {
   Award, Lock, Loader2, CheckCircle2, ShieldCheck, Send, Pencil, AlertCircle, Link2, Copy, Check,
+  History, ChevronDown,
 } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import {
   useGrade, useScoreComponent, useAggregateGrade, useOverrideGrade, useReleaseGrade, useInviteIndustry,
-  type GradeView, type GradeStatus, type GradeComponent,
+  useGradeAudit,
+  type GradeView, type GradeStatus, type GradeComponent, type GradeAuditEntry,
 } from '@/hooks/useGrade';
 
 const apiErr = (e: unknown) =>
@@ -94,6 +96,91 @@ function ComponentRow({
           {saving ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : 'Save'}
         </button>
       </div>
+    </div>
+  );
+}
+
+// Human labels for the audited grade actions (the AuditAction enum reused by
+// the grade module). `grade_drafted` is the industry-invite marker.
+const AUDIT_LABEL: Record<string, string> = {
+  component_scored: 'Component scored',
+  grade_signed_off: 'Aggregated & signed off',
+  grade_overridden: 'Total overridden',
+  grade_released:   'Released to student',
+  grade_drafted:    'Industry-score link issued',
+};
+
+function fmtDateTime(iso: string): string {
+  return new Date(iso).toLocaleString('en-GB', {
+    day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit',
+  });
+}
+
+/** A one-line, human summary of an audit row's metadata (best-effort). */
+function auditDetail(e: GradeAuditEntry): string | null {
+  const m = e.metadata ?? {};
+  if (e.action === 'component_scored' && typeof m.component === 'string') {
+    return `${COMPONENT_META[m.component as GradeComponent]?.label ?? m.component}: ${fmtScore(m.raw as number)}`;
+  }
+  if (e.action === 'grade_signed_off' && m.total !== undefined) return `Total ${fmtScore(m.total as number)}`;
+  if (e.action === 'grade_overridden') return `${fmtScore(m.from as number)} → ${fmtScore(m.to as number)}`;
+  if (e.action === 'grade_released' && m.total !== undefined) return `Total ${fmtScore(m.total as number)}`;
+  return null;
+}
+
+/** Collapsible immutable audit trail (coordinator/admin). Loads on first open. */
+function GradeAuditTrail({ placementId }: { placementId: string }) {
+  const [open, setOpen] = useState(false);
+  const { data: trail, isLoading, isError } = useGradeAudit(placementId, open);
+
+  return (
+    <div className="mt-4 border-t border-[var(--h-eef0f5)] pt-3">
+      <button
+        type="button"
+        onClick={() => setOpen((o) => !o)}
+        className="flex w-full items-center justify-between text-xs font-semibold text-[var(--h-444653)] hover:text-[var(--h-0b1c30)]"
+        aria-expanded={open}
+      >
+        <span className="inline-flex items-center gap-1.5">
+          <History className="h-3.5 w-3.5" /> Grade history
+        </span>
+        <ChevronDown className={`h-4 w-4 transition-transform ${open ? 'rotate-180' : ''}`} />
+      </button>
+
+      {open && (
+        <div className="mt-2.5">
+          {isLoading && (
+            <div className="flex justify-center py-3">
+              <Loader2 className="h-4 w-4 animate-spin text-[var(--h-15157d)]" />
+            </div>
+          )}
+          {isError && <p className="py-2 text-xs text-[var(--h-b3261e)]">Could not load the history.</p>}
+          {trail && trail.length === 0 && (
+            <p className="py-2 text-xs text-[var(--h-757684)]">No recorded actions yet.</p>
+          )}
+          {trail && trail.length > 0 && (
+            <ol className="space-y-2.5">
+              {trail.map((e) => {
+                const detail = auditDetail(e);
+                return (
+                  <li key={e.id} className="flex gap-2.5 text-xs">
+                    <span className="mt-1 h-1.5 w-1.5 shrink-0 rounded-full bg-[var(--h-15157d)]" />
+                    <div className="min-w-0">
+                      <p className="font-medium text-[var(--h-0b1c30)]">
+                        {AUDIT_LABEL[e.action] ?? e.action}
+                        {detail && <span className="font-normal text-[var(--h-757684)]"> · {detail}</span>}
+                      </p>
+                      <p className="text-[var(--h-757684)]">
+                        {e.actor ? e.actor.name : 'System'} · {fmtDateTime(e.at)}
+                      </p>
+                    </div>
+                  </li>
+                );
+              })}
+            </ol>
+          )}
+        </div>
+      )}
     </div>
   );
 }
@@ -283,6 +370,8 @@ function GradeConsole({ placementId, grade }: { placementId: string; grade: Grad
           </button>
         </div>
       )}
+
+      <GradeAuditTrail placementId={placementId} />
     </div>
   );
 }

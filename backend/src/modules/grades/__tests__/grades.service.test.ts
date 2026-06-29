@@ -1,9 +1,12 @@
 jest.mock('../../../config/prisma', () => ({
   prisma: {
     placement: { findUnique: jest.fn() },
-    finalGrade: { findUnique: jest.fn(), findFirst: jest.fn(), upsert: jest.fn(), update: jest.fn() },
+    finalGrade: {
+      findUnique: jest.fn(), findFirst: jest.fn(), findMany: jest.fn(), upsert: jest.fn(), update: jest.fn(),
+    },
     cohortConfig: { findUnique: jest.fn() },
-    auditLog: { create: jest.fn() },
+    academicYear: { findUnique: jest.fn() },
+    auditLog: { create: jest.fn(), findMany: jest.fn() },
   },
 }));
 
@@ -17,15 +20,20 @@ import {
   inviteIndustryScore,
   getIndustryInviteContext,
   submitIndustryScore,
+  getGradeAudit,
+  releaseCohort,
 } from '../grades.service';
 import { overrideSchema } from '../grades.schema';
 import type { Actor } from '../../entries/entries.policy';
 
 const mp = prisma as unknown as {
   placement: { findUnique: jest.Mock };
-  finalGrade: { findUnique: jest.Mock; findFirst: jest.Mock; upsert: jest.Mock; update: jest.Mock };
+  finalGrade: {
+    findUnique: jest.Mock; findFirst: jest.Mock; findMany: jest.Mock; upsert: jest.Mock; update: jest.Mock;
+  };
   cohortConfig: { findUnique: jest.Mock };
-  auditLog: { create: jest.Mock };
+  academicYear: { findUnique: jest.Mock };
+  auditLog: { create: jest.Mock; findMany: jest.Mock };
 };
 
 const COORD: Actor = { id: 'co-1', role: 'coordinator' };
@@ -328,5 +336,89 @@ describe('industry-score magic link', () => {
     expect(data.status).toBe('draft');
     expect(data.total).toBeNull();
     expect(data.signedOffById).toBeNull();
+  });
+});
+
+// ── Audit-log view ────────────────────────────────────────────
+describe('getGradeAudit', () => {
+  it('returns the trail newest-first with the actor, coordinator only', async () => {
+    ownPlacement();
+    mp.auditLog.findMany.mockResolvedValue([
+      {
+        id: 'a-1', action: 'grade_released', metadata: { total: 79 }, createdAt: new Date('2026-06-29'),
+        user: { firstName: 'Kwame', lastName: 'Boateng', role: 'coordinator' },
+      },
+    ]);
+    const trail = (await getGradeAudit(COORD, 'p-1')) as any[];
+    expect(mp.auditLog.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { entityType: 'final_grade', entityId: 'p-1' },
+        orderBy: { createdAt: 'desc' },
+      }),
+    );
+    expect(trail[0]).toMatchObject({ action: 'grade_released', actor: { name: 'Kwame Boateng', role: 'coordinator' } });
+  });
+
+  it('tolerates a missing user relation', async () => {
+    ownPlacement();
+    mp.auditLog.findMany.mockResolvedValue([
+      { id: 'a-1', action: 'grade_drafted', metadata: {}, createdAt: new Date(), user: null },
+    ]);
+    const trail = (await getGradeAudit(COORD, 'p-1')) as any[];
+    expect(trail[0].actor).toBeNull();
+  });
+
+  it('forbids a supervisor from reading the audit trail', async () => {
+    ownPlacement();
+    await expect(getGradeAudit(SUP, 'p-1')).rejects.toMatchObject({ statusCode: 403 });
+    expect(mp.auditLog.findMany).not.toHaveBeenCalled();
+  });
+
+  it('404s when the placement is gone', async () => {
+    mp.placement.findUnique.mockResolvedValue(null);
+    await expect(getGradeAudit(COORD, 'missing')).rejects.toMatchObject({ statusCode: 404 });
+  });
+});
+
+// ── Cohort bulk-release ───────────────────────────────────────
+describe('releaseCohort', () => {
+  it('releases every approved grade in the year and audits each', async () => {
+    mp.academicYear.findUnique.mockResolvedValue({ id: 'ay-1' });
+    mp.finalGrade.findMany.mockResolvedValue([
+      { id: 'g-1', placementId: 'p-1', total: 79, coordinatorOverride: null },
+      { id: 'g-2', placementId: 'p-2', total: 88, coordinatorOverride: 90 },
+    ]);
+    mp.finalGrade.update.mockResolvedValue({});
+
+    const res = (await releaseCohort(COORD, 'ay-1')) as any;
+    expect(res.released).toBe(2);
+    expect(mp.finalGrade.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({ where: { status: 'approved', placement: { academicYearId: 'ay-1' } } }),
+    );
+    expect(mp.finalGrade.update).toHaveBeenCalledTimes(2);
+    expect(mp.finalGrade.update.mock.calls[0][0].data.status).toBe('released');
+    expect(mp.auditLog.create).toHaveBeenCalledTimes(2);
+    expect(mp.auditLog.create).toHaveBeenCalledWith(
+      expect.objectContaining({ data: expect.objectContaining({ action: 'grade_released' }) }),
+    );
+  });
+
+  it('is a no-op when nothing is approved', async () => {
+    mp.academicYear.findUnique.mockResolvedValue({ id: 'ay-1' });
+    mp.finalGrade.findMany.mockResolvedValue([]);
+    const res = (await releaseCohort(COORD, 'ay-1')) as any;
+    expect(res.released).toBe(0);
+    expect(mp.finalGrade.update).not.toHaveBeenCalled();
+  });
+
+  it('404s on an unknown academic year', async () => {
+    mp.academicYear.findUnique.mockResolvedValue(null);
+    await expect(releaseCohort(COORD, 'nope')).rejects.toMatchObject({ statusCode: 404 });
+    expect(mp.finalGrade.findMany).not.toHaveBeenCalled();
+  });
+
+  it('forbids a supervisor from bulk-releasing', async () => {
+    await expect(releaseCohort(SUP, 'ay-1')).rejects.toMatchObject({ statusCode: 403 });
+    expect(mp.academicYear.findUnique).not.toHaveBeenCalled();
   });
 });

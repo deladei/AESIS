@@ -206,6 +206,72 @@ export async function releaseGrade(actor: Actor, placementId: string) {
   return serializeGrade(actor, ownership, updated);
 }
 
+/**
+ * Coordinator/admin — the immutable audit trail for one placement's grade.
+ * Every grade mutation made by an authenticated user (draft/invite, component
+ * score, sign-off, override, release) writes an `audit_logs` row with
+ * entityType `final_grade`; this returns them newest-first with the actor.
+ *
+ * Note: the public industry-score submission has NO audit row (the company
+ * supervisor has no user id) — `industrySubmittedAt` on the grade is its record.
+ */
+export async function getGradeAudit(actor: Actor, placementId: string) {
+  await loadGradeOwnership(placementId); // 404 if the placement is gone
+  assertCanManageGrade(actor);
+
+  const logs = await prisma.auditLog.findMany({
+    where: { entityType: 'final_grade', entityId: placementId },
+    orderBy: { createdAt: 'desc' },
+    include: { user: { select: { firstName: true, lastName: true, role: true } } },
+  });
+
+  return logs.map((l) => ({
+    id: l.id,
+    action: l.action,
+    actor: l.user ? { name: `${l.user.firstName} ${l.user.lastName}`, role: l.user.role } : null,
+    metadata: l.metadata,
+    at: l.createdAt,
+  }));
+}
+
+/**
+ * Bulk-release every approved grade in a cohort (academic year). Only `approved`
+ * grades are released — `draft` grades are skipped (never released un-aggregated)
+ * and already-`released` grades are left untouched. Coordinator (HoD) authority.
+ * Each release is audited individually (the bulk action is the sum of its
+ * per-grade releases), so a partial run is still a faithful record and re-running
+ * picks up only what's still `approved`.
+ */
+export async function releaseCohort(actor: Actor, academicYearId: string) {
+  assertCanManageGrade(actor);
+
+  const year = await prisma.academicYear.findUnique({
+    where: { id: academicYearId },
+    select: { id: true },
+  });
+  if (!year) throw new AppError(404, 'Academic year not found');
+
+  const approved = await prisma.finalGrade.findMany({
+    where: { status: 'approved', placement: { academicYearId } },
+    select: { id: true, placementId: true, total: true, coordinatorOverride: true },
+  });
+
+  const releasedAt = new Date();
+  for (const g of approved) {
+    await prisma.finalGrade.update({
+      where: { id: g.id },
+      data: { status: 'released', releasedAt },
+    });
+    await writeAudit(actor, 'grade_released', g.placementId, {
+      total: g.total,
+      coordinatorOverride: g.coordinatorOverride,
+      bulk: true,
+    });
+  }
+
+  return { academicYearId, released: approved.length };
+}
+
 // ── Batch B — tokenised company-supervisor industry-score channel ─────────────
 
 // When a component changes after sign-off, the prior aggregate + sign-off no

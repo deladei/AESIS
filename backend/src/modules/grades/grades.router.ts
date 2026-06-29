@@ -8,6 +8,8 @@ import {
   overrideGradeHandler,
   releaseGradeHandler,
   inviteIndustryHandler,
+  gradeAuditHandler,
+  releaseCohortHandler,
 } from './grades.controller';
 
 // Final-grade spine. Mounted under /grades; authenticated. Per-action role +
@@ -16,7 +18,12 @@ const router = Router();
 
 router.use(authenticate);
 
+// Cohort-wide action — static segment, declared before the `/:id` routes so it
+// is never shadowed by the uuid param.
+router.post('/cohort/:academicYearId/release', asyncHandler(releaseCohortHandler)); // bulk-release a cohort's approved grades
+
 router.get('/:id', asyncHandler(getGradeHandler));
+router.get('/:id/audit', asyncHandler(gradeAuditHandler)); // coordinator/admin — the grade's audit trail
 router.post('/:id/component', asyncHandler(scoreComponentHandler));
 router.post('/:id/aggregate', asyncHandler(aggregateGradeHandler));
 router.patch('/:id/override', asyncHandler(overrideGradeHandler));

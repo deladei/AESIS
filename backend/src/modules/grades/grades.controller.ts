@@ -5,11 +5,13 @@ import { componentScoreSchema, overrideSchema, industryScoreSchema } from './gra
 import {
   getGrade, scoreComponent, aggregateGrade, overrideGrade, releaseGrade,
   inviteIndustryScore, getIndustryInviteContext, submitIndustryScore,
+  getGradeAudit, releaseCohort,
 } from './grades.service';
 import type { Actor } from '../entries/entries.policy';
 import type { EntryRole } from '../entries/entry.stateMachine';
 
 const idParam = z.object({ id: z.string().uuid() });
+const yearParam = z.object({ academicYearId: z.string().uuid() });
 const tokenParam = z.object({ token: z.string().min(1) });
 
 function actorOf(req: Request): Actor {
@@ -41,6 +43,16 @@ export async function overrideGradeHandler(req: Request, res: Response) {
 export async function releaseGradeHandler(req: Request, res: Response) {
   const { id } = idParam.parse(req.params);
   return ok(res, await releaseGrade(actorOf(req), id));
+}
+
+export async function gradeAuditHandler(req: Request, res: Response) {
+  const { id } = idParam.parse(req.params);
+  return ok(res, await getGradeAudit(actorOf(req), id));
+}
+
+export async function releaseCohortHandler(req: Request, res: Response) {
+  const { academicYearId } = yearParam.parse(req.params);
+  return ok(res, await releaseCohort(actorOf(req), academicYearId));
 }
 
 // ── Batch B — industry-score magic link ──

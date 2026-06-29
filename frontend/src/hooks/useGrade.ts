@@ -82,6 +82,48 @@ export function useReleaseGrade(placementId: string) {
   });
 }
 
+// ── Audit trail (coordinator/admin) ───────────────────────────
+
+export interface GradeAuditEntry {
+  id:       string;
+  action:   string;
+  actor:    { name: string; role: string } | null;
+  metadata: Record<string, unknown> | null;
+  at:       string;
+}
+
+/** Coordinator/admin — the immutable audit trail for one placement's grade. */
+export function useGradeAudit(placementId: string | undefined, enabled = true) {
+  return useQuery({
+    queryKey: ['grade-audit', placementId ?? 'none'],
+    enabled:  !!placementId && enabled,
+    queryFn:  async () => {
+      const r = await api.get<{ data: GradeAuditEntry[] }>(`/grades/${placementId}/audit`);
+      return r.data.data;
+    },
+  });
+}
+
+// ── Cohort bulk-release (coordinator/admin) ───────────────────
+
+/**
+ * Release every approved grade in an academic year at once. Draft grades are
+ * skipped server-side; released grades are untouched. Invalidates per-placement
+ * grade caches so any open panel reflects the new released state.
+ */
+export function useReleaseCohort() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (academicYearId: string) => {
+      const r = await api.post<{ data: { academicYearId: string; released: number } }>(
+        `/grades/cohort/${academicYearId}/release`,
+      );
+      return r.data.data;
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['grade'] }),
+  });
+}
+
 // ── Batch B — company-supervisor industry-score magic link ────
 
 export interface IndustryInvite {
