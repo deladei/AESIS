@@ -2320,3 +2320,29 @@ Switched prod off `db push` onto proper `prisma migrate deploy`:
 2. Full data-level grade test with a real coordinator login (route+schema proven; end-to-end read not yet exercised on prod).
 3. Carried (S58): Cloudinary vars; rotate the other 3 secrets; migrate baseline Part B — **DONE this cycle** (S61 baseline + migrate-deploy switch); legacy region backfill; render.yaml blueprint-sync items.
 4. Possible next grade features (menu, not started): final-grade audit-log view; bulk release across a cohort.
+
+### Session 63 — 2026-06-29 — Grade audit trail + cohort bulk-release + render.yaml/region infra (commits `14ada15`, `5a16ba6`, pushed prod)
+
+**Ask.** Continue the S62 carried follow-ups. User picked three buckets (skipped DATABASE_URL rotation): (a) next grade features, (b) grade integration tests, (c) carried S58 infra.
+
+**Shipped — grade features (`feat(grades)` `14ada15`).** No migration — both reuse existing tables/columns; authz reuses `assertCanManageGrade`.
+- **Final-grade audit trail (S62 #4):** `getGradeAudit(actor, placementId)` — coordinator/admin only — reads the immutable `audit_logs` rows (`entityType='final_grade'`, `entityId=placementId`) newest-first, joined to the actor (firstName/lastName/role). `GET /grades/:id/audit`. Note: the public industry-score submission writes NO audit row (no user id) — `industrySubmittedAt` is its record. Frontend: `useGradeAudit` hook + a collapsible "Grade history" section in `GradePanel`'s coordinator console (lazy-loads on open, human action labels via `AUDIT_LABEL`, per-row metadata detail via `auditDetail`).
+- **Cohort bulk-release (S62 #4):** `releaseCohort(actor, academicYearId)` — coordinator/admin — releases every `approved` grade in the year (`where: { status:'approved', placement:{ academicYearId } }`), audits each individually (`grade_released`, `bulk:true`); drafts skipped, already-released untouched, 404 on unknown year. `POST /grades/cohort/:academicYearId/release` — **declared before the `/:id` routes** so the static `cohort` segment isn't shadowed by the uuid param. Frontend: `useReleaseCohort` hook (invalidates the `grade` cache) + a "Release all grades" card in `CohortSettings` with a **two-step confirm** (release is terminal) and a released-count result line.
+
+**Shipped — grade tests (S60/S61 #4 — router/integration coverage).**
+- `grades.service.test.ts`: +9 unit tests (audit role-gating/shape/missing-user/404; cohort release/no-op/404/forbidden).
+- `grades.controller.test.ts`: **NEW** supertest router suite — auth 401 across routes, param/body 400 validation, service-reach assertions, 403 passthrough (uses real `AppError` — the global handler only honours `AppError`, not a plain `{statusCode}`), and the public `/grade-invite/:token` GET/POST. **grades suites 50/50 green** (`npx jest src/modules/grades --runInBand`). NOTE: this is mocked-service router-level coverage; a real-Postgres `itdb` end-to-end is still not run on this box.
+
+**Shipped — infra (`chore(infra)` `5a16ba6`).**
+- **render.yaml blueprint-sync:** declared the LIVE attachment-store env on `aesis-backend` — `CLOUDINARY_CLOUD_NAME` / `CLOUDINARY_API_KEY` / `CLOUDINARY_API_SECRET` (sync:false). The backend already uses Cloudinary (`config/cloudinary.ts` + `modules/entries/attachments.service.ts`) and 503s when unset, but the blueprint had only declared the **dead** `AWS_*` vars (referenced nowhere but `env.ts`; no aws-sdk in the tree) — now annotated legacy/unused. Pinned `INDUSTRY_SCORE_TOKEN_TTL_HOURS=336` so prod's TTL is visible. `startCommand` already on `migrate deploy` since S61.
+- **Legacy region backfill (S58 carryover):** `npm run db:backfill-region` (`backend/src/config/backfill-placement-region.ts`) — idempotent, **dry-run by default** (`BACKFILL_APPLY=1` to write). Sets `placement.region` for null-region placements by inheriting the assigned academic supervisor's `supervisedRegion` (a supervisor covers exactly one region — the safe, derivable source). Unassigned / region-less-supervisor placements are reported, never guessed.
+
+**Verification.** Backend `tsc --noEmit` clean (incl. the new script); grades Jest 50/50; frontend `tsc --noEmit` + `vite build` clean. Two feature-scoped commits pushed `main` → Render (`migrate deploy`, no new migration → "No pending migrations") + Vercel auto-deploy.
+
+**Stopped here — follow-ups.**
+1. **Rotate prod `DATABASE_URL`** (shared in chat S61) — still TOP priority, user deferred again this session.
+2. **Set the Cloudinary dashboard values** on Render (`aesis-backend`) so attachment uploads stop 503ing in prod — vars now declared in the blueprint (sync:false) but unset.
+3. **Run the region backfill on prod** — `BACKFILL_APPLY=1 npm run db:backfill-region` with `DATABASE_URL` pointed at Neon (review the dry-run output first). Needs prod creds — user-run.
+4. Full data-level grade test with a real coordinator login (route+schema+router proven; end-to-end read still not exercised on prod). Carried.
+5. Carried (S58): rotate the other 3 secrets.
+6. Possible next grade features (menu): per-cohort released-grade export/report; the academic-supervisor own-3-component flow + student released-total view end-to-end verification (GradePanel surfaces exist, not all role flows verified on prod).
