@@ -81,3 +81,53 @@ export function useReleaseGrade(placementId: string) {
     return r.data.data;
   });
 }
+
+// ── Batch B — company-supervisor industry-score magic link ────
+
+export interface IndustryInvite {
+  token:     string;
+  url:       string;
+  expiresAt: string;
+}
+
+/** Coordinator issues the single-use magic link for the company supervisor. */
+export function useInviteIndustry(placementId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async () => {
+      const r = await api.post<{ data: IndustryInvite }>(`/grades/${placementId}/industry-invite`);
+      return r.data.data;
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: gradeKey(placementId) }),
+  });
+}
+
+export interface IndustryInviteContext {
+  organisation: string | null;
+  student:      string;
+  startDate:    string | null;
+  endDate:      string | null;
+}
+
+/** Public — fetch the industry-score form context for a magic-link token. */
+export function useIndustryContext(token: string | undefined) {
+  return useQuery({
+    queryKey: ['grade-invite', token],
+    enabled:  !!token,
+    retry:    false,
+    queryFn:  async () => {
+      const r = await api.get<{ data: IndustryInviteContext }>(`/grade-invite/${token}`);
+      return r.data.data;
+    },
+  });
+}
+
+/** Public — submit the industry score (single-use). */
+export function useSubmitIndustryScore(token: string) {
+  return useMutation({
+    mutationFn: async (raw: number) => {
+      const r = await api.post<{ data: { submitted: boolean } }>(`/grade-invite/${token}`, { raw });
+      return r.data.data;
+    },
+  });
+}

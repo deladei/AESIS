@@ -33,6 +33,7 @@ import FeedbackCenter       from '@/pages/shared/FeedbackCenter';
 import AIInsights           from '@/pages/shared/AIInsights';
 import ProfilePage          from '@/pages/shared/ProfilePage';
 import Attestation          from '@/pages/public/Attestation';
+import IndustryScore        from '@/pages/public/IndustryScore';
 
 type UserRole = 'student' | 'academic_supervisor' | 'coordinator' | 'admin';
 
@@ -101,6 +102,8 @@ export const router = createBrowserRouter([
 
   // Public company attestation (magic link — no account, no shell)
   { path: '/attest/:token',  element: <Attestation /> },
+  // Public company-supervisor industry score (magic link — no account, no shell)
+  { path: '/grade/:token',   element: <IndustryScore /> },
 
   // Student
   {

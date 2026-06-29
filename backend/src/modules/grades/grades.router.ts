@@ -7,6 +7,7 @@ import {
   aggregateGradeHandler,
   overrideGradeHandler,
   releaseGradeHandler,
+  inviteIndustryHandler,
 } from './grades.controller';
 
 // Final-grade spine. Mounted under /grades; authenticated. Per-action role +
@@ -20,5 +21,6 @@ router.post('/:id/component', asyncHandler(scoreComponentHandler));
 router.post('/:id/aggregate', asyncHandler(aggregateGradeHandler));
 router.patch('/:id/override', asyncHandler(overrideGradeHandler));
 router.post('/:id/release', asyncHandler(releaseGradeHandler));
+router.post('/:id/industry-invite', asyncHandler(inviteIndustryHandler)); // issue company-supervisor magic link
 
 export default router;

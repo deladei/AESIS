@@ -1,10 +1,10 @@
 import { useEffect, useMemo, useState } from 'react';
 import {
-  Award, Lock, Loader2, CheckCircle2, ShieldCheck, Send, Pencil, AlertCircle,
+  Award, Lock, Loader2, CheckCircle2, ShieldCheck, Send, Pencil, AlertCircle, Link2, Copy, Check,
 } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import {
-  useGrade, useScoreComponent, useAggregateGrade, useOverrideGrade, useReleaseGrade,
+  useGrade, useScoreComponent, useAggregateGrade, useOverrideGrade, useReleaseGrade, useInviteIndustry,
   type GradeView, type GradeStatus, type GradeComponent,
 } from '@/hooks/useGrade';
 
@@ -96,16 +96,30 @@ function GradeConsole({ placementId, grade }: { placementId: string; grade: Grad
   const aggregate = useAggregateGrade(placementId);
   const override  = useOverrideGrade(placementId);
   const release   = useReleaseGrade(placementId);
+  const invite    = useInviteIndustry(placementId);
 
   const [showOverride, setShowOverride] = useState(false);
   const [ovTotal, setOvTotal] = useState('');
   const [ovReason, setOvReason] = useState('');
+  const [inviteUrl, setInviteUrl] = useState<string | null>(null);
+  const [copied, setCopied] = useState(false);
+
+  const onInvite = () => {
+    invite.mutate(undefined, { onSuccess: (res) => { setInviteUrl(res.url); setCopied(false); } });
+  };
+  const onCopy = () => {
+    if (!inviteUrl) return;
+    navigator.clipboard?.writeText(inviteUrl).then(() => {
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    });
+  };
 
   const components = grade.components ?? {};
   const allEntered = (['industry', 'university', 'report', 'logbook'] as GradeComponent[])
     .every((c) => components[c]?.raw !== null && components[c]?.raw !== undefined);
   const locked = grade.status === 'released';
-  const err = score.error ?? aggregate.error ?? override.error ?? release.error;
+  const err = score.error ?? aggregate.error ?? override.error ?? release.error ?? invite.error;
 
   const onOverride = () => {
     const total = Number(ovTotal);
@@ -142,6 +156,41 @@ function GradeConsole({ placementId, grade }: { placementId: string; grade: Grad
           />
         ))}
       </div>
+
+      {/* Industry score delegation — request it from the company supervisor via magic link */}
+      {!locked && (
+        <div className="mb-4 rounded-lg border border-dashed border-[var(--h-c4c5d5-60)] p-3">
+          <div className="flex items-center justify-between gap-2">
+            <p className="text-xs text-[var(--h-757684)]">
+              Enter the industry score above, or send the company supervisor a secure link to submit it themselves.
+            </p>
+            <button
+              type="button"
+              disabled={invite.isPending}
+              onClick={onInvite}
+              className="inline-flex shrink-0 items-center gap-1.5 rounded-lg border border-[var(--h-c4c5d5-60)] px-2.5 py-1.5 text-xs font-semibold text-[var(--h-15157d)] hover:bg-[var(--h-f3f3f7)] disabled:opacity-40"
+            >
+              {invite.isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Link2 className="h-3.5 w-3.5" />}
+              {inviteUrl ? 'New link' : 'Request via link'}
+            </button>
+          </div>
+          {inviteUrl && (
+            <div className="mt-2 flex items-center gap-2">
+              <input
+                readOnly value={inviteUrl}
+                className="min-w-0 flex-1 rounded-lg border border-[var(--h-c4c5d5-60)] bg-[var(--h-f3f3f7)] px-2.5 py-1.5 text-xs text-[var(--h-444653)]"
+              />
+              <button
+                type="button" onClick={onCopy}
+                className="inline-flex shrink-0 items-center gap-1 rounded-lg bg-[var(--h-15157d)] px-2.5 py-1.5 text-xs font-semibold text-white hover:opacity-90"
+              >
+                {copied ? <Check className="h-3.5 w-3.5" /> : <Copy className="h-3.5 w-3.5" />}
+                {copied ? 'Copied' : 'Copy'}
+              </button>
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Totals */}
       <div className="mb-4 flex items-end justify-between rounded-lg bg-[var(--h-f3f3f7)] p-3">

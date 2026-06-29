@@ -1,5 +1,6 @@
 import { Prisma } from '@prisma/client';
 import { prisma } from '../../config/prisma';
+import { env } from '../../config/env';
 import { AppError } from '../../middleware/errorHandler';
 import type { Actor } from '../entries/entries.policy';
 import {
@@ -10,7 +11,13 @@ import {
   serializeGrade,
   type GradeOwnership,
 } from './grades.policy';
-import { GRADE_COMPONENTS, type ComponentScoreInput, type OverrideInput } from './grades.schema';
+import { generateIndustryToken, hashIndustryToken } from './grades.token';
+import {
+  GRADE_COMPONENTS,
+  type ComponentScoreInput,
+  type OverrideInput,
+  type IndustryScoreInput,
+} from './grades.schema';
 
 const round2 = (n: number) => Math.round(n * 100) / 100;
 
@@ -197,4 +204,109 @@ export async function releaseGrade(actor: Actor, placementId: string) {
     coordinatorOverride: updated.coordinatorOverride,
   });
   return serializeGrade(actor, ownership, updated);
+}
+
+// ── Batch B — tokenised company-supervisor industry-score channel ─────────────
+
+// When a component changes after sign-off, the prior aggregate + sign-off no
+// longer reflect the inputs, so the grade reverts to draft (same rule as
+// scoreComponent). Released grades are locked and never reach this patch.
+const AGGREGATE_RESET = {
+  status: 'draft' as const,
+  industryWeighted: null,
+  universityWeighted: null,
+  reportWeighted: null,
+  logbookWeighted: null,
+  total: null,
+  coordinatorOverride: null,
+  overrideReason: null,
+  signedOffById: null,
+  signedOffAt: null,
+};
+
+/**
+ * Coordinator (HoD) issues a single-use magic link for the company supervisor to
+ * submit the industry score without an account. The raw token is returned ONCE;
+ * only its hash is stored. Re-inviting rotates the token. Upserts the grade row.
+ */
+export async function inviteIndustryScore(actor: Actor, placementId: string) {
+  await loadGradeOwnership(placementId); // 404 if placement gone
+  assertCanManageGrade(actor);
+
+  const existing = await prisma.finalGrade.findUnique({ where: { placementId } });
+  if (existing?.status === 'released') {
+    throw new AppError(409, 'This grade has been released and is locked');
+  }
+
+  const { token, tokenHash } = generateIndustryToken();
+  const expiresAt = new Date(Date.now() + env.INDUSTRY_SCORE_TOKEN_TTL_HOURS * 3_600_000);
+
+  await prisma.finalGrade.upsert({
+    where: { placementId },
+    create: { placementId, industryTokenHash: tokenHash, industryTokenExpiresAt: expiresAt },
+    update: { industryTokenHash: tokenHash, industryTokenExpiresAt: expiresAt },
+  });
+
+  await writeAudit(actor, 'grade_drafted', placementId, { action: 'industry_invite', expiresAt });
+
+  return { token, url: `${env.FRONTEND_URL}/grade/${token}`, expiresAt };
+}
+
+async function loadGradeByIndustryToken(token: string) {
+  const grade = await prisma.finalGrade.findFirst({
+    where: { industryTokenHash: hashIndustryToken(token) },
+    include: {
+      placement: {
+        select: {
+          startDate: true,
+          endDate: true,
+          company: { select: { name: true } },
+          student: { select: { firstName: true, lastName: true } },
+        },
+      },
+    },
+  });
+  if (!grade) throw new AppError(404, 'Invalid scoring link');
+  if (grade.industrySubmittedAt) throw new AppError(410, 'This industry score has already been submitted');
+  if (grade.status === 'released') throw new AppError(410, 'This grade has been released and is locked');
+  if (!grade.industryTokenExpiresAt || grade.industryTokenExpiresAt.getTime() < Date.now()) {
+    throw new AppError(410, 'This scoring link has expired');
+  }
+  return grade;
+}
+
+/** Public — render the industry-score form context. No auth (the token IS auth). */
+export async function getIndustryInviteContext(token: string) {
+  const grade = await loadGradeByIndustryToken(token);
+  const p = grade.placement;
+  return {
+    organisation: p.company?.name ?? null,
+    student: `${p.student.firstName} ${p.student.lastName}`,
+    startDate: p.startDate,
+    endDate: p.endDate,
+  };
+}
+
+/**
+ * Public — record the company supervisor's industry score. Single-use: stamps
+ * industrySubmittedAt and clears the token so the link can't be replayed. If the
+ * grade was already aggregated, this reverts it to draft (the inputs changed).
+ * No AuditLog row — the submitter has no user id; industrySubmittedAt is the
+ * durable record.
+ */
+export async function submitIndustryScore(token: string, input: IndustryScoreInput) {
+  const grade = await loadGradeByIndustryToken(token);
+
+  await prisma.finalGrade.update({
+    where: { id: grade.id },
+    data: {
+      industryRaw: input.raw,
+      industrySubmittedAt: new Date(),
+      industryTokenHash: null,
+      industryTokenExpiresAt: null,
+      ...(grade.status === 'approved' ? AGGREGATE_RESET : {}),
+    },
+  });
+
+  return { submitted: true };
 }

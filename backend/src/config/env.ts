@@ -73,6 +73,8 @@ const envSchema = z.object({
   BACKFILL_CUTOFF_DAYS:                           z.coerce.number().int().nonnegative().optional(),
   // Company attestation magic-link lifetime.
   ATTESTATION_TOKEN_TTL_HOURS:                    z.coerce.number().int().positive().default(168),
+  // Industry-score (company supervisor) magic-link lifetime. Default 14 days.
+  INDUSTRY_SCORE_TOKEN_TTL_HOURS:                 z.coerce.number().int().positive().default(336),
 });
 
 const parsed = envSchema.safeParse(process.env);

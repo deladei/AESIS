@@ -832,6 +832,14 @@ model FinalGrade {
   signedOffAt   DateTime?   @map("signed_off_at")
   releasedAt    DateTime?   @map("released_at")
 
+  // Batch B — tokenised company-supervisor industry-score channel (no account).
+  // The raw magic-link token is handed out once; only its SHA-256 hash is stored.
+  // industrySubmittedAt is the durable record of the company supervisor's
+  // submission (there is no AuditLog row — they have no user id).
+  industryTokenHash      String?   @map("industry_token_hash")
+  industryTokenExpiresAt DateTime? @map("industry_token_expires_at")
+  industrySubmittedAt    DateTime? @map("industry_submitted_at")
+
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
 

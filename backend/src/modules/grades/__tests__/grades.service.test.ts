@@ -1,7 +1,7 @@
 jest.mock('../../../config/prisma', () => ({
   prisma: {
     placement: { findUnique: jest.fn() },
-    finalGrade: { findUnique: jest.fn(), upsert: jest.fn(), update: jest.fn() },
+    finalGrade: { findUnique: jest.fn(), findFirst: jest.fn(), upsert: jest.fn(), update: jest.fn() },
     cohortConfig: { findUnique: jest.fn() },
     auditLog: { create: jest.fn() },
   },
@@ -14,13 +14,16 @@ import {
   aggregateGrade,
   overrideGrade,
   releaseGrade,
+  inviteIndustryScore,
+  getIndustryInviteContext,
+  submitIndustryScore,
 } from '../grades.service';
 import { overrideSchema } from '../grades.schema';
 import type { Actor } from '../../entries/entries.policy';
 
 const mp = prisma as unknown as {
   placement: { findUnique: jest.Mock };
-  finalGrade: { findUnique: jest.Mock; upsert: jest.Mock; update: jest.Mock };
+  finalGrade: { findUnique: jest.Mock; findFirst: jest.Mock; upsert: jest.Mock; update: jest.Mock };
   cohortConfig: { findUnique: jest.Mock };
   auditLog: { create: jest.Mock };
 };
@@ -237,5 +240,93 @@ describe('override + release', () => {
     expect(mp.auditLog.create).toHaveBeenCalledWith(
       expect.objectContaining({ data: expect.objectContaining({ action: 'grade_released' }) }),
     );
+  });
+});
+
+// ── Batch B — industry-score magic link ───────────────────────
+describe('industry-score magic link', () => {
+  const future = () => new Date(Date.now() + 3_600_000);
+  const past = () => new Date(Date.now() - 3_600_000);
+  const withPlacement = (g: Record<string, unknown>) => ({
+    ...g,
+    placement: {
+      startDate: null, endDate: null,
+      company: { name: 'Kofi Tech Ltd' },
+      student: { firstName: 'Ama', lastName: 'Mensah' },
+    },
+  });
+
+  it('issues a token (coordinator) and upserts the grade row', async () => {
+    ownPlacement();
+    mp.finalGrade.findUnique.mockResolvedValue(null);
+    mp.finalGrade.upsert.mockResolvedValue({});
+    const res = (await inviteIndustryScore(COORD, 'p-1')) as any;
+    expect(typeof res.token).toBe('string');
+    expect(res.url).toContain(res.token);
+    expect(mp.finalGrade.upsert).toHaveBeenCalled();
+  });
+
+  it('forbids a non-coordinator from inviting', async () => {
+    ownPlacement();
+    await expect(inviteIndustryScore(SUP, 'p-1')).rejects.toMatchObject({ statusCode: 403 });
+  });
+
+  it('refuses to invite once released', async () => {
+    ownPlacement();
+    mp.finalGrade.findUnique.mockResolvedValue({ status: 'released' });
+    await expect(inviteIndustryScore(COORD, 'p-1')).rejects.toMatchObject({ statusCode: 409 });
+  });
+
+  it('returns context for a valid token', async () => {
+    mp.finalGrade.findFirst.mockResolvedValue(
+      withPlacement({ status: 'draft', industrySubmittedAt: null, industryTokenExpiresAt: future() }),
+    );
+    const ctx = (await getIndustryInviteContext('tok')) as any;
+    expect(ctx.organisation).toBe('Kofi Tech Ltd');
+    expect(ctx.student).toBe('Ama Mensah');
+  });
+
+  it('rejects an invalid token (404)', async () => {
+    mp.finalGrade.findFirst.mockResolvedValue(null);
+    await expect(getIndustryInviteContext('bad')).rejects.toMatchObject({ statusCode: 404 });
+  });
+
+  it('rejects an expired token (410)', async () => {
+    mp.finalGrade.findFirst.mockResolvedValue(
+      withPlacement({ status: 'draft', industrySubmittedAt: null, industryTokenExpiresAt: past() }),
+    );
+    await expect(getIndustryInviteContext('tok')).rejects.toMatchObject({ statusCode: 410 });
+  });
+
+  it('rejects an already-submitted token (410, single-use)', async () => {
+    mp.finalGrade.findFirst.mockResolvedValue(
+      withPlacement({ status: 'draft', industrySubmittedAt: new Date(), industryTokenExpiresAt: future() }),
+    );
+    await expect(submitIndustryScore('tok', { raw: 70 })).rejects.toMatchObject({ statusCode: 410 });
+  });
+
+  it('records the industry score and clears the token', async () => {
+    mp.finalGrade.findFirst.mockResolvedValue(
+      withPlacement({ id: 'g-1', status: 'draft', industrySubmittedAt: null, industryTokenExpiresAt: future() }),
+    );
+    mp.finalGrade.update.mockResolvedValue({});
+    const res = (await submitIndustryScore('tok', { raw: 72 })) as any;
+    expect(res.submitted).toBe(true);
+    const data = mp.finalGrade.update.mock.calls[0][0].data;
+    expect(data.industryRaw).toBe(72);
+    expect(data.industryTokenHash).toBeNull();
+    expect(data.industrySubmittedAt).toBeInstanceOf(Date);
+  });
+
+  it('reverts an approved grade to draft when the industry score arrives', async () => {
+    mp.finalGrade.findFirst.mockResolvedValue(
+      withPlacement({ id: 'g-1', status: 'approved', industrySubmittedAt: null, industryTokenExpiresAt: future() }),
+    );
+    mp.finalGrade.update.mockResolvedValue({});
+    await submitIndustryScore('tok', { raw: 72 });
+    const data = mp.finalGrade.update.mock.calls[0][0].data;
+    expect(data.status).toBe('draft');
+    expect(data.total).toBeNull();
+    expect(data.signedOffById).toBeNull();
   });
 });

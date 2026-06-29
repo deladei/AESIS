@@ -20,5 +20,11 @@ export const overrideSchema = z.object({
   reason: z.string().trim().min(1).max(2000),
 });
 
+// Public (tokenised) industry-score submission by the company supervisor.
+export const industryScoreSchema = z.object({
+  raw: z.number().min(0).max(100),
+});
+
 export type ComponentScoreInput = z.infer<typeof componentScoreSchema>;
 export type OverrideInput = z.infer<typeof overrideSchema>;
+export type IndustryScoreInput = z.infer<typeof industryScoreSchema>;
