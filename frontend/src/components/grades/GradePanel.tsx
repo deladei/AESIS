@@ -46,10 +46,11 @@ function fmtScore(n: number | null | undefined): string {
 
 /** A single editable component score row (coordinator/supervisor entry). */
 function ComponentRow({
-  component, value, locked, onSave, saving,
+  component, value, weighted, locked, onSave, saving,
 }: {
   component: GradeComponent;
   value: number | null | undefined;
+  weighted?: number | null;
   locked: boolean;
   saving: boolean;
   onSave: (raw: number) => void;
@@ -61,15 +62,22 @@ function ComponentRow({
   const num = typeof draft === 'string' ? Number(draft) : draft;
   const valid = draft !== '' && Number.isFinite(num) && num >= 0 && num <= 100;
   const changed = String(value ?? '') !== String(draft);
+  const inputId = `grade-${component}`;
 
   return (
     <div className="flex items-center justify-between gap-3 border-b border-[var(--h-eef0f5)] py-2.5 last:border-0">
       <div>
-        <p className="text-sm font-medium text-[var(--h-0b1c30)]">{meta.label}</p>
-        <p className="text-xs text-[var(--h-757684)]">{meta.hint}</p>
+        <label htmlFor={inputId} className="text-sm font-medium text-[var(--h-0b1c30)]">{meta.label}</label>
+        <p className="text-xs text-[var(--h-757684)]">
+          {meta.hint}
+          {weighted !== null && weighted !== undefined && (
+            <span> · contributes {fmtScore(weighted)} to total</span>
+          )}
+        </p>
       </div>
       <div className="flex items-center gap-2">
         <input
+          id={inputId}
           type="number" min={0} max={100} step="0.5"
           className={inputCls}
           value={draft}
@@ -150,6 +158,7 @@ function GradeConsole({ placementId, grade }: { placementId: string; grade: Grad
             key={c}
             component={c}
             value={components[c]?.raw}
+            weighted={components[c]?.weighted}
             locked={locked}
             saving={score.isPending && score.variables?.component === c}
             onSave={(raw) => score.mutate({ component: c, raw })}
@@ -304,6 +313,7 @@ function SupervisorComponents({ placementId, grade }: { placementId: string; gra
             key={c}
             component={c}
             value={components[c]?.raw}
+            weighted={components[c]?.weighted}
             locked={locked}
             saving={score.isPending && score.variables?.component === c}
             onSave={(raw) => score.mutate({ component: c, raw })}
