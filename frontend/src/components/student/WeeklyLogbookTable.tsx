@@ -99,7 +99,7 @@ export function WeeklyLogbookTable({ placementId, startDate }: WeeklyLogbookTabl
                     <td className="px-3 py-3"><StatusPill status={status} /></td>
                     <td className="px-3 py-3 text-right">
                       <Link
-                        to="/student/logbook"
+                        to={`/student/logbook?week=${w.weekNumber}`}
                         className="inline-flex items-center gap-1 text-xs font-semibold text-[var(--h-15157d)] hover:underline"
                       >
                         {status === 'not_started' || status === 'draft' || status === 'returned' ? 'Edit' : 'View'}

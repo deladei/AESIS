@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo, useRef, useCallback } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import {
   Loader2, Plus, X, Trash2, CheckCircle2, Clock, RotateCcw, Lock,
   Send, Calendar, AlertCircle, BookOpen, Sparkles, Cloud, CloudOff,
@@ -163,14 +163,18 @@ export default function LogbookEditor() {
     return m;
   }, [entries]);
 
+  const [searchParams] = useSearchParams();
   const [selectedWeek, setSelectedWeek] = useState<number | null>(null);
 
-  // Default to the latest week once the schedule is known.
+  // Default the open week once the schedule is known: honour a `?week=` deep-link
+  // (from the dashboard's WeeklyLogbookTable) when it points at a real week,
+  // otherwise fall back to the latest week.
   useEffect(() => {
-    if (selectedWeek === null && schedule.length > 0) {
-      setSelectedWeek(schedule[schedule.length - 1].weekNumber);
-    }
-  }, [schedule, selectedWeek]);
+    if (selectedWeek !== null || schedule.length === 0) return;
+    const wantWeek = Number(searchParams.get('week'));
+    const deepLinked = schedule.find((w) => w.weekNumber === wantWeek);
+    setSelectedWeek(deepLinked ? deepLinked.weekNumber : schedule[schedule.length - 1].weekNumber);
+  }, [schedule, selectedWeek, searchParams]);
 
   const scheduleWeek = schedule.find((w) => w.weekNumber === selectedWeek);
   const existing = selectedWeek != null ? entryByWeek.get(selectedWeek) : undefined;
