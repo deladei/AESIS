@@ -113,6 +113,21 @@ enum AuditAction {
   escalation_created
   escalation_resolved
   logbook_override
+  component_scored
+  grade_drafted
+  grade_overridden
+  grade_signed_off
+  grade_released
+}
+
+// Lifecycle of a placement's aggregated final grade.
+//   draft    -> components being entered; not yet aggregated/signed
+//   approved -> aggregated & signed off by coordinator (HoD); NOT student-visible
+//   released -> HoD released; the total becomes student-visible
+enum GradeStatus {
+  draft
+  approved
+  released
 }
 
 // ─────────────────────────────────────────────
@@ -232,6 +247,13 @@ model CohortConfig {
   // low-score signal. Applied via ADD COLUMN IF NOT EXISTS (no migration folder)
   // to match this repo's established additive-column pattern.
   performanceThreshold     Int          @default(50) @map("performance_threshold")
+  // Final-grade aggregation weights (percentage points; must sum to 100). Each
+  // component's raw score is captured on a 0–100 scale and contributes
+  // raw/100 * weight to the final /100 grade. Coordinator-configurable per cohort.
+  weightIndustry           Int          @default(30) @map("weight_industry")
+  weightUniversity         Int          @default(30) @map("weight_university")
+  weightReport             Int          @default(30) @map("weight_report")
+  weightLogbook            Int          @default(10) @map("weight_logbook")
   createdAt                DateTime     @default(now()) @map("created_at")
 
   @@unique([academicYearId])
@@ -289,6 +311,7 @@ model User {
   createdObjectives    LearningObjective[]   @relation("ObjectiveCreator")
   confirmedObjectiveLinks EntryObjective[]   @relation("ObjectiveLinkConfirmer")
   uploadedAttachments  EntryAttachment[]     @relation("AttachmentUploader")
+  gradesSignedOff      FinalGrade[]          @relation("GradeSignedOff")
 
   @@map("users")
 }
@@ -367,6 +390,7 @@ model Placement {
   placementAssessment PlacementAssessment?
   companyAttestation  CompanyAttestation?
   learningObjectives  LearningObjective[]
+  finalGrade          FinalGrade?
 
   @@map("placements")
 }
@@ -769,6 +793,49 @@ model CompanyAttestation {
   createdAt          DateTime  @default(now()) @map("created_at")
 
   @@map("company_attestation")
+}
+
+// The unified, contested final grade for a placement. ONE row per placement.
+// Four component raw scores (each 0–100, nullable until that assessor submits)
+// are aggregated with cohort weights into a single /100 total. Confidentiality
+// is enforced in the service/serializer layer (no RLS): the industry score is
+// hidden from the student and the academic supervisor; the total is hidden from
+// the student until released. Every write is audited.
+model FinalGrade {
+  id          String    @id @default(uuid())
+  placementId String    @unique @map("placement_id")
+  placement   Placement @relation(fields: [placementId], references: [id])
+
+  // Raw component scores on a 0–100 scale. Null until the responsible assessor
+  // submits. industry = tokenised company supervisor (or interim coordinator);
+  // university/report/logbook = assigned academic supervisor.
+  industryRaw   Float? @map("industry_raw")
+  universityRaw Float? @map("university_raw")
+  reportRaw     Float? @map("report_raw")
+  logbookRaw    Float? @map("logbook_raw")
+
+  // Weighted contributions (raw/100 * cohort weight). Recomputed on aggregate.
+  industryWeighted   Float? @map("industry_weighted")
+  universityWeighted Float? @map("university_weighted")
+  reportWeighted     Float? @map("report_weighted")
+  logbookWeighted    Float? @map("logbook_weighted")
+
+  // Aggregate /100 (sum of weighted). coordinatorOverride, when set, replaces
+  // the displayed total and REQUIRES overrideReason (recorded + audited).
+  total               Float?  @map("total")
+  coordinatorOverride Float?  @map("coordinator_override")
+  overrideReason      String? @map("override_reason")
+
+  status        GradeStatus @default(draft)
+  signedOffById String?     @map("signed_off_by_id")
+  signedOffBy   User?       @relation("GradeSignedOff", fields: [signedOffById], references: [id])
+  signedOffAt   DateTime?   @map("signed_off_at")
+  releasedAt    DateTime?   @map("released_at")
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@map("final_grades")
 }
 
 // Table-as-queue for the fail-open enrichment worker (no message broker).

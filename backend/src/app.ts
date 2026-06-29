@@ -15,6 +15,7 @@ import objectivesPlacementRouter from './modules/objectives/objectives.placement
 import objectivesEntryRouter     from './modules/objectives/objectives.entry.router';
 import finalizationRouter  from './modules/finalization/finalization.router';
 import attestPublicRouter  from './modules/finalization/attestation.public.router';
+import gradesRouter        from './modules/grades/grades.router';
 import notificationsRouter from './modules/notifications/notifications.router';
 import coordinatorRouter   from './modules/coordinator/coordinator.router';
 import supervisorRouter    from './modules/supervisor/supervisor.router';
@@ -86,6 +87,7 @@ export function createApp() {
   app.use('/api/v1/entries',       entriesRouter);
   app.use('/api/v1/entries',       objectivesEntryRouter); // entry <-> objective links
 
+  app.use('/api/v1/grades',        gradesRouter); // final-grade spine (aggregate/override/release)
   app.use('/api/v1/attest',        attestPublicRouter); // PUBLIC magic-link attestation
   app.use('/api/v1/notifications', notificationsRouter);
   app.use('/api/v1/coordinator',   coordinatorRouter);
