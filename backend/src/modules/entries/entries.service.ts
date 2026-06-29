@@ -247,9 +247,9 @@ export async function submitEntry(actor: Actor, entryId: string) {
 
     resolveTransition(status, 'submit', actor.role); // 409 if not from draft
 
-    if (entry._count.activities === 0) {
-      throw new AppError(422, 'Cannot submit an empty logbook week — add at least one activity');
-    }
+    // A week may be submitted with or without activities — the activity list is
+    // no longer a submission gate (a student can record a week of hours/reflection
+    // without itemising daily activities).
 
     if (env.BACKFILL_CUTOFF_DAYS !== undefined) {
       const lateBy = daysBetween(entry.periodEnd, todayUtc());

@@ -191,9 +191,11 @@ describe('write path', () => {
     ).rejects.toMatchObject({ statusCode: 422 });
   });
 
-  itdb('rejects submitting an empty week with 422', async () => {
+  itdb('submits a week with no activities (activity list is not a submission gate)', async () => {
     const entry = await saveDraft(studentA, { ...week(4), placementId: placementA, activities: [] });
-    await expect(submitEntry(studentA, entry.id)).rejects.toMatchObject({ statusCode: 422 });
+    const submitted = await submitEntry(studentA, entry.id);
+    expect(submitted.status).toBe('submitted');
+    expect(submitted.activities).toHaveLength(0);
   });
 
   itdb('submit flips to submitted, writes one event and enqueues exactly one enrichment row', async () => {
