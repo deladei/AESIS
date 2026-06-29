@@ -990,6 +990,10 @@ const COHORT_CONFIG_SELECT = {
   minWeeklyHours:       true,
   performanceThreshold: true,
   totalWeeks:           true,
+  weightIndustry:       true,
+  weightUniversity:     true,
+  weightReport:         true,
+  weightLogbook:        true,
   academicYear:         { select: { id: true, label: true } },
 } as const;
 
@@ -998,6 +1002,10 @@ type CohortConfigRow = {
   minWeeklyHours: number;
   performanceThreshold: number;
   totalWeeks: number;
+  weightIndustry: number;
+  weightUniversity: number;
+  weightReport: number;
+  weightLogbook: number;
   academicYear: { id: string; label: string };
 };
 
@@ -1007,6 +1015,10 @@ function shapeCohortConfig(c: CohortConfigRow) {
     minWeeklyHours:       c.minWeeklyHours,
     performanceThreshold: c.performanceThreshold,
     totalWeeks:           c.totalWeeks,
+    weightIndustry:       c.weightIndustry,
+    weightUniversity:     c.weightUniversity,
+    weightReport:         c.weightReport,
+    weightLogbook:        c.weightLogbook,
     academicYearId:       c.academicYear.id,
     academicYearLabel:    c.academicYear.label,
   };
@@ -1036,9 +1048,18 @@ export async function getActiveCohortConfig() {
   return shapeCohortConfig(config);
 }
 
-/** Update the active cohort's editable settings (min weekly hours and/or the
- *  performance threshold). 404 when no active config exists. */
-export async function updateActiveCohortConfig(input: { minWeeklyHours?: number; performanceThreshold?: number }) {
+/** Update the active cohort's editable settings (min weekly hours, performance
+ *  threshold, and/or the four final-grade weights). The schema guarantees the
+ *  weights, when present, arrive as a complete set summing to 100, so this just
+ *  writes through. 404 when no active config exists. */
+export async function updateActiveCohortConfig(input: {
+  minWeeklyHours?: number;
+  performanceThreshold?: number;
+  weightIndustry?: number;
+  weightUniversity?: number;
+  weightReport?: number;
+  weightLogbook?: number;
+}) {
   const existing = await prisma.cohortConfig.findFirst({
     where:  { academicYear: { isActive: true } },
     select: { id: true },
@@ -1050,6 +1071,10 @@ export async function updateActiveCohortConfig(input: { minWeeklyHours?: number;
     data:   {
       ...(input.minWeeklyHours       !== undefined ? { minWeeklyHours:       input.minWeeklyHours }       : {}),
       ...(input.performanceThreshold !== undefined ? { performanceThreshold: input.performanceThreshold } : {}),
+      ...(input.weightIndustry       !== undefined ? { weightIndustry:       input.weightIndustry }       : {}),
+      ...(input.weightUniversity     !== undefined ? { weightUniversity:     input.weightUniversity }     : {}),
+      ...(input.weightReport         !== undefined ? { weightReport:         input.weightReport }         : {}),
+      ...(input.weightLogbook        !== undefined ? { weightLogbook:        input.weightLogbook }        : {}),
     },
     select: COHORT_CONFIG_SELECT,
   });

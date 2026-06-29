@@ -1,6 +1,14 @@
 import { useEffect, useState } from 'react';
-import { Clock, Loader2, Check, AlertCircle, Gauge } from 'lucide-react';
+import { Clock, Loader2, Check, AlertCircle, Gauge, Scale } from 'lucide-react';
 import { useCohortConfig, useUpdateCohortConfig } from '@/hooks/useCohortConfig';
+
+const WEIGHT_FIELDS = [
+  { key: 'weightIndustry',   label: 'Industry',   hint: 'Company supervisor' },
+  { key: 'weightUniversity', label: 'University', hint: 'Academic supervisor' },
+  { key: 'weightReport',     label: 'Report',     hint: 'Project report' },
+  { key: 'weightLogbook',    label: 'Logbook',    hint: 'Weekly logbook' },
+] as const;
+type WeightKey = (typeof WEIGHT_FIELDS)[number]['key'];
 
 /**
  * Cohort Settings — coordinator configuration for the active academic year.
@@ -16,10 +24,19 @@ export default function CohortSettings() {
   // Local form state, seeded once the config loads.
   const [hours, setHours] = useState<string>('');
   const [threshold, setThreshold] = useState<string>('');
+  const [weights, setWeights] = useState<Record<WeightKey, string>>({
+    weightIndustry: '', weightUniversity: '', weightReport: '', weightLogbook: '',
+  });
   useEffect(() => {
     if (config) {
       setHours(String(config.minWeeklyHours));
       setThreshold(String(config.performanceThreshold));
+      setWeights({
+        weightIndustry:   String(config.weightIndustry),
+        weightUniversity: String(config.weightUniversity),
+        weightReport:     String(config.weightReport),
+        weightLogbook:    String(config.weightLogbook),
+      });
     }
   }, [config?.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -53,9 +70,18 @@ export default function CohortSettings() {
   const validT   = threshold.trim() !== '' && Number.isInteger(parsedT) && parsedT >= 0 && parsedT <= 100;
   const dirtyT   = validT && parsedT !== config.performanceThreshold;
 
+  // Final-grade weights — validated as a set: each a whole 0–100 and the four
+  // summing to exactly 100 (mirrors the backend schema).
+  const parsedW = WEIGHT_FIELDS.map((f) => Number(weights[f.key]));
+  const eachValidW = WEIGHT_FIELDS.every((f, i) =>
+    weights[f.key].trim() !== '' && Number.isInteger(parsedW[i]) && parsedW[i] >= 0 && parsedW[i] <= 100);
+  const sumW = parsedW.reduce((a, b) => a + (Number.isFinite(b) ? b : 0), 0);
+  const validW = eachValidW && sumW === 100;
+  const dirtyW = eachValidW && WEIGHT_FIELDS.some((f, i) => parsedW[i] !== config[f.key]);
+
   // Which field a given mutation targeted — so the "Saved" badge only shows under
   // the section that was actually saved.
-  const [savedField, setSavedField] = useState<'hours' | 'threshold' | null>(null);
+  const [savedField, setSavedField] = useState<'hours' | 'threshold' | 'weights' | null>(null);
 
   function save() {
     if (!dirty) return;
@@ -66,6 +92,16 @@ export default function CohortSettings() {
     if (!dirtyT) return;
     setSavedField('threshold');
     update.mutate({ performanceThreshold: parsedT });
+  }
+  function saveWeights() {
+    if (!validW || !dirtyW) return;
+    setSavedField('weights');
+    update.mutate({
+      weightIndustry:   parsedW[0],
+      weightUniversity: parsedW[1],
+      weightReport:     parsedW[2],
+      weightLogbook:    parsedW[3],
+    });
   }
 
   return (
@@ -228,6 +264,90 @@ export default function CohortSettings() {
           ) : (
             <>Set to 0 to disable the low-score signal — only overdue logs, no progress, and unassigned interns flag.</>
           )}
+        </p>
+      </section>
+
+      <section className="rounded-xl bg-[var(--h-ffffff)] p-8 shadow-sm">
+        <div className="mb-6 flex items-center gap-3">
+          <div className="flex h-10 w-10 items-center justify-center rounded-full bg-[var(--h-eff4ff)] text-[var(--h-15157d)]">
+            <Scale className="h-5 w-5" />
+          </div>
+          <div>
+            <h2 className="text-sm font-bold text-[var(--h-0b1c30)]">Final-grade weights</h2>
+            <p className="text-xs text-[var(--h-757684)]">
+              How the four component scores combine into each intern's final grade. Must total 100.
+            </p>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
+          {WEIGHT_FIELDS.map((f) => (
+            <div key={f.key}>
+              <label htmlFor={f.key} className="mb-1.5 block text-sm font-medium text-[var(--h-444653)]">
+                {f.label}
+              </label>
+              <div className="relative">
+                <input
+                  id={f.key}
+                  type="number"
+                  min={0}
+                  max={100}
+                  step={1}
+                  value={weights[f.key]}
+                  onChange={(e) => setWeights((w) => ({ ...w, [f.key]: e.target.value }))}
+                  className="w-full rounded-lg border border-[var(--h-c4c5d5)] px-4 py-2.5 pr-12 text-base font-semibold text-[var(--h-0b1c30)] outline-none focus:border-[var(--h-15157d)] focus:ring-2 focus:ring-[var(--h-e1e0ff)]"
+                />
+                <span className="pointer-events-none absolute right-4 top-1/2 -translate-y-1/2 text-sm text-[var(--h-757684)]">
+                  %
+                </span>
+              </div>
+              <p className="mt-1 text-xs text-[var(--h-757684)]">{f.hint}</p>
+            </div>
+          ))}
+        </div>
+
+        <div className="mt-5 flex flex-wrap items-center gap-4 border-t border-[var(--h-eef1ff)] pt-4">
+          <span
+            className={`inline-flex items-center gap-1.5 text-sm font-semibold ${
+              eachValidW && sumW === 100 ? 'text-[var(--h-1b7a45)]' : 'text-[var(--h-8a1c1c)]'
+            }`}
+          >
+            Total: {eachValidW ? sumW : '—'}/100
+          </span>
+
+          <button
+            onClick={saveWeights}
+            disabled={!validW || !dirtyW || update.isPending}
+            className="inline-flex items-center gap-2 rounded-lg bg-[var(--h-15157d)] px-5 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-[var(--h-1f1fa0)] disabled:cursor-not-allowed disabled:bg-[var(--h-c4c5d5)]"
+          >
+            {update.isPending && savedField === 'weights' ? (
+              <Loader2 className="h-4 w-4 animate-spin" />
+            ) : (
+              <Check className="h-4 w-4" />
+            )}
+            Save weights
+          </button>
+
+          {update.isSuccess && savedField === 'weights' && !dirtyW && (
+            <span className="inline-flex items-center gap-1.5 text-sm font-medium text-[var(--h-1b7a45)]">
+              <Check className="h-4 w-4" /> Saved
+            </span>
+          )}
+          {update.isError && savedField === 'weights' && (
+            <span className="inline-flex items-center gap-1.5 text-sm font-medium text-[var(--h-8a1c1c)]">
+              <AlertCircle className="h-4 w-4" /> Couldn't save — try again
+            </span>
+          )}
+        </div>
+
+        {eachValidW && sumW !== 100 && (
+          <p className="mt-2 text-xs font-medium text-[var(--h-8a1c1c)]">
+            Weights must total exactly 100 — currently {sumW}.
+          </p>
+        )}
+        <p className="mt-3 text-xs text-[var(--h-757684)]">
+          Applies to future aggregations. Released grades are locked; signed-off drafts pick up new
+          weights the next time they're aggregated.
         </p>
       </section>
     </div>

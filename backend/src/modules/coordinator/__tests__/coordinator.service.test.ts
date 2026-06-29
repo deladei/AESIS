@@ -70,6 +70,7 @@ import {
   searchEntities,
   getFeatureFlags,
 } from '../coordinator.service';
+import { updateCohortConfigSchema } from '../coordinator.schema';
 
 const mp = prisma as jest.Mocked<typeof prisma>;
 
@@ -827,6 +828,61 @@ describe('updateActiveCohortConfig', () => {
     // minWeeklyHours omitted from the patch → not written.
     expect(call.data).toEqual({ performanceThreshold: 65 });
     expect(result.performanceThreshold).toBe(65);
+  });
+
+  it('writes the four grade weights through and returns them', async () => {
+    (mp.cohortConfig.findFirst as jest.Mock).mockResolvedValue({ id: 'cc-1' });
+    (mp.cohortConfig.update as jest.Mock).mockResolvedValue({
+      id: 'cc-1', minWeeklyHours: 40, performanceThreshold: 50, totalWeeks: 24,
+      weightIndustry: 40, weightUniversity: 25, weightReport: 25, weightLogbook: 10,
+      academicYear: { id: 'ay-1', label: '2024/2025' },
+    });
+
+    const result = await updateActiveCohortConfig({
+      weightIndustry: 40, weightUniversity: 25, weightReport: 25, weightLogbook: 10,
+    });
+
+    const call = (mp.cohortConfig.update as jest.Mock).mock.calls[0][0];
+    expect(call.data).toEqual({
+      weightIndustry: 40, weightUniversity: 25, weightReport: 25, weightLogbook: 10,
+    });
+    expect(result.weightIndustry).toBe(40);
+    expect(result.weightLogbook).toBe(10);
+  });
+});
+
+// ── updateCohortConfigSchema (grade-weight validation) ─────────
+
+describe('updateCohortConfigSchema — grade weights', () => {
+  it('accepts the four weights when they sum to 100', () => {
+    const r = updateCohortConfigSchema.safeParse({
+      weightIndustry: 30, weightUniversity: 30, weightReport: 30, weightLogbook: 10,
+    });
+    expect(r.success).toBe(true);
+  });
+
+  it('rejects weights that do not sum to 100', () => {
+    const r = updateCohortConfigSchema.safeParse({
+      weightIndustry: 30, weightUniversity: 30, weightReport: 30, weightLogbook: 20,
+    });
+    expect(r.success).toBe(false);
+    if (!r.success) expect(r.error.issues[0].message).toMatch(/sum to exactly 100/);
+  });
+
+  it('rejects a partial weight set (all four required together)', () => {
+    const r = updateCohortConfigSchema.safeParse({ weightIndustry: 50, weightUniversity: 50 });
+    expect(r.success).toBe(false);
+    if (!r.success) expect(r.error.issues[0].message).toMatch(/all four|provided together/i);
+  });
+
+  it('still allows updating only non-weight settings', () => {
+    const r = updateCohortConfigSchema.safeParse({ minWeeklyHours: 35 });
+    expect(r.success).toBe(true);
+  });
+
+  it('rejects an empty payload', () => {
+    const r = updateCohortConfigSchema.safeParse({});
+    expect(r.success).toBe(false);
   });
 });
 

@@ -6,6 +6,10 @@ export interface CohortConfig {
   minWeeklyHours:       number;
   performanceThreshold: number;   // quality score below which an intern flags as at-risk (0 = off)
   totalWeeks:           number;
+  weightIndustry:       number;   // final-grade aggregation weights (% points, sum to 100)
+  weightUniversity:     number;
+  weightReport:         number;
+  weightLogbook:        number;
   academicYearId:       string;
   academicYearLabel:    string;
 }
@@ -30,16 +34,25 @@ export function useCohortConfig(enabled = true) {
 export function useUpdateCohortConfig() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: async (input: { minWeeklyHours?: number; performanceThreshold?: number }) => {
+    mutationFn: async (input: {
+      minWeeklyHours?: number;
+      performanceThreshold?: number;
+      weightIndustry?: number;
+      weightUniversity?: number;
+      weightReport?: number;
+      weightLogbook?: number;
+    }) => {
       const r = await api.patch<{ data: CohortConfig }>('/coordinator/cohort-config', input);
       return r.data.data;
     },
     onSuccess: (data) => {
       qc.setQueryData(['coordinator', 'cohort-config'], data);
       // The threshold drives the coordinator at-risk derivation; the hours drive
-      // the intern attendance tile — refresh both surfaces.
+      // the intern attendance tile; the weights drive final-grade aggregation —
+      // refresh the affected surfaces.
       qc.invalidateQueries({ queryKey: ['student', 'dashboard'] });
       qc.invalidateQueries({ queryKey: ['coordinator'] });
+      qc.invalidateQueries({ queryKey: ['grade'] });
     },
   });
 }
