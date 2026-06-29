@@ -7,6 +7,7 @@ import {
   useAssignedPlacements, type Placement, type FinalizationStatus,
 } from '@/hooks/usePlacements';
 import { ObjectivesPanel } from '@/components/objectives/ObjectivesPanel';
+import { GradePanel } from '@/components/grades/GradePanel';
 import { useEntries, type LogbookEntry, type EntryStatus } from '@/hooks/useEntries';
 import {
   useRecordAssessment, useFinalizePlacement, useInviteAttestation,
@@ -257,6 +258,9 @@ function FinalizationDetail({ placement }: { placement: Placement }) {
 
       {/* Learning objectives — define + track per-objective progress */}
       <ObjectivesPanel placementId={placement.id} canDefine={!isFinalized} />
+
+      {/* Final-grade component scores (own three only) */}
+      <GradePanel placementId={placement.id} />
 
       {/* Weekly resolution */}
       <div className="rounded-xl border border-[var(--h-e2e6ef)] bg-[var(--h-ffffff)] p-5">

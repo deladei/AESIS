@@ -1,6 +1,7 @@
 import { Loader2, Award, Lock, FileText, Building2, Star, CheckCircle2 } from 'lucide-react';
 import { useMyPlacements } from '@/hooks/usePlacements';
 import { useFinalAssessment } from '@/hooks/useFinalization';
+import { GradePanel } from '@/components/grades/GradePanel';
 
 const RECOMMENDATION_LABEL: Record<string, string> = {
   pass: 'Pass', distinction: 'Distinction', resit: 'Resit', fail: 'Fail',
@@ -31,8 +32,10 @@ export default function FinalAssessment() {
   // No placement, or the gated endpoint denied (not finalized yet) → locked state.
   if (!placement || isError || !data) {
     return (
-      <div className="mx-auto max-w-3xl p-6">
-        <h1 className="mb-4 text-xl font-bold text-[var(--h-0b1c30)]">Final Assessment</h1>
+      <div className="mx-auto max-w-3xl space-y-4 p-6">
+        <h1 className="text-xl font-bold text-[var(--h-0b1c30)]">Final Assessment</h1>
+        {/* Released final grade is independent of finalization — show it if there is one. */}
+        {placement && <GradePanel placementId={placement.id} />}
         <div className="flex items-start gap-3 rounded-xl bg-[var(--h-f3f3f7)] p-8 text-[var(--h-444653)]">
           <Lock className="mt-0.5 h-5 w-5 shrink-0 text-[var(--h-15157d)]" />
           <div>
@@ -78,6 +81,9 @@ export default function FinalAssessment() {
           </p>
         )}
       </section>
+
+      {/* Released overall grade (/100), separate from the finalization sign-off above. */}
+      <GradePanel placementId={placement.id} />
 
       {/* Evaluation */}
       {data.evaluation && (data.evaluation.criteria.length > 0 || data.evaluation.recommendation) && (

@@ -3,6 +3,7 @@ import {
   ArrowLeft, Loader2, AlertCircle, Mail, Building2, CalendarDays, GraduationCap, MessageSquare, Shield, Flag,
 } from 'lucide-react';
 import { useInternDetail } from '@/hooks/useDashboard';
+import { GradePanel } from '@/components/grades/GradePanel';
 
 const STATUS_CLS: Record<string, string> = {
   submitted:    'bg-[var(--h-e1e8ff)] text-[var(--h-15157d)]',
@@ -143,6 +144,9 @@ export default function InternDetail() {
           </div>
         )}
       </div>
+
+      {/* Final grade */}
+      {placementId && <div className="mt-4"><GradePanel placementId={placementId} /></div>}
 
       <div className="mt-4 grid grid-cols-1 gap-4 lg:grid-cols-2">
         {/* Feedback */}

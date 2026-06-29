@@ -1,0 +1,83 @@
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { api } from '@/lib/api';
+
+// The four weighted components of the final grade. Mirrors modules/grades.
+export const GRADE_COMPONENTS = ['industry', 'university', 'report', 'logbook'] as const;
+export type GradeComponent = (typeof GRADE_COMPONENTS)[number];
+
+export type GradeStatus = 'draft' | 'approved' | 'released';
+
+export interface GradeComponentCell {
+  raw:      number | null;
+  weighted: number | null;
+}
+
+// The serializer (grades.policy.serializeGrade) returns a role-filtered subset.
+// This is the union of all three shapes; fields a given role can't see are
+// simply absent. The component reads only what its role is allowed.
+export interface GradeView {
+  status:   GradeStatus;
+  released: boolean;
+  // coordinator/admin: all four; supervisor: university/report/logbook only.
+  components?: Partial<Record<GradeComponent, GradeComponentCell>>;
+  // coordinator/admin only.
+  total?:               number | null;
+  coordinatorOverride?: number | null;
+  overrideReason?:      string | null;
+  effectiveTotal?:      number | null;
+  signedOffAt?:         string | null;
+  releasedAt?:          string | null;
+}
+
+const gradeKey = (placementId: string) => ['grade', placementId] as const;
+
+export function useGrade(placementId: string | undefined) {
+  return useQuery({
+    queryKey: gradeKey(placementId ?? 'none'),
+    enabled:  !!placementId,
+    queryFn:  async () => {
+      const r = await api.get<{ data: GradeView }>(`/grades/${placementId}`);
+      return r.data.data;
+    },
+  });
+}
+
+// All mutations write the returned (role-filtered) view straight into the cache.
+function useGradeMutation<TArgs>(
+  placementId: string,
+  fn: (args: TArgs) => Promise<GradeView>,
+) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: fn,
+    onSuccess:  (view) => qc.setQueryData(gradeKey(placementId), view),
+  });
+}
+
+export function useScoreComponent(placementId: string) {
+  return useGradeMutation(placementId, async (input: { component: GradeComponent; raw: number }) => {
+    const r = await api.post<{ data: GradeView }>(`/grades/${placementId}/component`, input);
+    return r.data.data;
+  });
+}
+
+export function useAggregateGrade(placementId: string) {
+  return useGradeMutation<void>(placementId, async () => {
+    const r = await api.post<{ data: GradeView }>(`/grades/${placementId}/aggregate`);
+    return r.data.data;
+  });
+}
+
+export function useOverrideGrade(placementId: string) {
+  return useGradeMutation(placementId, async (input: { total: number; reason: string }) => {
+    const r = await api.patch<{ data: GradeView }>(`/grades/${placementId}/override`, input);
+    return r.data.data;
+  });
+}
+
+export function useReleaseGrade(placementId: string) {
+  return useGradeMutation<void>(placementId, async () => {
+    const r = await api.post<{ data: GradeView }>(`/grades/${placementId}/release`);
+    return r.data.data;
+  });
+}
