@@ -2282,4 +2282,15 @@ UPDATE "entry_event" SET "to_status"='returned' WHERE "to_status"='rejected';
 ```
 Then Manual Deploy → `db push` succeeded ("database is now in sync"), syncing **all** S57–S61 additive schema (region, attachments, gender/index, final_grades, grade_industry_token) in one shot. Service live. Verified: `/api/v1/grade-invite/<bad>` now returns `"Invalid scoring link"` (controller), not `"Route not found"` (global 404). **Batch B confirmed live.**
 
-**⚠️ Standing infra gotcha (NEW):** prod start = `prisma db push --accept-data-loss`, NOT `migrate deploy`. So (a) migration files don't run on prod — only `schema.prisma` matters; (b) any future enum-value removal / column drop will fail or silently data-lose unless you backfill the affected rows on Neon **before** deploying. Proper fix (S60 carryover) = switch start command to `migrate deploy` + baseline prod `_prisma_migrations`. Until then, treat `schema.prisma` as the prod contract and pre-clear data for any destructive diff.
+**⚠️ Standing infra gotcha (NEW):** prod start = `prisma db push --accept-data-loss`, NOT `migrate deploy`. So (a) migration files don't run on prod — only `schema.prisma` matters; (b) any future enum-value removal / column drop will fail or silently data-lose unless you backfill the affected rows on Neon **before** deploying. Proper fix (S60 carryover) = switch start command to `migrate deploy` + baseline prod `_prisma_migrations`. Until then, treat `schema.prisma` as the prod contract and pre-clear data for any destructive diff. **→ RESOLVED same session, see "Migration mechanism fix" below.**
+
+**Migration mechanism fix (same session, 2026-06-29) — RESOLVED the gotcha above.**
+Switched prod off `db push` onto proper `prisma migrate deploy`:
+1. **Diagnosed:** `prisma migrate status` against prod Neon showed `_prisma_migrations` empty — all 15 migrations "not yet applied", but the schema was already fully built by `db push`. So a naive switch to `migrate deploy` would have re-run every migration against existing objects and failed.
+2. **Baselined:** marked all 15 migration dirs as already-applied with `npx prisma migrate resolve --applied <name>` (writes `_prisma_migrations` rows only, runs **no** SQL). `migrate status` → "Database schema is up to date!".
+3. **Switched start command** in the Render dashboard: `npx prisma db push --accept-data-loss && node dist/server.js` → **`npx prisma migrate deploy && node dist/server.js`** (now matches `render.yaml`).
+4. **Redeployed + verified:** deploy log shows `migrate deploy` → "15 migrations found" → **"No pending migrations to apply."** → service live. Health 200, `/grade-invite` live.
+
+**Net:** prod now uses standard migration flow. Going forward — author normal Prisma migrations (`migrate dev` locally), commit, push; Render `migrate deploy` applies them in order. No more `--accept-data-loss`; destructive changes go through reviewed migration SQL with data backfills (as the files already do). The db-push backfill landmine is closed.
+
+**Note:** prod `DATABASE_URL` (Neon) was shared with the assistant to run the baseline from the dev box. Rotate it (already on the S58 secret-rotation queue). Neon free tier idle-suspends → direct `prisma` connects from a laptop may throw transient `P1001`; the live app connects via the pooler and is unaffected.
