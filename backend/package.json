@@ -19,6 +19,7 @@
     "db:studio": "prisma studio",
     "db:seed": "ts-node src/config/seed.ts",
     "db:backfill-quality": "ts-node src/config/backfill-quality-scores.ts",
+    "db:backfill-region": "ts-node src/config/backfill-placement-region.ts",
     "db:generate": "prisma generate"
   },
   "dependencies": {

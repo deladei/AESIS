@@ -48,6 +48,21 @@ services:
         value: noreply@aesis.cs.edu
       - key: EMAIL_FROM_NAME
         value: AESIS System
+      # Cloudinary is the LIVE object store for logbook/entry attachments
+      # (config/cloudinary.ts + modules/entries/attachments.service.ts). All
+      # three are optional so dev/test boot without them; when unset the upload
+      # route returns 503 (isCloudinaryConfigured) rather than silently dropping
+      # files. Set the real values in the dashboard (sync:false).
+      - key: CLOUDINARY_CLOUD_NAME
+        sync: false
+      - key: CLOUDINARY_API_KEY
+        sync: false
+      - key: CLOUDINARY_API_SECRET
+        sync: false
+      # LEGACY / UNUSED — the AWS_* vars below predate the Cloudinary switch and
+      # are referenced nowhere but env.ts (no aws-sdk in the tree). Kept declared
+      # (optional) so a blueprint sync doesn't churn the dashboard; safe to drop
+      # once confirmed no external tooling reads them.
       - key: AWS_BUCKET
         sync: false
       - key: AWS_REGION
@@ -58,6 +73,10 @@ services:
         sync: false
       - key: FRONTEND_URL
         sync: false
+      # Magic-link industry-score token lifetime (hours). Defaults to 336 (14d)
+      # in env.ts; declared here so the prod TTL is visible in the blueprint.
+      - key: INDUSTRY_SCORE_TOKEN_TTL_HOURS
+        value: "336"
       - key: SENTRY_DSN
         sync: false
       # Weekly logbook grades are binding: a 0–100 score is required to
