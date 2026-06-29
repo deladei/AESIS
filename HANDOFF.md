@@ -2222,3 +2222,24 @@ VERIFIED: `npx tsc --noEmit` clean; `vite build` green (26s).
 1. All S58 user-action queue still open (Cloudinary vars, secret rotation, migrate baseline Part B, legacy region backfill).
 2. Logbook still has no per-week deep-link from `WeeklyLogbookTable` (dashboard) into the editor — link goes to `/student/logbook` generically; could pass `?week=` to preselect. Carried from S55 #2.
 3. Autosave is fail-silent by design (manual Save surfaces errors); if prod shows silent-save confusion, consider a subtle error toast on autosave failure.
+
+### Session 60 — 2026-06-29 — Final-grade spine (Batch A, backend-only, commit `01797fb`, pushed prod)
+
+**Ask.** Resume S60 WIP on disk (uncommitted): a unified, confidential, audited final-grade backbone. Caveman mode.
+
+**State found.** Module + migration + tests were already authored on disk, uncommitted (last commit was `5dc588a` logbook autosave fix, post-S59). Verified end-to-end and shipped.
+
+**Shipped (`backend/src/modules/grades/` + schema + migration `20260628120000_final_grade_spine`).**
+- **DB (additive / CREATE-only — respects the hard rule):** new `GradeStatus` enum (`draft|approved|released`); new `FinalGrade` model — ONE row per placement (`@unique placementId`), four nullable component raw scores (`industryRaw|universityRaw|reportRaw|logbookRaw`, 0–100) + their weighted contributions + `total` + `coordinatorOverride`/`overrideReason` + status/signoff/release stamps; four `CohortConfig` weight cols (`weight_industry|university|report 30, logbook 10`, sum 100, `ADD COLUMN IF NOT EXISTS` w/ defaults); 5 new `AuditAction` values. Migration uses `ADD VALUE IF NOT EXISTS` / `CREATE TYPE`-guarded / `CREATE TABLE IF NOT EXISTS` → safe replay on Neon.
+- **Confidentiality = single enforcement point** (`grades.policy.ts` `serializeGrade`, no RLS): coordinator/admin see everything; assigned academic supervisor sees **own 3 components only — NEVER industry, NEVER the total** (would let them back-derive the hidden industry contribution); student sees the **total only, only once `released`**, no breakdown ever. Access asserts: `assertCanReadGrade`, `assertCanScoreComponent` (supervisor blocked from `industry`), `assertCanManageGrade` (aggregate/override/release = coordinator/admin only).
+- **Service lifecycle:** `scoreComponent` (upsert one raw; **reverts approved→draft** + clears aggregate/signoff when a component changes; 409 locked once released), `aggregateGrade` (weight math `raw/100*weight`, round2, draft→approved + sign-off; 409 lists missing components), `overrideGrade` (reason mandatory, requires approved), `releaseGrade` (approved→released, terminal). **Every write audited** to `audit_logs` (`final_grade` entityType).
+- **Routes** (`/api/v1/grades`, authenticated): `GET /:id`, `POST /:id/component`, `POST /:id/aggregate`, `POST /:id/release`, `PATCH /:id/override`. Wired in `app.ts`.
+
+**Verification.** `prisma generate` OK; backend `tsc --noEmit` clean; `grades.service` Jest **18/18** (weight math, default-weight fallback, missing-component 409, supervisor-forbidden aggregate, full confidentiality matrix, component scoring + approved→draft revert + released lock, override reason/gating, release gating). Committed + pushed `main` → Render auto-deploy (migration applies via `prisma migrate deploy`).
+
+**Stopped here — follow-ups.**
+1. **Verify the migration applied on Render** deploy log (`20260628120000_final_grade_spine`) — confirms `final_grades` table + weight cols + enum on Neon.
+2. **Batch B — industry score channel:** the company-supervisor (industry) score is interim coordinator-entered; the tokenised company-supervisor submission channel is NOT built yet (policy already names it).
+3. **No frontend yet** — spine is backend-only. Needs: coordinator grade console (enter components / aggregate / override / release), supervisor component entry (own 3), student released-total view.
+4. **No router/integration test** for the grade endpoints (service unit-tested only; `itdb` suites can't run without reachable Postgres on this box).
+5. Carried (S58): Cloudinary vars on Render; rotate 4 secrets; migrate baseline Part B; legacy region backfill; render.yaml blueprint-sync items; per-week logbook deep-link (S55 #2).
