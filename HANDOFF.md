@@ -2294,3 +2294,29 @@ Switched prod off `db push` onto proper `prisma migrate deploy`:
 **Net:** prod now uses standard migration flow. Going forward — author normal Prisma migrations (`migrate dev` locally), commit, push; Render `migrate deploy` applies them in order. No more `--accept-data-loss`; destructive changes go through reviewed migration SQL with data backfills (as the files already do). The db-push backfill landmine is closed.
 
 **Note:** prod `DATABASE_URL` (Neon) was shared with the assistant to run the baseline from the dev box. Rotate it (already on the S58 secret-rotation queue). Neon free tier idle-suspends → direct `prisma` connects from a laptop may throw transient `P1001`; the live app connects via the pooler and is unaffected.
+
+### Session 62 — 2026-06-29 — Carried grade follow-ups: logbook deep-link, endpoint verify, console polish, configurable weights
+
+**Ask.** Work through the carried grade/logbook items "least → biggest" in one session.
+
+**1. Logbook per-week deep-link (S55 #2) — commit `a4c3799`.** `WeeklyLogbookTable` per-row Edit/View now links `/student/logbook?week=N`; `LogbookEditor` reads `?week=` (via `useSearchParams`) to preselect that week, falling back to the latest week when absent/out-of-range. Frontend tsc clean.
+
+**2. Grade endpoints live-verify.** Confirmed Batch A+B reachable on prod at the routing layer: all 5 authenticated `/grades/*` routes return 401 (mounted, auth-guarded) — not 404 — and `/grade-invite/:token` returns the controller's "Invalid scoring link". Schema presence already confirmed via `migrate status` (final_grade_spine + grade_industry_token tracked). Full data-level test (real coordinator login) still not done — needs a prod credential.
+
+**3. Grade console polish — commit `bfce01f`.** `GradePanel` already met the SaaS bar (no ALL-CAPS, no fake-CTA chips, null-guarded `fmtScore`, zero-states). Added the one real gap: each `ComponentRow` now shows its serializer-provided **weighted contribution** ("· contributes X to total") so the aggregate is transparent without hardcoding cohort weights; component labels switched to `<label htmlFor>` (a11y). tsc + vite build clean.
+
+**4. Coordinator-configurable final-grade weights — commit `4bc3a83`.** Approved-then-built. Extended the existing `/coordinator/cohort-config` endpoint (no new route, **no migration** — `CohortConfig.weight*` cols already existed):
+- `updateCohortConfigSchema`: 4 weight fields (int 0–100), all-or-nothing + must sum to exactly 100 (never leaves aggregation partial/invalid). Non-weight settings stay independently optional.
+- `getActiveCohortConfig` / `updateActiveCohortConfig`: read + write the weights through; controller already passes parsed input through unchanged.
+- Tests: weight write-through + schema validation (sum≠100, partial set, empty payload) — **coordinator cohort-config 11/11**.
+- Frontend: `CohortSettings` "Final-grade weights" card (4 inputs, live total-to-100 indicator, Save gated on valid+dirty, "future aggregations only" note); `useUpdateCohortConfig` accepts weights + invalidates the `grade` cache.
+
+**Semantics:** weight changes affect **future** aggregations only — `released` grades immutable, signed-off `draft` grades recompute on next Aggregate.
+
+**Verification.** Backend tsc clean; coordinator cohort-config Jest 11/11 (full coordinator suite times out on this weak box — ran the cohort-config describes by name filter, per CLAUDE.md `--runInBand`). Frontend tsc + vite build clean. All four commits pushed `main`; backend redeploys via `migrate deploy` (no new migration → "No pending migrations to apply").
+
+**Stopped here — follow-ups.**
+1. **Rotate prod `DATABASE_URL`** (shared in chat S61) — top priority, on the S58 queue. Was offered this session; user deferred.
+2. Full data-level grade test with a real coordinator login (route+schema proven; end-to-end read not yet exercised on prod).
+3. Carried (S58): Cloudinary vars; rotate the other 3 secrets; migrate baseline Part B — **DONE this cycle** (S61 baseline + migrate-deploy switch); legacy region backfill; render.yaml blueprint-sync items.
+4. Possible next grade features (menu, not started): final-grade audit-log view; bulk release across a cohort.
