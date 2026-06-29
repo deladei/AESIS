@@ -2269,3 +2269,17 @@ VERIFIED: `npx tsc --noEmit` clean; `vite build` green (26s).
 2. **Still no router/integration test** for grade endpoints (service unit-tested only; `itdb` suites need reachable Postgres — can't run on this box). Carried from S60 #4.
 3. **Remaining grade frontend** (S60 #3): coordinator full grade console (aggregate/override/release UI beyond the invite control), academic-supervisor own-3-component entry, student released-total view — GradePanel exists but full role-scoped flows not all wired/verified.
 4. Carried (S58): Cloudinary vars; rotate 4 secrets; migrate baseline Part B; legacy region backfill; render.yaml blueprint-sync items; per-week logbook deep-link (S55 #2).
+
+**Deploy resolution (same session, 2026-06-29).** Batch B route was still 404 on prod after push. Render logs showed the backend **crash-looping at start since 2026-06-23 (S57)** — meaning *no backend change S57→S61 had reached prod*. Two root causes:
+- **Prod start command diverges from `render.yaml`.** `render.yaml` says `npx prisma migrate deploy && node dist/server.js`, but the Render dashboard start command is actually **`npx prisma db push --accept-data-loss && node dist/server.js`**. The dashboard value wins. `db push` ignores migration files — it force-diffs `schema.prisma` against Neon, so the S57 migration's data-preserving backfill never ran.
+- **S57 `EntryStatus` enum narrowing** (drop `rejected`) failed under `db push` because prod still had `rejected` rows: `invalid input value for enum "EntryStatus_new": "rejected"` → exit 1 → Render kept the last good (pre-S57) build live.
+
+**Fix applied (user ran, no prod creds on this box):** manually ran the S57 migration's blessed backfill on Neon (`neondb`):
+```sql
+UPDATE "logbook_entry" SET "status"='returned' WHERE "status"='rejected';
+UPDATE "entry_event" SET "from_status"='returned' WHERE "from_status"='rejected';
+UPDATE "entry_event" SET "to_status"='returned' WHERE "to_status"='rejected';
+```
+Then Manual Deploy → `db push` succeeded ("database is now in sync"), syncing **all** S57–S61 additive schema (region, attachments, gender/index, final_grades, grade_industry_token) in one shot. Service live. Verified: `/api/v1/grade-invite/<bad>` now returns `"Invalid scoring link"` (controller), not `"Route not found"` (global 404). **Batch B confirmed live.**
+
+**⚠️ Standing infra gotcha (NEW):** prod start = `prisma db push --accept-data-loss`, NOT `migrate deploy`. So (a) migration files don't run on prod — only `schema.prisma` matters; (b) any future enum-value removal / column drop will fail or silently data-lose unless you backfill the affected rows on Neon **before** deploying. Proper fix (S60 carryover) = switch start command to `migrate deploy` + baseline prod `_prisma_migrations`. Until then, treat `schema.prisma` as the prod contract and pre-clear data for any destructive diff.
