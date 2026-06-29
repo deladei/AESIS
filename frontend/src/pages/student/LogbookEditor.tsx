@@ -317,10 +317,7 @@ export default function LogbookEditor() {
   const handleSubmit = async () => {
     const payload = buildPayload();
     if (!payload) return;
-    if (payload.activities.length === 0) {
-      setError('Add at least one activity before submitting this week.');
-      return;
-    }
+    // A week can be submitted with or without activities — no activity gate.
     setError(null);
     try {
       const entry = await saveDraft.mutateAsync(payload); // upsert first, get id
@@ -331,32 +328,8 @@ export default function LogbookEditor() {
     }
   };
 
-  // ── Debounced autosave ──
-  // Fires ~1.6s after the student stops typing, only on genuine edits with real
-  // content. Kills the lost-work risk without a Save click. Manual Save/Submit
-  // still work and reset the same baseline.
-  const hasContent =
-    activities.some((a) => a.description.trim()) || hours.trim() !== '' ||
-    learning.trim() !== '' || challenges.trim() !== '';
-
-  useEffect(() => {
-    if (!editable || busy) return;
-    const current = serializeForm(hours, activities, learning, challenges, supervisorVisible);
-    if (current === baselineRef.current || !hasContent) return;
-    const t = setTimeout(async () => {
-      const payload = buildPayload();
-      if (!payload) return;
-      try {
-        await saveDraft.mutateAsync(payload);
-        baselineRef.current = current;
-        setLastSavedAt(Date.now());
-      } catch {
-        /* silent — manual Save surfaces errors */
-      }
-    }, 1600);
-    return () => clearTimeout(t);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [hours, activities, learning, challenges, supervisorVisible, editable, busy]);
+  // Drafts persist only when the student clicks "Save draft" (handleSave) — no
+  // background autosave. Submitting also persists the current form first.
 
   // ── Derived view data ──
   const days = useMemo(() => (scheduleWeek ? buildDays(scheduleWeek) : []), [scheduleWeek]);
