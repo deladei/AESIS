@@ -2527,3 +2527,21 @@ Switched prod off `db push` onto proper `prisma migrate deploy`:
 1. **⚠️ ROTATE prod `DATABASE_URL`** — overdue.
 2. Reports are **print→PDF** (no server-side PDF lib). A one-click server-generated/branded PDF is the separate "PDF transcript/report" feature (needs a PDF lib, ask-to-add).
 3. Carried: chatbot/AI in-browser verify; risk-pipeline audit; per-day flow verify + itdb; rotate other 3 secrets.
+
+### Session 73 — 2026-06-30 — Admin messaging to interns + schedule a Google Meet call (commit `562f374`, pushed prod)
+
+**Ask.** Messaging in the admin dash: admin → their students, and schedule a voice/video call by sending a Google Meet link to the student's registered email.
+
+**Decisions (with user).** (a) **Meet link = admin pastes** — no Google API in the app; admin creates the room on meet.google.com and pastes the link, the system delivers it (full Calendar-API auto-creation deferred — needs a Google Cloud project + creds). (b) **Recipients = all active interns** — admin is the superuser; there's no admin↔student assignment in the model.
+
+**Shipped (`feat(admin)` `562f374`).** No migration — reuses `createNotification` + the existing `sendEmail` util.
+- **Backend (admin module):** `listMessageableInterns` (active placements → name/email/company), `messageIntern(placementId, body)` (in-app notification **+** email to the registered address; HTML-escaped; email best-effort, the notification is the record), `scheduleCallWithIntern(placementId, {scheduledAt, topic, meetLink})` (notification linking straight to the Meet room **+** email with the time + link). Routes `GET /admin/messaging/recipients`, `POST /admin/messaging/:placementId/message`, `POST /admin/messaging/:placementId/schedule-call`. Tests **8/8** (3 new).
+- **Frontend:** new **Messages** page (`AdminShell` sidebar → Messages, `/admin/messages`) — searchable intern list, a message composer, and a schedule-call form (datetime + topic + Meet link with a **"New Google Meet"** button → opens `meet.google.com/new`). `useAdminMessaging` hooks.
+
+**Verification.** Backend `tsc` + admin tests 8/8; frontend `tsc` + `vite build` clean. Pushed `main` → Render + Vercel.
+
+**Stopped here — follow-ups.**
+1. **⚠️ ROTATE prod `DATABASE_URL`** — overdue.
+2. **Email delivery depends on SendGrid.** `sendEmail` only actually sends when `NODE_ENV=production` **and** `SENDGRID_API_KEY` is set; otherwise it just logs (dev). Set `SENDGRID_API_KEY` (+ `EMAIL_FROM`/`EMAIL_FROM_NAME`) on `aesis-backend` so the message/call emails actually reach students. The **in-app notification always works** regardless.
+3. Optional next: full Google Calendar API integration (auto-create the Meet + calendar invite) — needs a Google Cloud project + service-account/OAuth creds.
+4. Carried: chatbot/AI in-browser verify; risk-pipeline audit; per-day flow verify + itdb; rotate other 3 secrets.
