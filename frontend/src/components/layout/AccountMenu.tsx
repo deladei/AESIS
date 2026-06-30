@@ -3,12 +3,13 @@ import { Link } from 'react-router-dom';
 import { Settings, LogOut, ShieldCheck, UserRound } from 'lucide-react';
 import { useClickOutside } from '@/hooks/useClickOutside';
 import { useAuth } from '@/contexts/AuthContext';
+import { UserAvatar } from './UserAvatar';
 
 /**
  * Account menu (item 21) — avatar/name button opening a dropdown with the
  * coordinator's identity + role, a link to Settings, and Sign out.
  */
-export default function AccountMenu({ user }: { user: { name: string; email: string; initials: string } }) {
+export default function AccountMenu({ user }: { user: { name: string; email: string; initials: string; avatarUrl?: string | null } }) {
   const [open, setOpen] = useState(false);
   const ref = useClickOutside<HTMLDivElement>(() => setOpen(false));
   const { logout } = useAuth();
@@ -24,9 +25,7 @@ export default function AccountMenu({ user }: { user: { name: string; email: str
           <span className="block text-sm font-bold text-[var(--h-15157d)]">{user.name}</span>
           <span className="block text-xs text-[var(--h-757684)]">Head Coordinator</span>
         </span>
-        <span className="flex h-9 w-9 items-center justify-center rounded-full bg-[var(--h-e1e0ff)] text-xs font-semibold text-[var(--h-15157d)]">
-          {user.initials}
-        </span>
+        <UserAvatar avatarUrl={user.avatarUrl} initials={user.initials} name={user.name} />
       </button>
 
       {open && (

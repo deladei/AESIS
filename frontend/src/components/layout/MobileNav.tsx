@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { Link, useLocation } from 'react-router-dom';
 import { cn } from '@/lib/utils';
+import { UserAvatar } from './UserAvatar';
 import { Menu, X, LogOut, GraduationCap } from 'lucide-react';
 
 interface NavItem {
@@ -14,7 +15,7 @@ interface MobileNavProps {
   items: NavItem[];
   /** Per-shell active predicate so shared-href items don't all light up. */
   isActive: (item: NavItem) => boolean;
-  user: { name: string; email: string; initials: string };
+  user: { name: string; email: string; initials: string; avatarUrl?: string | null };
   /** Shown under the user's name; falls back to their email. */
   roleLabel?: string;
   /** Tagline under the AESIS brand in the drawer header. */
@@ -152,9 +153,7 @@ export function MobileNav({
             {/* User + sign out */}
             <div className="border-t border-[var(--h-c7c5d4-30)] p-3">
               <div className="flex items-center gap-3 px-2 py-2">
-                <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-[var(--h-e1e0ff)] text-xs font-semibold text-[var(--h-15157d)]">
-                  {user.initials}
-                </div>
+                <UserAvatar avatarUrl={user.avatarUrl} initials={user.initials} name={user.name} shrink />
                 <div className="min-w-0">
                   <p className="truncate text-sm font-medium text-[var(--h-0b1c30)]">{user.name}</p>
                   <p className="truncate text-xs text-[var(--h-464652)]">{roleLabel ?? user.email}</p>

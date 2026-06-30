@@ -1,5 +1,6 @@
 import { Link, useLocation } from 'react-router-dom';
 import { cn } from '@/lib/utils';
+import { UserAvatar } from './UserAvatar';
 import { useAuth } from '@/contexts/AuthContext';
 import { useUnreadCount } from '@/hooks/useNotifications';
 import { MobileNav } from './MobileNav';
@@ -29,7 +30,7 @@ const navItems: NavItem[] = [
 ];
 
 interface SupervisorShellProps {
-  user: { name: string; email: string; initials: string };
+  user: { name: string; email: string; initials: string; avatarUrl?: string | null };
   children: React.ReactNode;
 }
 
@@ -96,9 +97,7 @@ export function SupervisorShell({ user, children }: SupervisorShellProps) {
         </div>
         <div className="border-t border-[var(--h-c7c5d4-30)] p-3">
           <div className="flex items-center gap-3 px-2 py-2">
-            <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-[var(--h-e1e0ff)] text-xs font-semibold text-[var(--h-15157d)]">
-              {user.initials}
-            </div>
+            <UserAvatar avatarUrl={user.avatarUrl} initials={user.initials} name={user.name} shrink />
             <div className="min-w-0">
               <p className="truncate text-sm font-medium text-[var(--h-0b1c30)]">{user.name}</p>
               <p className="truncate text-xs text-[var(--h-464652)]">Academic Supervisor</p>
@@ -171,9 +170,7 @@ export function SupervisorShell({ user, children }: SupervisorShellProps) {
                 <p className="text-sm font-bold text-[var(--h-15157d)]">{user.name}</p>
                 <p className="text-xs text-[var(--h-464652)]">Academic Supervisor</p>
               </div>
-              <div className="flex h-9 w-9 items-center justify-center rounded-full bg-[var(--h-e1e0ff)] text-xs font-semibold text-[var(--h-15157d)]">
-                {user.initials}
-              </div>
+              <UserAvatar avatarUrl={user.avatarUrl} initials={user.initials} name={user.name} />
             </div>
           </div>
         </header>

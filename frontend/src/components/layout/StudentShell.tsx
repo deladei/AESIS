@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { cn } from '@/lib/utils';
+import { UserAvatar } from './UserAvatar';
 import { useAuth } from '@/contexts/AuthContext';
 import { useUnreadCount } from '@/hooks/useNotifications';
 import { useClickOutside } from '@/hooks/useClickOutside';
@@ -28,7 +29,7 @@ const navItems: NavItem[] = [
 ];
 
 interface StudentShellProps {
-  user: { name: string; email: string; initials: string };
+  user: { name: string; email: string; initials: string; avatarUrl?: string | null };
   children: React.ReactNode;
 }
 
@@ -48,9 +49,7 @@ function AccountDropdown({ user }: { user: StudentShellProps['user'] }) {
           <span className="block text-sm font-bold text-[var(--h-15157d)]">{user.name}</span>
           <span className="block text-xs text-[var(--h-757684)]">Student</span>
         </span>
-        <span className="flex h-9 w-9 items-center justify-center rounded-full bg-[var(--h-e1e0ff)] text-xs font-semibold text-[var(--h-15157d)]">
-          {user.initials}
-        </span>
+        <UserAvatar avatarUrl={user.avatarUrl} initials={user.initials} name={user.name} />
       </button>
 
       {open && (

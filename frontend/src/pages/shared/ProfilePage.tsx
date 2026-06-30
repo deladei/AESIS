@@ -67,6 +67,10 @@ function AvatarUploader({ profile, initials }: { profile: Profile; initials: str
         <span className="absolute inset-0 flex items-center justify-center rounded-full bg-black/40 opacity-0 transition-opacity group-hover:opacity-100">
           {busy ? <Loader2 className="h-5 w-5 animate-spin text-white" /> : <Camera className="h-5 w-5 text-white" />}
         </span>
+        {/* Always-visible badge so it's obvious the avatar is clickable to add/change a picture */}
+        <span className="absolute -bottom-0.5 -right-0.5 flex h-6 w-6 items-center justify-center rounded-full border-2 border-white bg-[var(--h-15157d)] text-white shadow-sm">
+          <Camera className="h-3 w-3" />
+        </span>
       </button>
       <input ref={fileRef} type="file" accept="image/png,image/jpeg,image/webp" className="hidden" onChange={onFile} />
       {profile.avatarUrl && !busy && (
