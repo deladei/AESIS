@@ -2389,3 +2389,20 @@ Switched prod off `db push` onto proper `prisma migrate deploy`:
 2. **In-browser verify on prod** (all creds-gated, user-run): the WS fix (S64); the export CSV download in Cohort Settings; and the already-built grade surfaces end-to-end — supervisor enters own 3 components (PlacementFinalization), coordinator aggregates/overrides/releases (InternDetail), student sees released total (FinalAssessment). Code + unit/router tests prove these; only a real multi-role login on prod is missing.
 3. Carried (S58): rotate the other 3 secrets.
 4. The buildable grade-feature menu is now **exhausted** — remaining grade work is verification, not new code. Next net-new features would need a fresh ask (e.g. per-region grade rollups, grade-distribution analytics on the coordinator dashboard, PDF transcript export).
+
+### Session 66 — 2026-06-29 — Net-new: cohort grade-distribution analytics on the coordinator dashboard (commit `2c7266f`, pushed prod)
+
+**Ask.** Build a net-new grade feature (user picked **grade-distribution analytics** from the S65 menu of three).
+
+**Built — released-grade distribution + summary stats (`feat(grades)` `2c7266f`).** No migration — reads existing tables; authz reuses `assertCanManageGrade`.
+- **Backend:** `getCohortGradeStats(actor, academicYearId)` in `grades.service.ts` — coordinator/admin only (403 supervisor/student), 404 unknown year. Over `status='released'` grades, effective score = `coordinatorOverride ?? total` (null-total guarded out): returns `{ count(n), mean, median, min, max, passRate, bands, distribution }`. `distribution` = ten 0–100 buckets (`[i*10, i*10+10)`, 100 in the last). **Classification bands grounded in the finalization `recommendation` enum** (not an invented cutoff): `BAND_MIN = { distinction 70, pass 50, resit 40, fail 0 }`; `passRate` = share scoring ≥50. **Empty cohort returns nulls** (not zeros) for mean/median/min/max/passRate per the no-impossible-metric hard rule; `count:0`, zeroed distribution. Route `GET /grades/cohort/:academicYearId/stats` (declared with the `/cohort` static group before `/:id`).
+- **Frontend:** `useCohortStats(academicYearId)` standing query (`hooks/useGrade.ts`) + new `components/coordinator/GradeDistributionPanel.tsx` rendered in the coordinator dashboard's left column under the supervisor-workload panel. Shows mean/median/pass-rate/range, a CSS-bar **histogram** (10 buckets, height scaled to the busiest bucket), and a **band legend with explicit thresholds** (Distinction ≥70 / Pass 50–69 / Resit 40–49 / Fail <40 — cutoff never hidden, per the SaaS-polish bar). Year follows the dashboard's existing scope selector (`scopeYearId`), falling back to the **active** year via `useCohortConfig().academicYearId`. Loading / empty-cohort / error states all handled.
+- **Tests:** grades service +4 (full stat math + histogram bucketing; override-as-effective + 100→last bucket; empty→nulls; 404 + 403 supervisor/student) and controller +2 (200 reach + actor/arg passthrough, 400 non-uuid, 401 in the auth sweep). **Grades suites 61/61** (was 55/55 in S65).
+
+**Verification.** Backend `tsc --noEmit` clean + grades 61/61; frontend `tsc --noEmit` + `vite build` clean. Committed + pushed `main` → Render (`migrate deploy`, no new migration) + Vercel auto-deploy.
+
+**Stopped here — follow-ups.**
+1. **⚠️ ROTATE prod `DATABASE_URL`** — still overdue (re-exposed S64). Unchanged, top of the secret queue.
+2. **In-browser verify on prod** (creds-gated): the new Grade Distribution panel on the coordinator dashboard (needs released grades to show non-empty); plus the carried S64/S65 verifications (WS fix, CSV export, the three grade role-surfaces end-to-end).
+3. Carried (S58): rotate the other 3 secrets.
+4. Remaining net-new grade menu (still open, not started): **per-region grade rollups**, **PDF transcript export** (heaviest — needs a PDF lib, ask-to-add). Distribution analytics now done.
