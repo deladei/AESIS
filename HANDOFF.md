@@ -2406,3 +2406,20 @@ Switched prod off `db push` onto proper `prisma migrate deploy`:
 2. **In-browser verify on prod** (creds-gated): the new Grade Distribution panel on the coordinator dashboard (needs released grades to show non-empty); plus the carried S64/S65 verifications (WS fix, CSV export, the three grade role-surfaces end-to-end).
 3. Carried (S58): rotate the other 3 secrets.
 4. Remaining net-new grade menu (still open, not started): **per-region grade rollups**, **PDF transcript export** (heaviest — needs a PDF lib, ask-to-add). Distribution analytics now done.
+
+### Session 67 — 2026-06-29 — Net-new: per-region released-grade rollups on the coordinator dashboard (commit `379bda4`, pushed prod)
+
+**Ask.** Build the next buildable menu item — **per-region grade rollups** (#1 of the two remaining net-new features).
+
+**Built — released grades aggregated by Ghana region (`feat(grades)` `379bda4`).** No migration — reads existing tables + the S64 region backfill; authz reuses `assertCanManageGrade`.
+- **Backend:** `getCohortRegionRollups(actor, academicYearId)` in `grades.service.ts` — coordinator/admin only (403 supervisor/student), 404 unknown year. Buckets `status='released'` grades by `placement.region` (effective score = `coordinatorOverride ?? total`, null-effective skipped); per region returns `{ region, count, mean, passRate (share ≥50, reuses BAND_MIN.pass) }`. **Region-less grades collapse into one `region: null` row** (UI "Unspecified") — reported, never hidden or guessed. Sorted by headcount desc, then region name. Header `count` = sum of region counts. Route `GET /grades/cohort/:academicYearId/regions` (in the `/cohort` static group before `/:id`).
+- **Frontend:** `useCohortRegions(academicYearId)` standing query (`hooks/useGrade.ts`) + new `components/coordinator/RegionRollupPanel.tsx` — a table (Region · Interns · Avg · Pass rate) on the coordinator dashboard's left column under the S66 distribution panel. snake_case region enums rendered Title Case (`greater_accra` → "Greater Accra"); pass-rate colour-toned (≥80 green / ≥50 amber / else red). Year follows the dashboard scope selector, falling back to the active year (`useCohortConfig`). Loading / empty-cohort / error states handled.
+- **Tests:** grades service +3 (per-region count/mean/passRate + headcount sort; override-as-effective + null-region collapse; 404 + 403 supervisor/student) and controller +2 (200 reach + arg passthrough, 400 non-uuid, 401 in the auth sweep). **Grades suites 66/66** (was 61/61 in S66).
+
+**Verification.** Backend `tsc --noEmit` clean + grades 66/66 (note: full grades run is ~175 s on this box — use a ≥280 s timeout, the 150 s default SIGTERMs it); frontend `tsc --noEmit` + `vite build` clean. Committed + pushed `main` → Render (`migrate deploy`, no new migration) + Vercel auto-deploy.
+
+**Stopped here — follow-ups.**
+1. **⚠️ ROTATE prod `DATABASE_URL`** — still overdue (re-exposed S64). Unchanged, top of the secret queue.
+2. **In-browser verify on prod** (creds-gated): the new Grades-by-Region panel + the S66 distribution panel (both need released grades to render non-empty); plus carried S64/S65 verifications.
+3. Carried (S58): rotate the other 3 secrets.
+4. Remaining net-new grade menu: only **PDF transcript export** left (heaviest — needs a PDF lib added, ask-to-add first). Region rollups + distribution analytics + CSV export now all done; the rest of the grade backlog is verification, not code.
