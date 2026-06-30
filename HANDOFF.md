@@ -2448,3 +2448,21 @@ Switched prod off `db push` onto proper `prisma migrate deploy`:
 3. **No itdb integration test for the day flow yet** — `saveDayDraft`/`submitDay` are prisma-coupled (itdb-only, no local Postgres here); only the pure window rule is unit-tested. Add an `entries.integration.test.ts` block (save day → submit day → week rolls to submitted; window-closed 422; day immutable once submitted) on a DB box/CI.
 4. **Per-day scope note:** the day form logs **activities** (the daily unit). Week-level **hours + reflection** from the old editor are not in the new flow — re-add as a per-week summary on the day-grid view if still wanted (deliberately dropped to keep the daily model clean; confirm with user).
 5. Carried: rotate the other 3 secrets; PDF transcript export (needs a PDF lib).
+
+### Session 69 — 2026-06-29 — Coordinator bulk-upload supervisor roster + regions (commit `b05ceb7`, pushed prod)
+
+**Ask.** A place for the coordinator to **upload a supervisors list + their assigned regions**; and when a student registers and picks their region, the system **auto-assigns a supervisor for that region**.
+
+**Finding — the auto-assign half already exists.** Student registration already creates the placement in the same step and auto-assigns a regional supervisor via `placements.service.pickLeastLoadedSupervisor(region)` (load-balanced across supervisors covering that region; falls back to null → the coordinator's "needs supervisor" queue). So the only missing piece was the **roster upload** that populates which supervisor covers which region.
+
+**Built — bulk supervisor roster upload (`feat(coordinator)` `b05ceb7`).** No migration — reuses the existing `User.supervisedRegion` + `academic_supervisor` role.
+- **Backend:** `coordinator.service.bulkCreateSupervisors(coordinatorId, rows)` — for each `{firstName,lastName,email,region}`: creates the `academic_supervisor` in the **coordinator's own department** (resolved from the coordinator's `departmentId` — a required User field) with `supervisedRegion` set, `isVerified:true`, and a **random unusable password** (they set their own via the existing "Forgot password" flow — no email dependency at create time); if the email already exists **as a supervisor** it updates region/name (idempotent re-upload); a **non-supervisor email is skipped**, never overwritten. Returns `{ total, created, updated, skipped, results[] }`. `POST /coordinator/supervisors/bulk` (router already `authorize('coordinator','admin')`). Tests **2/2** (create/update/skip mix asserts dept + verified + region + hashed pw + student-email skipped; 404 missing coordinator). Added `bcrypt`/`crypto` imports + extended the test prisma mock's `user` with findUnique/create/update.
+- **Frontend:** `components/coordinator/SupervisorUploadPanel.tsx` on the **Supervisor Assignments** page (above the per-supervisor region panel). Client-side CSV parse: tolerant of a header row + simple quoted cells; region accepts the **human label** ("Greater Accra") or the enum value, case/space-insensitive (normalized against `lib/regions`). Shows a **validating preview** (per-row ready ✓ / needs-fixing ✗ with the reason), a **downloadable template**, and a created/updated/skipped **result summary** (lists skip reasons). `useBulkCreateSupervisors` hook in `usePlacements.ts`.
+
+**Verification.** Backend `tsc` clean + coordinator-service bulk tests 2/2 (ran by `-t` name filter — the full coordinator suite times out on this box, per CLAUDE.md). Frontend `tsc` + `vite build` clean. Pushed `main` → Render (`migrate deploy`, no new migration) + Vercel.
+
+**Stopped here — follow-ups.**
+1. **⚠️ ROTATE prod `DATABASE_URL`** — still overdue.
+2. **In-browser verify on prod:** upload a small CSV on Supervisor Assignments → supervisors appear with regions; register a test student in that region → confirm they're auto-assigned that supervisor. Creds-gated.
+3. **Uploaded supervisors activate via "Forgot password"** (no invite email is sent on create). If you'd rather they get an email invite/temp link, that's a follow-up (needs SendGrid configured on prod).
+4. Carried: the per-day flow verification + itdb test (S68); rotate the other 3 secrets; PDF transcript export.
