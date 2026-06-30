@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import { Sparkles, Loader2, CheckCircle2, Flag } from 'lucide-react';
+import { Sparkles, Loader2, CheckCircle2, Flag, Search } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { useFeedbackInterns } from '@/hooks/useDashboard';
 import { useMyPlacements } from '@/hooks/usePlacements';
@@ -46,11 +46,21 @@ function ReviewerView() {
   const [selectedId, setSelectedId] = useState<string>('');
   const [rating, setRating] = useState<number | null>(null);
   const [feedbackText, setFeedbackText] = useState('');
+  const [chatSearch, setChatSearch] = useState('');
 
   const selected = useMemo(
     () => interns?.find(i => i.placementId === (selectedId || interns[0]?.placementId)),
     [interns, selectedId],
   );
+
+  const chatMatches = useMemo(() => {
+    const q = chatSearch.trim().toLowerCase();
+    const list = interns ?? [];
+    if (!q) return list;
+    return list.filter(i =>
+      i.name.toLowerCase().includes(q) || (i.company ?? '').toLowerCase().includes(q),
+    );
+  }, [interns, chatSearch]);
 
   const evalStatus = useMemo(() => {
     const total = interns?.length ?? 0;
@@ -158,8 +168,51 @@ function ReviewerView() {
           </p>
         </section>
 
-        {/* Collaborative Chat — live two-way thread with the selected intern */}
+        {/* Collaborative Chat — search an intern, then chat in a live two-way thread */}
         <section className="col-span-12 flex h-[600px] flex-col overflow-hidden rounded-xl border border-[var(--h-c7c5d4-30)] bg-[var(--h-ffffff)] shadow-sm lg:col-span-5">
+          {/* Recipient search + picker */}
+          <div className="shrink-0 border-b border-[var(--h-c7c5d4-30)] p-3">
+            <div className="relative">
+              <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[var(--h-757684)]" />
+              <input
+                type="text"
+                value={chatSearch}
+                onChange={(e) => setChatSearch(e.target.value)}
+                placeholder="Search interns by name or company…"
+                className="w-full rounded-lg border border-[var(--h-c7c5d4)] bg-[var(--h-ffffff)] py-2 pl-9 pr-3 text-sm text-[var(--h-0b1c30)] focus:border-[var(--h-15157d)] focus:outline-none focus:ring-1 focus:ring-[var(--h-15157d)]"
+              />
+            </div>
+            <div className="mt-2 max-h-28 space-y-1 overflow-y-auto">
+              {chatMatches.length === 0 ? (
+                <p className="px-1 py-2 text-xs text-[var(--h-757684)]">No interns match "{chatSearch}".</p>
+              ) : (
+                chatMatches.map((i) => {
+                  const active = i.placementId === selected?.placementId;
+                  return (
+                    <button
+                      key={i.placementId}
+                      onClick={() => setSelectedId(i.placementId)}
+                      className={
+                        active
+                          ? 'flex w-full items-center gap-2 rounded-lg bg-[var(--h-15157d)] px-2.5 py-1.5 text-left text-sm text-white'
+                          : 'flex w-full items-center gap-2 rounded-lg px-2.5 py-1.5 text-left text-sm text-[var(--h-0b1c30)] hover:bg-[var(--h-eff4ff)]'
+                      }
+                    >
+                      <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-[var(--h-e1e0ff)] text-[10px] font-bold text-[var(--h-15157d)]">
+                        {i.name.split(' ').map(p => p[0]).slice(0, 2).join('')}
+                      </span>
+                      <span className="min-w-0 flex-1 truncate">
+                        {i.name}
+                        {i.company && <span className={active ? 'text-[var(--h-c7d0ff)]' : 'text-[var(--h-757684)]'}> · {i.company}</span>}
+                      </span>
+                    </button>
+                  );
+                })
+              )}
+            </div>
+          </div>
+
+          {/* Thread */}
           {selected ? (
             <ChatThread
               placementId={selected.placementId}
@@ -168,8 +221,8 @@ function ReviewerView() {
               disabled={isReadOnlyChat}
             />
           ) : (
-            <div className="flex h-full items-center justify-center p-6 text-center text-sm text-[var(--h-757684)]">
-              Select an intern to start a conversation.
+            <div className="flex flex-1 items-center justify-center p-6 text-center text-sm text-[var(--h-757684)]">
+              Search and pick an intern to start a conversation.
             </div>
           )}
         </section>
