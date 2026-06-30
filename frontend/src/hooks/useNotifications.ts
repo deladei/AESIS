@@ -11,6 +11,7 @@ export interface Notification {
   isRead:    boolean;
   link:      string | null;
   createdAt: string;
+  metadata?: { kind?: string; placementId?: string; senderName?: string } | null;
 }
 
 const KEYS = {

@@ -300,6 +300,7 @@ model User {
   logbookSubmissions          LogbookSubmission[]
   supervisorFeedback          SupervisorFeedback[]
   notifications               Notification[]
+  sentMessages                Message[]            @relation("MessageSender")
   riskScores                  StudentRiskScore[]
   escalationsCreated          RiskEscalation[]     @relation("EscalationCreatedBy")
   refreshTokens               RefreshToken[]
@@ -392,8 +393,27 @@ model Placement {
   companyAttestation  CompanyAttestation?
   learningObjectives  LearningObjective[]
   finalGrade          FinalGrade?
+  messages            Message[]
 
   @@map("placements")
+}
+
+// Two-way mentorship messaging, threaded per placement (the intern is the thread).
+// Participants: the student, their academic supervisor, and admins. Every message
+// fans out an in-app notification (+ socket push, + email to the student) to the
+// other participants so a reply is never missed.
+model Message {
+  id          String    @id @default(uuid())
+  placementId String    @map("placement_id")
+  placement   Placement @relation(fields: [placementId], references: [id], onDelete: Cascade)
+  senderId    String    @map("sender_id")
+  sender      User      @relation("MessageSender", fields: [senderId], references: [id])
+  body        String
+  readAt      DateTime? @map("read_at")
+  createdAt   DateTime  @default(now()) @map("created_at")
+
+  @@index([placementId, createdAt])
+  @@map("messages")
 }
 
 // ─────────────────────────────────────────────

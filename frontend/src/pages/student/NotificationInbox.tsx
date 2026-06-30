@@ -1,8 +1,9 @@
-import { useEffect } from 'react';
-import { Bell, AlertTriangle, MessageSquare, CheckCircle2, FileText, Clock, Loader2 } from 'lucide-react';
+import { useEffect, useState } from 'react';
+import { Bell, AlertTriangle, MessageSquare, CheckCircle2, FileText, Clock, Loader2, Reply, X } from 'lucide-react';
 import { useNotifications, useMarkRead, useMarkAllRead, useUnreadCount } from '@/hooks/useNotifications';
 import { getSocket } from '@/lib/socket';
 import { queryClient } from '@/lib/queryClient';
+import { ChatThread } from '@/components/messaging/ChatThread';
 
 const notifConfig: Record<string, { icon: React.ElementType; iconClass: string; bg: string }> = {
   risk_alert:           { icon: AlertTriangle,  iconClass: 'text-[var(--h-b3261e)]', bg: 'bg-[var(--h-ffe2dc)] border-[var(--h-f5b8ad)]' },
@@ -28,6 +29,8 @@ export default function NotificationInbox() {
   const { data: unread = 0 } = useUnreadCount();
   const markRead    = useMarkRead();
   const markAllRead = useMarkAllRead();
+  // Open reply dialog for a message notification (carries the thread placementId).
+  const [replyTo, setReplyTo] = useState<{ placementId: string; who: string } | null>(null);
 
   // Live push: invalidate list when socket fires
   useEffect(() => {
@@ -101,6 +104,18 @@ export default function NotificationInbox() {
                     {!n.isRead && <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-[var(--h-15157d)]" />}
                   </div>
                   <p className="text-xs leading-relaxed text-[var(--h-64748b)]">{n.body}</p>
+                  {n.metadata?.kind === 'message' && n.metadata.placementId && (
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        if (!n.isRead) markRead.mutate(n.id);
+                        setReplyTo({ placementId: n.metadata!.placementId!, who: n.metadata!.senderName ?? 'your mentor' });
+                      }}
+                      className="mt-2 inline-flex items-center gap-1.5 rounded-lg border border-[var(--h-bcc8ff)] bg-[var(--h-ffffff)] px-2.5 py-1 text-xs font-semibold text-[var(--h-15157d)] hover:bg-[var(--h-eef2ff)]"
+                    >
+                      <Reply className="h-3.5 w-3.5" /> Reply
+                    </button>
+                  )}
                 </div>
                 <span className="mt-0.5 shrink-0 whitespace-nowrap text-xs text-[var(--h-94a3b8)]">
                   {formatDate(n.createdAt)}
@@ -108,6 +123,29 @@ export default function NotificationInbox() {
               </div>
             );
           })}
+        </div>
+      )}
+
+      {/* Reply dialog — same two-way thread used in the Feedback Center */}
+      {replyTo && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"
+          onClick={() => setReplyTo(null)}
+        >
+          <div
+            className="flex h-[600px] w-full max-w-lg flex-col overflow-hidden rounded-2xl bg-[var(--h-ffffff)] shadow-2xl"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between border-b border-[var(--h-c7c5d4-30)] px-4 py-3">
+              <h3 className="text-sm font-bold text-[var(--h-15157d)]">Reply to {replyTo.who}</h3>
+              <button onClick={() => setReplyTo(null)} className="text-[var(--h-757684)] hover:text-[var(--h-0b1c30)]" aria-label="Close">
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+            <div className="min-h-0 flex-1">
+              <ChatThread placementId={replyTo.placementId} />
+            </div>
+          </div>
         </div>
       )}
     </div>

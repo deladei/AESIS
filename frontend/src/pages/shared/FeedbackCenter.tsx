@@ -1,11 +1,10 @@
 import { useMemo, useState } from 'react';
-import {
-  Sparkles, Send, Paperclip, Video, MoreVertical, Loader2, CheckCircle2, Flag,
-} from 'lucide-react';
+import { Sparkles, Loader2, CheckCircle2, Flag } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { useFeedbackInterns } from '@/hooks/useDashboard';
 import { useMyPlacements } from '@/hooks/usePlacements';
 import { useSubmissions, useSubmitFeedback } from '@/hooks/useLogbook';
+import { ChatThread } from '@/components/messaging/ChatThread';
 
 /**
  * Feedback & Mentorship Center — wired to live data.
@@ -15,19 +14,12 @@ import { useSubmissions, useSubmitFeedback } from '@/hooks/useLogbook';
  * evaluation status, and a Formal Evaluation that posts real supervisor
  * feedback via /logbook/submissions/:id/feedback.
  *
- * Student mode: read-only view of the feedback they've received.
+ * Student mode: the feedback they've received plus a live message thread.
  *
- * The Collaborative Chat panel has no messaging backend yet, so it renders a
- * labelled "Sample" placeholder.
+ * The Collaborative Chat panel is a real two-way thread (per placement) — see
+ * ChatThread / useMessages. Both sides can reply; messages fan out as
+ * notifications (+ email to the student).
  */
-
-function SampleBadge() {
-  return (
-    <span className="rounded-full bg-[var(--h-712ae2-10)] px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-[var(--h-712ae2)]">
-      Sample
-    </span>
-  );
-}
 
 function Spinner() {
   return (
@@ -46,6 +38,8 @@ export default function FeedbackCenter() {
 // ── Reviewer (supervisor / admin / coordinator) ────────────────
 
 function ReviewerView() {
+  const { user } = useAuth();
+  const isReadOnlyChat = user?.role === 'coordinator';
   const { data: interns, isLoading, isError } = useFeedbackInterns();
   const submitFeedback = useSubmitFeedback();
 
@@ -164,43 +158,20 @@ function ReviewerView() {
           </p>
         </section>
 
-        {/* Collaborative Chat (no backend yet) */}
+        {/* Collaborative Chat — live two-way thread with the selected intern */}
         <section className="col-span-12 flex h-[600px] flex-col overflow-hidden rounded-xl border border-[var(--h-c7c5d4-30)] bg-[var(--h-ffffff)] shadow-sm lg:col-span-5">
-          <div className="flex items-center justify-between border-b border-[var(--h-c7c5d4-30)] bg-[var(--h-eff4ff)] p-4">
-            <div className="flex items-center gap-3">
-              <div className="flex h-10 w-10 items-center justify-center rounded-full bg-[var(--h-e1e0ff)] text-xs font-bold text-[var(--h-15157d)]">
-                {(selected?.name ?? 'AM').split(' ').map(p => p[0]).slice(0, 2).join('')}
-              </div>
-              <div>
-                <h4 className="text-sm font-semibold text-[var(--h-0b1c30)]">{selected?.name ?? 'Intern'}</h4>
-                <p className="text-xs text-[var(--h-464652)]">{selected?.company ?? 'Mentorship chat'}</p>
-              </div>
+          {selected ? (
+            <ChatThread
+              placementId={selected.placementId}
+              title={selected.name}
+              subtitle={selected.company ?? 'Mentorship chat'}
+              disabled={isReadOnlyChat}
+            />
+          ) : (
+            <div className="flex h-full items-center justify-center p-6 text-center text-sm text-[var(--h-757684)]">
+              Select an intern to start a conversation.
             </div>
-            <div className="flex items-center gap-2">
-              <SampleBadge />
-              <button className="rounded-full p-2 text-[var(--h-464652)] hover:bg-[var(--h-dce9ff)]"><Video className="h-5 w-5" /></button>
-              <button className="rounded-full p-2 text-[var(--h-464652)] hover:bg-[var(--h-dce9ff)]"><MoreVertical className="h-5 w-5" /></button>
-            </div>
-          </div>
-          <div className="flex-grow space-y-4 overflow-y-auto bg-[var(--h-f8f9ff-50)] p-4">
-            <div className="flex max-w-[85%] gap-3">
-              <div className="rounded-2xl rounded-tl-none bg-[var(--h-dce9ff)] p-3">
-                <p className="text-sm text-[var(--h-0b1c30)]">Hi! I've just finished the responsive grid for the analytics page. Would love a quick review.</p>
-                <span className="mt-1 block text-[10px] text-[var(--h-464652)]">10:24 AM</span>
-              </div>
-            </div>
-            <div className="ml-auto flex max-w-[85%] justify-end gap-3">
-              <div className="rounded-2xl rounded-tr-none bg-[var(--h-15157d)] p-3 text-white shadow-sm">
-                <p className="text-sm">Great work — I'll take a look before our sync. The spacing looks much better.</p>
-                <span className="mt-1 block text-right text-[10px] text-[var(--h-9da1ff)]">10:45 AM</span>
-              </div>
-            </div>
-          </div>
-          <div className="flex items-center gap-2 border-t border-[var(--h-c7c5d4-30)] p-4">
-            <button disabled className="rounded-full p-2 text-[var(--h-464652)] opacity-50"><Paperclip className="h-5 w-5" /></button>
-            <input type="text" disabled placeholder="Messaging coming soon…" className="flex-grow rounded-full border-none bg-[var(--h-eff4ff)] px-4 py-2 text-sm focus:outline-none" />
-            <button disabled className="rounded-full bg-[var(--h-15157d)] p-2 text-white opacity-50"><Send className="h-5 w-5" /></button>
-          </div>
+          )}
         </section>
 
         {/* Formal Evaluation */}
@@ -298,8 +269,17 @@ function StudentView() {
     <div className="mx-auto max-w-[1440px] p-6 md:p-8">
       <header className="mb-6">
         <h1 className="text-2xl font-bold text-[var(--h-15157d)]">Your Feedback</h1>
-        <p className="text-sm text-[var(--h-464652)]">AI summaries and supervisor feedback on your logbook submissions.</p>
+        <p className="text-sm text-[var(--h-464652)]">AI summaries, supervisor feedback, and messages from your mentors.</p>
       </header>
+
+      {/* Live chat with your supervisor / admin team — reply to any message here */}
+      <section className="mb-6 flex h-[480px] flex-col overflow-hidden rounded-xl border border-[var(--h-c7c5d4-30)] bg-[var(--h-ffffff)] shadow-sm">
+        <ChatThread
+          placementId={placementId}
+          title="Messages"
+          subtitle="Your supervisor & admin team"
+        />
+      </section>
 
       {withFeedback.length === 0 ? (
         <p className="rounded-xl border border-[var(--h-c7c5d4-30)] bg-[var(--h-ffffff)] p-8 text-center text-sm text-[var(--h-464652)]">

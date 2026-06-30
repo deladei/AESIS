@@ -12,6 +12,7 @@ import companiesRouter     from './modules/placements/companies.router';
 import logbookRouter       from './modules/logbook/logbook.router';
 import entriesRouter       from './modules/entries/entries.router';
 import objectivesPlacementRouter from './modules/objectives/objectives.placement.router';
+import messagesRouter      from './modules/messages/messages.router';
 import objectivesEntryRouter     from './modules/objectives/objectives.entry.router';
 import finalizationRouter  from './modules/finalization/finalization.router';
 import attestPublicRouter  from './modules/finalization/attestation.public.router';
@@ -83,6 +84,7 @@ export function createApp() {
   app.use('/api/v1/placements',    placementsRouter);
   app.use('/api/v1/placements',    finalizationRouter); // assessment / finalize / attestation invite
   app.use('/api/v1/placements',    objectivesPlacementRouter); // learning objectives (define/list)
+  app.use('/api/v1/placements',    messagesRouter); // two-way mentorship messaging thread
   app.use('/api/v1/companies',     companiesRouter);
   app.use('/api/v1/logbook',       logbookRouter);
   app.use('/api/v1/entries',       entriesRouter);
