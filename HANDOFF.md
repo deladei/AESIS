@@ -2346,3 +2346,27 @@ Switched prod off `db push` onto proper `prisma migrate deploy`:
 4. Full data-level grade test with a real coordinator login (route+schema+router proven; end-to-end read still not exercised on prod). Carried.
 5. Carried (S58): rotate the other 3 secrets.
 6. Possible next grade features (menu): per-cohort released-grade export/report; the academic-supervisor own-3-component flow + student released-total view end-to-end verification (GradePanel surfaces exist, not all role flows verified on prod).
+
+### Session 64 — 2026-06-29 — Prod break/fix pass: Cloudinary uploads, logbook submit rules, socket origin, region backfill (commits `dc6fd49`, `0f3612b`, pushed prod)
+
+**Ask.** Work the carried infra items (#2 Cloudinary, #3 region backfill), then fix two prod-reported bugs surfaced live: logbook submit behaviour + browser-console WebSocket spam.
+
+**1. Cloudinary attachment uploads (S63 #2) — RESOLVED (user-side).** Uploads were 503ing in prod (`isCloudinaryConfigured()` false). Root cause: the 3 `CLOUDINARY_*` vars weren't reaching the running `aesis-backend` process. Confirmed via browser console `POST /entries/:id/attachments → 503`, then backend health 200 (service up, empty Cloudinary env). User set the three vars correctly on Render (`CLOUDINARY_CLOUD_NAME` / `CLOUDINARY_API_KEY` / `CLOUDINARY_API_SECRET`) + redeployed → **image uploads now work in prod.** (Schema already parses them in `config/env.ts`; common slip is setting Cloudinary's combined `CLOUDINARY_URL` instead of the 3 separate vars.)
+
+**2. Logbook submit rules (prod-reported) — commit `dc6fd49`.** Two behaviour changes, both layers:
+- **Submit a week with OR without activities.** Removed the empty-week submission gate — backend `entries.service.ts::submitEntry` dropped the `entry._count.activities === 0` → 422 (`'add at least one activity'`); frontend `LogbookEditor.handleSubmit` dropped the matching `activities.length === 0` guard. Integration test inverted (`entries.integration.test.ts`): empty week now asserts a clean `submitted` with 0 activities (was: rejects 422).
+- **Draft saves only on click.** Removed the debounced ~1.6s background autosave from `LogbookEditor` — drafts persist only when the student clicks **Save draft**. Submit still upserts the current form first, so submitting never loses unsaved edits. The Save/Cloud indicator now reflects manual saves only.
+
+**3. WebSocket console spam (prod-reported) — commit `0f3612b`.** Client console flooded with `wss://aesis.vercel.app/socket.io` connection failures + endless reconnect. Cause: `lib/socket.ts` used `io('/')`, resolving against the page origin = the **Vercel static host**, which runs no Socket.io server. Fix: target the backend origin — `VITE_SOCKET_URL` ‖ `VITE_API_BASE_URL` (already set in Vercel, so no new env var) ‖ `'/'` for local-dev Vite proxy. Backend socket server verified live this session: `GET aesis.onrender.com/socket.io/?EIO=4&transport=polling` → 200 with `"upgrades":["websocket"]`.
+
+**4. Region backfill on prod (S63 #3 / S58 carryover) — DONE.** Ran `db:backfill-region` against prod Neon. Dry run: **4 placements** would inherit `greater_accra` from their assigned supervisor, **zero unresolved/null** cases. Applied with `BACKFILL_APPLY=1` → 4 rows set. Idempotent (re-run now finds none).
+- **Connection gotcha:** direct `prisma` connect from this box threw `P1001` repeatedly even though TCP 5432 to Neon is open — it's Prisma's 5s connect timeout firing while Neon's idle-suspended compute cold-wakes behind the live proxy. Fix: append `&connect_timeout=30&pool_timeout=30` to the `DATABASE_URL` and it connects. (Pooler `-pooler` host alone didn't help; the timeout bump is the actual fix.)
+
+**Verification.** Backend `tsc --noEmit` clean; frontend `tsc --noEmit` + `vite build` clean. Pure entries jest suites green (`stateMachine`, `dates`, `enrichment.client`, `attachments.service`); the `itdb` integration suites can't run on this box (no local Postgres) — the inverted empty-submit test runs on CI/a DB box. Backend socket handshake verified live (above). Both commits pushed `main` → Render (`migrate deploy`, no new migration) + Vercel auto-deploy.
+
+**Stopped here — follow-ups.**
+1. **⚠️ ROTATE prod `DATABASE_URL` — now overdue + freshly re-exposed.** The Neon `neondb_owner` credential was pasted into chat again this session to run the backfill. Reset the password in Neon, update `DATABASE_URL` on the 3 Render services. Still #1 on the secret queue (deferred S61→S63).
+2. **Verify the WS fix in-browser** after Vercel finishes deploying — reload prod, confirm the console is clean of `aesis.vercel.app/socket.io` errors and real-time/notifications connect. (Backend side already verified; Vercel's "Security Checkpoint" blocks headless verification of the served bundle.)
+3. Carried (S58): rotate the other 3 secrets.
+4. Full data-level grade test with a real coordinator login (route+schema+router proven; end-to-end read still not exercised on prod).
+5. Possible next grade features (menu): per-cohort released-grade export/report; academic-supervisor own-3-component flow + student released-total view end-to-end verification.
