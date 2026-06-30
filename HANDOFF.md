@@ -2466,3 +2466,30 @@ Switched prod off `db push` onto proper `prisma migrate deploy`:
 2. **In-browser verify on prod:** upload a small CSV on Supervisor Assignments → supervisors appear with regions; register a test student in that region → confirm they're auto-assigned that supervisor. Creds-gated.
 3. **Uploaded supervisors activate via "Forgot password"** (no invite email is sent on create). If you'd rather they get an email invite/temp link, that's a follow-up (needs SendGrid configured on prod).
 4. Carried: the per-day flow verification + itdb test (S68); rotate the other 3 secrets; PDF transcript export.
+
+### Session 70 — 2026-06-30 — AI not working: diagnosed + repaired the enrichment pipeline (commit `a4430bf`, pushed prod)
+
+**Ask.** "All the AI / analytics not working" across admin, coordinator, student — fix it everywhere.
+
+**Diagnosis (probed prod live — engine + Neon).** The AI surfaces were blank because **advisory AI relevance was never being produced**:
+- AI engine `aesis-ai-engine.onrender.com` `/health` = **200, `groq: connected`** (llama-3.1-8b). The engine + Groq **work**; it just cold-sleeps (Render starter) so the first hit after idle returns nothing (my initial probe got `[000]`, then 200 once warm).
+- Prod data: `aiAssessment = 0`, `enrichmentQueue = 3 abandoned`, `studentRiskScore = 4`, only 1 submitted entry. So **every enrichment job had died** → zero `ai_assessment` → all AI-relevance analytics blank.
+- Job `lastError = "AI engine returned 404"`. But the engine's `/ai/enrich/entry` route is **live** — a direct POST returns **401** (bad key), never 404; and `/ai/ai/enrich/entry` returns **404**. ⇒ the backend was building a **doubled `/ai/ai/...`** path, i.e. `AI_ENGINE_URL` on `aesis-backend` carries a **trailing `/ai`** (or slash). The enrich client did `${AI_ENGINE_URL}/ai/enrich/entry` with no normalization.
+- Compounding: the worker abandons a job after 5 retries (terminal — its claim query only picks `pending`/`failed`, never `abandoned`), and the client timeout was **8s** — shorter than a Render cold start (30–60s), so wakes always aborted.
+
+**Shipped — `fix(ai)` `a4430bf`.**
+- **URL normalization** (`shared/utils/aiEngine.ts` `buildAiUrl`/`aiEngineUrl`): strips a trailing slash **and** a trailing `/ai` from the base so the call is correct whether the env is `host`, `host/`, or `host/ai`. **Unit-tested 4/4.** Applied to `enrichment.client` + `placement.summary.client`.
+- **Cold-start tolerance:** client timeout 8s/10s → **45s** (`AI_ENGINE_TIMEOUT_MS`). Worker still retries with backoff, so a real outage isn't held hostage.
+- **Revive + self-heal:** `enrichment.admin.ts` `reviveEnrichment` (reset abandoned/failed → pending) + `getEnrichmentHealth` (status counts). Cron `jobs/enrichmentRevive.ts` re-enqueues stuck jobs **every 6h** (auto-recovery after outages), wired in `server.ts`. Admin endpoints `GET /admin/ai/enrichment` + `POST /admin/ai/enrichment/revive`; **AIEnrichmentPanel** on the admin dashboard (live queue health + manual "Re-run failed/abandoned").
+- **Data action (prod):** reset the 3 abandoned jobs → pending during diagnosis (they re-failed on the OLD backend's doubled URL; the new deploy should fix that).
+
+**Who this fixes:** once `ai_assessment` populates, **coordinator** insights/relevance trend + **admin** analytics + **student** entry relevance all fill in (the worker re-enriches on its own). The admin panel gives ops visibility/control across the board.
+
+**Verification.** Backend `tsc` clean + aiEngine unit 4/4; frontend `tsc` + `vite build` clean. A post-deploy background check (wait for redeploy → revive → re-count `ai_assessment`) was running at session write-time — **see whether `aiAssessment` went > 0**. If it did, the normalize fix resolved it. If it stayed 0 with 404, then `AI_ENGINE_URL` points at a **wrong host** (not just a `/ai` suffix) → user must correct it on `aesis-backend` (set to `https://aesis-ai-engine.onrender.com`, confirm `AI_ENGINE_API_KEY` matches the engine).
+
+**Stopped here — follow-ups.**
+1. **⚠️ ROTATE prod `DATABASE_URL`** — still overdue (used again this session for diagnosis).
+2. **Confirm `AI_ENGINE_URL`** on `aesis-backend` once: should be `https://aesis-ai-engine.onrender.com` (no `/ai`, no trailing slash) — the code now tolerates either, but get it clean. Confirm `AI_ENGINE_API_KEY` == the engine's.
+3. **Student chatbot is a stub.** `backend/src/modules/ai/ai.controller.ts` answers from a **hardcoded keyword KB**, NOT the engine's Groq `/ai/chat`. It "responds" but isn't real AI. Rewiring it to the engine's Groq chat (which works) is a separate feature — confirm if wanted.
+4. **Risk pipeline:** `studentRiskScore` has 4 rows but its refresh path (Celery `compute_risk` / a job) wasn't audited this session — verify it still runs on prod if risk tiers look stale.
+5. Carried: per-day flow verify + itdb test; rotate other 3 secrets; PDF transcript.
