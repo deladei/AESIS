@@ -2510,3 +2510,20 @@ Switched prod off `db push` onto proper `prisma migrate deploy`:
 3. `AI_ENGINE_URL` cleanup on `aesis-backend` (set to `https://aesis-ai-engine.onrender.com`, no `/ai`) — optional now that the code normalizes it.
 4. **Risk pipeline** refresh path (`compute_risk`) still un-audited — check if risk tiers look stale.
 5. Carried: per-day flow verify + itdb test; rotate other 3 secrets; PDF transcript.
+
+### Session 72 — 2026-06-30 — Wire the dead admin "Generate Report" button + enrich coordinator report (commit `25fc30e`, pushed prod)
+
+**Ask.** The "Generate report" button in coordinator + admin should work — make it senior-grade.
+
+**Finding.** Coordinator already had a working printable report (`CohortReport`, route `/coordinator/report`, opened via the dashboard "Export PDF" link, browser print→PDF). The **admin "Generate Report" button** (`AdminShell`) was **dead** — a `<button>` with no handler/route.
+
+**Shipped (`feat(reports)` `25fc30e`).** Frontend only — reuses existing live hooks, no new endpoint/dep, browser print→PDF (matches the coordinator pattern).
+- **New `AdminReport`** (route `/admin/report`, shell-less `RequireAuth roles={['admin']} bare`): overview, **AI enrichment pipeline health** (succeeded/pending/failed/abandoned + advisory-relevance note — surfaces the S70 pipeline), **released-grade distribution** (mean/median/pass-rate/bands + histogram), **grades-by-region** rollup, **at-risk interns** (pulseBoard high/medium + risk tier/weeks/engagement), **recent submissions**. Grade/region scope from `useCohortConfig().academicYearId`. `AdminShell` button → `Link to="/admin/report" target="_blank"`.
+- **`CohortReport` (coordinator)** gained **Released-grade distribution** + **Grades by region** sections (reusing `useCohortStats`/`useCohortRegions`).
+
+**Verification.** Frontend `tsc` + `vite build` clean. Pushed `main` → Vercel. (Print→PDF is a browser action — verify visually: Admin sidebar → Generate Report opens the report in a new tab.)
+
+**Stopped here — follow-ups.**
+1. **⚠️ ROTATE prod `DATABASE_URL`** — overdue.
+2. Reports are **print→PDF** (no server-side PDF lib). A one-click server-generated/branded PDF is the separate "PDF transcript/report" feature (needs a PDF lib, ask-to-add).
+3. Carried: chatbot/AI in-browser verify; risk-pipeline audit; per-day flow verify + itdb; rotate other 3 secrets.
