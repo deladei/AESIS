@@ -1,6 +1,9 @@
 import { Request, Response } from 'express';
 import { z } from 'zod';
 import { AppError } from '../../middleware/errorHandler';
+import { env } from '../../config/env';
+import { logger } from '../../config/logger';
+import { aiEngineUrl, AI_ENGINE_TIMEOUT_MS } from '../../shared/utils/aiEngine';
 
 const chatSchema = z.object({ message: z.string().min(1).max(1000) });
 
@@ -58,26 +61,55 @@ function findAnswer(message: string): string {
   return 'I can help with questions about CS internship regulations, logbook requirements, deadlines, quality scoring, risk tiers, and programme procedures. Could you rephrase your question or ask about one of those topics? For urgent matters not covered here, contact your academic supervisor directly.';
 }
 
-async function streamText(res: Response, text: string) {
-  const words = text.split(' ');
-  for (const word of words) {
-    res.write(`data: ${word} \n\n`);
-    await new Promise((r) => setTimeout(r, 30));
-  }
-  res.write('data: [DONE]\n\n');
-  res.end();
+// Each SSE event carries a JSON-encoded chunk so any content — spaces, newlines,
+// punctuation — survives the framing intact. The client JSON-parses each `data:`.
+function sse(res: Response, chunk: string): void {
+  res.write(`data: ${JSON.stringify(chunk)}\n\n`);
 }
 
+/**
+ * Student assistant. Proxies the message to the AI engine's Groq-backed chat
+ * (`/ai/chat`), streaming its tokens back as SSE. If the engine is unreachable
+ * (cold-sleep/outage/timeout) or returns nothing, it falls back to the local
+ * regulations knowledge base so the assistant always answers — never a dead box.
+ * Session = the student's user id, so the engine keeps per-student history.
+ */
 export async function chatHandler(req: Request, res: Response) {
   const parsed = chatSchema.safeParse(req.body);
   if (!parsed.success) throw new AppError(400, 'Message is required');
-
-  const answer = findAnswer(parsed.data.message);
+  const userId = req.user!.sub;
+  const message = parsed.data.message;
 
   res.setHeader('Content-Type', 'text/event-stream');
   res.setHeader('Cache-Control', 'no-cache');
   res.setHeader('Connection', 'keep-alive');
   res.flushHeaders();
 
-  await streamText(res, answer);
+  try {
+    const upstream = await fetch(aiEngineUrl('/ai/chat'), {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'x-api-key': env.AI_ENGINE_API_KEY },
+      body: JSON.stringify({ session_id: userId, student_id: userId, message }),
+      signal: AbortSignal.timeout(AI_ENGINE_TIMEOUT_MS),
+    });
+    if (!upstream.ok || !upstream.body) throw new Error(`AI engine returned ${upstream.status}`);
+
+    const reader = upstream.body.getReader();
+    const decoder = new TextDecoder();
+    let streamed = false;
+    for (;;) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      const chunk = decoder.decode(value, { stream: true });
+      if (chunk) { sse(res, chunk); streamed = true; }
+    }
+    // Engine answered empty → use the KB so the user still gets a reply.
+    if (!streamed) sse(res, findAnswer(message));
+  } catch (err) {
+    logger.warn('Chat: AI engine unavailable, using local fallback', { err: err instanceof Error ? err.message : String(err) });
+    sse(res, findAnswer(message));
+  }
+
+  res.write('data: [DONE]\n\n');
+  res.end();
 }

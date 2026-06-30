@@ -70,21 +70,29 @@ export default function ChatbotPanel() {
       const reader = resp.body.getReader();
       const decoder = new TextDecoder();
       let accumulated = '';
+      let buffer = '';
+      let finished = false;
 
-      while (true) {
+      // SSE events are "data: <payload>\n\n". Buffer across network reads so a
+      // line split between chunks isn't dropped; each payload is a JSON-encoded
+      // text chunk (falls back to raw for any non-JSON line).
+      while (!finished) {
         const { done, value } = await reader.read();
         if (done) break;
-        const chunk = decoder.decode(value, { stream: true });
-        // SSE lines: "data: <token>\n\n"
-        for (const line of chunk.split('\n')) {
-          if (line.startsWith('data: ')) {
-            const token = line.slice(6);
-            if (token === '[DONE]') break;
-            accumulated += token;
-            setMessages((prev) =>
-              prev.map((m) => m.id === assistantId ? { ...m, content: accumulated } : m),
-            );
-          }
+        buffer += decoder.decode(value, { stream: true });
+        let nl: number;
+        while ((nl = buffer.indexOf('\n')) >= 0) {
+          const line = buffer.slice(0, nl);
+          buffer = buffer.slice(nl + 1);
+          if (!line.startsWith('data: ')) continue;
+          const payload = line.slice(6);
+          if (payload === '[DONE]') { finished = true; break; }
+          let text: string;
+          try { text = JSON.parse(payload); } catch { text = payload; }
+          accumulated += text;
+          setMessages((prev) =>
+            prev.map((m) => m.id === assistantId ? { ...m, content: accumulated } : m),
+          );
         }
       }
     } catch {
