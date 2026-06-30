@@ -2493,3 +2493,20 @@ Switched prod off `db push` onto proper `prisma migrate deploy`:
 3. **Student chatbot is a stub.** `backend/src/modules/ai/ai.controller.ts` answers from a **hardcoded keyword KB**, NOT the engine's Groq `/ai/chat`. It "responds" but isn't real AI. Rewiring it to the engine's Groq chat (which works) is a separate feature — confirm if wanted.
 4. **Risk pipeline:** `studentRiskScore` has 4 rows but its refresh path (Celery `compute_risk` / a job) wasn't audited this session — verify it still runs on prod if risk tiers look stale.
 5. Carried: per-day flow verify + itdb test; rotate other 3 secrets; PDF transcript.
+
+### Session 71 — 2026-06-30 — Enrichment fix VERIFIED on prod + student chatbot wired to Groq (commit `5de7382`, pushed prod)
+
+**1. S70 enrichment fix — VERIFIED working on prod.** After the `a4430bf` backend redeploy, reset the 3 stuck enrichment jobs → pending; the worker re-ran them against the (now correctly-pathed) engine and **all 3 `succeeded`** → **`aiAssessment` 0 → 3**. So the doubled-`/ai` 404 is genuinely resolved by the `buildAiUrl` normalization **with no Render dashboard change** (i.e. `AI_ENGINE_URL` did carry a trailing `/ai`; the code now tolerates it). Advisory AI relevance now populates; coordinator/admin AI analytics + student entry relevance fill in as entries enrich (worker + 6h self-heal keep it flowing).
+
+**2. Student chatbot wired to Groq (`feat(ai)` `5de7382`).** Was a hardcoded keyword KB ignoring the engine's working Groq `/ai/chat`. Now:
+- **Backend `chatHandler`** proxies to `aiEngineUrl('/ai/chat')` with `x-api-key` + the 45s cold-start timeout; `session_id = student_id = req.user.sub` so the engine keeps **per-student history** (Mongo). Streams the engine's tokens back as SSE, **JSON-encoding each chunk** so newlines/spaces survive the framing. **KB fallback** (`findAnswer`) on any engine failure or empty response — the assistant always answers, never a dead box.
+- **Frontend `ChatbotPanel`** rewritten SSE parse: **buffers partial lines** across network reads (the old parser split each read on `\n` with no buffering → dropped tokens on larger/streamed chunks) and **JSON-decodes** each payload, with raw-text fallback for backward compatibility.
+
+**Verification.** Backend `tsc` clean; frontend `tsc` + `vite build` clean. Engine `/health` = `groq: connected`. Pushed `main` → Render + Vercel. (Full chat round-trip needs a student login on prod — engine + groq confirmed up, but not exercised end-to-end this session.)
+
+**Stopped here — follow-ups.**
+1. **⚠️ ROTATE prod `DATABASE_URL`** — overdue (used again this session).
+2. **In-browser verify:** student → AESIS Assistant → ask a question → expect a real Groq answer (not the canned KB). And confirm coordinator/admin AI-relevance widgets now show data (3 entries enriched).
+3. `AI_ENGINE_URL` cleanup on `aesis-backend` (set to `https://aesis-ai-engine.onrender.com`, no `/ai`) — optional now that the code normalizes it.
+4. **Risk pipeline** refresh path (`compute_risk`) still un-audited — check if risk tiers look stale.
+5. Carried: per-day flow verify + itdb test; rotate other 3 secrets; PDF transcript.
