@@ -11,6 +11,7 @@ import {
   gradeAuditHandler,
   releaseCohortHandler,
   cohortReportHandler,
+  cohortStatsHandler,
 } from './grades.controller';
 
 // Final-grade spine. Mounted under /grades; authenticated. Per-action role +
@@ -23,6 +24,7 @@ router.use(authenticate);
 // is never shadowed by the uuid param.
 router.post('/cohort/:academicYearId/release', asyncHandler(releaseCohortHandler)); // bulk-release a cohort's approved grades
 router.get('/cohort/:academicYearId/report', asyncHandler(cohortReportHandler)); // coordinator/admin — released-grade export
+router.get('/cohort/:academicYearId/stats', asyncHandler(cohortStatsHandler)); // coordinator/admin — grade-distribution analytics
 
 router.get('/:id', asyncHandler(getGradeHandler));
 router.get('/:id/audit', asyncHandler(gradeAuditHandler)); // coordinator/admin — the grade's audit trail

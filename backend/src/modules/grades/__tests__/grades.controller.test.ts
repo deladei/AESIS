@@ -22,6 +22,7 @@ jest.mock('../grades.service', () => ({
   getGradeAudit: jest.fn(),
   releaseCohort: jest.fn(),
   getCohortReport: jest.fn(),
+  getCohortGradeStats: jest.fn(),
 }));
 
 import request from 'supertest';
@@ -62,6 +63,7 @@ describe('auth guard', () => {
     expect((await request(app).post(`/grades/${PID}/aggregate`)).status).toBe(401);
     expect((await request(app).post(`/grades/cohort/${AYID}/release`)).status).toBe(401);
     expect((await request(app).get(`/grades/cohort/${AYID}/report`)).status).toBe(401);
+    expect((await request(app).get(`/grades/cohort/${AYID}/stats`)).status).toBe(401);
   });
 });
 
@@ -195,6 +197,25 @@ describe('GET /grades/cohort/:academicYearId/report', () => {
     const res = await request(app).get('/grades/cohort/not-a-uuid/report').set(...auth());
     expect(res.status).toBe(400);
     expect(mockService.getCohortReport).not.toHaveBeenCalled();
+  });
+});
+
+describe('GET /grades/cohort/:academicYearId/stats', () => {
+  it('200s and returns the stats payload', async () => {
+    mockService.getCohortGradeStats.mockResolvedValue({ academicYearId: AYID, count: 5, mean: 59.4 } as any);
+    const res = await request(app).get(`/grades/cohort/${AYID}/stats`).set(...auth());
+    expect(res.status).toBe(200);
+    expect(res.body.data.mean).toBe(59.4);
+    expect(mockService.getCohortGradeStats).toHaveBeenCalledWith(
+      { id: 'coord-1', role: 'coordinator' },
+      AYID,
+    );
+  });
+
+  it('400s on a non-uuid year', async () => {
+    const res = await request(app).get('/grades/cohort/not-a-uuid/stats').set(...auth());
+    expect(res.status).toBe(400);
+    expect(mockService.getCohortGradeStats).not.toHaveBeenCalled();
   });
 });
 

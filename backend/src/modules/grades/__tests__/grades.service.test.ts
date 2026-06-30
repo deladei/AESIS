@@ -23,6 +23,7 @@ import {
   getGradeAudit,
   releaseCohort,
   getCohortReport,
+  getCohortGradeStats,
 } from '../grades.service';
 import { overrideSchema } from '../grades.schema';
 import type { Actor } from '../../entries/entries.policy';
@@ -471,5 +472,58 @@ describe('getCohortReport', () => {
     await expect(getCohortReport(SUP, 'ay-1')).rejects.toMatchObject({ statusCode: 403 });
     await expect(getCohortReport(STUDENT, 'ay-1')).rejects.toMatchObject({ statusCode: 403 });
     expect(mp.academicYear.findUnique).not.toHaveBeenCalled();
+  });
+});
+
+describe('getCohortGradeStats', () => {
+  const released = (vals: { total: number | null; coordinatorOverride?: number | null }[]) =>
+    vals.map((v) => ({ total: v.total, coordinatorOverride: v.coordinatorOverride ?? null }));
+
+  it('computes mean/median/min/max, bands, pass rate and the 10-bucket histogram', async () => {
+    mp.academicYear.findUnique.mockResolvedValue({ id: 'ay-1', label: '2025/2026' });
+    // scores: 35 (fail), 45 (resit), 55 (pass), 72 (distinction), 90 (distinction)
+    mp.finalGrade.findMany.mockResolvedValue(released([
+      { total: 55 }, { total: 90 }, { total: 35 }, { total: 72 }, { total: 45 },
+    ]));
+
+    const s = (await getCohortGradeStats(COORD, 'ay-1')) as any;
+    expect(mp.finalGrade.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({ where: { status: 'released', placement: { academicYearId: 'ay-1' } } }),
+    );
+    expect(s.count).toBe(5);
+    expect(s.mean).toBe(59.4);          // (55+90+35+72+45)/5
+    expect(s.median).toBe(55);          // middle of sorted [35,45,55,72,90]
+    expect(s.min).toBe(35);
+    expect(s.max).toBe(90);
+    expect(s.bands).toEqual({ distinction: 2, pass: 1, resit: 1, fail: 1 });
+    expect(s.passRate).toBe(60);        // (2+1)/5
+    // buckets: 35→[3], 45→[4], 55→[5], 72→[7], 90→[9]
+    expect(s.distribution).toEqual([0, 0, 0, 1, 1, 1, 0, 1, 0, 1]);
+  });
+
+  it('uses the override as the effective score and lands 100 in the last bucket', async () => {
+    mp.academicYear.findUnique.mockResolvedValue({ id: 'ay-1', label: '2025/2026' });
+    mp.finalGrade.findMany.mockResolvedValue(released([
+      { total: 40, coordinatorOverride: 100 }, // override wins → 100
+    ]));
+    const s = (await getCohortGradeStats(COORD, 'ay-1')) as any;
+    expect(s.max).toBe(100);
+    expect(s.distribution[9]).toBe(1);
+    expect(s.bands.distinction).toBe(1);
+  });
+
+  it('returns nulls (not zeros) for an empty cohort', async () => {
+    mp.academicYear.findUnique.mockResolvedValue({ id: 'ay-1', label: '2025/2026' });
+    mp.finalGrade.findMany.mockResolvedValue([]);
+    const s = (await getCohortGradeStats(COORD, 'ay-1')) as any;
+    expect(s).toMatchObject({ count: 0, mean: null, median: null, min: null, max: null, passRate: null });
+    expect(s.distribution).toEqual([0, 0, 0, 0, 0, 0, 0, 0, 0, 0]);
+  });
+
+  it('404s on an unknown year and forbids supervisor/student', async () => {
+    mp.academicYear.findUnique.mockResolvedValue(null);
+    await expect(getCohortGradeStats(COORD, 'nope')).rejects.toMatchObject({ statusCode: 404 });
+    await expect(getCohortGradeStats(SUP, 'ay-1')).rejects.toMatchObject({ statusCode: 403 });
+    await expect(getCohortGradeStats(STUDENT, 'ay-1')).rejects.toMatchObject({ statusCode: 403 });
   });
 });

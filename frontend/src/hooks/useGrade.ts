@@ -162,6 +162,33 @@ export function useCohortReport() {
   });
 }
 
+// ── Cohort grade-distribution analytics (coordinator/admin) ───
+
+export interface CohortGradeStats {
+  academicYearId: string;
+  academicYear:   string;
+  count:          number;
+  mean:           number | null;
+  median:         number | null;
+  min:            number | null;
+  max:            number | null;
+  passRate:       number | null;
+  bands:          { distinction: number; pass: number; resit: number; fail: number };
+  distribution:   number[]; // 10 buckets, [0–10) … [90–100]
+}
+
+/** Coordinator/admin — released-grade distribution + summary stats for a year. */
+export function useCohortStats(academicYearId: string | undefined) {
+  return useQuery({
+    queryKey: ['grade-stats', academicYearId ?? 'none'],
+    enabled:  !!academicYearId,
+    queryFn:  async () => {
+      const r = await api.get<{ data: CohortGradeStats }>(`/grades/cohort/${academicYearId}/stats`);
+      return r.data.data;
+    },
+  });
+}
+
 // ── Batch B — company-supervisor industry-score magic link ────
 
 export interface IndustryInvite {

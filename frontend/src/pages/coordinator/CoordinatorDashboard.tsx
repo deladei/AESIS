@@ -9,6 +9,8 @@ import { useAllPlacements, useUpdatePlacementStatus } from '@/hooks/usePlacement
 import InternStatusTable from '@/components/coordinator/InternStatusTable';
 import SupervisorWorkloadPanel from '@/components/coordinator/SupervisorWorkloadPanel';
 import PerformanceDistributionModal from '@/components/coordinator/PerformanceDistributionModal';
+import GradeDistributionPanel from '@/components/coordinator/GradeDistributionPanel';
+import { useCohortConfig } from '@/hooks/useCohortConfig';
 
 /**
  * Coordinator Dashboard — "Nexus Oversight" Stitch design, wired to live data.
@@ -75,6 +77,9 @@ export default function CoordinatorDashboard() {
   const { data: pending } = useAllPlacements(1, 'pending');
   const { data: activity, isLoading: activityLoading, refetch: refetchActivity } = useCoordinatorActivity(8);
   const { data: cohorts = [] } = useCoordinatorCohorts();
+  // Grade stats need a concrete year — the picked scope, else the active year.
+  const { data: cohortConfig } = useCohortConfig();
+  const statsYearId = scopeYearId ?? cohortConfig?.academicYearId;
 
   const pendingList = pending?.placements ?? [];
 
@@ -177,6 +182,9 @@ export default function CoordinatorDashboard() {
 
           {/* Supervisor workload (item 14) */}
           <SupervisorWorkloadPanel scopeYearId={scopeYearId} />
+
+          {/* Released-grade distribution analytics */}
+          <GradeDistributionPanel academicYearId={statsYearId} />
 
           {/* Requests + AI matching */}
           <div className="grid grid-cols-1 gap-4 md:grid-cols-2">

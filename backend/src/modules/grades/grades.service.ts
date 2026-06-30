@@ -328,6 +328,73 @@ export async function getCohortReport(actor: Actor, academicYearId: string) {
   return { academicYearId, academicYear: year.label, count: rows.length, rows };
 }
 
+// Final-grade classification bands. Grounded in the existing finalization
+// `recommendation` enum (pass | distinction | resit | fail) rather than an
+// invented cutoff — distinction 70+, pass 50–69, resit 40–49, fail <40. The
+// UI labels each band with its range so the threshold is never hidden.
+const BAND_MIN = { distinction: 70, pass: 50, resit: 40, fail: 0 } as const;
+
+/**
+ * Coordinator/admin: distribution + summary stats over the RELEASED grades in an
+ * academic year — for the cohort dashboard. Objective stats (n / mean / median /
+ * min / max / 10-point histogram) plus classification-band counts and a pass
+ * rate (share scoring ≥ 50). Per the "no impossible metric" rule, mean/median/
+ * pass-rate are null when there are no released grades (the UI renders "—").
+ */
+export async function getCohortGradeStats(actor: Actor, academicYearId: string) {
+  assertCanManageGrade(actor);
+
+  const year = await prisma.academicYear.findUnique({
+    where: { id: academicYearId },
+    select: { id: true, label: true },
+  });
+  if (!year) throw new AppError(404, 'Academic year not found');
+
+  const grades = await prisma.finalGrade.findMany({
+    where: { status: 'released', placement: { academicYearId } },
+    select: { total: true, coordinatorOverride: true },
+  });
+
+  // Effective score = override ?? total. Guard against a released-but-null total
+  // (shouldn't happen, but never let it poison the stats).
+  const scores = grades
+    .map((g) => g.coordinatorOverride ?? g.total)
+    .filter((n): n is number => n !== null && n !== undefined)
+    .sort((a, b) => a - b);
+
+  const n = scores.length;
+  if (n === 0) {
+    return {
+      academicYearId, academicYear: year.label, count: 0,
+      mean: null, median: null, min: null, max: null, passRate: null,
+      bands: { distinction: 0, pass: 0, resit: 0, fail: 0 },
+      distribution: Array<number>(10).fill(0),
+    };
+  }
+
+  const mean = round2(scores.reduce((s, v) => s + v, 0) / n);
+  const mid = Math.floor(n / 2);
+  const median = n % 2 === 1 ? scores[mid] : round2((scores[mid - 1] + scores[mid]) / 2);
+
+  // Ten 10-point buckets: bucket i covers [i*10, i*10+10); 100 lands in the last.
+  const distribution = Array<number>(10).fill(0);
+  const bands = { distinction: 0, pass: 0, resit: 0, fail: 0 };
+  for (const s of scores) {
+    distribution[Math.min(9, Math.floor(s / 10))] += 1;
+    if (s >= BAND_MIN.distinction) bands.distinction += 1;
+    else if (s >= BAND_MIN.pass) bands.pass += 1;
+    else if (s >= BAND_MIN.resit) bands.resit += 1;
+    else bands.fail += 1;
+  }
+  const passRate = Math.round(((bands.distinction + bands.pass) / n) * 100);
+
+  return {
+    academicYearId, academicYear: year.label, count: n,
+    mean, median, min: scores[0], max: scores[n - 1], passRate,
+    bands, distribution,
+  };
+}
+
 // ── Batch B — tokenised company-supervisor industry-score channel ─────────────
 
 // When a component changes after sign-off, the prior aggregate + sign-off no

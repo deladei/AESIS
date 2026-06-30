@@ -5,7 +5,7 @@ import { componentScoreSchema, overrideSchema, industryScoreSchema } from './gra
 import {
   getGrade, scoreComponent, aggregateGrade, overrideGrade, releaseGrade,
   inviteIndustryScore, getIndustryInviteContext, submitIndustryScore,
-  getGradeAudit, releaseCohort, getCohortReport,
+  getGradeAudit, releaseCohort, getCohortReport, getCohortGradeStats,
 } from './grades.service';
 import type { Actor } from '../entries/entries.policy';
 import type { EntryRole } from '../entries/entry.stateMachine';
@@ -58,6 +58,11 @@ export async function releaseCohortHandler(req: Request, res: Response) {
 export async function cohortReportHandler(req: Request, res: Response) {
   const { academicYearId } = yearParam.parse(req.params);
   return ok(res, await getCohortReport(actorOf(req), academicYearId));
+}
+
+export async function cohortStatsHandler(req: Request, res: Response) {
+  const { academicYearId } = yearParam.parse(req.params);
+  return ok(res, await getCohortGradeStats(actorOf(req), academicYearId));
 }
 
 // ── Batch B — industry-score magic link ──
