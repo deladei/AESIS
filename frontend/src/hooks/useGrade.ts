@@ -189,6 +189,34 @@ export function useCohortStats(academicYearId: string | undefined) {
   });
 }
 
+// ── Per-region grade rollups (coordinator/admin) ──────────────
+
+export interface RegionRollup {
+  region:   string | null; // null → "Unspecified"
+  count:    number;
+  mean:     number;
+  passRate: number;
+}
+
+export interface CohortRegionRollups {
+  academicYearId: string;
+  academicYear:   string;
+  count:          number;
+  regions:        RegionRollup[];
+}
+
+/** Coordinator/admin — released grades rolled up by Ghana region for a year. */
+export function useCohortRegions(academicYearId: string | undefined) {
+  return useQuery({
+    queryKey: ['grade-regions', academicYearId ?? 'none'],
+    enabled:  !!academicYearId,
+    queryFn:  async () => {
+      const r = await api.get<{ data: CohortRegionRollups }>(`/grades/cohort/${academicYearId}/regions`);
+      return r.data.data;
+    },
+  });
+}
+
 // ── Batch B — company-supervisor industry-score magic link ────
 
 export interface IndustryInvite {

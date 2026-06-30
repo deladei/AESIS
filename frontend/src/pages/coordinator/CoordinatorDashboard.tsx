@@ -10,6 +10,7 @@ import InternStatusTable from '@/components/coordinator/InternStatusTable';
 import SupervisorWorkloadPanel from '@/components/coordinator/SupervisorWorkloadPanel';
 import PerformanceDistributionModal from '@/components/coordinator/PerformanceDistributionModal';
 import GradeDistributionPanel from '@/components/coordinator/GradeDistributionPanel';
+import RegionRollupPanel from '@/components/coordinator/RegionRollupPanel';
 import { useCohortConfig } from '@/hooks/useCohortConfig';
 
 /**
@@ -185,6 +186,9 @@ export default function CoordinatorDashboard() {
 
           {/* Released-grade distribution analytics */}
           <GradeDistributionPanel academicYearId={statsYearId} />
+
+          {/* Released grades rolled up by region */}
+          <RegionRollupPanel academicYearId={statsYearId} />
 
           {/* Requests + AI matching */}
           <div className="grid grid-cols-1 gap-4 md:grid-cols-2">

@@ -24,6 +24,7 @@ import {
   releaseCohort,
   getCohortReport,
   getCohortGradeStats,
+  getCohortRegionRollups,
 } from '../grades.service';
 import { overrideSchema } from '../grades.schema';
 import type { Actor } from '../../entries/entries.policy';
@@ -525,5 +526,44 @@ describe('getCohortGradeStats', () => {
     await expect(getCohortGradeStats(COORD, 'nope')).rejects.toMatchObject({ statusCode: 404 });
     await expect(getCohortGradeStats(SUP, 'ay-1')).rejects.toMatchObject({ statusCode: 403 });
     await expect(getCohortGradeStats(STUDENT, 'ay-1')).rejects.toMatchObject({ statusCode: 403 });
+  });
+});
+
+describe('getCohortRegionRollups', () => {
+  const g = (total: number | null, region: string | null, coordinatorOverride: number | null = null) =>
+    ({ total, coordinatorOverride, placement: { region } });
+
+  it('rolls up per region with count/mean/passRate, sorted by headcount', async () => {
+    mp.academicYear.findUnique.mockResolvedValue({ id: 'ay-1', label: '2025/2026' });
+    mp.finalGrade.findMany.mockResolvedValue([
+      g(80, 'greater_accra'), g(40, 'greater_accra'), g(60, 'greater_accra'), // n=3, mean 60, pass 2/3=67
+      g(90, 'ashanti'),                                                       // n=1, mean 90, pass 100
+    ]);
+
+    const res = (await getCohortRegionRollups(COORD, 'ay-1')) as any;
+    expect(mp.finalGrade.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({ where: { status: 'released', placement: { academicYearId: 'ay-1' } } }),
+    );
+    expect(res.count).toBe(4);
+    expect(res.regions[0]).toEqual({ region: 'greater_accra', count: 3, mean: 60, passRate: 67 });
+    expect(res.regions[1]).toEqual({ region: 'ashanti', count: 1, mean: 90, passRate: 100 });
+  });
+
+  it('uses the override as effective and collapses null regions into a null row', async () => {
+    mp.academicYear.findUnique.mockResolvedValue({ id: 'ay-1', label: '2025/2026' });
+    mp.finalGrade.findMany.mockResolvedValue([
+      g(30, null, 55), // override 55 → pass, region null
+      g(20, null),     // 20 → fail, region null
+    ]);
+    const res = (await getCohortRegionRollups(COORD, 'ay-1')) as any;
+    expect(res.regions).toHaveLength(1);
+    expect(res.regions[0]).toEqual({ region: null, count: 2, mean: 37.5, passRate: 50 });
+  });
+
+  it('404s on an unknown year and forbids supervisor/student', async () => {
+    mp.academicYear.findUnique.mockResolvedValue(null);
+    await expect(getCohortRegionRollups(COORD, 'nope')).rejects.toMatchObject({ statusCode: 404 });
+    await expect(getCohortRegionRollups(SUP, 'ay-1')).rejects.toMatchObject({ statusCode: 403 });
+    await expect(getCohortRegionRollups(STUDENT, 'ay-1')).rejects.toMatchObject({ statusCode: 403 });
   });
 });

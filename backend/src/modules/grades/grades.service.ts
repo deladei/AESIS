@@ -395,6 +395,55 @@ export async function getCohortGradeStats(actor: Actor, academicYearId: string) 
   };
 }
 
+/**
+ * Coordinator/admin: released grades rolled up by the placement's Ghana region —
+ * count, mean (of the effective score) and pass rate (share ≥ 50) per region.
+ * Region-less released grades (legacy, never backfilled) collapse into a single
+ * `region: null` row the UI labels "Unspecified" — they're reported, not hidden.
+ * Sorted by headcount desc, then region name.
+ */
+export async function getCohortRegionRollups(actor: Actor, academicYearId: string) {
+  assertCanManageGrade(actor);
+
+  const year = await prisma.academicYear.findUnique({
+    where: { id: academicYearId },
+    select: { id: true, label: true },
+  });
+  if (!year) throw new AppError(404, 'Academic year not found');
+
+  const grades = await prisma.finalGrade.findMany({
+    where: { status: 'released', placement: { academicYearId } },
+    select: { total: true, coordinatorOverride: true, placement: { select: { region: true } } },
+  });
+
+  // Bucket effective scores by region (null region → the 'null' key).
+  const byRegion = new Map<string, number[]>();
+  for (const g of grades) {
+    const eff = g.coordinatorOverride ?? g.total;
+    if (eff === null || eff === undefined) continue;
+    const key = g.placement.region ?? ' null'; // sentinel for null region
+    const list = byRegion.get(key) ?? [];
+    list.push(eff);
+    byRegion.set(key, list);
+  }
+
+  const regions = [...byRegion.entries()]
+    .map(([key, scores]) => {
+      const n = scores.length;
+      const passing = scores.filter((s) => s >= BAND_MIN.pass).length;
+      return {
+        region: key === ' null' ? null : key,
+        count: n,
+        mean: round2(scores.reduce((s, v) => s + v, 0) / n),
+        passRate: Math.round((passing / n) * 100),
+      };
+    })
+    .sort((a, b) => b.count - a.count || (a.region ?? '~').localeCompare(b.region ?? '~'));
+
+  const count = regions.reduce((s, r) => s + r.count, 0);
+  return { academicYearId, academicYear: year.label, count, regions };
+}
+
 // ── Batch B — tokenised company-supervisor industry-score channel ─────────────
 
 // When a component changes after sign-off, the prior aggregate + sign-off no

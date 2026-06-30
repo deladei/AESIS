@@ -23,6 +23,7 @@ jest.mock('../grades.service', () => ({
   releaseCohort: jest.fn(),
   getCohortReport: jest.fn(),
   getCohortGradeStats: jest.fn(),
+  getCohortRegionRollups: jest.fn(),
 }));
 
 import request from 'supertest';
@@ -64,6 +65,7 @@ describe('auth guard', () => {
     expect((await request(app).post(`/grades/cohort/${AYID}/release`)).status).toBe(401);
     expect((await request(app).get(`/grades/cohort/${AYID}/report`)).status).toBe(401);
     expect((await request(app).get(`/grades/cohort/${AYID}/stats`)).status).toBe(401);
+    expect((await request(app).get(`/grades/cohort/${AYID}/regions`)).status).toBe(401);
   });
 });
 
@@ -216,6 +218,25 @@ describe('GET /grades/cohort/:academicYearId/stats', () => {
     const res = await request(app).get('/grades/cohort/not-a-uuid/stats').set(...auth());
     expect(res.status).toBe(400);
     expect(mockService.getCohortGradeStats).not.toHaveBeenCalled();
+  });
+});
+
+describe('GET /grades/cohort/:academicYearId/regions', () => {
+  it('200s and returns the rollup payload', async () => {
+    mockService.getCohortRegionRollups.mockResolvedValue({ academicYearId: AYID, count: 4, regions: [] } as any);
+    const res = await request(app).get(`/grades/cohort/${AYID}/regions`).set(...auth());
+    expect(res.status).toBe(200);
+    expect(res.body.data.count).toBe(4);
+    expect(mockService.getCohortRegionRollups).toHaveBeenCalledWith(
+      { id: 'coord-1', role: 'coordinator' },
+      AYID,
+    );
+  });
+
+  it('400s on a non-uuid year', async () => {
+    const res = await request(app).get('/grades/cohort/not-a-uuid/regions').set(...auth());
+    expect(res.status).toBe(400);
+    expect(mockService.getCohortRegionRollups).not.toHaveBeenCalled();
   });
 });
 
