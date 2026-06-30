@@ -363,6 +363,34 @@ export function useAdminDashboard() {
   });
 }
 
+// ── AI enrichment pipeline (admin) ────────────────────────────
+export interface EnrichmentHealth {
+  pending: number; processing: number; succeeded: number;
+  failed: number; abandoned: number; total: number; revivable: number;
+}
+
+export function useEnrichmentHealth() {
+  return useQuery({
+    queryKey: ['admin', 'ai', 'enrichment'],
+    refetchInterval: 20_000, // live-ish: the worker drains the queue continuously
+    queryFn: async () => {
+      const r = await api.get<{ data: EnrichmentHealth }>('/admin/ai/enrichment');
+      return r.data.data;
+    },
+  });
+}
+
+export function useReviveEnrichment() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async () => {
+      const r = await api.post<{ data: { revived: number } }>('/admin/ai/enrichment/revive');
+      return r.data.data;
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['admin', 'ai', 'enrichment'] }),
+  });
+}
+
 // ── AI Insights & Analytics ───────────────────────────────────
 
 export interface InsightsData {

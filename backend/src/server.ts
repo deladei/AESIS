@@ -11,6 +11,7 @@ import { startDeadlineReminderJobs } from './jobs/deadlineReminder';
 import { startWeeklyReportJob } from './jobs/weeklyReport';
 import { startRiskAlertSubscriber } from './jobs/riskAlertSubscriber';
 import { startEnrichmentWorker } from './modules/entries/enrichment.worker';
+import { startEnrichmentReviveJob } from './jobs/enrichmentRevive';
 
 async function bootstrap() {
   // ── Connect all data stores before accepting traffic ──────────
@@ -65,6 +66,7 @@ async function bootstrap() {
   startWeeklyReportJob();
   startRiskAlertSubscriber();
   startEnrichmentWorker(); // Path 2 — polls enrichment_queue; fail-open, no broker
+  startEnrichmentReviveJob(); // self-heal: re-enqueue stuck enrichment after engine outages
 
   // ── Start server ──────────────────────────────────────────────
   httpServer.listen(env.PORT, () => {

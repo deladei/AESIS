@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { env } from '../../config/env';
+import { aiEngineUrl, AI_ENGINE_TIMEOUT_MS } from '../../shared/utils/aiEngine';
 
 /**
  * FastAPI client for Path 2 (AI enrichment). Deliberately thin and defensive:
@@ -41,17 +42,15 @@ export interface EnrichmentPayload {
 /** How the worker calls the model. Injectable so tests need no live FastAPI. */
 export type EnrichFn = (payload: EnrichmentPayload) => Promise<EnrichmentResult>;
 
-const REQUEST_TIMEOUT_MS = 8_000;
-
 export const enrichEntryViaFastApi: EnrichFn = async (payload) => {
-  const res = await fetch(`${env.AI_ENGINE_URL}/ai/enrich/entry`, {
+  const res = await fetch(aiEngineUrl('/ai/enrich/entry'), {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
       'x-api-key': env.AI_ENGINE_API_KEY,
     },
     body: JSON.stringify(payload),
-    signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
+    signal: AbortSignal.timeout(AI_ENGINE_TIMEOUT_MS),
   });
 
   if (!res.ok) {

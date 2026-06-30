@@ -4,6 +4,7 @@ import {
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { useAdminDashboard, type AdminDashboard as AdminData } from '@/hooks/useDashboard';
+import AIEnrichmentPanel from '@/components/admin/AIEnrichmentPanel';
 
 /**
  * Admin Dashboard — built from the Stitch "Supervisor Dashboard" design
@@ -184,6 +185,11 @@ export default function AdminDashboard() {
             </div>
           </div>
         </aside>
+
+        {/* AI enrichment pipeline health + manual revive */}
+        <section className="col-span-12">
+          <AIEnrichmentPanel />
+        </section>
 
         {/* Recent Submissions */}
         <section className="col-span-12 space-y-4">

@@ -12,4 +12,8 @@ router.use(authorize('admin'));
 // GET /api/v1/admin/dashboard
 router.get('/dashboard', asyncHandler(ctrl.dashboard));
 
+// AI enrichment pipeline ops (queue health + revive stuck jobs)
+router.get('/ai/enrichment', asyncHandler(ctrl.enrichmentHealth));
+router.post('/ai/enrichment/revive', asyncHandler(ctrl.enrichmentRevive));
+
 export default router;

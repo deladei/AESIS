@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { env } from '../../config/env';
+import { aiEngineUrl, AI_ENGINE_TIMEOUT_MS } from '../../shared/utils/aiEngine';
 
 /**
  * Cross-week (placement) AI summary client. Runs ONCE at finalization over the
@@ -25,14 +26,12 @@ export interface PlacementSummaryPayload {
 
 export type SummarizeFn = (payload: PlacementSummaryPayload) => Promise<PlacementSummaryResult>;
 
-const REQUEST_TIMEOUT_MS = 10_000;
-
 export const summarizePlacementViaFastApi: SummarizeFn = async (payload) => {
-  const res = await fetch(`${env.AI_ENGINE_URL}/ai/enrich/placement`, {
+  const res = await fetch(aiEngineUrl('/ai/enrich/placement'), {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', 'x-api-key': env.AI_ENGINE_API_KEY },
     body: JSON.stringify(payload),
-    signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
+    signal: AbortSignal.timeout(AI_ENGINE_TIMEOUT_MS),
   });
   if (!res.ok) throw new Error(`AI engine returned ${res.status}`);
   return placementSummarySchema.parse(await res.json());
