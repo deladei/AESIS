@@ -7,7 +7,7 @@ import { ThemeToggle } from './ThemeToggle';
 import {
   LayoutDashboard, Users, Sparkles, MessageSquareText, FolderOpen,
   FileBarChart, Search, Bell, Settings, HelpCircle, GraduationCap, LogOut,
-  ClipboardCheck, UserRound,
+  ClipboardCheck, UserRound, Send,
 } from 'lucide-react';
 
 interface NavItem {
@@ -22,6 +22,7 @@ const navItems: NavItem[] = [
   { label: 'Dashboard',       href: '/admin/dashboard', icon: LayoutDashboard },
   { label: 'Interns',         href: '/admin/interns', icon: Users },
   { label: 'Review Logbooks', href: '/admin/review',    icon: ClipboardCheck },
+  { label: 'Messages',        href: '/admin/messages',  icon: Send },
   { label: 'AI Insights',     href: '/ai-insights', icon: Sparkles },
   { label: 'Feedback Center', href: '/feedback', icon: MessageSquareText },
   { label: 'Resources',       href: '/admin/dashboard', icon: FolderOpen },

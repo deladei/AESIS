@@ -1,8 +1,9 @@
 jest.mock('../../../config/prisma', () => ({
   prisma: {
     placement: {
-      count:    jest.fn(),
-      findMany: jest.fn(),
+      count:      jest.fn(),
+      findMany:   jest.fn(),
+      findUnique: jest.fn(),
     },
     logbookEntry: {
       count:    jest.fn(),
@@ -15,10 +16,17 @@ jest.mock('../../../config/prisma', () => ({
   },
 }));
 
+jest.mock('../../notifications/notifications.service', () => ({ createNotification: jest.fn() }));
+jest.mock('../../../shared/utils/email', () => ({ sendEmail: jest.fn() }));
+
 import { prisma } from '../../../config/prisma';
-import { getAdminDashboard } from '../admin.service';
+import { getAdminDashboard, messageIntern, scheduleCallWithIntern } from '../admin.service';
+import { createNotification } from '../../notifications/notifications.service';
+import { sendEmail } from '../../../shared/utils/email';
 
 const mp = prisma as jest.Mocked<typeof prisma>;
+const mockNotify = createNotification as jest.Mock;
+const mockEmail = sendEmail as jest.Mock;
 
 const makePlacement = (overrides: Record<string, unknown> = {}) => ({
   id:      'p-1',
@@ -143,5 +151,38 @@ describe('getAdminDashboard', () => {
     expect(result.recentSubmissions).toHaveLength(0);
     expect(mp.logbookEntry.groupBy).not.toHaveBeenCalled();
     expect(mp.supervisorFeedback.findMany).not.toHaveBeenCalled();
+  });
+});
+
+describe('admin messaging', () => {
+  const placementWithStudent = {
+    studentId: 'stu-1',
+    student: { firstName: 'Ama', lastName: 'Mensah', email: 'ama@uni.edu.gh' },
+  };
+
+  beforeEach(() => { mockNotify.mockReset(); mockEmail.mockReset(); (mp.placement.findUnique as jest.Mock).mockReset(); });
+
+  it('messageIntern notifies in-app AND emails the registered address', async () => {
+    (mp.placement.findUnique as jest.Mock).mockResolvedValue(placementWithStudent);
+    const res = await messageIntern('p-1', 'Please submit week 3.');
+    expect(res).toMatchObject({ ok: true, emailedTo: 'ama@uni.edu.gh' });
+    expect(mockNotify).toHaveBeenCalledWith(expect.objectContaining({ userId: 'stu-1', type: 'system' }));
+    expect(mockEmail).toHaveBeenCalledWith(expect.objectContaining({ to: 'ama@uni.edu.gh' }));
+  });
+
+  it('scheduleCallWithIntern emails the Meet link + notifies, linking to the room', async () => {
+    (mp.placement.findUnique as jest.Mock).mockResolvedValue(placementWithStudent);
+    const res = await scheduleCallWithIntern('p-1', {
+      scheduledAt: '2026-07-01T10:00:00.000Z', topic: 'Mid-term', meetLink: 'https://meet.google.com/abc-defg-hij',
+    });
+    expect(res.ok).toBe(true);
+    expect(mockNotify).toHaveBeenCalledWith(expect.objectContaining({ link: 'https://meet.google.com/abc-defg-hij' }));
+    expect(mockEmail.mock.calls[0][0].html).toContain('https://meet.google.com/abc-defg-hij');
+  });
+
+  it('404s on an unknown placement', async () => {
+    (mp.placement.findUnique as jest.Mock).mockResolvedValue(null);
+    await expect(messageIntern('nope', 'hi')).rejects.toMatchObject({ statusCode: 404 });
+    expect(mockEmail).not.toHaveBeenCalled();
   });
 });

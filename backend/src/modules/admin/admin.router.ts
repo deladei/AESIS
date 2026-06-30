@@ -16,4 +16,9 @@ router.get('/dashboard', asyncHandler(ctrl.dashboard));
 router.get('/ai/enrichment', asyncHandler(ctrl.enrichmentHealth));
 router.post('/ai/enrichment/revive', asyncHandler(ctrl.enrichmentRevive));
 
+// Messaging: admin → active interns (in-app + email), schedule a Google Meet
+router.get('/messaging/recipients', asyncHandler(ctrl.messageableInterns));
+router.post('/messaging/:placementId/message', asyncHandler(ctrl.messageIntern));
+router.post('/messaging/:placementId/schedule-call', asyncHandler(ctrl.scheduleCall));
+
 export default router;

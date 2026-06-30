@@ -1,5 +1,8 @@
 import { prisma } from '../../config/prisma';
 import { SYSTEM_MAX_WEEKS } from '../../shared/utils/quality';
+import { AppError } from '../../middleware/errorHandler';
+import { createNotification } from '../notifications/notifications.service';
+import { sendEmail } from '../../shared/utils/email';
 
 // Engagement is measured off the active weekly-entry pipeline. A week "counts as
 // submitted" once its entry has actually been submitted (submittedAt set);
@@ -116,4 +119,101 @@ export async function getAdminDashboard() {
     recentSubmissions,
     submissionCounts:  { pending: pendingReviews, reviewed: reviewedCount },
   };
+}
+
+// ── Admin ↔ intern messaging + scheduled calls ────────────────
+
+function escapeHtml(s: string): string {
+  return s.replace(/[&<>"']/g, (c) =>
+    ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c] as string));
+}
+
+async function loadInternForMessaging(placementId: string) {
+  const p = await prisma.placement.findUnique({
+    where: { id: placementId },
+    select: { studentId: true, student: { select: { firstName: true, lastName: true, email: true } } },
+  });
+  if (!p) throw new AppError(404, 'Placement not found');
+  return p;
+}
+
+/** Active interns the admin can message (admin is the superuser — sees all). */
+export async function listMessageableInterns() {
+  const placements = await prisma.placement.findMany({
+    where: { placementStatus: 'active' },
+    select: {
+      id: true,
+      student: { select: { firstName: true, lastName: true, email: true } },
+      company: { select: { name: true } },
+    },
+    orderBy: [{ student: { firstName: 'asc' } }],
+  });
+  return placements.map((p) => ({
+    placementId: p.id,
+    name: `${p.student.firstName} ${p.student.lastName}`,
+    email: p.student.email,
+    company: p.company?.name ?? null,
+  }));
+}
+
+/**
+ * Free-text message from the admin to an intern: an in-app notification AND an
+ * email to their registered address. Email send is best-effort (logged, never
+ * fails the message) — the in-app notification is the system of record.
+ */
+export async function messageIntern(placementId: string, body: string) {
+  const p = await loadInternForMessaging(placementId);
+  await createNotification({
+    userId: p.studentId,
+    type: 'system',
+    title: 'Message from the admin team',
+    body,
+    link: '/student/notifications',
+  });
+  await sendEmail({
+    to: p.student.email,
+    subject: 'AESIS — Message from the admin team',
+    html: `<p>Hi ${escapeHtml(p.student.firstName)},</p><p>${escapeHtml(body)}</p><p>— AESIS Admin</p>`,
+  });
+  return { ok: true, emailedTo: p.student.email };
+}
+
+export interface ScheduleCallInput {
+  scheduledAt: string; // ISO datetime
+  topic: string;
+  meetLink: string;    // Google Meet URL the admin created
+}
+
+/**
+ * Schedule a video call with an intern: emails them the Google Meet link + time
+ * (registered address) and drops an in-app notification linking straight to the
+ * meeting. The Meet room is created by the admin (meet.google.com) and pasted —
+ * the system just delivers it.
+ */
+export async function scheduleCallWithIntern(placementId: string, input: ScheduleCallInput) {
+  const p = await loadInternForMessaging(placementId);
+  const when = new Date(input.scheduledAt);
+  const whenStr = when.toLocaleString('en-GB', { dateStyle: 'full', timeStyle: 'short' });
+
+  await createNotification({
+    userId: p.studentId,
+    type: 'system',
+    title: 'Video call scheduled',
+    body: `${input.topic} — ${whenStr}. Tap to join the Google Meet.`,
+    link: input.meetLink,
+    metadata: { scheduledAt: input.scheduledAt, meetLink: input.meetLink, topic: input.topic },
+  });
+  await sendEmail({
+    to: p.student.email,
+    subject: `AESIS — Video call scheduled: ${input.topic}`,
+    html:
+      `<p>Hi ${escapeHtml(p.student.firstName)},</p>` +
+      `<p>A video call has been scheduled with you:</p>` +
+      `<p><strong>Topic:</strong> ${escapeHtml(input.topic)}<br/>` +
+      `<strong>When:</strong> ${escapeHtml(whenStr)}</p>` +
+      `<p><a href="${escapeHtml(input.meetLink)}">Join the Google Meet</a><br/>` +
+      `<span>${escapeHtml(input.meetLink)}</span></p>` +
+      `<p>— AESIS Admin</p>`,
+  });
+  return { ok: true, emailedTo: p.student.email };
 }
