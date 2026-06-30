@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
-import { Clock, Loader2, Check, AlertCircle, Gauge, Scale, Send, CheckCircle2 } from 'lucide-react';
+import { Clock, Loader2, Check, AlertCircle, Gauge, Scale, Send, CheckCircle2, Download } from 'lucide-react';
 import { useCohortConfig, useUpdateCohortConfig } from '@/hooks/useCohortConfig';
-import { useReleaseCohort } from '@/hooks/useGrade';
+import { useReleaseCohort, useCohortReport, type CohortReport } from '@/hooks/useGrade';
 
 const WEIGHT_FIELDS = [
   { key: 'weightIndustry',   label: 'Industry',   hint: 'Company supervisor' },
@@ -81,6 +81,100 @@ function BulkReleaseCard({ academicYearId, yearLabel }: { academicYearId: string
       <p className="mt-3 text-xs text-[var(--h-757684)]">
         Only grades you've already aggregated and signed off are released. Drafts are skipped, and
         already-released grades are unchanged.
+      </p>
+    </section>
+  );
+}
+
+// CSV cell: quote when the value contains a comma, quote, or newline; double up
+// embedded quotes (RFC 4180). null/undefined → empty cell.
+function csvCell(v: string | number | null): string {
+  if (v === null || v === undefined) return '';
+  const s = String(v);
+  return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
+}
+
+const REPORT_HEADERS = [
+  'Student', 'Index number', 'Company', 'Region', 'Supervisor',
+  'Industry', 'University', 'Report', 'Logbook', 'Total', 'Effective total', 'Released at',
+] as const;
+
+function reportToCsv(report: CohortReport): string {
+  const lines = [REPORT_HEADERS.join(',')];
+  for (const r of report.rows) {
+    lines.push([
+      csvCell(r.studentName), csvCell(r.indexNumber), csvCell(r.company), csvCell(r.region),
+      csvCell(r.supervisor), csvCell(r.industry), csvCell(r.university), csvCell(r.report),
+      csvCell(r.logbook), csvCell(r.total), csvCell(r.effectiveTotal),
+      csvCell(r.releasedAt ? new Date(r.releasedAt).toISOString().slice(0, 10) : null),
+    ].join(','));
+  }
+  return lines.join('\n');
+}
+
+function downloadCsv(filename: string, csv: string): void {
+  const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  URL.revokeObjectURL(url);
+}
+
+/** Coordinator/admin — export every released grade in the year as a CSV. */
+function ExportGradesCard({ academicYearId, yearLabel }: { academicYearId: string; yearLabel: string }) {
+  const report = useCohortReport();
+  const [emptyNote, setEmptyNote] = useState(false);
+
+  const onExport = () => {
+    setEmptyNote(false);
+    report.mutate(academicYearId, {
+      onSuccess: (data) => {
+        if (data.count === 0) { setEmptyNote(true); return; }
+        const slug = yearLabel.replace(/\//g, '-');
+        downloadCsv(`aesis-grades-${slug}.csv`, reportToCsv(data));
+      },
+    });
+  };
+
+  return (
+    <section className="rounded-xl bg-[var(--h-ffffff)] p-8 shadow-sm">
+      <div className="mb-6 flex items-center gap-3">
+        <div className="flex h-10 w-10 items-center justify-center rounded-full bg-[var(--h-eff4ff)] text-[var(--h-15157d)]">
+          <Download className="h-5 w-5" />
+        </div>
+        <div>
+          <h2 className="text-sm font-bold text-[var(--h-0b1c30)]">Export released grades</h2>
+          <p className="text-xs text-[var(--h-757684)]">
+            Download every released grade in {yearLabel} as a CSV — component scores, total, and release date.
+          </p>
+        </div>
+      </div>
+
+      <button
+        onClick={onExport}
+        disabled={report.isPending}
+        className="inline-flex items-center gap-2 rounded-lg bg-[var(--h-15157d)] px-5 py-2.5 text-sm font-semibold text-white transition-colors hover:opacity-90 disabled:cursor-not-allowed disabled:bg-[var(--h-c4c5d5)]"
+      >
+        {report.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
+        Download CSV
+      </button>
+
+      {emptyNote && (
+        <p className="mt-4 inline-flex items-center gap-1.5 text-sm font-medium text-[var(--h-757684)]">
+          <AlertCircle className="h-4 w-4" /> No grades have been released in {yearLabel} yet.
+        </p>
+      )}
+      {report.isError && (
+        <p className="mt-4 inline-flex items-center gap-1.5 text-sm font-medium text-[var(--h-8a1c1c)]">
+          <AlertCircle className="h-4 w-4" /> Couldn't build the export — try again.
+        </p>
+      )}
+      <p className="mt-3 text-xs text-[var(--h-757684)]">
+        Only released grades are included — drafts and signed-off-but-unreleased grades are omitted.
       </p>
     </section>
   );
@@ -428,6 +522,7 @@ export default function CohortSettings() {
       </section>
 
       <BulkReleaseCard academicYearId={config.academicYearId} yearLabel={config.academicYearLabel} />
+      <ExportGradesCard academicYearId={config.academicYearId} yearLabel={config.academicYearLabel} />
     </div>
   );
 }

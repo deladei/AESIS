@@ -124,6 +124,44 @@ export function useReleaseCohort() {
   });
 }
 
+// ── Cohort released-grade report / export (coordinator/admin) ──
+
+export interface CohortReportRow {
+  studentName:    string;
+  indexNumber:    string | null;
+  company:        string | null;
+  region:         string | null;
+  supervisor:     string | null;
+  industry:       number | null;
+  university:     number | null;
+  report:         number | null;
+  logbook:        number | null;
+  total:          number | null;
+  effectiveTotal: number | null;
+  releasedAt:     string | null;
+}
+
+export interface CohortReport {
+  academicYearId: string;
+  academicYear:   string;
+  count:          number;
+  rows:           CohortReportRow[];
+}
+
+/**
+ * Fetch every released grade in an academic year, flat, for export. On-demand
+ * (a mutation, not a standing query) so it runs only when the coordinator
+ * clicks Export — the caller turns the rows into a CSV download.
+ */
+export function useCohortReport() {
+  return useMutation({
+    mutationFn: async (academicYearId: string) => {
+      const r = await api.get<{ data: CohortReport }>(`/grades/cohort/${academicYearId}/report`);
+      return r.data.data;
+    },
+  });
+}
+
 // ── Batch B — company-supervisor industry-score magic link ────
 
 export interface IndustryInvite {

@@ -22,6 +22,7 @@ import {
   submitIndustryScore,
   getGradeAudit,
   releaseCohort,
+  getCohortReport,
 } from '../grades.service';
 import { overrideSchema } from '../grades.schema';
 import type { Actor } from '../../entries/entries.policy';
@@ -419,6 +420,56 @@ describe('releaseCohort', () => {
 
   it('forbids a supervisor from bulk-releasing', async () => {
     await expect(releaseCohort(SUP, 'ay-1')).rejects.toMatchObject({ statusCode: 403 });
+    expect(mp.academicYear.findUnique).not.toHaveBeenCalled();
+  });
+});
+
+describe('getCohortReport', () => {
+  const REPORT_ROW = {
+    industryRaw: 80, universityRaw: 70, reportRaw: 60, logbookRaw: 90,
+    total: 73, coordinatorOverride: null, releasedAt: new Date('2026-06-01'),
+    placement: {
+      region: 'greater_accra',
+      company: { name: 'Acme Ghana Ltd' },
+      student: { firstName: 'Ama', lastName: 'Mensah', indexNumber: 'CS-001' },
+      academicSupervisor: { firstName: 'Kwame', lastName: 'Boateng' },
+    },
+  };
+
+  it('returns only released grades, flattened, with the effective total', async () => {
+    mp.academicYear.findUnique.mockResolvedValue({ id: 'ay-1', label: '2025/2026' });
+    mp.finalGrade.findMany.mockResolvedValue([
+      REPORT_ROW,
+      { ...REPORT_ROW, coordinatorOverride: 85,
+        placement: { ...REPORT_ROW.placement, student: { firstName: 'Kojo', lastName: 'Owusu', indexNumber: null }, academicSupervisor: null, company: null } },
+    ]);
+
+    const res = (await getCohortReport(COORD, 'ay-1')) as any;
+    expect(mp.finalGrade.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({ where: { status: 'released', placement: { academicYearId: 'ay-1' } } }),
+    );
+    expect(res.academicYear).toBe('2025/2026');
+    expect(res.count).toBe(2);
+    expect(res.rows[0]).toMatchObject({
+      studentName: 'Ama Mensah', indexNumber: 'CS-001', company: 'Acme Ghana Ltd',
+      region: 'greater_accra', supervisor: 'Kwame Boateng', total: 73, effectiveTotal: 73,
+    });
+    // override wins for effectiveTotal; null joins degrade to null, never throw.
+    expect(res.rows[1]).toMatchObject({
+      studentName: 'Kojo Owusu', indexNumber: null, company: null,
+      supervisor: null, total: 73, effectiveTotal: 85,
+    });
+  });
+
+  it('404s on an unknown academic year', async () => {
+    mp.academicYear.findUnique.mockResolvedValue(null);
+    await expect(getCohortReport(COORD, 'nope')).rejects.toMatchObject({ statusCode: 404 });
+    expect(mp.finalGrade.findMany).not.toHaveBeenCalled();
+  });
+
+  it('forbids a supervisor and a student', async () => {
+    await expect(getCohortReport(SUP, 'ay-1')).rejects.toMatchObject({ statusCode: 403 });
+    await expect(getCohortReport(STUDENT, 'ay-1')).rejects.toMatchObject({ statusCode: 403 });
     expect(mp.academicYear.findUnique).not.toHaveBeenCalled();
   });
 });

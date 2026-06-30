@@ -21,6 +21,7 @@ jest.mock('../grades.service', () => ({
   submitIndustryScore: jest.fn(),
   getGradeAudit: jest.fn(),
   releaseCohort: jest.fn(),
+  getCohortReport: jest.fn(),
 }));
 
 import request from 'supertest';
@@ -60,6 +61,7 @@ describe('auth guard', () => {
     expect((await request(app).get(`/grades/${PID}/audit`)).status).toBe(401);
     expect((await request(app).post(`/grades/${PID}/aggregate`)).status).toBe(401);
     expect((await request(app).post(`/grades/cohort/${AYID}/release`)).status).toBe(401);
+    expect((await request(app).get(`/grades/cohort/${AYID}/report`)).status).toBe(401);
   });
 });
 
@@ -174,6 +176,25 @@ describe('POST /grades/cohort/:academicYearId/release', () => {
     const res = await request(app).post('/grades/cohort/not-a-uuid/release').set(...auth());
     expect(res.status).toBe(400);
     expect(mockService.releaseCohort).not.toHaveBeenCalled();
+  });
+});
+
+describe('GET /grades/cohort/:academicYearId/report', () => {
+  it('200s and returns the report payload', async () => {
+    mockService.getCohortReport.mockResolvedValue({ academicYearId: AYID, academicYear: '2025/2026', count: 1, rows: [] } as any);
+    const res = await request(app).get(`/grades/cohort/${AYID}/report`).set(...auth());
+    expect(res.status).toBe(200);
+    expect(res.body.data.academicYear).toBe('2025/2026');
+    expect(mockService.getCohortReport).toHaveBeenCalledWith(
+      { id: 'coord-1', role: 'coordinator' },
+      AYID,
+    );
+  });
+
+  it('400s on a non-uuid year', async () => {
+    const res = await request(app).get('/grades/cohort/not-a-uuid/report').set(...auth());
+    expect(res.status).toBe(400);
+    expect(mockService.getCohortReport).not.toHaveBeenCalled();
   });
 });
 

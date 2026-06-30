@@ -272,6 +272,62 @@ export async function releaseCohort(actor: Actor, academicYearId: string) {
   return { academicYearId, released: approved.length };
 }
 
+/**
+ * Coordinator/admin: a flat report of every RELEASED final grade in an academic
+ * year, joined to the student / company / supervisor / region for export. The
+ * full breakdown (all four components + total) is intentionally exposed — this
+ * is the coordinator's own cohort record, the same role the console already
+ * shows everything to. Draft/approved (not-yet-released) grades are excluded:
+ * a report row represents a grade the student can already see.
+ */
+export async function getCohortReport(actor: Actor, academicYearId: string) {
+  assertCanManageGrade(actor);
+
+  const year = await prisma.academicYear.findUnique({
+    where: { id: academicYearId },
+    select: { id: true, label: true },
+  });
+  if (!year) throw new AppError(404, 'Academic year not found');
+
+  const grades = await prisma.finalGrade.findMany({
+    where: { status: 'released', placement: { academicYearId } },
+    select: {
+      industryRaw: true, universityRaw: true, reportRaw: true, logbookRaw: true,
+      total: true, coordinatorOverride: true, releasedAt: true,
+      placement: {
+        select: {
+          region: true,
+          company: { select: { name: true } },
+          student: { select: { firstName: true, lastName: true, indexNumber: true } },
+          academicSupervisor: { select: { firstName: true, lastName: true } },
+        },
+      },
+    },
+    orderBy: { placement: { student: { lastName: 'asc' } } },
+  });
+
+  const rows = grades.map((g) => {
+    const p = g.placement;
+    const sup = p.academicSupervisor;
+    return {
+      studentName: `${p.student.firstName} ${p.student.lastName}`,
+      indexNumber: p.student.indexNumber ?? null,
+      company: p.company?.name ?? null,
+      region: p.region ?? null,
+      supervisor: sup ? `${sup.firstName} ${sup.lastName}` : null,
+      industry: g.industryRaw,
+      university: g.universityRaw,
+      report: g.reportRaw,
+      logbook: g.logbookRaw,
+      total: g.total,
+      effectiveTotal: g.coordinatorOverride ?? g.total,
+      releasedAt: g.releasedAt,
+    };
+  });
+
+  return { academicYearId, academicYear: year.label, count: rows.length, rows };
+}
+
 // ── Batch B — tokenised company-supervisor industry-score channel ─────────────
 
 // When a component changes after sign-off, the prior aggregate + sign-off no
