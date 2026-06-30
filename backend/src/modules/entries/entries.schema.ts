@@ -29,6 +29,29 @@ export const saveDraftSchema = z.object({
 
 export const submitSchema = z.object({}).optional();
 
+// ── Per-day path ──────────────────────────────────────────────
+// One day's activities (the day is the submittable unit). The day's date is the
+// route/body `date`, so per-activity dates aren't needed here.
+export const dayActivitySchema = z.object({
+  description: z.string().trim().min(1).max(5000),
+  competencyTags: z.array(z.string().trim().min(1).max(64)).max(20).default([]),
+});
+
+// Save a single day's draft. Upserts the owning week entry, then replaces just
+// this day's activities — other days are untouched.
+export const saveDaySchema = z.object({
+  placementId: z.string().uuid(),
+  weekNumber: z.number().int().min(1).max(6),
+  periodStart: dateOnly,
+  periodEnd: dateOnly,
+  date: dateOnly,
+  activities: z.array(dayActivitySchema).max(20).default([]),
+});
+
+export const submitDaySchema = z.object({
+  date: dateOnly,
+});
+
 export const returnSchema = z.object({
   comment: z.string().trim().min(1).max(5000),
 });
@@ -46,6 +69,8 @@ export const listQuerySchema = z.object({
   limit: z.coerce.number().int().min(1).max(100).default(24),
 });
 
+export type SaveDayInput = z.infer<typeof saveDaySchema>;
+export type SubmitDayInput = z.infer<typeof submitDaySchema>;
 export type SaveDraftInput = z.infer<typeof saveDraftSchema>;
 export type ReturnInput = z.infer<typeof returnSchema>;
 export type AcknowledgeInput = z.infer<typeof acknowledgeSchema>;

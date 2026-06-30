@@ -6,6 +6,8 @@ import {
   returnSchema,
   acknowledgeSchema,
   listQuerySchema,
+  saveDaySchema,
+  submitDaySchema,
 } from './entries.schema';
 import {
   saveDraft,
@@ -16,6 +18,7 @@ import {
   getEntryTrail,
   listEntries,
 } from './entries.service';
+import { saveDayDraft, submitDay } from './entries.day.service';
 import type { Actor } from './entries.policy';
 import type { EntryRole } from './entry.stateMachine';
 
@@ -35,6 +38,21 @@ export async function saveDraftHandler(req: Request, res: Response) {
 export async function submitHandler(req: Request, res: Response) {
   const { id } = idParam.parse(req.params);
   const entry = await submitEntry(actorOf(req), id);
+  return ok(res, entry);
+}
+
+// ── Per-day path ──────────────────────────────────────────────
+
+export async function saveDayHandler(req: Request, res: Response) {
+  const input = saveDaySchema.parse(req.body);
+  const entry = await saveDayDraft(actorOf(req), input);
+  return created(res, entry);
+}
+
+export async function submitDayHandler(req: Request, res: Response) {
+  const { id } = idParam.parse(req.params);
+  const { date } = submitDaySchema.parse(req.body);
+  const entry = await submitDay(actorOf(req), id, date);
   return ok(res, entry);
 }
 

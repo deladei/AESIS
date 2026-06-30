@@ -9,6 +9,8 @@ import {
   getEntryHandler,
   getTrailHandler,
   listEntriesHandler,
+  saveDayHandler,
+  submitDayHandler,
 } from './entries.controller';
 import attachmentsRouter from './attachments.router';
 
@@ -21,7 +23,9 @@ router.use(authenticate);
 
 router.get('/', asyncHandler(listEntriesHandler));
 router.post('/', asyncHandler(saveDraftHandler)); // create or update a draft
+router.post('/days', asyncHandler(saveDayHandler)); // per-day path: save one day's draft (upserts the week)
 router.get('/:id', asyncHandler(getEntryHandler));
+router.post('/:id/days/submit', asyncHandler(submitDayHandler)); // per-day path: submit one day (anti-cheat window)
 router.get('/:id/trail', asyncHandler(getTrailHandler)); // append-only audit trail
 router.post('/:id/submit', asyncHandler(submitHandler));
 router.post('/:id/acknowledge', asyncHandler(acknowledgeHandler));

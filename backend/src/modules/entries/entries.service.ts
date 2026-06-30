@@ -419,6 +419,7 @@ export async function getEntry(actor: Actor, entryId: string) {
       reflection: true,
       events: { orderBy: { createdAt: 'asc' } },
       assessments: { orderBy: { createdAt: 'desc' } },
+      days: { orderBy: { date: 'asc' } },
     },
   });
   if (!entry) throw new AppError(404, 'Logbook entry not found');

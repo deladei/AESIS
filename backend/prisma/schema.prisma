@@ -656,6 +656,7 @@ model LogbookEntry {
   enrichmentJobs EnrichmentQueue[]
   objectiveLinks EntryObjective[]
   attachments    EntryAttachment[]
+  days           EntryDay[]
 
   @@unique([placementId, weekNumber])
   @@index([placementId])
@@ -674,6 +675,32 @@ model EntryActivity {
 
   @@index([entryId])
   @@map("entry_activity")
+}
+
+// Per-day submission state within a week. The DAY is the unit the student
+// submits (Mon–Fri); the WEEK (LogbookEntry) stays the unit the supervisor
+// reviews/acknowledges and grades. A day's activities are the EntryActivity rows
+// whose activityDate == this date. `loggedLate` is stamped at submit time when
+// the day is submitted after its own date (anti-cheat transparency).
+enum DayStatus {
+  draft
+  submitted
+}
+
+model EntryDay {
+  id          String       @id @default(uuid())
+  entryId     String       @map("entry_id")
+  entry       LogbookEntry @relation(fields: [entryId], references: [id], onDelete: Cascade)
+  date        DateTime     @db.Date
+  status      DayStatus    @default(draft)
+  submittedAt DateTime?    @map("submitted_at")
+  loggedLate  Boolean      @default(false) @map("logged_late")
+  createdAt   DateTime     @default(now()) @map("created_at")
+  updatedAt   DateTime     @updatedAt @map("updated_at")
+
+  @@unique([entryId, date])
+  @@index([entryId])
+  @@map("entry_days")
 }
 
 model EntryReflection {
