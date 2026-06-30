@@ -2370,3 +2370,22 @@ Switched prod off `db push` onto proper `prisma migrate deploy`:
 3. Carried (S58): rotate the other 3 secrets.
 4. Full data-level grade test with a real coordinator login (route+schema+router proven; end-to-end read still not exercised on prod).
 5. Possible next grade features (menu): per-cohort released-grade export/report; academic-supervisor own-3-component flow + student released-total view end-to-end verification.
+
+### Session 65 — 2026-06-29 — Grade-menu sweep: per-cohort released-grade CSV export (commit `f01aa75`, pushed prod)
+
+**Ask.** Work the buildable grade-feature menu least→biggest on auto: (3) student released-total view, (2) academic-supervisor own-3-component entry, (1) per-cohort released-grade export.
+
+**Discovery — #2 and #3 were already built + wired, not just "surfaces."** `components/grades/GradePanel.tsx` already role-routes to three complete surfaces: `GradeConsole` (coordinator/admin), `SupervisorComponents` (academic supervisor — own 3 components, industry+total withheld), `StudentGrade` (released total only, locked state otherwise). All three are mounted: supervisor → `pages/supervisor/PlacementFinalization.tsx`; coordinator → `pages/coordinator/InternDetail.tsx`; student → `pages/student/FinalAssessment.tsx`. The backend serializer (`grades.policy.serializeGrade`) already returns the role-filtered payload each surface reads. So #2/#3 needed **no code** — their only outstanding gap is in-browser verification on prod (creds-gated). HANDOFF's "menu" wording ("surfaces exist, not all role flows verified") understated how complete they were.
+
+**Built — #1 per-cohort released-grade CSV export (`feat(grades)` `f01aa75`).** No migration — reads existing tables; authz reuses `assertCanManageGrade`.
+- **Backend:** `getCohortReport(actor, academicYearId)` in `grades.service.ts` — coordinator/admin only (403 for supervisor/student), 404 on unknown year. Returns **only `status='released'`** grades for the year, joined to placement → student (name, indexNumber), company, region, academic supervisor; flattened to rows `{ studentName, indexNumber, company, region, supervisor, industry, university, report, logbook, total, effectiveTotal (= coordinatorOverride ?? total), releasedAt }`, ordered by student surname. Returns `{ academicYearId, academicYear (label), count, rows }`. Null joins (no company/supervisor, null index) degrade to `null`, never throw. Route `GET /grades/cohort/:academicYearId/report` — declared with the `/cohort` static segment **before** the `/:id` routes so the uuid param doesn't shadow it.
+- **Frontend:** `useCohortReport()` hook (`hooks/useGrade.ts`) — on-demand mutation (GET fired on click, not a standing query). New **Export released grades** card in `pages/coordinator/CohortSettings.tsx` beside the S63 bulk-release card: builds an **RFC-4180 CSV client-side** (`csvCell` quotes commas/quotes/newlines; headers + rows; `releasedAt` → ISO date) and triggers a Blob download `aesis-grades-<year>.csv`. Empty-cohort note + error state handled. Only released grades included (drafts/signed-off-unreleased omitted).
+- **Tests:** grades service +3 (returns only released + flattened + effectiveTotal/override + null-join safety; 404; 403 for supervisor **and** student) and controller +2 (200 reach + correct actor/arg passthrough; 400 non-uuid; 401 added to the auth sweep). **Grades suites 55/55** (`npx jest src/modules/grades --runInBand`, was 50/50 in S63).
+
+**Verification.** Backend `tsc --noEmit` clean + grades 55/55; frontend `tsc --noEmit` + `vite build` clean. Committed + pushed `main` → Render (`migrate deploy`, no new migration → "No pending migrations") + Vercel auto-deploy.
+
+**Stopped here — follow-ups.**
+1. **⚠️ ROTATE prod `DATABASE_URL`** — still overdue (re-exposed S64). Top of the secret queue.
+2. **In-browser verify on prod** (all creds-gated, user-run): the WS fix (S64); the export CSV download in Cohort Settings; and the already-built grade surfaces end-to-end — supervisor enters own 3 components (PlacementFinalization), coordinator aggregates/overrides/releases (InternDetail), student sees released total (FinalAssessment). Code + unit/router tests prove these; only a real multi-role login on prod is missing.
+3. Carried (S58): rotate the other 3 secrets.
+4. The buildable grade-feature menu is now **exhausted** — remaining grade work is verification, not new code. Next net-new features would need a fresh ask (e.g. per-region grade rollups, grade-distribution analytics on the coordinator dashboard, PDF transcript export).
