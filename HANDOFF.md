@@ -2545,3 +2545,24 @@ Switched prod off `db push` onto proper `prisma migrate deploy`:
 2. **Email delivery depends on SendGrid.** `sendEmail` only actually sends when `NODE_ENV=production` **and** `SENDGRID_API_KEY` is set; otherwise it just logs (dev). Set `SENDGRID_API_KEY` (+ `EMAIL_FROM`/`EMAIL_FROM_NAME`) on `aesis-backend` so the message/call emails actually reach students. The **in-app notification always works** regardless.
 3. Optional next: full Google Calendar API integration (auto-create the Meet + calendar invite) — needs a Google Cloud project + service-account/OAuth creds.
 4. Carried: chatbot/AI in-browser verify; risk-pipeline audit; per-day flow verify + itdb; rotate other 3 secrets.
+
+### Session 74 — 2026-06-30 — System-wide profile picture upload for every user (commit `5bba645`, pushed prod)
+
+**Ask.** Use the user's credentials/profile so every user (all roles) can upload a profile picture, system-wide.
+
+**Finding.** `User.avatarUrl` existed in `schema.prisma` but was **drifted working-tree state** — uncommitted, **no migration**, and wired nowhere (prod DB had no `avatar_url` column). Cloudinary infra already exists (`config/cloudinary.ts` + entry attachments) — reused it, no new lib.
+
+**Shipped (`feat(profile)` `5bba645`).**
+- **Migration** `20260630130000_user_avatar_url` — additive `ALTER TABLE "users" ADD COLUMN "avatar_url" TEXT` (prod runs `migrate deploy` on start). Schema column also committed (was drift).
+- **`uploadBuffer`** gains optional `publicId` + `overwrite` → avatars stored at fixed `public_id = aesis/avatars/<userId>`, so a re-upload **overwrites in place** (one avatar/user, no orphans; `invalidate` busts the CDN copy).
+- **auth.service:** `uploadAvatar` (503 if Cloudinary unconfigured, image-only via controller, persists `secure_url`) + `removeAvatar` (best-effort `deleteAsset` then null the column). `avatarUrl` now returned on **login, refresh, and `/auth/me`** so the session rehydrates with it.
+- **Routes:** `POST /auth/me/avatar` (multer memory, PNG/JPG/WebP, 5 MB) + `DELETE /auth/me/avatar`. Both behind `authenticate` — each user edits only their own.
+- **Frontend:** `AuthContext` gains `avatarUrl` + `updateUser` (sidebar updates instantly, no reload); `useUploadAvatar`/`useRemoveAvatar` (multipart — explicit `multipart/form-data` override so axios sets the boundary, else the instance's default `application/json` breaks multer); `AppShell` renders the avatar img with initials fallback; **ProfilePage** avatar doubles as the upload control (hover camera → click to change, Remove link, client-side type/size guard).
+
+**Verification.** Backend `tsc` clean + auth tests **37/37** (7 new avatar tests); frontend `tsc` + `vite build` clean. Pushed `main` → Render + Vercel.
+
+**Stopped here — follow-ups.**
+1. **⚠️ ROTATE prod `DATABASE_URL`** — still overdue.
+2. **Verify `CLOUDINARY_*` env on `aesis-backend`** — if unset, avatar upload returns **503** (graceful; initials still show). Attachments use the same creds, so likely already set; confirm.
+3. **In-browser verify:** any role → Profile → click avatar → pick image → expect it in the header + sidebar; Remove clears it.
+4. Carried: chatbot/AI in-browser verify; risk-pipeline audit; per-day flow verify + itdb; rotate other 3 secrets.
