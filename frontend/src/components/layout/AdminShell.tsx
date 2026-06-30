@@ -81,10 +81,15 @@ export function AdminShell({ user, children }: AdminShellProps) {
         </nav>
 
         <div className="px-4 pb-2">
-          <button className="flex w-full items-center justify-center gap-2 rounded-xl bg-[var(--h-15157d)] py-3 text-sm font-semibold text-white shadow-md transition-colors hover:bg-[var(--h-2e3192)]">
+          <Link
+            to="/admin/report"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="flex w-full items-center justify-center gap-2 rounded-xl bg-[var(--h-15157d)] py-3 text-sm font-semibold text-white shadow-md transition-colors hover:bg-[var(--h-2e3192)]"
+          >
             <FileBarChart className="h-4 w-4" />
             Generate Report
-          </button>
+          </Link>
         </div>
         <div className="border-t border-[var(--h-c7c5d4-30)] p-3">
           <div className="flex items-center gap-3 px-2 py-2">

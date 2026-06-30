@@ -4,6 +4,8 @@ import {
   useCoordinatorDashboard, useSupervisorWorkload, usePerformanceDistribution,
   useCoordinatorStudents, useCoordinatorCohorts,
 } from '@/hooks/useDashboard';
+import { useCohortStats, useCohortRegions } from '@/hooks/useGrade';
+import { regionLabel } from '@/lib/regions';
 
 /**
  * Printable cohort report (item 16 — PDF export). A clean, shell-less page the
@@ -20,6 +22,8 @@ export default function CohortReport() {
   const { data: dist, isLoading: l3 } = usePerformanceDistribution(yearId);
   const { data: studentsPage, isLoading: l4 } = useCoordinatorStudents({ page: 1, limit: 500, academicYearId: yearId });
   const { data: cohorts = [] } = useCoordinatorCohorts();
+  const { data: gradeStats } = useCohortStats(yearId);
+  const { data: regions } = useCohortRegions(yearId);
 
   const loading = l1 || l2 || l3 || l4;
   const cohortLabel = yearId ? (cohorts.find((c) => c.id === yearId)?.label ?? 'Selected cohort') : 'All cohorts';
@@ -118,6 +122,38 @@ export default function CohortReport() {
                 </div>
               </>
             ) : <p className="text-sm text-[var(--h-757684)]">No logbook scores yet.</p>}
+          </section>
+
+          <section className="mb-8">
+            <h2 className="mb-3 text-sm font-bold uppercase tracking-wide text-[var(--h-757684)]">Released-grade distribution</h2>
+            {gradeStats && gradeStats.count > 0 ? (
+              <p className="text-sm text-[var(--h-444653)]">
+                n={gradeStats.count} · mean {gradeStats.mean} · median {gradeStats.median} · pass rate {gradeStats.passRate}% ·
+                Distinction {gradeStats.bands.distinction} · Pass {gradeStats.bands.pass} · Resit {gradeStats.bands.resit} · Fail {gradeStats.bands.fail}
+              </p>
+            ) : <p className="text-sm text-[var(--h-757684)]">No grades released yet.</p>}
+          </section>
+
+          <section className="mb-8">
+            <h2 className="mb-3 text-sm font-bold uppercase tracking-wide text-[var(--h-757684)]">Grades by region</h2>
+            {regions && regions.count > 0 ? (
+              <table className="w-full text-left text-sm">
+                <thead><tr className="border-b border-[var(--h-c4c5d5-60)] text-xs text-[var(--h-757684)]">
+                  <th className="py-1">Region</th><th className="py-1 text-right">Interns</th>
+                  <th className="py-1 text-right">Avg</th><th className="py-1 text-right">Pass rate</th>
+                </tr></thead>
+                <tbody>
+                  {regions.regions.map((r) => (
+                    <tr key={r.region ?? 'unspecified'} className="border-b border-[var(--h-eef1ff)]">
+                      <td className="py-1">{r.region ? regionLabel(r.region) : 'Unspecified'}</td>
+                      <td className="py-1 text-right">{r.count}</td>
+                      <td className="py-1 text-right font-semibold">{r.mean}</td>
+                      <td className="py-1 text-right">{r.passRate}%</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            ) : <p className="text-sm text-[var(--h-757684)]">No released grades to roll up.</p>}
           </section>
 
           <section>

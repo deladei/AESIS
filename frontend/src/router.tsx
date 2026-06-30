@@ -25,6 +25,7 @@ import PlacementApproval    from '@/pages/coordinator/PlacementApproval';
 import SupervisorAssignment from '@/pages/coordinator/SupervisorAssignment';
 import CohortSettings       from '@/pages/coordinator/CohortSettings';
 import CohortReport         from '@/pages/coordinator/CohortReport';
+import AdminReport          from '@/pages/admin/AdminReport';
 import CompaniesList        from '@/pages/coordinator/CompaniesList';
 import Oversight            from '@/pages/coordinator/Oversight';
 import AdminDashboard       from '@/pages/admin/AdminDashboard';
@@ -149,6 +150,14 @@ export const router = createBrowserRouter([
     element: <RequireAuth roles={['coordinator', 'admin']} bare />,
     children: [
       { path: '/coordinator/report', element: <CohortReport /> },
+    ],
+  },
+
+  // Admin printable system report — shell-less for clean print/Save-as-PDF.
+  {
+    element: <RequireAuth roles={['admin']} bare />,
+    children: [
+      { path: '/admin/report', element: <AdminReport /> },
     ],
   },
 
