@@ -76,6 +76,12 @@ export default function EntryReview() {
     return s && typeof s === 'object' ? (s as AiSummary) : null;
   }, [detail?.assessments]);
 
+  // Days the student submitted after their own date (anti-cheat transparency).
+  const lateDates = useMemo(
+    () => new Set((detail?.days ?? []).filter((d) => d.loggedLate).map((d) => d.date.slice(0, 10))),
+    [detail?.days],
+  );
+
   const apiErr = (e: unknown) =>
     ((e as { response?: { data?: { message?: string } } })?.response?.data?.message) ??
     'Something went wrong. Please try again.';
@@ -233,8 +239,11 @@ export default function EntryReview() {
                     )}
                     {(detail.activities ?? []).map((a, i) => (
                       <div key={i} className="rounded-lg border border-[var(--h-eef0f5)] bg-[var(--h-fbfcfe)] p-3">
-                        <p className="mb-1 inline-flex items-center gap-1 text-xs font-medium text-[var(--h-64748b)]">
-                          <CalendarDays className="h-3 w-3" /> {fmtDate(a.activityDate)}
+                        <p className="mb-1 inline-flex items-center gap-1.5 text-xs font-medium text-[var(--h-64748b)]">
+                          <span className="inline-flex items-center gap-1"><CalendarDays className="h-3 w-3" /> {fmtDate(a.activityDate)}</span>
+                          {lateDates.has(a.activityDate.slice(0, 10)) && (
+                            <span className="inline-flex items-center gap-1 rounded-full bg-[var(--h-fff4e0)] px-1.5 py-0.5 text-[10px] font-semibold text-[var(--h-9a6700)]">logged late</span>
+                          )}
                         </p>
                         <p className="whitespace-pre-wrap text-sm text-[var(--h-0b1c30)]">{a.description}</p>
                         {a.competencyTags.length > 0 && (

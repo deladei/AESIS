@@ -17,6 +17,16 @@ export interface EntryReflection {
   supervisorVisible: boolean;
 }
 
+export type DayStatus = 'draft' | 'submitted';
+
+export interface EntryDay {
+  id:          string;
+  date:        string;       // ISO; slice to YYYY-MM-DD
+  status:      DayStatus;
+  submittedAt: string | null;
+  loggedLate:  boolean;
+}
+
 export interface EntryEvent {
   id:         string;
   fromStatus: EntryStatus | null;
@@ -49,6 +59,7 @@ export interface LogbookEntry {
   reflection?: EntryReflection | null;
   events?:     EntryEvent[];
   assessments?: EntryAssessment[];
+  days?:       EntryDay[];
   _count?:     { activities: number };
   // Present on the list endpoint (used by the supervisor review queue).
   placement?: {
@@ -117,6 +128,46 @@ export function useSubmitEntry() {
     },
     onSuccess: (entry) => {
       qc.invalidateQueries({ queryKey: ['entries'] });
+      qc.invalidateQueries({ queryKey: ['entries', 'detail', entry.id] });
+    },
+  });
+}
+
+// ── Per-day path ──
+// One day's activities (the day is the submittable unit). Saving upserts the
+// owning week and replaces just this day's activities.
+export interface SaveDayPayload {
+  placementId: string;
+  weekNumber:  number;
+  periodStart: string;
+  periodEnd:   string;
+  date:        string; // YYYY-MM-DD
+  activities:  { description: string; competencyTags: string[] }[];
+}
+
+export function useSaveDay() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (payload: SaveDayPayload) => {
+      const r = await api.post<{ data: LogbookEntry }>('/entries/days', payload);
+      return r.data.data;
+    },
+    onSuccess: (entry) => {
+      qc.invalidateQueries({ queryKey: ['entries', 'list', entry.placementId] });
+      qc.invalidateQueries({ queryKey: ['entries', 'detail', entry.id] });
+    },
+  });
+}
+
+export function useSubmitDay() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ entryId, date }: { entryId: string; date: string }) => {
+      const r = await api.post<{ data: LogbookEntry }>(`/entries/${entryId}/days/submit`, { date });
+      return r.data.data;
+    },
+    onSuccess: (entry) => {
+      qc.invalidateQueries({ queryKey: ['entries', 'list', entry.placementId] });
       qc.invalidateQueries({ queryKey: ['entries', 'detail', entry.id] });
     },
   });
