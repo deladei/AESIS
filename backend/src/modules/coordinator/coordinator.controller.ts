@@ -126,6 +126,27 @@ export async function setSupervisorRegion(req: Request, res: Response) {
   ok(res, data);
 }
 
+// Bulk supervisor roster upload — name/email/region per row.
+const bulkSupervisorsSchema = z.object({
+  supervisors: z
+    .array(
+      z.object({
+        firstName: z.string().trim().min(1).max(80),
+        lastName: z.string().trim().min(1).max(80),
+        email: z.string().trim().email().max(160),
+        region: z.enum(REGION_VALUES),
+      }),
+    )
+    .min(1)
+    .max(200),
+});
+
+export async function bulkCreateSupervisors(req: Request, res: Response) {
+  const { supervisors } = bulkSupervisorsSchema.parse(req.body);
+  const data = await service.bulkCreateSupervisors(req.user!.sub, supervisors);
+  ok(res, data);
+}
+
 export async function unassignedPlacements(_req: Request, res: Response) {
   const data = await service.listUnassignedPlacements();
   ok(res, data);

@@ -140,6 +140,35 @@ export function useUnassignedPlacements() {
   });
 }
 
+export interface BulkSupervisorRow {
+  firstName: string;
+  lastName: string;
+  email: string;
+  region: string;
+}
+export interface BulkSupervisorResult {
+  email: string;
+  status: 'created' | 'updated' | 'skipped';
+  region?: string;
+  message?: string;
+}
+export interface BulkSupervisorResponse {
+  total: number; created: number; updated: number; skipped: number;
+  results: BulkSupervisorResult[];
+}
+
+/** Upload a supervisor roster (name/email/region). Coordinator/admin only. */
+export function useBulkCreateSupervisors() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (supervisors: BulkSupervisorRow[]) => {
+      const r = await api.post<{ data: BulkSupervisorResponse }>('/coordinator/supervisors/bulk', { supervisors });
+      return r.data.data;
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['coordinator'] }),
+  });
+}
+
 /** Set (or clear, with null) the single region an academic supervisor covers. */
 export function useSetSupervisorRegion() {
   const qc = useQueryClient();

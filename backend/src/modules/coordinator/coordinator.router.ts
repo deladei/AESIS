@@ -39,6 +39,9 @@ router.get('/activity', asyncHandler(ctrl.activity));
 // GET /api/v1/coordinator/supervisors
 router.get('/supervisors', asyncHandler(ctrl.supervisors));
 
+// POST /api/v1/coordinator/supervisors/bulk — upload a supervisor roster (name/email/region)
+router.post('/supervisors/bulk', asyncHandler(ctrl.bulkCreateSupervisors));
+
 // PATCH /api/v1/coordinator/supervisors/:id/region — set region a supervisor covers
 router.patch('/supervisors/:id/region', asyncHandler(ctrl.setSupervisorRegion));
 

@@ -1,3 +1,5 @@
+import bcrypt from 'bcryptjs';
+import { randomBytes } from 'crypto';
 import { prisma } from '../../config/prisma';
 import { env } from '../../config/env';
 import { paginate, buildMeta } from '../../shared/utils/pagination';
@@ -744,6 +746,84 @@ export async function setSupervisorRegion(supervisorId: string, region: string |
     data:   { supervisedRegion: region as never },
     select: { id: true, firstName: true, lastName: true, email: true, supervisedRegion: true },
   });
+}
+
+// ── Bulk supervisor roster upload ─────────────────────────────
+
+export interface BulkSupervisorRow {
+  firstName: string;
+  lastName: string;
+  email: string;
+  region: string;
+}
+
+export type BulkSupervisorResult = {
+  email: string;
+  status: 'created' | 'updated' | 'skipped';
+  region?: string;
+  message?: string;
+};
+
+/**
+ * Coordinator uploads a department supervisor roster (name, email, region). For
+ * each row: create the academic_supervisor with their region, or — if the email
+ * already exists as a supervisor — update their region/name (idempotent re-upload).
+ * A non-supervisor email is skipped, never overwritten. New accounts are created
+ * verified with a random unusable password; the supervisor sets their own via the
+ * "Forgot password" flow. Supervisors join the coordinator's own department.
+ * The student-registration auto-assign (pickLeastLoadedSupervisor) then routes
+ * new interns in each region to its supervisor automatically.
+ */
+export async function bulkCreateSupervisors(coordinatorId: string, rows: BulkSupervisorRow[]) {
+  const coordinator = await prisma.user.findUnique({
+    where: { id: coordinatorId },
+    select: { departmentId: true },
+  });
+  if (!coordinator) throw new AppError(404, 'Coordinator not found');
+
+  const results: BulkSupervisorResult[] = [];
+  let created = 0, updated = 0, skipped = 0;
+
+  for (const r of rows) {
+    const email = r.email.trim().toLowerCase();
+    try {
+      const existing = await prisma.user.findUnique({ where: { email }, select: { id: true, role: true } });
+      if (existing) {
+        if (existing.role !== 'academic_supervisor') {
+          skipped++;
+          results.push({ email, status: 'skipped', message: 'Email already belongs to a non-supervisor account' });
+          continue;
+        }
+        await prisma.user.update({
+          where: { id: existing.id },
+          data: { firstName: r.firstName, lastName: r.lastName, supervisedRegion: r.region as never },
+        });
+        updated++;
+        results.push({ email, status: 'updated', region: r.region });
+      } else {
+        const passwordHash = await bcrypt.hash(randomBytes(24).toString('hex'), env.BCRYPT_ROUNDS);
+        await prisma.user.create({
+          data: {
+            firstName: r.firstName,
+            lastName: r.lastName,
+            email,
+            passwordHash,
+            role: 'academic_supervisor',
+            departmentId: coordinator.departmentId,
+            isVerified: true,
+            supervisedRegion: r.region as never,
+          },
+        });
+        created++;
+        results.push({ email, status: 'created', region: r.region });
+      }
+    } catch {
+      skipped++;
+      results.push({ email, status: 'skipped', message: 'Could not process this row' });
+    }
+  }
+
+  return { total: rows.length, created, updated, skipped, results };
 }
 
 /**

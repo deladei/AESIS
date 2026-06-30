@@ -41,6 +41,9 @@ jest.mock('../../../config/prisma', () => ({
     },
     user: {
       findMany: jest.fn(),
+      findUnique: jest.fn(),
+      create: jest.fn(),
+      update: jest.fn(),
     },
     company: {
       findMany: jest.fn(),
@@ -69,6 +72,7 @@ import {
   getPerformanceDistribution,
   searchEntities,
   getFeatureFlags,
+  bulkCreateSupervisors,
 } from '../coordinator.service';
 import { updateCohortConfigSchema } from '../coordinator.schema';
 
@@ -1092,5 +1096,55 @@ describe('getFeatureFlags', () => {
   it('exposes the coordinator nav flags (test env defaults)', () => {
     // env defaults in tests: AI_PULSE_MATCHING off, AI_INSIGHTS on.
     expect(getFeatureFlags()).toEqual({ aiPulseMatching: false, aiInsights: true });
+  });
+});
+
+describe('bulkCreateSupervisors', () => {
+  const u = mp.user as unknown as {
+    findUnique: jest.Mock; create: jest.Mock; update: jest.Mock;
+  };
+
+  beforeEach(() => {
+    // First findUnique call = the coordinator (department lookup).
+    u.findUnique.mockReset();
+    u.create.mockReset();
+    u.update.mockReset();
+  });
+
+  it('creates a new supervisor in the coordinator department, updates an existing one, skips a non-supervisor', async () => {
+    u.findUnique
+      .mockResolvedValueOnce({ departmentId: 'dep-1' })                 // coordinator
+      .mockResolvedValueOnce(null)                                       // new@ — create
+      .mockResolvedValueOnce({ id: 'sup-9', role: 'academic_supervisor' }) // exists@ — update
+      .mockResolvedValueOnce({ id: 'stu-1', role: 'student' });          // taken@ — skip
+    u.create.mockResolvedValue({ id: 'new-1' });
+    u.update.mockResolvedValue({ id: 'sup-9' });
+
+    const res = await bulkCreateSupervisors('coord-1', [
+      { firstName: 'Ama', lastName: 'Mensah', email: 'New@x.edu', region: 'greater_accra' },
+      { firstName: 'Kojo', lastName: 'Owusu', email: 'exists@x.edu', region: 'ashanti' },
+      { firstName: 'Yaa', lastName: 'Asante', email: 'taken@x.edu', region: 'central' },
+    ]);
+
+    expect(res).toMatchObject({ total: 3, created: 1, updated: 1, skipped: 1 });
+    // Created in the coordinator's department, as a verified academic_supervisor with the region.
+    expect(u.create).toHaveBeenCalledTimes(1);
+    const created = u.create.mock.calls[0][0].data;
+    expect(created).toMatchObject({
+      email: 'new@x.edu', role: 'academic_supervisor', departmentId: 'dep-1',
+      isVerified: true, supervisedRegion: 'greater_accra',
+    });
+    expect(created.passwordHash).toEqual(expect.any(String));
+    // Update set the region on the existing supervisor.
+    expect(u.update.mock.calls[0][0].data).toMatchObject({ supervisedRegion: 'ashanti' });
+    // The student email was skipped, never written.
+    expect(res.results[2]).toMatchObject({ status: 'skipped' });
+  });
+
+  it('404s when the coordinator is missing', async () => {
+    u.findUnique.mockResolvedValueOnce(null);
+    await expect(
+      bulkCreateSupervisors('ghost', [{ firstName: 'A', lastName: 'B', email: 'a@x.edu', region: 'volta' }]),
+    ).rejects.toMatchObject({ statusCode: 404 });
   });
 });

@@ -11,6 +11,7 @@ import {
   type UnassignedPlacement,
 } from '@/hooks/usePlacements';
 import SupervisorPicker from '@/components/shared/SupervisorPicker';
+import SupervisorUploadPanel from '@/components/coordinator/SupervisorUploadPanel';
 import { REGION_VALUES, REGION_LABELS, regionLabel } from '@/lib/regions';
 
 type StatusFilter = 'active' | 'pending' | 'all';
@@ -258,6 +259,7 @@ export default function SupervisorAssignment() {
         </p>
       </div>
 
+      <SupervisorUploadPanel />
       <SupervisorRegionsPanel />
       <NeedsSupervisorPanel />
 
