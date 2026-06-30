@@ -2566,3 +2566,25 @@ Switched prod off `db push` onto proper `prisma migrate deploy`:
 2. **Verify `CLOUDINARY_*` env on `aesis-backend`** — if unset, avatar upload returns **503** (graceful; initials still show). Attachments use the same creds, so likely already set; confirm.
 3. **In-browser verify:** any role → Profile → click avatar → pick image → expect it in the header + sidebar; Remove clears it.
 4. Carried: chatbot/AI in-browser verify; risk-pipeline audit; per-day flow verify + itdb; rotate other 3 secrets.
+
+### Session 75 — 2026-06-30 — Week tally fix + avatar everywhere + two-way messaging (commits `c70fc99`, `3dfa72e`, `f67ebed`, pushed prod)
+
+Three asks in one session.
+
+**1. Student week tally reflects real logging (`fix(student)` `c70fc99`).** The dashboard "Week X of N" / "logs logged" counted only week-level `submittedAt`, so a week with several submitted *days* (the per-day flow) but not yet closed read as 0. Now a week counts toward progress once it has any submitted `EntryDay` (or a legacy week-level submit). `student.service` query pulls `days{status}`; `submittedCount` = entries where `submittedAt != null || days.some(submitted)`. Tests 12/12 (1 new).
+
+**2. Profile picture shows everywhere + clear add affordance (`feat(profile)` `3dfa72e`).** S74 added avatar upload but only the generic AppShell rendered it. Added a shared **`UserAvatar`** (img + initials fallback) and swapped it into **all role shells** (student/supervisor/coordinator/admin), the **account menus**, and the **mobile nav** — so a saved pic appears everywhere the user's name/credentials show. ProfilePage avatar gained an **always-visible camera badge** so it's obvious it's clickable.
+
+**3. Two-way mentorship messaging in the Feedback Center (`feat(messaging)` `f67ebed`).** Replaced the "coming soon" Collaborative Chat placeholder with a real persistent thread.
+- **Model:** new `Message` (per-placement thread) + additive migration `20260630140000_messages`.
+- **Backend `messages` module:** `GET/POST /placements/:placementId/messages`. Authz: student + their academic supervisor + admins can post; coordinator read-only. Each post fans out an in-app notification + **socket push** to the other participants + **email to the student**; a student reply reaches the admin(s) who already posted in the thread (notify prior senders) — no spamming every admin. Marks incoming read on fetch. Tests 7/7.
+- **Frontend:** `useMessages` (15s poll + socket invalidation) + shared **`ChatThread`**. Feedback Center now hosts the live chat for reviewers (admin sees all interns via `/insights/interns` scope `{}`, supervisor sees their own, coordinator read-only) **and** a new student-side thread. Students can also **reply straight from a message notification** via a dialog reusing `ChatThread`.
+
+**Verification.** Backend `tsc` clean; auth 37/37, student 12/12, messages 7/7. Frontend `tsc` + `vite build` clean. All pushed `main` → Render + Vercel.
+
+**Stopped here — follow-ups.**
+1. **⚠️ ROTATE prod `DATABASE_URL`** — still overdue.
+2. **`CLOUDINARY_*` env on `aesis-backend`** — confirm set, else avatar upload 503s (graceful).
+3. **Old `/admin/messages` page (S73)** now overlaps: its one-way "send message" is superseded by the Feedback Center thread (the schedule-Google-Meet-call part is still unique). Consider folding the call-scheduler into the Feedback Center and retiring the standalone message composer, or leave as the admin's broadcast tool. Not done this session.
+4. **In-browser verify:** admin/supervisor → Feedback Center → pick intern → send; student → Feedback Center or a message notification → reply; confirm both sides see the thread + notifications/email fire.
+5. Carried: chatbot/AI in-browser verify; risk-pipeline audit; per-day flow verify + itdb; rotate other 3 secrets.
