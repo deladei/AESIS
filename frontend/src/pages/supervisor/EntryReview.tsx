@@ -7,6 +7,7 @@ import {
   useReviewQueue, useEntry, useAcknowledgeEntry, useReturnEntry,
   type LogbookEntry, type EntryStatus,
 } from '@/hooks/useEntries';
+import { EntryAttachments } from '@/components/attachments/EntryAttachments';
 
 function studentName(e: LogbookEntry): string {
   const s = e.placement?.student;
@@ -248,6 +249,12 @@ export default function EntryReview() {
                       </div>
                     ))}
                   </div>
+                </div>
+
+                {/* Evidence — photos / documents the student attached. Read-only
+                    for the supervisor, so they can assess the actual work. */}
+                <div className="rounded-xl border border-[var(--h-e2e6ef)] bg-[var(--h-ffffff)] p-5">
+                  <EntryAttachments entryId={detail.id} editable={false} />
                 </div>
 
                 {/* Reflection */}

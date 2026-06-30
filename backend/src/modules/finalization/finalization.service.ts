@@ -294,6 +294,8 @@ async function loadOpenAttestationByToken(token: string) {
     include: {
       placement: {
         select: {
+          id: true,
+          academicSupervisorId: true,
           startDate: true,
           endDate: true,
           company: { select: { name: true } },
@@ -327,5 +329,31 @@ export async function submitAttestation(token: string, input: AttestInput) {
     where: { id: att.id },
     data: { confirmed: input.confirmed, comment: input.comment ?? null, attestedAt: new Date() },
   });
+
+  // Notify the academic supervisor that the company supervisor has responded, so
+  // they can review and finalize. Best-effort — a notification failure must never
+  // fail the (single-use) attestation submission itself.
+  const supervisorId = att.placement.academicSupervisorId;
+  if (supervisorId) {
+    const student = `${att.placement.student.firstName} ${att.placement.student.lastName}`;
+    const org = att.placement.company?.name ?? 'The host company';
+    try {
+      await prisma.notification.create({
+        data: {
+          userId: supervisorId,
+          type: 'system',
+          title: 'Company attestation received',
+          body: input.confirmed
+            ? `${org} has attested ${student}'s internship. Review and finalize the placement.`
+            : `${org} returned ${student}'s attestation with concerns. Review before finalizing.`,
+          link: '/supervisor/finalize',
+          metadata: { placementId: att.placement.id, confirmed: input.confirmed },
+        },
+      });
+    } catch (err) {
+      logger.error('Attestation notification failed', { err, placementId: att.placement.id });
+    }
+  }
+
   return { confirmed: updated.confirmed, attestedAt: updated.attestedAt };
 }
