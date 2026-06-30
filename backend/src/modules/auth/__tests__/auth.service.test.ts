@@ -40,8 +40,17 @@ jest.mock('../../../config/env', () => ({
   },
 }));
 
+jest.mock('../../../config/cloudinary', () => ({
+  isCloudinaryConfigured: jest.fn(),
+  uploadBuffer:           jest.fn(),
+  deleteAsset:            jest.fn().mockResolvedValue(undefined),
+}));
+
 import { prisma } from '../../../config/prisma';
+import * as cloudinary from '../../../config/cloudinary';
 import * as authService from '../auth.service';
+
+const mockCloud = cloudinary as jest.Mocked<typeof cloudinary>;
 
 const mockPrisma = prisma as jest.Mocked<typeof prisma>;
 
@@ -479,5 +488,76 @@ describe('authService.resetPasswordConfirm', () => {
     await expect(
       authService.resetPasswordConfirm({ token: 'unknown', password: 'NewPass@123' })
     ).rejects.toMatchObject({ statusCode: 400 });
+  });
+});
+
+// ─────────────────────────────────────────────────────────────
+describe('authService.uploadAvatar', () => {
+  beforeEach(() => jest.clearAllMocks());
+  const file = { buffer: Buffer.from('img'), mimeType: 'image/png' };
+
+  it('throws 503 when image storage is not configured', async () => {
+    (mockCloud.isCloudinaryConfigured as jest.Mock).mockReturnValue(false);
+    await expect(authService.uploadAvatar('user-uuid-1', file))
+      .rejects.toMatchObject({ statusCode: 503 });
+    expect(mockCloud.uploadBuffer).not.toHaveBeenCalled();
+  });
+
+  it('throws 404 when the user does not exist', async () => {
+    (mockCloud.isCloudinaryConfigured as jest.Mock).mockReturnValue(true);
+    (mockPrisma.user.findUnique as jest.Mock).mockResolvedValue(null);
+    await expect(authService.uploadAvatar('ghost', file))
+      .rejects.toMatchObject({ statusCode: 404 });
+  });
+
+  it('uploads under a fixed per-user public_id and persists the secure URL', async () => {
+    (mockCloud.isCloudinaryConfigured as jest.Mock).mockReturnValue(true);
+    (mockPrisma.user.findUnique as jest.Mock).mockResolvedValue(fakeUser());
+    (mockCloud.uploadBuffer as jest.Mock).mockResolvedValue({
+      url: 'https://cdn/avatar.png', publicId: 'aesis/avatars/user-uuid-1', bytes: 3,
+    });
+    (mockPrisma.user.update as jest.Mock).mockResolvedValue({});
+
+    const result = await authService.uploadAvatar('user-uuid-1', file);
+
+    expect(result).toEqual({ avatarUrl: 'https://cdn/avatar.png' });
+    expect(mockCloud.uploadBuffer).toHaveBeenCalledWith(
+      file.buffer,
+      expect.objectContaining({ folder: 'aesis/avatars', publicId: 'user-uuid-1', overwrite: true, isImage: true }),
+    );
+    expect(mockPrisma.user.update).toHaveBeenCalledWith(
+      expect.objectContaining({ data: { avatarUrl: 'https://cdn/avatar.png' } }),
+    );
+  });
+});
+
+// ─────────────────────────────────────────────────────────────
+describe('authService.removeAvatar', () => {
+  beforeEach(() => jest.clearAllMocks());
+
+  it('throws 404 when the user does not exist', async () => {
+    (mockPrisma.user.findUnique as jest.Mock).mockResolvedValue(null);
+    await expect(authService.removeAvatar('ghost')).rejects.toMatchObject({ statusCode: 404 });
+  });
+
+  it('deletes the remote asset and clears the column when one exists', async () => {
+    (mockPrisma.user.findUnique as jest.Mock).mockResolvedValue(fakeUser({ avatarUrl: 'https://cdn/avatar.png' }));
+    (mockPrisma.user.update as jest.Mock).mockResolvedValue({});
+
+    const result = await authService.removeAvatar('user-uuid-1');
+
+    expect(result).toEqual({ avatarUrl: null });
+    expect(mockCloud.deleteAsset).toHaveBeenCalledWith('aesis/avatars/user-uuid-1', true);
+    expect(mockPrisma.user.update).toHaveBeenCalledWith(
+      expect.objectContaining({ data: { avatarUrl: null } }),
+    );
+  });
+
+  it('is a no-op delete when the user has no avatar', async () => {
+    (mockPrisma.user.findUnique as jest.Mock).mockResolvedValue(fakeUser({ avatarUrl: null }));
+    const result = await authService.removeAvatar('user-uuid-1');
+    expect(result).toEqual({ avatarUrl: null });
+    expect(mockCloud.deleteAsset).not.toHaveBeenCalled();
+    expect(mockPrisma.user.update).not.toHaveBeenCalled();
   });
 });

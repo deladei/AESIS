@@ -1,7 +1,87 @@
-import { useState } from 'react';
-import { Loader2, BadgeCheck, ShieldAlert, Mail, Phone, Hash, MapPin, Building2, CalendarDays, GraduationCap, UserRound, Pencil, X } from 'lucide-react';
-import { useProfile, useUpdateProfile, type Profile, type UpdateProfileInput } from '@/hooks/useProfile';
+import { useRef, useState } from 'react';
+import { Loader2, BadgeCheck, ShieldAlert, Mail, Phone, Hash, MapPin, Building2, CalendarDays, GraduationCap, UserRound, Pencil, X, Camera, Trash2 } from 'lucide-react';
+import { useProfile, useUpdateProfile, useUploadAvatar, useRemoveAvatar, type Profile, type UpdateProfileInput } from '@/hooks/useProfile';
+import { useAuth } from '@/contexts/AuthContext';
 import { regionLabel } from '@/lib/regions';
+
+const AVATAR_MAX_BYTES = 5 * 1024 * 1024;
+const AVATAR_MIME = ['image/png', 'image/jpeg', 'image/webp'];
+
+// Round avatar that doubles as the upload control: click to pick a new image,
+// remove to clear it. Syncs the new URL into the auth context so the sidebar
+// avatar updates without a reload.
+function AvatarUploader({ profile, initials }: { profile: Profile; initials: string }) {
+  const fileRef = useRef<HTMLInputElement>(null);
+  const { updateUser } = useAuth();
+  const upload = useUploadAvatar();
+  const remove = useRemoveAvatar();
+  const [error, setError] = useState<string | null>(null);
+
+  const busy = upload.isPending || remove.isPending;
+
+  function pick() {
+    setError(null);
+    fileRef.current?.click();
+  }
+
+  async function onFile(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    e.target.value = ''; // allow re-picking the same file
+    if (!file) return;
+    if (!AVATAR_MIME.includes(file.type)) { setError('Use a PNG, JPG, or WebP image.'); return; }
+    if (file.size > AVATAR_MAX_BYTES)     { setError('Image must be under 5 MB.'); return; }
+    try {
+      const avatarUrl = await upload.mutateAsync(file);
+      updateUser({ avatarUrl });
+    } catch {
+      setError('Upload failed. Please try again.');
+    }
+  }
+
+  async function onRemove() {
+    setError(null);
+    try {
+      await remove.mutateAsync();
+      updateUser({ avatarUrl: null });
+    } catch {
+      setError('Could not remove the picture. Please try again.');
+    }
+  }
+
+  return (
+    <div className="flex flex-col items-center gap-1">
+      <button
+        type="button"
+        onClick={pick}
+        disabled={busy}
+        className="group relative h-16 w-16 shrink-0 overflow-hidden rounded-full disabled:opacity-60"
+        aria-label="Change profile picture"
+      >
+        {profile.avatarUrl ? (
+          <img src={profile.avatarUrl} alt={`${profile.firstName} ${profile.lastName}`} className="h-16 w-16 rounded-full object-cover" />
+        ) : (
+          <span className="flex h-16 w-16 items-center justify-center rounded-full bg-[var(--h-e1e0ff)] text-xl font-bold text-[var(--h-15157d)]">
+            {initials}
+          </span>
+        )}
+        <span className="absolute inset-0 flex items-center justify-center rounded-full bg-black/40 opacity-0 transition-opacity group-hover:opacity-100">
+          {busy ? <Loader2 className="h-5 w-5 animate-spin text-white" /> : <Camera className="h-5 w-5 text-white" />}
+        </span>
+      </button>
+      <input ref={fileRef} type="file" accept="image/png,image/jpeg,image/webp" className="hidden" onChange={onFile} />
+      {profile.avatarUrl && !busy && (
+        <button
+          type="button"
+          onClick={onRemove}
+          className="inline-flex items-center gap-1 text-[11px] font-medium text-[var(--h-757684)] hover:text-[var(--h-ba1a1a)]"
+        >
+          <Trash2 className="h-3 w-3" /> Remove
+        </button>
+      )}
+      {error && <p className="max-w-[8rem] text-center text-[11px] text-[var(--h-ba1a1a)]">{error}</p>}
+    </div>
+  );
+}
 
 const ROLE_LABELS: Record<Profile['role'], string> = {
   student:             'Student',
@@ -177,9 +257,7 @@ export default function ProfilePage() {
       {/* Header card */}
       <div className="rounded-2xl border border-[var(--h-c7c5d4-40)] bg-[var(--h-ffffff)] p-6 shadow-sm">
         <div className="flex items-center gap-4">
-          <div className="flex h-16 w-16 shrink-0 items-center justify-center rounded-full bg-[var(--h-e1e0ff)] text-xl font-bold text-[var(--h-15157d)]">
-            {initials}
-          </div>
+          <AvatarUploader profile={profile} initials={initials} />
           <div className="min-w-0 flex-1">
             <h1 className="truncate text-xl font-bold text-[var(--h-0b1c30)]">{fullName}</h1>
             <p className="truncate text-sm text-[var(--h-464652)]">{profile.email}</p>

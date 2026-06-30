@@ -1,4 +1,5 @@
 import { Request, Response } from 'express';
+import multer from 'multer';
 import {
   registerSchema,
   loginSchema,
@@ -95,6 +96,36 @@ export async function updateMeHandler(req: Request, res: Response) {
   const input   = updateProfileSchema.parse(req.body);
   const profile = await authService.updateProfile(userId, input);
   return ok(res, { profile });
+}
+
+// Profile pictures only: JPG/PNG/WebP, 5 MB cap. Buffer stays in memory and is
+// streamed straight to Cloudinary by the service — nothing touches local disk.
+const AVATAR_MIME = ['image/png', 'image/jpeg', 'image/webp'];
+export const avatarUpload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 5 * 1024 * 1024 },
+  fileFilter: (_req, file, cb) => {
+    if (AVATAR_MIME.includes(file.mimetype)) return cb(null, true);
+    cb(new AppError(415, 'Only PNG, JPG, and WebP images are accepted'));
+  },
+});
+
+export async function uploadAvatarHandler(req: Request, res: Response) {
+  const userId = req.user!.sub;
+  const file = req.file as Express.Multer.File | undefined;
+  if (!file) throw new AppError(400, 'No image uploaded');
+
+  const result = await authService.uploadAvatar(userId, {
+    buffer: file.buffer,
+    mimeType: file.mimetype,
+  });
+  return ok(res, result);
+}
+
+export async function removeAvatarHandler(req: Request, res: Response) {
+  const userId = req.user!.sub;
+  const result = await authService.removeAvatar(userId);
+  return ok(res, result);
 }
 
 export async function programmesHandler(_req: Request, res: Response) {

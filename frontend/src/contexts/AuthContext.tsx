@@ -9,6 +9,7 @@ export interface AuthUser {
   firstName: string;
   lastName:  string;
   role:      'student' | 'academic_supervisor' | 'coordinator' | 'admin';
+  avatarUrl?: string | null;
 }
 
 interface AuthState {
@@ -18,6 +19,7 @@ interface AuthState {
   login:           (email: string, password: string) => Promise<AuthUser>;
   logout:          () => Promise<void>;
   register:        (input: RegisterInput) => Promise<void>;
+  updateUser:      (patch: Partial<AuthUser>) => void;
 }
 
 export type SelfRegisterRole = 'student' | 'academic_supervisor' | 'company_supervisor';
@@ -84,8 +86,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     await api.post('/auth/register', input);
   }, []);
 
+  // Patch the in-memory user (e.g. after an avatar upload) so the shell reflects
+  // the change without a full re-login.
+  const updateUser = useCallback((patch: Partial<AuthUser>) => {
+    setUser((prev) => (prev ? { ...prev, ...patch } : prev));
+  }, []);
+
   return (
-    <AuthContext.Provider value={{ user, isAuthenticated: !!user, isLoading, login, logout, register }}>
+    <AuthContext.Provider value={{ user, isAuthenticated: !!user, isLoading, login, logout, register, updateUser }}>
       {children}
     </AuthContext.Provider>
   );

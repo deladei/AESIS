@@ -51,7 +51,7 @@ const navByRole: Record<UserRole, NavItem[]> = {
 
 interface AppShellProps {
   role: UserRole;
-  user: { name: string; email: string; initials: string };
+  user: { name: string; email: string; initials: string; avatarUrl?: string | null };
   notificationCount?: number;
   children: React.ReactNode;
 }
@@ -123,9 +123,17 @@ export function AppShell({ role, user, children }: Omit<AppShellProps, 'notifica
         <div className="border-t border-slate-800 p-3 space-y-2 shrink-0">
           {!collapsed && (
             <div className="flex items-center gap-3 px-2 py-2">
-              <div className="w-8 h-8 rounded-full bg-blue-600/20 border border-blue-600/40 flex items-center justify-center shrink-0">
-                <span className="text-blue-400 text-xs font-semibold font-mono">{user.initials}</span>
-              </div>
+              {user.avatarUrl ? (
+                <img
+                  src={user.avatarUrl}
+                  alt={user.name}
+                  className="w-8 h-8 rounded-full object-cover border border-blue-600/40 shrink-0"
+                />
+              ) : (
+                <div className="w-8 h-8 rounded-full bg-blue-600/20 border border-blue-600/40 flex items-center justify-center shrink-0">
+                  <span className="text-blue-400 text-xs font-semibold font-mono">{user.initials}</span>
+                </div>
+              )}
               <div className="min-w-0">
                 <p className="text-slate-200 text-sm font-medium truncate">{user.name}</p>
                 <p className="text-slate-500 text-xs truncate">{user.email}</p>

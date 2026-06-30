@@ -39,13 +39,17 @@ export interface UploadedAsset {
  */
 export function uploadBuffer(
   buffer: Buffer,
-  opts: { folder: string; isImage: boolean },
+  opts: { folder: string; isImage: boolean; publicId?: string; overwrite?: boolean },
 ): Promise<UploadedAsset> {
   ensureConfigured();
   return new Promise((resolve, reject) => {
     const stream = cloudinary.uploader.upload_stream(
       {
         folder: opts.folder,
+        // A fixed public_id (e.g. the user id) lets a re-upload overwrite the
+        // previous asset in place — used for avatars so each user keeps exactly
+        // one image and stale CDN copies are invalidated.
+        ...(opts.publicId ? { public_id: opts.publicId, overwrite: true, invalidate: true } : {}),
         // Images go through Cloudinary's image pipeline; documents are stored raw.
         resource_type: opts.isImage ? 'image' : 'raw',
       },

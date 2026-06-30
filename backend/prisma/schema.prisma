@@ -285,6 +285,7 @@ model User {
   // Set by the coordinator; null until assigned. New interns in this region
   // are auto-balanced across all supervisors sharing it.
   supervisedRegion    Region?            @map("supervised_region")
+  avatarUrl           String?            @map("avatar_url")
   verificationToken   String?            @map("verification_token")
   passwordResetToken  String?            @map("password_reset_token")
   passwordResetExpiry DateTime?          @map("password_reset_expiry")

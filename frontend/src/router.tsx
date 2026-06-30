@@ -47,7 +47,7 @@ function RequireAuth({ roles, bare }: { roles?: UserRole[]; bare?: boolean }) {
   if (roles && !roles.includes(user.role as UserRole)) return <Navigate to="/" replace />;
 
   const initials = `${user.firstName[0]}${user.lastName[0]}`.toUpperCase();
-  const shellUser = { name: `${user.firstName} ${user.lastName}`, email: user.email, initials };
+  const shellUser = { name: `${user.firstName} ${user.lastName}`, email: user.email, initials, avatarUrl: user.avatarUrl ?? null };
 
   // Page content is wrapped in an error boundary so a crashing page renders a
   // contained fallback inside the shell rather than unmounting the whole app.

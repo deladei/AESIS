@@ -15,6 +15,11 @@ import {
 } from '../../shared/utils/email';
 import { createPlacement } from '../placements/placements.service';
 import { decryptPII, encryptPII } from '../../shared/utils/crypto';
+import {
+  isCloudinaryConfigured,
+  uploadBuffer,
+  deleteAsset,
+} from '../../config/cloudinary';
 import type {
   RegisterInput,
   LoginInput,
@@ -147,6 +152,7 @@ export async function getProfile(userId: string) {
     lastName:     user.lastName,
     email:        user.email,
     role:         user.role,
+    avatarUrl:    user.avatarUrl,
     gender:       user.gender,
     indexNumber:  user.indexNumber,
     phone:        safeDecrypt(user.phone),
@@ -310,6 +316,7 @@ export async function login(input: LoginInput, ipAddress?: string) {
       firstName: user.firstName,
       lastName:  user.lastName,
       role:      user.role,
+      avatarUrl: user.avatarUrl,
     },
   };
 }
@@ -325,7 +332,7 @@ export async function refresh(rawToken: string) {
       user: {
         select: {
           id: true, role: true, isVerified: true,
-          email: true, firstName: true, lastName: true,
+          email: true, firstName: true, lastName: true, avatarUrl: true,
         },
       },
     },
@@ -360,8 +367,64 @@ export async function refresh(rawToken: string) {
       firstName: stored.user.firstName,
       lastName:  stored.user.lastName,
       role:      stored.user.role,
+      avatarUrl: stored.user.avatarUrl,
     },
   };
+}
+
+// ── Avatar (profile picture) ──────────────────────────────────
+
+export interface AvatarFile {
+  buffer: Buffer;
+  mimeType: string;
+}
+
+/**
+ * Upload (or replace) a user's profile picture. The Cloudinary public_id is the
+ * user id, so a re-upload overwrites the previous image in place — every user
+ * keeps exactly one avatar, no orphans accumulate. Returns the new avatarUrl.
+ */
+export async function uploadAvatar(userId: string, file: AvatarFile) {
+  if (!isCloudinaryConfigured()) {
+    throw new AppError(503, 'Image storage is not configured; uploads are unavailable');
+  }
+
+  const user = await prisma.user.findUnique({ where: { id: userId } });
+  if (!user) throw new AppError(404, 'User not found');
+
+  const asset = await uploadBuffer(file.buffer, {
+    folder: 'aesis/avatars',
+    isImage: true,
+    publicId: userId,
+    overwrite: true,
+  });
+
+  await prisma.user.update({
+    where: { id: userId },
+    data:  { avatarUrl: asset.url },
+  });
+
+  return { avatarUrl: asset.url };
+}
+
+/**
+ * Remove a user's profile picture: best-effort delete of the remote asset, then
+ * clear the column. The DB row is the system of record, so a remote hiccup
+ * never blocks the clear.
+ */
+export async function removeAvatar(userId: string) {
+  const user = await prisma.user.findUnique({ where: { id: userId } });
+  if (!user) throw new AppError(404, 'User not found');
+
+  if (user.avatarUrl) {
+    await deleteAsset(`aesis/avatars/${userId}`, true);
+    await prisma.user.update({
+      where: { id: userId },
+      data:  { avatarUrl: null },
+    });
+  }
+
+  return { avatarUrl: null as string | null };
 }
 
 // ── Logout ────────────────────────────────────────────────────
