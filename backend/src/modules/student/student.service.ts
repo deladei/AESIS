@@ -95,7 +95,17 @@ export async function getStudentDashboard(studentId: string) {
         },
       },
       // Active weekly workflow — drives the per-log status breakdown + hours.
-      logbookEntries: { select: { status: true, hoursLogged: true, submittedAt: true } },
+      // `days` carries the per-day submission state: the DAY (Mon–Fri) is the
+      // unit the student actually submits, so progress counts a week the moment
+      // any of its days is submitted — not only when the whole week is closed.
+      logbookEntries: {
+        select: {
+          status: true,
+          hoursLogged: true,
+          submittedAt: true,
+          days: { select: { status: true } },
+        },
+      },
       // Learning objectives — progress counts CONFIRMED links only (AI
       // suggestions never count until a human confirms them).
       learningObjectives: {
@@ -124,10 +134,14 @@ export async function getStudentDashboard(studentId: string) {
     };
   }
 
-  // Progress reflects real activity: a week counts once its entry has actually
-  // been submitted (the active entries pipeline), so a new placement reads 0 and
-  // climbs only as the student submits — never from pre-seeded rows.
-  const submittedCount = placement.logbookEntries.filter(e => e.submittedAt != null).length;
+  // Progress reflects real activity: a week counts once the student has actually
+  // logged something in it — i.e. at least one day submitted — OR the whole week
+  // was submitted via the week-level path (covers legacy entries with no day
+  // rows). A new placement reads 0 and climbs as the student logs; never from
+  // pre-seeded rows.
+  const submittedCount = placement.logbookEntries.filter(
+    e => e.submittedAt != null || (e.days ?? []).some(d => d.status === 'submitted'),
+  ).length;
 
   // AI quality scores stay advisory and come from the legacy enrichment when
   // present; with no scored log the mean is null and the UI renders "—".

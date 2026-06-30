@@ -33,11 +33,12 @@ const makePlacement = (overrides: Record<string, unknown> = {}) => ({
     { submissionStatus: 'submitted', analysis: { qualityScore: '60' } },
     { submissionStatus: 'draft',     analysis: null },
   ],
-  // Progress counts entries that have actually been submitted (submittedAt set).
+  // Progress counts a week once it has any real logging — week-level submit
+  // (submittedAt set) or at least one submitted day.
   logbookEntries: [
-    { status: 'acknowledged', hoursLogged: null, submittedAt: new Date('2026-01-20') },
-    { status: 'submitted',    hoursLogged: null, submittedAt: new Date('2026-01-27') },
-    { status: 'returned',     hoursLogged: null, submittedAt: new Date('2026-02-03') },
+    { status: 'acknowledged', hoursLogged: null, submittedAt: new Date('2026-01-20'), days: [] },
+    { status: 'submitted',    hoursLogged: null, submittedAt: new Date('2026-01-27'), days: [] },
+    { status: 'returned',     hoursLogged: null, submittedAt: new Date('2026-02-03'), days: [] },
   ],
   learningObjectives: [],
   ...overrides,
@@ -65,6 +66,30 @@ describe('getStudentDashboard', () => {
     expect(result.expectedLogs).toBe(6);
     expect(result.week!.current).toBe(3);  // 3 submitted (draft excluded)
     expect(result.completionPct).toBe(50); // round(3/6*100)
+  });
+
+  it('counts a draft week with any submitted day toward progress (tallies real logging, not just closed weeks)', async () => {
+    (mp.placement.findMany as jest.Mock).mockResolvedValue([
+      makePlacement({
+        logbookEntries: [
+          // Week-level submit → counts.
+          { status: 'acknowledged', hoursLogged: null, submittedAt: new Date('2026-01-20'), days: [{ status: 'submitted' }] },
+          // Still a draft week (not closed) but the student submitted 3 of 5 days → counts.
+          { status: 'draft', hoursLogged: null, submittedAt: null, days: [
+            { status: 'submitted' }, { status: 'submitted' }, { status: 'submitted' },
+            { status: 'draft' }, { status: 'draft' },
+          ] },
+          // Pure draft, nothing logged yet → does NOT count.
+          { status: 'draft', hoursLogged: null, submittedAt: null, days: [{ status: 'draft' }] },
+        ],
+      }),
+    ]);
+
+    const result = await getStudentDashboard('stu-1');
+
+    expect(result.week!.current).toBe(2);   // 1 week-submitted + 1 partially-logged
+    expect(result.logsSubmitted).toBe(2);
+    expect(result.completionPct).toBe(33);  // round(2/6*100)
   });
 
   it('returns null avgQualityScore and "—"-able state when no log is scored', async () => {
