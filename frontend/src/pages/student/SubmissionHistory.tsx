@@ -5,6 +5,7 @@ import {
 } from 'lucide-react';
 import { useMyPlacements } from '@/hooks/usePlacements';
 import { useEntries, useEntry, type EntryStatus } from '@/hooks/useEntries';
+import { SCHEDULE_WEEKS } from '@/lib/schedule';
 
 // ── Status pill — mirrors the light language of the Logbook editor ──
 const STATUS_META: Record<EntryStatus, { label: string; cls: string; Icon: React.ElementType }> = {
@@ -150,8 +151,9 @@ export default function SubmissionHistory() {
   const sorted    = [...entries].sort((a, b) => b.weekNumber - a.weekNumber);
   const submitted = entries.filter((e) => e.submittedAt != null);
   const flagged   = entries.filter((e) => e.status === 'returned');
-  const TOTAL_WEEKS = 6; // fixed 6-week programme
-  const progress  = Math.min(100, Math.round((submitted.length / TOTAL_WEEKS) * 100));
+  // Programme length comes from the shared schedule config — the same source
+  // the logbook editor and dashboard derive their week counts from.
+  const progress  = Math.min(100, Math.round((submitted.length / SCHEDULE_WEEKS) * 100));
 
   return (
     <div className="mx-auto max-w-5xl px-6 py-6 space-y-6">
@@ -167,15 +169,15 @@ export default function SubmissionHistory() {
       <div className="rounded-xl border border-[var(--h-e2e6ef)] bg-[var(--h-ffffff)] p-5">
         <div className="mb-3 flex items-center justify-between">
           <span className="text-sm font-semibold text-[var(--h-0b1c30)]">Programme Progress</span>
-          <span className="font-mono text-sm text-[var(--h-15157d)]">{submitted.length} / {TOTAL_WEEKS} weeks</span>
+          <span className="font-mono text-sm text-[var(--h-15157d)]">{submitted.length} / {SCHEDULE_WEEKS} weeks</span>
         </div>
         <div className="mb-3 h-2 w-full overflow-hidden rounded-full bg-[var(--h-eef0f5)]">
           <div className="h-2 rounded-full bg-[var(--h-15157d)] transition-all" style={{ width: `${progress}%` }} />
         </div>
         <div className="flex flex-wrap gap-4 text-xs text-[var(--h-64748b)]">
-          <span className="flex items-center gap-1.5"><span className="h-2 w-2 rounded-full bg-[var(--h-1b7a45)]" />Submitted ({submitted.length})</span>
+          <span className="flex items-center gap-1.5"><span className="h-2 w-2 rounded-full bg-[var(--h-15157d)]" />Submitted ({submitted.length})</span>
           <span className="flex items-center gap-1.5"><span className="h-2 w-2 rounded-full bg-[var(--h-b3261e)]" />Needs attention ({flagged.length})</span>
-          <span className="flex items-center gap-1.5"><span className="h-2 w-2 rounded-full bg-[var(--h-cbd2e0)]" />Remaining ({Math.max(0, TOTAL_WEEKS - submitted.length)})</span>
+          <span className="flex items-center gap-1.5"><span className="h-2 w-2 rounded-full bg-[var(--h-cbd2e0)]" />Remaining ({Math.max(0, SCHEDULE_WEEKS - submitted.length)})</span>
         </div>
       </div>
 
