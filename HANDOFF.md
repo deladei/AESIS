@@ -2588,3 +2588,28 @@ Three asks in one session.
 3. **Old `/admin/messages` page (S73)** now overlaps: its one-way "send message" is superseded by the Feedback Center thread (the schedule-Google-Meet-call part is still unique). Consider folding the call-scheduler into the Feedback Center and retiring the standalone message composer, or leave as the admin's broadcast tool. Not done this session.
 4. **In-browser verify:** admin/supervisor → Feedback Center → pick intern → send; student → Feedback Center or a message notification → reply; confirm both sides see the thread + notifications/email fire.
 5. Carried: chatbot/AI in-browser verify; risk-pipeline audit; per-day flow verify + itdb; rotate other 3 secrets.
+
+### Session 76 — 2026-07-02 — Role-page audit + polish pass (commits `8c32370`, `2522b43`, `7a49cfa`, pushed prod)
+
+**Ask.** Autonomously review every student / coordinator / admin page (all sub-pages) and fix gaps against system standards.
+
+**Audit.** Read all 6 student pages, 8 coordinator pages, 4 admin pages + the three shells. Coordinator surface is in good shape (validated metrics, roadmap gating, two-step destructive confirms). Findings that violated the hard rules / SaaS polish bar were all fixed:
+
+**1. `fix(student)` `8c32370` — SubmissionHistory hardcoded `TOTAL_WEEKS = 6`.** Violated "derived counts come from real config, never page-local constants" — duplicated `SCHEDULE_WEEKS` from `lib/schedule.ts` (the source the editor + dashboard use). Now imports it. Also aligned the progress-legend dot colors with the status-chip palette (submitted was a green dot but indigo chips).
+
+**2. `fix(admin)` `2522b43` — dead controls + mislabels in the admin chrome.**
+- Topbar bell showed a real unread badge but had **no click behavior** and admin has no inbox route → replaced with the shared **`NotificationBell`** dropdown (mark-read, deep-links) the coordinator shell already uses. Reuse, no new route.
+- Removed dead Settings/Help buttons and the no-op "Search interns or metrics…" input (InternStatusTable has no text-search to wire it to — if wanted, that's a backend feature first).
+- Removed the fake **"Resources"** nav item (linked back to the dashboard); added **"Finalization"** for the existing `/admin/finalize` route which had no nav entry.
+- Dashboard heading "Supervisor Overview" → **"Admin Overview"**.
+- Sample AI-alert buttons looked live but had no onClick: "Schedule check-in" now links to the real `/admin/messages` (schedule-call feature exists there); "Promote to level 2" is disabled + roadmap tooltip, mirroring the coordinator AI Pulse pattern.
+
+**3. `feat(coordinator)` `7a49cfa` — Companies nav item.** `/coordinator/companies` existed but was reachable only via the dashboard stat card; added a sidebar item (Building2 icon).
+
+**Verification.** Frontend `tsc --noEmit` clean + `vite build` clean. Pushed `main` → Vercel. (Frontend-only session — no backend/AI changes, no migrations.)
+
+**Stopped here — follow-ups.**
+1. **⚠️ ROTATE prod `DATABASE_URL`** — still overdue.
+2. Audit leftovers (deliberately not done, need product input): student chatbot header shows a hardcoded "Online" dot (cosmetic; could ping `/ai/chat` health); admin dashboard "View all submissions" footer links to AI Insights with a ChevronDown icon (odd affordance); S75 note about folding `/admin/messages` call-scheduler into the Feedback Center still open.
+3. **In-browser verify:** admin → bell dropdown opens + marks read; sidebar shows Finalization, no Resources; coordinator sidebar shows Companies; student Submission History still renders 6-week progress.
+4. Carried: chatbot/AI in-browser verify; risk-pipeline audit; per-day flow verify; searchable intern picker in-browser verify (S110); rotate other 3 secrets.
