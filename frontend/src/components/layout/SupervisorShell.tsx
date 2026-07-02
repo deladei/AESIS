@@ -5,9 +5,10 @@ import { useAuth } from '@/contexts/AuthContext';
 import { useUnreadCount } from '@/hooks/useNotifications';
 import { MobileNav } from './MobileNav';
 import { ThemeToggle } from './ThemeToggle';
+import NotificationBell from './NotificationBell';
 import {
-  LayoutDashboard, Users, Sparkles, MessageSquareText, FolderOpen,
-  FileBarChart, Search, Bell, Settings, HelpCircle, GraduationCap, LogOut, ClipboardCheck, Award, UserRound,
+  LayoutDashboard, Sparkles, MessageSquareText,
+  GraduationCap, LogOut, ClipboardCheck, Award, UserRound,
 } from 'lucide-react';
 
 interface NavItem {
@@ -16,16 +17,13 @@ interface NavItem {
   icon: React.ElementType;
 }
 
-// Full Stitch "Supervisor" nav. Items without a dedicated page yet land on the
-// dashboard, where their content (Pulse Check Board / AI Alerts) already lives.
+// Stitch "Supervisor" nav — every item is a real page.
 const navItems: NavItem[] = [
   { label: 'Dashboard',       href: '/supervisor/dashboard', icon: LayoutDashboard },
-  { label: 'Interns',         href: '/supervisor/dashboard', icon: Users },
   { label: 'Review Logbooks', href: '/supervisor/review',    icon: ClipboardCheck },
   { label: 'Finalize',        href: '/supervisor/finalize',  icon: Award },
   { label: 'AI Insights',     href: '/ai-insights',          icon: Sparkles },
   { label: 'Feedback Center', href: '/feedback',            icon: MessageSquareText },
-  { label: 'Resources',      href: '/supervisor/dashboard', icon: FolderOpen },
   { label: 'My Profile',      href: '/profile',              icon: UserRound },
 ];
 
@@ -85,16 +83,6 @@ export function SupervisorShell({ user, children }: SupervisorShellProps) {
           })}
         </nav>
 
-        {/* Generate Report + user */}
-        <div className="px-4 pb-2">
-          <Link
-            to="/supervisor/review"
-            className="flex w-full items-center justify-center gap-2 rounded-xl bg-[var(--h-15157d)] py-3 text-sm font-semibold text-white shadow-md transition-colors hover:bg-[var(--h-2e3192)]"
-          >
-            <FileBarChart className="h-4 w-4" />
-            Generate Report
-          </Link>
-        </div>
         <div className="border-t border-[var(--h-c7c5d4-30)] p-3">
           <div className="flex items-center gap-3 px-2 py-2">
             <UserAvatar avatarUrl={user.avatarUrl} initials={user.initials} name={user.name} shrink />
@@ -134,36 +122,12 @@ export function SupervisorShell({ user, children }: SupervisorShellProps) {
               </div>
               <span className="text-base font-bold text-[var(--h-15157d)]">AESIS</span>
             </div>
-            <div className="relative hidden md:block">
-              <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[var(--h-464652)]" />
-              <input
-                type="text"
-                placeholder="Search interns or metrics..."
-                className="w-64 rounded-full border-none bg-[var(--h-eff4ff)] py-2 pl-10 pr-4 text-sm text-[var(--h-0b1c30)] placeholder:text-[var(--h-464652)] focus:outline-none focus:ring-2 focus:ring-[var(--h-15157d-40)]"
-              />
-            </div>
           </div>
 
           <div className="flex items-center gap-2">
             <ThemeToggle />
-            <Link
-              to="/supervisor/review"
-              className="relative rounded-full p-2 text-[var(--h-464652)] transition-colors hover:bg-[var(--h-dce9ff)]"
-              aria-label="Notifications"
-            >
-              <Bell className="h-5 w-5" />
-              {unreadCount > 0 && (
-                <span className="absolute right-1 top-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-[var(--h-ba1a1a)] px-1 text-[10px] font-bold text-white">
-                  {unreadCount > 9 ? '9+' : unreadCount}
-                </span>
-              )}
-            </Link>
-            <button className="rounded-full p-2 text-[var(--h-464652)] transition-colors hover:bg-[var(--h-dce9ff)]" aria-label="Settings">
-              <Settings className="h-5 w-5" />
-            </button>
-            <button className="hidden rounded-full p-2 text-[var(--h-464652)] transition-colors hover:bg-[var(--h-dce9ff)] sm:block" aria-label="Help">
-              <HelpCircle className="h-5 w-5" />
-            </button>
+            {/* Live bell — same dropdown (mark-read, deep-links) the coordinator uses */}
+            <NotificationBell />
             <div className="mx-1 hidden h-8 w-px bg-[var(--h-c7c5d4-40)] sm:block" />
             <div className="flex items-center gap-3">
               <div className="hidden text-right lg:block">

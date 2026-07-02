@@ -196,12 +196,13 @@ export default function SupervisorDashboard() {
                     AI recommends an immediate check-in before the next deadline to prevent further drop-off.
                   </p>
                 </div>
+                {/* Check-ins happen in the Feedback Center's two-way thread */}
                 <Link
-                  to="/supervisor/review"
+                  to="/feedback"
                   className="flex w-full items-center justify-center gap-2 rounded-lg border border-[var(--h-712ae2)] py-2 text-sm font-semibold text-[var(--h-712ae2)] transition-colors hover:bg-[var(--h-712ae2-5)]"
                 >
                   <CalendarClock className="h-4 w-4" />
-                  Schedule Check-in
+                  Check In With Intern
                 </Link>
               </AlertCard>
             ) : (
@@ -227,14 +228,14 @@ export default function SupervisorDashboard() {
                   {topPerformer.avgQualityScore != null ? ` with a ${Math.round(topPerformer.avgQualityScore)}% quality average` : ''}.
                 </p>
                 <p className="text-sm text-[var(--h-464652)]">
-                  AI suggests assigning a stretch task to maintain momentum.
+                  AI suggests a stretch task to maintain momentum — message them in the Feedback Center.
                 </p>
                 <Link
-                  to="/supervisor/review"
+                  to="/feedback"
                   className="flex w-full items-center justify-center gap-2 rounded-lg border border-[var(--h-712ae2)] py-2 text-sm font-semibold text-[var(--h-712ae2)] transition-colors hover:bg-[var(--h-712ae2-5)]"
                 >
                   <ArrowUpCircle className="h-4 w-4" />
-                  Assign Stretch Task
+                  Message Intern
                 </Link>
               </AlertCard>
             )}
