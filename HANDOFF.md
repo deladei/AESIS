@@ -2613,3 +2613,17 @@ Three asks in one session.
 2. Audit leftovers (deliberately not done, need product input): student chatbot header shows a hardcoded "Online" dot (cosmetic; could ping `/ai/chat` health); admin dashboard "View all submissions" footer links to AI Insights with a ChevronDown icon (odd affordance); S75 note about folding `/admin/messages` call-scheduler into the Feedback Center still open.
 3. **In-browser verify:** admin → bell dropdown opens + marks read; sidebar shows Finalization, no Resources; coordinator sidebar shows Companies; student Submission History still renders 6-week progress.
 4. Carried: chatbot/AI in-browser verify; risk-pipeline audit; per-day flow verify; searchable intern picker in-browser verify (S110); rotate other 3 secrets.
+
+### Session 76b — 2026-07-02 — Supervisor pages audit + polish (commit `06a1dc1`, pushed prod)
+
+**Ask.** Extend the S76 role-page audit to the supervisor surface.
+
+**Audit.** EntryReview + PlacementFinalization are solid (validated 0–100 score, required return-comment, "AI is advisory" note, event history, waivers). Problems were all in the chrome + dashboard CTAs — fixed in one `fix(supervisor)` commit:
+
+- **SupervisorShell** had the same disease as the pre-fix AdminShell: fake "Interns" + "Resources" nav items (both → dashboard), a no-op search input, dead Settings/Help buttons, a bell that *linked to the review queue* instead of showing notifications, and a "Generate Report" button that opened the review queue (no supervisor report exists). Now: real nav only, shared `NotificationBell` dropdown, dead controls gone.
+- **SupervisorDashboard AI-alert CTAs** promised features that don't exist ("Schedule Check-in", "Assign Stretch Task" → review queue). Relabelled to "Check In With Intern" / "Message Intern" and pointed at `/feedback` — the two-way mentorship thread where that action actually happens.
+- **Deleted `pages/supervisor/LogbookReview.tsx`** — orphaned legacy-pipeline page (old dark theme, `useLogbook`/`useSubmission` hooks), unrouted + unreferenced since the entries pipeline took over. (Deletion folded into the same commit — was pre-staged.)
+
+**Verification.** `tsc --noEmit` + `vite build` clean. Pushed `main` → Vercel (first push attempt failed on network; retried OK).
+
+**Known leftover.** Admin dashboard "Review" buttons deep-link `/supervisor/review?submissionId=<legacy id>` but EntryReview ignores that param (it belonged to the deleted legacy page) — lands on the generic queue. Works, param dead. Fix = either honor an entry-id param in EntryReview or drop the param from AdminDashboard links.
