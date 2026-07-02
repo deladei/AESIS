@@ -58,7 +58,7 @@ export default function AdminDashboard() {
       {/* Welcome & stats */}
       <section className="flex flex-col items-end justify-between gap-6 md:flex-row">
         <div className="w-full">
-          <h2 className="text-3xl font-semibold tracking-tight text-[var(--h-0b1c30)]">Supervisor Overview</h2>
+          <h2 className="text-3xl font-semibold tracking-tight text-[var(--h-0b1c30)]">Admin Overview</h2>
           <p className="mt-1 text-[var(--h-464652)]">
             {data
               ? `Monitoring ${data.overview.activeInterns} active internship${data.overview.activeInterns === 1 ? '' : 's'} across all departments.`
@@ -165,9 +165,10 @@ export default function AdminDashboard() {
               <div className="rounded-lg border border-[var(--h-ba1a1a-10)] bg-[var(--h-ffdad6-30)] p-3">
                 <p className="text-sm italic text-[var(--h-93000a)]">"AI predicts potential burnout or blockers in the 'Authentication' module."</p>
               </div>
-              <button className="flex w-full items-center justify-center gap-2 rounded-lg border border-[var(--h-712ae2)] py-2 text-sm font-medium text-[var(--h-712ae2)] transition-colors hover:bg-[var(--h-712ae2-5)]">
+              {/* Real destination — the Messages page schedules calls + sends messages */}
+              <Link to="/admin/messages" className="flex w-full items-center justify-center gap-2 rounded-lg border border-[var(--h-712ae2)] py-2 text-sm font-medium text-[var(--h-712ae2)] transition-colors hover:bg-[var(--h-712ae2-5)]">
                 <CalendarClock className="h-4 w-4" /> Schedule check-in
-              </button>
+              </Link>
             </div>
             {/* Growth */}
             <div className="space-y-3 rounded-xl border border-[var(--h-712ae2-20)] bg-[var(--h-ffffff-70)] p-5 shadow-[0_0_15px_-3px_rgba(113,42,226,0.15)] backdrop-blur">
@@ -179,9 +180,17 @@ export default function AdminDashboard() {
                 <span className="font-bold text-[var(--h-15157d)]">Akua Sarpong</span> has completed her curriculum 2 weeks ahead of schedule.
               </p>
               <p className="text-sm text-[var(--h-464652)]">AI suggests assigning "Lead Architect Shadowing" to maintain momentum.</p>
-              <button className="flex w-full items-center justify-center gap-2 rounded-lg border border-[var(--h-712ae2)] py-2 text-sm font-medium text-[var(--h-712ae2)] transition-colors hover:bg-[var(--h-712ae2-5)]">
-                <ArrowUpCircle className="h-4 w-4" /> Promote to level 2
-              </button>
+              {/* Roadmap action — disabled with a tooltip, same treatment as the
+                  coordinator's AI Pulse panel (no live-looking dead controls). */}
+              <span title="On the roadmap — not yet available" className="block">
+                <button
+                  disabled
+                  aria-disabled
+                  className="flex w-full cursor-not-allowed items-center justify-center gap-2 rounded-lg border border-[var(--h-712ae2)] py-2 text-sm font-medium text-[var(--h-712ae2)] opacity-50"
+                >
+                  <ArrowUpCircle className="h-4 w-4" /> Promote to level 2
+                </button>
+              </span>
             </div>
           </div>
         </aside>
