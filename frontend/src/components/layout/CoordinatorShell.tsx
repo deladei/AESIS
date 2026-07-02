@@ -12,7 +12,7 @@ import QuickActionsMenu from './QuickActionsMenu';
 import AccountMenu from './AccountMenu';
 import {
   LayoutDashboard, ClipboardList, UserCheck, Sparkles, Settings, Users,
-  GraduationCap, LogOut, Plus, ShieldAlert,
+  GraduationCap, LogOut, Plus, ShieldAlert, Building2,
 } from 'lucide-react';
 
 interface NavItem {
@@ -31,6 +31,7 @@ const navItems: NavItem[] = [
   { label: 'All Interns',     href: '/coordinator/interns',     icon: Users },
   { label: 'Oversight',       href: '/coordinator/oversight',   icon: ShieldAlert },
   { label: 'Placements',      href: '/coordinator/placements',  icon: ClipboardList },
+  { label: 'Companies',       href: '/coordinator/companies',   icon: Building2 },
   { label: 'Assignments',     href: '/coordinator/assignments', icon: UserCheck },
   { label: 'AI Insights',     href: '/ai-insights',             icon: Sparkles, flag: 'aiInsights' },
   { label: 'Settings',        href: '/coordinator/settings',    icon: Settings },
