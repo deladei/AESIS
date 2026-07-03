@@ -2627,3 +2627,5 @@ Three asks in one session.
 **Verification.** `tsc --noEmit` + `vite build` clean. Pushed `main` → Vercel (first push attempt failed on network; retried OK).
 
 **Known leftover.** Admin dashboard "Review" buttons deep-link `/supervisor/review?submissionId=<legacy id>` but EntryReview ignores that param (it belonged to the deleted legacy page) — lands on the generic queue. Works, param dead. Fix = either honor an entry-id param in EntryReview or drop the param from AdminDashboard links.
+
+**S76b leftover fixed (`fix(admin)` `d7ca11f`).** Recent-Submissions deep-links: rows are entries-pipeline rows, so links now pass `?entryId=` to `/admin/review`; EntryReview honours the param (selects the entry even off-queue, read-only decision note for already-decided weeks); admin status map switched to real entry statuses (acknowledged/returned were rendering fallback gray). `tsc` + `vite build` clean, pushed.
