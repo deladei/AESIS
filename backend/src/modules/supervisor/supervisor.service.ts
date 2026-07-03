@@ -1,6 +1,10 @@
 import { prisma } from '../../config/prisma';
+import { refreshRiskSnapshots } from '../risk/risk.service';
 
 export async function getSupervisorDashboard(supervisorId: string) {
+  // Bring risk tiers up to date before reading them (never throws).
+  await refreshRiskSnapshots(supervisorId);
+
   const [placements, pendingReview] = await Promise.all([
     prisma.placement.findMany({
       where: {
@@ -13,7 +17,7 @@ export async function getSupervisorDashboard(supervisorId: string) {
         riskScores: {
           orderBy: { computedAt: 'desc' },
           take:    1,
-          select:  { riskTier: true, riskScore: true },
+          select:  { riskTier: true, riskScore: true, topRiskFactors: true },
         },
         logbookSubmissions: {
           orderBy: { weekNumber: 'desc' },
@@ -56,6 +60,7 @@ export async function getSupervisorDashboard(supervisorId: string) {
       riskTier:    p.riskScores[0]?.riskTier  ?? null,
       riskScore:   p.riskScores[0]?.riskScore != null
                      ? Number(p.riskScores[0].riskScore) : null,
+      riskFactors: p.riskScores[0]?.topRiskFactors ?? [],
       recentWeeks: recent.map(s => ({
         week:   s.weekNumber,
         status: s.submissionStatus,

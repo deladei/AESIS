@@ -25,6 +25,7 @@ import studentRouter       from './modules/student/student.router';
 import insightsRouter      from './modules/insights/insights.router';
 import adminRouter         from './modules/admin/admin.router';
 import aiRouter            from './modules/ai/ai.router';
+import riskRouter          from './modules/risk/risk.router';
 // Future phases — uncomment as modules are built:
 // import usersRouter        from './modules/users/users.router';
 
@@ -100,6 +101,7 @@ export function createApp() {
   app.use('/api/v1/insights',      insightsRouter);
   app.use('/api/v1/admin',         adminRouter);
   app.use('/api/v1/ai',            aiRouter);
+  app.use('/api/v1/risk',          riskRouter); // advisory risk signals (entries data)
   // Future phases — uncomment as modules are built:
   // app.use('/api/v1/users',         usersRouter);
 

@@ -309,6 +309,7 @@ export interface SupervisorDashboard {
     student:         { id: string; firstName: string; lastName: string; email: string };
     riskTier:        'low' | 'medium' | 'high' | null;
     riskScore:       number | null;
+    riskFactors:     string[];
     recentWeeks:     { week: number; status: string; score: number | null }[];
     avgQualityScore: number | null;
     lastSubmittedAt: string | null;
@@ -342,6 +343,11 @@ export interface AdminDashboard {
     totalWeeks:    number;
     engagementPct: number;
     feedbackCount: number;
+  }[];
+  riskAlerts: {
+    placementId: string;
+    name:        string;
+    factors:     string[];
   }[];
   recentSubmissions: {
     id:          string;

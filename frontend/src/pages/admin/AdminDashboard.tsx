@@ -146,53 +146,64 @@ export default function AdminDashboard() {
           )}
         </section>
 
-        {/* AI Alerts — no backend feature yet; demo content behind a Sample badge */}
+        {/* AI Alerts — live advisory risk signals from the entries pipeline */}
         <aside className="col-span-12 space-y-4 lg:col-span-4">
           <h3 className="flex items-center gap-2 text-2xl font-semibold text-[var(--h-0b1c30)]">
             <Sparkles className="h-6 w-6 text-[var(--h-712ae2)]" />
             AI Alerts
-            <span className="rounded-full bg-[var(--h-ede9ff)] px-2 py-0.5 text-[10px] font-semibold text-[var(--h-712ae2)]">Sample</span>
           </h3>
           <div className="flex flex-col gap-4">
-            {/* Urgent */}
-            <div className="space-y-3 rounded-xl border border-[var(--h-712ae2-20)] bg-[var(--h-ffffff-70)] p-5 shadow-[0_0_15px_-3px_rgba(113,42,226,0.15)] backdrop-blur">
-              <div className="flex items-center gap-2">
-                <AlertTriangle className="h-4 w-4 text-[var(--h-712ae2)]" />
-                <span className="text-xs font-bold tracking-wide text-[var(--h-712ae2)]">Urgent support needed</span>
+            {(data?.riskAlerts?.length ?? 0) > 0 ? (
+              <div className="space-y-3 rounded-xl border border-[var(--h-712ae2-20)] bg-[var(--h-ffffff-70)] p-5 shadow-[0_0_15px_-3px_rgba(113,42,226,0.15)] backdrop-blur">
+                <div className="flex items-center gap-2">
+                  <AlertTriangle className="h-4 w-4 text-[var(--h-712ae2)]" />
+                  <span className="text-xs font-bold tracking-wide text-[var(--h-712ae2)]">Urgent support needed</span>
+                </div>
+                <p className="text-sm leading-tight text-[var(--h-0b1c30)]">
+                  <span className="font-bold text-[var(--h-15157d)]">{data!.riskAlerts[0].name}</span> is flagged{' '}
+                  <span className="font-semibold text-[var(--h-ba1a1a)]">high risk</span>.
+                  {data!.riskAlerts.length > 1
+                    ? ` ${data!.riskAlerts.length - 1} other intern${data!.riskAlerts.length - 1 === 1 ? '' : 's'} also need attention.`
+                    : ''}
+                </p>
+                {data!.riskAlerts[0].factors.length > 0 && (
+                  <div className="rounded-lg border border-[var(--h-ba1a1a-10)] bg-[var(--h-ffdad6-30)] p-3">
+                    <p className="text-sm text-[var(--h-93000a)]">{data!.riskAlerts[0].factors.join(' · ')}</p>
+                  </div>
+                )}
+                <p className="text-xs text-[var(--h-757684)]">Advisory signal — it never affects the grade.</p>
+                {/* Real destination — the Feedback Center chats + schedules calls */}
+                <Link to="/feedback" className="flex w-full items-center justify-center gap-2 rounded-lg border border-[var(--h-712ae2)] py-2 text-sm font-medium text-[var(--h-712ae2)] transition-colors hover:bg-[var(--h-712ae2-5)]">
+                  <CalendarClock className="h-4 w-4" /> Schedule check-in
+                </Link>
               </div>
-              <p className="text-sm leading-tight text-[var(--h-0b1c30)]">
-                <span className="font-bold text-[var(--h-15157d)]">Kwesi Boateng</span> has missed 3 daily standups and submission frequency has dropped by 45% this week.
-              </p>
-              <div className="rounded-lg border border-[var(--h-ba1a1a-10)] bg-[var(--h-ffdad6-30)] p-3">
-                <p className="text-sm italic text-[var(--h-93000a)]">"AI predicts potential burnout or blockers in the 'Authentication' module."</p>
+            ) : (
+              <div className="space-y-3 rounded-xl border border-[var(--h-712ae2-20)] bg-[var(--h-ffffff-70)] p-5 shadow-[0_0_15px_-3px_rgba(113,42,226,0.15)] backdrop-blur">
+                <div className="flex items-center gap-2">
+                  <CheckCircle2 className="h-4 w-4 text-[var(--h-22c087)]" />
+                  <span className="text-xs font-bold tracking-wide text-[var(--h-22c087)]">All clear</span>
+                </div>
+                <p className="text-sm leading-tight text-[var(--h-0b1c30)]">
+                  No interns are currently flagged high risk.
+                </p>
               </div>
-              {/* Real destination — the Feedback Center chats + schedules calls */}
-              <Link to="/feedback" className="flex w-full items-center justify-center gap-2 rounded-lg border border-[var(--h-712ae2)] py-2 text-sm font-medium text-[var(--h-712ae2)] transition-colors hover:bg-[var(--h-712ae2-5)]">
-                <CalendarClock className="h-4 w-4" /> Schedule check-in
-              </Link>
-            </div>
-            {/* Growth */}
-            <div className="space-y-3 rounded-xl border border-[var(--h-712ae2-20)] bg-[var(--h-ffffff-70)] p-5 shadow-[0_0_15px_-3px_rgba(113,42,226,0.15)] backdrop-blur">
-              <div className="flex items-center gap-2">
-                <Zap className="h-4 w-4 text-[var(--h-22c087)]" />
-                <span className="text-xs font-bold tracking-wide text-[var(--h-22c087)]">Growth opportunity</span>
+            )}
+            {(data?.pulseBoard?.length ?? 0) > 0 && (
+              <div className="space-y-3 rounded-xl border border-[var(--h-712ae2-20)] bg-[var(--h-ffffff-70)] p-5 shadow-[0_0_15px_-3px_rgba(113,42,226,0.15)] backdrop-blur">
+                <div className="flex items-center gap-2">
+                  <Zap className="h-4 w-4 text-[var(--h-22c087)]" />
+                  <span className="text-xs font-bold tracking-wide text-[var(--h-22c087)]">Leading the cohort</span>
+                </div>
+                <p className="text-sm leading-tight text-[var(--h-0b1c30)]">
+                  <span className="font-bold text-[var(--h-15157d)]">{data!.pulseBoard[0].name}</span> has the highest
+                  engagement at {data!.pulseBoard[0].engagementPct}% ({data!.pulseBoard[0].submittedWeeks}/{data!.pulseBoard[0].totalWeeks} weeks).
+                </p>
+                <p className="text-sm text-[var(--h-464652)]">Send encouragement or a stretch task from the Feedback Center.</p>
+                <Link to="/feedback" className="flex w-full items-center justify-center gap-2 rounded-lg border border-[var(--h-712ae2)] py-2 text-sm font-medium text-[var(--h-712ae2)] transition-colors hover:bg-[var(--h-712ae2-5)]">
+                  <ArrowUpCircle className="h-4 w-4" /> Message Intern
+                </Link>
               </div>
-              <p className="text-sm leading-tight text-[var(--h-0b1c30)]">
-                <span className="font-bold text-[var(--h-15157d)]">Akua Sarpong</span> has completed her curriculum 2 weeks ahead of schedule.
-              </p>
-              <p className="text-sm text-[var(--h-464652)]">AI suggests assigning "Lead Architect Shadowing" to maintain momentum.</p>
-              {/* Roadmap action — disabled with a tooltip, same treatment as the
-                  coordinator's AI Pulse panel (no live-looking dead controls). */}
-              <span title="On the roadmap — not yet available" className="block">
-                <button
-                  disabled
-                  aria-disabled
-                  className="flex w-full cursor-not-allowed items-center justify-center gap-2 rounded-lg border border-[var(--h-712ae2)] py-2 text-sm font-medium text-[var(--h-712ae2)] opacity-50"
-                >
-                  <ArrowUpCircle className="h-4 w-4" /> Promote to level 2
-                </button>
-              </span>
-            </div>
+            )}
           </div>
         </aside>
 

@@ -31,7 +31,7 @@ const KB: { keywords: string[]; answer: string }[] = [
   },
   {
     keywords: ['risk', 'tier', 'high risk', 'low risk', 'medium'],
-    answer: 'Risk tiers are computed weekly by the XGBoost risk model using 18 behavioural signals including submission frequency, quality score trend, plagiarism flags, and supervisor feedback sentiment. Low (score < 0.3): on track. Medium (0.3–0.6): monitoring required. High (> 0.6): immediate intervention. Tiers reset each week as new data is processed.',
+    answer: 'Risk tiers are advisory signals computed from your logbook behaviour: missed weekly submissions, days without any logbook activity, late day logs, and returned weeks awaiting rework. Low (score < 0.3): on track. Medium (0.3–0.6): your supervisor keeps an eye on things. High (≥ 0.6): your supervisor is notified to check in with you. Tiers never affect your grade — they exist to start a conversation early, and they clear as soon as you catch up.',
   },
   {
     keywords: ['plagiarism', 'similarity', 'flagged', 'flag'],

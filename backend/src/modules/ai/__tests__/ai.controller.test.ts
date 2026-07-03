@@ -104,7 +104,8 @@ describe('POST /ai/chat', () => {
       .set('Authorization', `Bearer ${token()}`)
       .send({ message: 'What does high risk tier mean for a student?' });
 
-    expect(res.text).toContain('XGBoost');
+    expect(res.text).toContain('advisory');
+    expect(res.text).toContain('never affect your grade');
   }, 15000);
 });
 

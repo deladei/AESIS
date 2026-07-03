@@ -3,6 +3,7 @@ import { SYSTEM_MAX_WEEKS } from '../../shared/utils/quality';
 import { AppError } from '../../middleware/errorHandler';
 import { createNotification } from '../notifications/notifications.service';
 import { sendEmail } from '../../shared/utils/email';
+import { refreshRiskSnapshots } from '../risk/risk.service';
 
 // Engagement is measured off the active weekly-entry pipeline. A week "counts as
 // submitted" once its entry has actually been submitted (submittedAt set);
@@ -17,6 +18,9 @@ const RECENT_LIMIT = 6;
  * Admin sees all placements (no per-supervisor scoping).
  */
 export async function getAdminDashboard() {
+  // Bring risk tiers up to date before reading them (never throws).
+  await refreshRiskSnapshots();
+
   const [
     activeInterns,
     totalSubmitted,
@@ -41,7 +45,11 @@ export async function getAdminDashboard() {
             programme: { select: { name: true } },
           },
         },
-        riskScores: { orderBy: { computedAt: 'desc' }, take: 1, select: { riskTier: true } },
+        riskScores: {
+          orderBy: { computedAt: 'desc' },
+          take: 1,
+          select: { riskTier: true, topRiskFactors: true },
+        },
       },
     }),
     prisma.logbookEntry.findMany({
@@ -81,6 +89,7 @@ export async function getAdminDashboard() {
       name:          `${p.student.firstName} ${p.student.lastName}`,
       department:    p.student.programme?.name ?? null,
       riskTier:      p.riskScores[0]?.riskTier ?? null,
+      riskFactors:   p.riskScores[0]?.topRiskFactors ?? [],
       submittedWeeks,
       totalWeeks,
       engagementPct: totalWeeks > 0 ? Math.round((submittedWeeks / totalWeeks) * 100) : 0,
@@ -89,6 +98,17 @@ export async function getAdminDashboard() {
   }).sort((a, b) => b.engagementPct - a.engagementPct);
 
   const pulseBoard = ranked.slice(0, PULSE_LIMIT);
+
+  // Real at-risk list for the AI Alerts panel — every active intern whose
+  // latest snapshot is high, worst engagement first.
+  const riskAlerts = ranked
+    .filter(p => p.riskTier === 'high')
+    .sort((a, b) => a.engagementPct - b.engagementPct)
+    .map(p => ({
+      placementId: p.placementId,
+      name:        p.name,
+      factors:     p.riskFactors,
+    }));
 
   // Feedback counts for just the surfaced interns — one query, tallied in JS.
   const topIds = pulseBoard.map(p => p.placementId);
@@ -116,6 +136,7 @@ export async function getAdminDashboard() {
   return {
     overview:          { activeInterns, pendingReviews, avgEngagement },
     pulseBoard,
+    riskAlerts,
     recentSubmissions,
     submissionCounts:  { pending: pendingReviews, reviewed: reviewedCount },
   };

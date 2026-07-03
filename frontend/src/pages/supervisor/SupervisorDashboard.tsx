@@ -188,14 +188,15 @@ export default function SupervisorDashboard() {
                 <p className="text-base leading-tight text-[var(--h-0b1c30)]">
                   <span className="font-bold text-[var(--h-15157d)]">{fullName(highRisk[0])}</span> is flagged{' '}
                   <span className="font-semibold text-[var(--h-ba1a1a)]">high risk</span>
-                  {highRisk[0].riskScore != null ? ` (score ${Math.round(highRisk[0].riskScore)})` : ''}.
+                  {highRisk[0].riskScore != null ? ` (${Math.round(highRisk[0].riskScore * 100)}%)` : ''}.
                   {highRisk.length > 1 ? ` ${highRisk.length - 1} other student${highRisk.length - 1 === 1 ? '' : 's'} also need attention.` : ''}
                 </p>
-                <div className="rounded-lg border border-[var(--h-ba1a1a-10)] bg-[var(--h-ffdad6-30)] p-3">
-                  <p className="text-sm italic text-[var(--h-93000a)]">
-                    AI recommends an immediate check-in before the next deadline to prevent further drop-off.
-                  </p>
-                </div>
+                {highRisk[0].riskFactors?.length > 0 && (
+                  <div className="rounded-lg border border-[var(--h-ba1a1a-10)] bg-[var(--h-ffdad6-30)] p-3">
+                    <p className="text-sm text-[var(--h-93000a)]">{highRisk[0].riskFactors.join(' · ')}</p>
+                  </div>
+                )}
+                <p className="text-xs text-[var(--h-757684)]">Advisory signal — it never affects the grade.</p>
                 {/* Check-ins happen in the Feedback Center's two-way thread */}
                 <Link
                   to="/feedback"
