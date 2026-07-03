@@ -2656,8 +2656,10 @@ Three asks in one session.
 
 **Note for future sessions.** Local dev DBs have no migration history — `prisma migrate dev` would want a reset. After pulling new migrations, sync local with `db push` (both DBs), or properly baseline them someday.
 
+**Roster upload bug fixed mid-session (`fix(roster)` `dd44771`, pushed prod).** User report: any upload on coordinator Assignments showed "0 ready · 52 need fixing" with raw `PK…[Content_Types].xml` bytes as rows. Cause: `fileToCells` (`frontend/src/lib/tabular.ts`) picked the parser by **file extension only** — a spreadsheet not named `.xlsx/.xls` (on this Kali box: LibreOffice **`.ods`**) fell into the text parser, which happily split zip bytes into garbage rows. Fix: sniff the first bytes (zip `PK\x03\x04` for xlsx/xlsm/ods, OLE `D0CF11E0` for legacy xls) and route any spreadsheet container through SheetJS regardless of name — SheetJS reads ODS natively. `.ods`/`.xlsm` added to `EXCEL_RE`, `UPLOAD_ACCEPT` and both panels' error copy. Verified by Node script generating real ods/xlsx/xls/csv byte-streams: all three binaries sniffed + parsed to correct cells, csv stays on the text path (TextDecoder strips the BOM). `tsc` + `vite build` clean. In-browser upload of a real .ods still worth a check.
+
 **Carried (unchanged).**
 1. ⚠️ ROTATE prod `DATABASE_URL` — still overdue; + 3 other secrets.
-2. In-browser verifies: admin bell dropdown + navs (S76), searchable intern picker (S110), chatbot/AI, per-day flow, S77 features (6-week view, late-day flag, roster upload/auto-link, Oversight toggle).
+2. In-browser verifies: admin bell dropdown + navs (S76), searchable intern picker (S110), chatbot/AI, per-day flow, S77 features (6-week view, late-day flag, roster upload/auto-link incl. .ods, Oversight toggle).
 3. Risk-pipeline audit.
 4. Product-input items: chatbot hardcoded "Online" dot; admin "View all submissions" affordance; fold `/admin/messages` call-scheduler into Feedback Center.
