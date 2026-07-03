@@ -11,7 +11,7 @@ import {
 } from '@/hooks/useEntries';
 import { EntryAttachments } from '@/components/attachments/EntryAttachments';
 import {
-  type ScheduleWeek, buildSchedule, toYMD, localYMD, ymd, fmtRange, fmtDate, addDaysYMD,
+  type ScheduleWeek, buildSchedule, toYMD, ghanaYMD, ymd, fmtRange, fmtDate, addDaysYMD,
 } from '@/lib/schedule';
 
 // Grace window: a day logged within this many days of its date is on time.
@@ -60,10 +60,11 @@ function buildDays(week: ScheduleWeek): DayCell[] {
   return cells;
 }
 
-// Client-side mirror of the backend window: only future days are blocked. Past
-// days are always loggable — beyond the grace window they're flagged late.
+// Client-side mirror of the backend window, anchored on Ghana time: only
+// future days are blocked. Past days are always loggable — beyond the grace
+// window they're flagged late.
 function dayWindow(dateYMD: string): { future: boolean; blocked: boolean; lateBy: number } {
-  const today = new Date(`${localYMD(new Date())}T00:00:00Z`).getTime();
+  const today = new Date(`${ghanaYMD()}T00:00:00Z`).getTime();
   const date = new Date(`${dateYMD}T00:00:00Z`).getTime();
   const lateBy = Math.round((today - date) / 86_400_000);
   return { future: lateBy < 0, blocked: lateBy < 0, lateBy };
@@ -286,7 +287,7 @@ function DayGrid({
               </div>
               <p className="text-xs text-[var(--h-64748b)]">{fmtDate(d.ymd)}</p>
               <p className="mt-2 text-xs text-[var(--h-94a3b8)]">
-                {n > 0 ? `${n} ${n === 1 ? 'activity' : 'activities'}` : 'Tap to log this day'}
+                {n > 0 ? `${n} ${n === 1 ? 'activity' : 'activities'}` : w.future ? 'Locked until the day arrives' : 'Tap to log this day'}
                 {day?.loggedLate && <span className="ml-1 text-[var(--h-9a6700)]">· logged late</span>}
               </p>
             </button>
@@ -317,9 +318,12 @@ function DayForm({
   const dayRecord = (detail?.days ?? []).find((d) => ymd(d.date) === date);
   const weekStatus = (weekEntry?.status ?? detail?.status) as EntryStatus | undefined;
   const daySubmitted = dayRecord?.status === 'submitted';
-  // Editable unless the week is acknowledged, or this day is already submitted
-  // (and the week wasn't returned for revision).
-  const editable = weekStatus !== 'acknowledged' && (!daySubmitted || weekStatus === 'returned');
+  // Editable unless the day hasn't arrived yet (Ghana time), the week is
+  // acknowledged, or this day is already submitted (and the week wasn't
+  // returned for revision).
+  const editable = !win.future
+    && weekStatus !== 'acknowledged'
+    && (!daySubmitted || weekStatus === 'returned');
 
   const seeded = useMemo<LocalActivity[]>(
     () => (detail?.activities ?? [])
@@ -401,7 +405,7 @@ function DayForm({
       {/* Anti-cheat / status banners */}
       {!daySubmitted && win.future && (
         <div className="flex items-start gap-2 rounded-lg border border-[var(--h-bcc8ff)] bg-[var(--h-eef1ff)] px-4 py-3 text-sm text-[var(--h-15157d)]">
-          <Clock className="mt-0.5 h-4 w-4 shrink-0" /> This day hasn't arrived yet — you can log it from the day itself onward.
+          <Clock className="mt-0.5 h-4 w-4 shrink-0" /> This day hasn't arrived yet (Ghana time) — logging opens on the day itself. It's locked until then.
         </div>
       )}
       {!daySubmitted && !win.future && win.lateBy > 0 && (

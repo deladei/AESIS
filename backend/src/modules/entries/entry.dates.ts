@@ -22,7 +22,12 @@ export function parseDateOnly(value: string, field = 'date'): Date {
   return d;
 }
 
-/** Today as a UTC-midnight Date, for TZ-safe date-only comparisons. */
+/**
+ * Today as a UTC-midnight Date, for TZ-safe date-only comparisons. The
+ * programme runs on Ghana time (Africa/Accra), which is UTC+0 year-round with
+ * no DST — so the UTC calendar date IS the Ghana calendar date. If the
+ * programme timezone ever changes, this is the single place to re-anchor.
+ */
 export function todayUtc(): Date {
   return new Date(`${new Date().toISOString().slice(0, 10)}T00:00:00.000Z`);
 }

@@ -1,7 +1,9 @@
 // Logbook week scheduling — shared by the editor and the dashboard table.
-// The API uses date-only YYYY-MM-DD; all comparisons are UTC-anchored off a
-// LOCAL calendar "today" so a device off UTC doesn't read a started week as
-// not-yet-started.
+// The API uses date-only YYYY-MM-DD; all comparisons are UTC-anchored off the
+// GHANA calendar "today" (Africa/Accra — the programme's authoritative clock),
+// so a device set to any other timezone can neither unlock a day early nor
+// read a started day as not-yet-arrived. This mirrors the backend, whose
+// todayUtc() equals the Ghana date (Accra is UTC+0 year-round).
 
 export interface ScheduleWeek {
   weekNumber:  number; // absolute index from the placement start — stable storage key
@@ -17,12 +19,10 @@ export function toYMD(d: Date): string {
   return d.toISOString().slice(0, 10);
 }
 
-// "Today" as the user's LOCAL calendar date (not a UTC-derived one).
-export function localYMD(d: Date): string {
-  const y = d.getFullYear();
-  const m = String(d.getMonth() + 1).padStart(2, '0');
-  const day = String(d.getDate()).padStart(2, '0');
-  return `${y}-${m}-${day}`;
+// "Today" as the GHANA calendar date, regardless of the device timezone.
+// en-CA formats as YYYY-MM-DD.
+export function ghanaYMD(d: Date = new Date()): string {
+  return new Intl.DateTimeFormat('en-CA', { timeZone: 'Africa/Accra' }).format(d);
 }
 
 export function ymd(iso: string): string {
@@ -42,7 +42,7 @@ export function addDaysYMD(start: Date, days: number): Date {
 export function buildSchedule(startDate: string | null): ScheduleWeek[] {
   if (!startDate) return [];
   const start = new Date(`${ymd(startDate)}T00:00:00Z`);
-  const today = new Date(`${localYMD(new Date())}T00:00:00Z`);
+  const today = new Date(`${ghanaYMD()}T00:00:00Z`);
   if (today.getTime() < start.getTime()) return []; // placement hasn't started yet
 
   const weeks: ScheduleWeek[] = [];

@@ -191,6 +191,48 @@ describe('write path', () => {
     ).rejects.toMatchObject({ statusCode: 422 });
   });
 
+  itdb('rejects logging a week that has not started yet with 422', async () => {
+    const start = new Date(Date.now() + 14 * 86_400_000).toISOString().slice(0, 10);
+    const end = new Date(Date.now() + 20 * 86_400_000).toISOString().slice(0, 10);
+    await expect(
+      saveDraft(studentA, {
+        ...week(30),
+        placementId: placementA,
+        periodStart: start,
+        periodEnd: end,
+        activities: [],
+      }),
+    ).rejects.toMatchObject({ statusCode: 422 });
+  });
+
+  itdb('rejects an activity dated outside the week period with 422', async () => {
+    await expect(
+      saveDraft(studentA, {
+        ...week(31),
+        placementId: placementA,
+        activities: [
+          // Week is 2026-03-02..08; this date is in the past but out of period.
+          { activityDate: '2026-02-20', description: 'wrong week', competencyTags: [] },
+        ],
+      }),
+    ).rejects.toMatchObject({ statusCode: 422 });
+  });
+
+  itdb('rejects submitting a week that has not started yet with 422 (defense in depth)', async () => {
+    // saveDraft now blocks future weeks, so plant the draft row directly to
+    // prove the submit-side guard holds on its own.
+    const planted = await prisma.logbookEntry.create({
+      data: {
+        placementId: placementA,
+        weekNumber: 32,
+        periodStart: new Date(Date.now() + 14 * 86_400_000),
+        periodEnd: new Date(Date.now() + 20 * 86_400_000),
+        status: 'draft',
+      },
+    });
+    await expect(submitEntry(studentA, planted.id)).rejects.toMatchObject({ statusCode: 422 });
+  });
+
   itdb('submits a week with no activities (activity list is not a submission gate)', async () => {
     const entry = await saveDraft(studentA, { ...week(4), placementId: placementA, activities: [] });
     const submitted = await submitEntry(studentA, entry.id);

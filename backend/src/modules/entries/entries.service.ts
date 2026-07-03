@@ -87,10 +87,22 @@ function validateDraftDates(input: SaveDraftInput) {
   if (periodEnd.getTime() < periodStart.getTime()) {
     throw new AppError(422, 'periodEnd cannot be before periodStart');
   }
+  // Anti-cheat: a week cannot be logged before it starts — mirrors the per-day
+  // path, which rejects future days. Without this the legacy week-level route
+  // lets a student pre-fill future weeks.
+  if (isFuture(periodStart)) {
+    throw new AppError(422, 'This week has not started yet; it cannot be logged in advance');
+  }
   const activities = input.activities.map((a) => {
     const activityDate = parseDateOnly(a.activityDate, 'activityDate');
     if (isFuture(activityDate)) {
       throw new AppError(422, `Activity date ${a.activityDate} is in the future`);
+    }
+    if (
+      activityDate.getTime() < periodStart.getTime() ||
+      activityDate.getTime() > periodEnd.getTime()
+    ) {
+      throw new AppError(422, `Activity date ${a.activityDate} is outside this week`);
     }
     return { activityDate, description: a.description, competencyTags: a.competencyTags };
   });
@@ -246,6 +258,12 @@ export async function submitEntry(actor: Actor, entryId: string) {
     }
 
     resolveTransition(status, 'submit', actor.role); // 409 if not from draft
+
+    // Anti-cheat: a week that hasn't started can never be submitted (mirrors
+    // the per-day submit window).
+    if (isFuture(entry.periodStart)) {
+      throw new AppError(422, 'This week has not started yet; it cannot be submitted');
+    }
 
     // A week may be submitted with or without activities — the activity list is
     // no longer a submission gate (a student can record a week of hours/reflection
