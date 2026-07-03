@@ -12,7 +12,7 @@ import QuickActionsMenu from './QuickActionsMenu';
 import AccountMenu from './AccountMenu';
 import {
   LayoutDashboard, ClipboardList, UserCheck, Sparkles, Settings, Users,
-  GraduationCap, LogOut, Plus, ShieldAlert, Building2,
+  GraduationCap, LogOut, Plus, Building2,
 } from 'lucide-react';
 
 interface NavItem {
@@ -24,12 +24,11 @@ interface NavItem {
 }
 
 // Stitch "Nexus Oversight" nav. "Intern Overview" is the dashboard (metrics +
-// status monitor); "Oversight" is the distinct cross-cohort at-risk monitoring
-// surface. AI Insights is gated behind a feature flag.
+// status monitor); cross-cohort at-risk monitoring lives as the Oversight view
+// inside All Interns. AI Insights is gated behind a feature flag.
 const navItems: NavItem[] = [
   { label: 'Intern Overview', href: '/coordinator/dashboard',   icon: LayoutDashboard },
   { label: 'All Interns',     href: '/coordinator/interns',     icon: Users },
-  { label: 'Oversight',       href: '/coordinator/oversight',   icon: ShieldAlert },
   { label: 'Placements',      href: '/coordinator/placements',  icon: ClipboardList },
   { label: 'Companies',       href: '/coordinator/companies',   icon: Building2 },
   { label: 'Assignments',     href: '/coordinator/assignments', icon: UserCheck },
