@@ -2663,3 +2663,32 @@ Three asks in one session.
 2. In-browser verifies: admin bell dropdown + navs (S76), searchable intern picker (S110), chatbot/AI, per-day flow, S77 features (6-week view, late-day flag, roster upload/auto-link incl. .ods, Oversight toggle).
 3. Risk-pipeline audit.
 4. Product-input items: chatbot hardcoded "Online" dot; admin "View all submissions" affordance; fold `/admin/messages` call-scheduler into Feedback Center.
+
+### Session 79 — 2026-07-03 (morning) — Risk pipeline retired + rebuilt; carried product items (commits `0d3ca40`, `3b60a38`, `8a59c6f`, `271aadf`, `38fc771`, pushed prod)
+
+> Written retroactively in S79b — the morning session hit the usage limit right after pushing, before a handoff entry.
+
+Five commits, all pushed prod:
+- **`feat(chatbot)` `0d3ca40`** — student chatbot header status dot now reflects real AI-engine health instead of a hardcoded "Online" (carried product item).
+- **`fix(dashboards)` `3b60a38`** — admin "View all submissions" footer points at the review queue (carried product item).
+- **`refactor(admin)` `8a59c6f`** — `/admin/messages` call scheduler folded into the Feedback Center; standalone composer retired (carried S75/S76 item).
+- **`refactor(ai)` `271aadf` — retired the dead XGBoost risk pipeline.** It never ran end-to-end: nothing triggered it from the entries workflow, features read only legacy logbook tables, train() had no caller, no API served `student_risk_scores`, and the backend Redis subscriber listened on a channel nothing published to. Removed `/ai/predict/risk`, RiskPredictor, feature extraction, the `compute_risk` Celery task + chain call, backend `riskAlertSubscriber`, and the xgboost/shap/joblib deps. Table kept for the rebuild.
+- **`feat(risk)` `38fc771` — rule-based advisory risk scoring on live entries data.** New `backend/src/modules/risk/` module: pure scorer over real signals (missing due weeks 0.40, inactivity saturating at 14d 0.30, late day logs 0.15, returned weeks 0.15), tiers low/medium/high at 0.3/0.6; placements under one full week are not scored. Snapshots persist to `student_risk_scores` **only on tier change** (movement history, idempotent — verified no dupes on rerun); escalation to high notifies the academic supervisor (in-app + socket, advisory wording, links to Feedback Center). `GET /api/v1/risk/overview` (supervisor own interns; coordinator/admin cohort-wide). Supervisor + admin dashboards refresh snapshots before reading; admin AI Alerts panel shows real high-risk data instead of Sample cards; chatbot KB risk answer rewritten (no more XGBoost claims). 29 new/updated tests; suite 586 green.
+
+### Session 79b — 2026-07-03 — Risk rebuild leftovers: history-aware readers (commit `12ecaca`, pushed prod)
+
+**Ask.** Continue what's left of the retire-and-rebuild risk pipeline after the S79 limit hit.
+
+**Found.** S79 made `student_risk_scores` a movement history (row per tier change), but three readers still assumed one-row-per-student and aggregated raw — a student who moved low→medium→high counted 3×:
+1. Coordinator dashboard `groupBy(riskTier)` over-counted `riskDistribution`/`highRiskCount` + never refreshed snapshots before reading.
+2. Coordinator `listStudents` riskTier filter used `riskScores: { some: … }` — matched historical tiers (was-high-now-low still listed as high).
+3. `weeklyReport` cron counted every historical high row ever.
+
+**Fix (`fix(risk)` `12ecaca`).** New `latestRiskDistribution(where)` in `risk.service.ts` (latest snapshot per placement via `orderBy computedAt desc, take 1`, counted in JS — never aggregate the history table raw). Coordinator dashboard + weekly report call `refreshRiskSnapshots()` first, then the helper. `listStudents` riskTier filter moved in-memory onto the already-selected latest tier (joins the existing status/attention in-memory path; where clause no longer touches `riskScores`). Cleanup: dead `compute_risk` route dropped from `ai/tasks/celery_app.py`; `,risk` queue dropped from the worker commands in `render.yaml` + `backend/docker-compose.yml`.
+
+**Verification.** Backend `tsc` clean; new latest-only + in-memory-filter tests added; risk/coordinator/jobs suites 100/100; **full suite 46/46 suites, 587/587 green**; `py_compile` clean on celery config. Pushed `main` → Render + Vercel.
+
+**Carried (unchanged).**
+1. ⚠️ ROTATE prod `DATABASE_URL` — still overdue; + 3 other secrets.
+2. In-browser verifies: admin bell dropdown + navs (S76), searchable intern picker (S110), chatbot status dot (S79), per-day flow, S77 features (6-week view, late-day flag, roster upload/auto-link incl. .ods, Oversight toggle), Feedback Center call scheduler (S79), real AI alerts on admin/supervisor dashboards (S79), coordinator risk distribution now movement-aware (S79b).
+3. Product-input: none left from the S76 list — all three shipped in S79.
