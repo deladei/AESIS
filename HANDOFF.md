@@ -2629,3 +2629,35 @@ Three asks in one session.
 **Known leftover.** Admin dashboard "Review" buttons deep-link `/supervisor/review?submissionId=<legacy id>` but EntryReview ignores that param (it belonged to the deleted legacy page) — lands on the generic queue. Works, param dead. Fix = either honor an entry-id param in EntryReview or drop the param from AdminDashboard links.
 
 **S76b leftover fixed (`fix(admin)` `d7ca11f`).** Recent-Submissions deep-links: rows are entries-pipeline rows, so links now pass `?entryId=` to `/admin/review`; EntryReview honours the param (selects the entry even off-queue, read-only decision note for already-decided weeks); admin status map switched to real entry statuses (acknowledged/returned were rendering fallback gray). `tsc` + `vite build` clean, pushed.
+
+### Session 77 — 2026-07-02/03 — Coordinator roster + assignments search + full 6-week logbook + Oversight merge (commits `984eae6`, `d9aa97d`, `ca8a23f`, `4f0cdbc`, pushed prod)
+
+> Written retroactively in S78 — the session ended at the failing-tests discovery below without a handoff entry.
+
+**Work done (4 feature commits, all pushed prod)**
+- **`feat(logbook)` `984eae6` — full 6-week programme + flagged late day logging.** Students see all 6 weeks up front (future weeks "Upcoming", days locked until their date). A forgotten day is no longer hard-blocked after the 2-day grace window — it can be logged/submitted any time after its date, always stamped `loggedLate` so the supervisor reviews it flagged. Only future days remain rejected. (`entries.day.service.ts`, `lib/schedule.ts`, LogbookEditor, WeeklyLogbookTable + day-window tests updated.)
+- **`feat(coordinator)` `d9aa97d` — assignments search + any-format roster upload + company intern roster.** Debounced search over placements (new `q` filter on `GET /placements`); supervisor roster upload accepts CSV/TSV/TXT/Excel via SheetJS 0.20.3 (official cdn.sheetjs.com build, lazy-loaded); company cards → new company detail page listing every intern (`GET /companies/:id/interns`, coordinator/admin).
+- **`feat(roster)` `ca8a23f` — coordinator uploads the class list; registering students auto-link.** New `student_roster` table (additive migration `20260702120000_student_roster`). `POST /coordinator/students/roster/bulk` (idempotent per email: create / refresh unclaimed / never touch claimed / pre-link existing accounts) + `GET .../roster` with registration status. Registration auto-verifies + claims a student matching an unclaimed roster row by email or index number; unlisted students register normally. Assignments page gets a class-roster upload panel (shared `lib/tabular` helpers, Ghanaian template). 5 new tests.
+- **`refactor(coordinator)` `4f0cdbc` — Oversight merged into All Interns.** Directory | Oversight view toggle (`?view=oversight`); standalone Oversight page deleted (table lives on as `OversightPanel`); `/coordinator/oversight` redirects; duplicate sidebar item gone; `?attention=1` deep-link unchanged.
+
+**Stopped at:** post-push entries test run showed 41/86 failing — session ended there.
+
+### Session 78 — 2026-07-03 — Entries test failures: local DB schema drift, not a code bug (no code changes)
+
+**Ask.** "Continue where we left off in the feature change" — i.e. the 41/86 failing entries tests S77 ended on.
+
+**Diagnosis.** All 41 failures were one crash: `The column users.gender does not exist` in `mkUser` (`entries.integration.test.ts`). Local DBs had drifted from `schema.prisma`:
+- `prisma migrate status` on the local dev DB (`aisystem_db`): **all 19 migrations "not yet applied"** — local DBs were built via `db push` historically and have no `_prisma_migrations` history; everything since `20260621160000_user_gender_index_number` was missing.
+- The integration suite doesn't even use `.env`'s DB — it rewrites `DATABASE_URL` to a dedicated **`aesis_logbook_test`** DB on 127.0.0.1 (top of `entries.integration.test.ts`), which was equally stale.
+
+**Fix (local env only, nothing committed).** `npx prisma db push --accept-data-loss` against both `aisystem_db` and `aesis_logbook_test`. The only "data loss" was the new unique constraint on `users.index_number` — verified the column didn't exist locally yet, so no duplicate risk. Prod unaffected (prod runs `migrate deploy` and is properly baselined; the S77 roster migration is additive).
+
+**Verification.** Entries + finalization: 98/98. **Full backend suite: 45/45 suites, 574/574 tests green** (`npx jest --runInBand`, ~151 s).
+
+**Note for future sessions.** Local dev DBs have no migration history — `prisma migrate dev` would want a reset. After pulling new migrations, sync local with `db push` (both DBs), or properly baseline them someday.
+
+**Carried (unchanged).**
+1. ⚠️ ROTATE prod `DATABASE_URL` — still overdue; + 3 other secrets.
+2. In-browser verifies: admin bell dropdown + navs (S76), searchable intern picker (S110), chatbot/AI, per-day flow, S77 features (6-week view, late-day flag, roster upload/auto-link, Oversight toggle).
+3. Risk-pipeline audit.
+4. Product-input items: chatbot hardcoded "Online" dot; admin "View all submissions" affordance; fold `/admin/messages` call-scheduler into Feedback Center.
