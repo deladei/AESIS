@@ -193,6 +193,59 @@ export function useBulkCreateSupervisors() {
   });
 }
 
+// ── Student class roster (pre-registration list) ────────────────
+
+export interface RosterUploadRow {
+  firstName: string;
+  lastName: string;
+  email: string;
+  indexNumber?: string | null;
+}
+
+export interface RosterUploadResponse {
+  total: number;
+  created: number;
+  updated: number;
+  linked: number;
+  skipped: number;
+  results: { email: string; status: 'created' | 'updated' | 'linked' | 'skipped'; message?: string }[];
+}
+
+export interface RosterListRow {
+  id: string;
+  firstName: string;
+  lastName: string;
+  email: string;
+  indexNumber: string | null;
+  registered: boolean;
+  claimedAt: string | null;
+  account: { id: string; name: string; email: string } | null;
+}
+
+/** Uploaded class roster with per-student registration status. */
+export function useStudentRoster() {
+  return useQuery({
+    queryKey: ['coordinator', 'roster'],
+    queryFn:  async () => {
+      const r = await api.get<{ data: { total: number; registered: number; rows: RosterListRow[] } }>(
+        '/coordinator/students/roster',
+      );
+      return r.data.data;
+    },
+  });
+}
+
+export function useUploadStudentRoster() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (students: RosterUploadRow[]) => {
+      const r = await api.post<{ data: RosterUploadResponse }>('/coordinator/students/roster/bulk', { students });
+      return r.data.data;
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['coordinator', 'roster'] }),
+  });
+}
+
 /** Set (or clear, with null) the single region an academic supervisor covers. */
 export function useSetSupervisorRegion() {
   const qc = useQueryClient();

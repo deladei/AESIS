@@ -13,6 +13,7 @@ import {
 } from '@/hooks/usePlacements';
 import SupervisorPicker from '@/components/shared/SupervisorPicker';
 import SupervisorUploadPanel from '@/components/coordinator/SupervisorUploadPanel';
+import StudentRosterPanel from '@/components/coordinator/StudentRosterPanel';
 import { REGION_VALUES, REGION_LABELS, regionLabel } from '@/lib/regions';
 
 type StatusFilter = 'active' | 'pending' | 'all';
@@ -280,6 +281,7 @@ export default function SupervisorAssignment() {
       </div>
 
       <SupervisorUploadPanel />
+      <StudentRosterPanel />
       <SupervisorRegionsPanel />
       <NeedsSupervisorPanel />
 

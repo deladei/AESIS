@@ -147,6 +147,31 @@ export async function bulkCreateSupervisors(req: Request, res: Response) {
   ok(res, data);
 }
 
+// Class roster upload — pre-registration student list.
+const rosterUploadSchema = z.object({
+  students: z
+    .array(
+      z.object({
+        firstName:   z.string().trim().min(1).max(80),
+        lastName:    z.string().trim().min(1).max(80),
+        email:       z.string().trim().toLowerCase().pipe(z.string().email().max(160)),
+        indexNumber: z.string().trim().max(40).optional().nullable(),
+      }),
+    )
+    .min(1)
+    .max(500),
+});
+
+export async function uploadStudentRoster(req: Request, res: Response) {
+  const { students } = rosterUploadSchema.parse(req.body);
+  const data = await service.uploadStudentRoster(req.user!.sub, students);
+  ok(res, data);
+}
+
+export async function studentRoster(_req: Request, res: Response) {
+  ok(res, await service.listStudentRoster());
+}
+
 export async function unassignedPlacements(_req: Request, res: Response) {
   const data = await service.listUnassignedPlacements();
   ok(res, data);

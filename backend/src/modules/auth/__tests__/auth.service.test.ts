@@ -5,9 +5,11 @@ import { AppError } from '../../../middleware/errorHandler';
 jest.mock('../../../config/prisma', () => ({
   prisma: {
     academicProgramme: { findUnique: jest.fn() },
+    department:        { findUnique: jest.fn() },
     user:              { findUnique: jest.fn(), findFirst: jest.fn(), create: jest.fn(), update: jest.fn(), updateMany: jest.fn() },
     placement:         { findFirst: jest.fn() },
     refreshToken:      { create: jest.fn(), findFirst: jest.fn(), update: jest.fn(), updateMany: jest.fn() },
+    studentRoster:     { findFirst: jest.fn(), update: jest.fn() },
     $transaction:      jest.fn(),
   },
 }));
@@ -154,6 +156,55 @@ describe('authService.register', () => {
     expect(mockPrisma.user.create).toHaveBeenCalledWith(
       expect.objectContaining({ data: expect.objectContaining({ gender: 'female', indexNumber: '10543210' }) }),
     );
+  });
+
+  it('links a class-roster row (matched by email/index) and auto-verifies the student', async () => {
+    (mockPrisma.academicProgramme.findUnique as jest.Mock).mockResolvedValue(fakeProgramme);
+    (mockPrisma.user.findUnique as jest.Mock).mockResolvedValue(null);
+    (mockPrisma.studentRoster.findFirst as jest.Mock).mockResolvedValue({ id: 'roster-uuid-1' });
+    (mockPrisma.studentRoster.update as jest.Mock).mockResolvedValue({ id: 'roster-uuid-1' });
+    (mockPrisma.user.create as jest.Mock).mockResolvedValue({
+      id: 'user-uuid-1', email: validInput.email, firstName: 'Ada', lastName: 'Okonkwo', role: 'student',
+    });
+
+    await authService.register(validInput);
+
+    // The roster lookup only considers unclaimed rows matching email or index.
+    expect(mockPrisma.studentRoster.findFirst).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({
+          claimedById: null,
+          OR: [{ email: validInput.email }, { indexNumber: validInput.indexNumber }],
+        }),
+      }),
+    );
+    // Roster-matched students are auto-verified — the coordinator vouched for them.
+    expect(mockPrisma.user.create).toHaveBeenCalledWith(
+      expect.objectContaining({ data: expect.objectContaining({ isVerified: true, verificationToken: null }) }),
+    );
+    // And the row is claimed by the new account.
+    expect(mockPrisma.studentRoster.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { id: 'roster-uuid-1' },
+        data: expect.objectContaining({ claimedById: 'user-uuid-1', claimedAt: expect.any(Date) }),
+      }),
+    );
+  });
+
+  it('does not consult the roster for non-student roles', async () => {
+    (mockPrisma.user.findUnique as jest.Mock).mockResolvedValue(null);
+    (mockPrisma.user.create as jest.Mock).mockResolvedValue({
+      id: 'user-uuid-2', email: 'sup@cs.edu', firstName: 'K', lastName: 'M', role: 'academic_supervisor',
+    });
+    // Non-student path needs the CS department lookup.
+    (mockPrisma.department.findUnique as jest.Mock).mockResolvedValue({ id: 'dept-uuid-1', code: 'CS' });
+
+    await authService.register({
+      firstName: 'Kwabena', lastName: 'Mensah', email: 'sup@cs.edu',
+      password: 'Password@123', role: 'academic_supervisor' as const,
+    } as never);
+
+    expect(mockPrisma.studentRoster.findFirst).not.toHaveBeenCalled();
   });
 });
 

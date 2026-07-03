@@ -21,6 +21,11 @@ router.get('/students/export.csv', asyncHandler(ctrl.exportCsv));
 router.post('/students/bulk/reminder', asyncHandler(ctrl.bulkReminder));
 router.post('/students/bulk/assign', asyncHandler(ctrl.bulkAssign));
 
+// Class roster (pre-registration list): view + upload. Static paths — must
+// stay above '/students/:placementId'.
+router.get('/students/roster', asyncHandler(ctrl.studentRoster));
+router.post('/students/roster/bulk', asyncHandler(ctrl.uploadStudentRoster));
+
 // GET /api/v1/coordinator/students/:placementId — full intern profile
 router.get('/students/:placementId', asyncHandler(ctrl.studentDetail));
 

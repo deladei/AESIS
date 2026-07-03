@@ -314,8 +314,31 @@ model User {
   confirmedObjectiveLinks EntryObjective[]   @relation("ObjectiveLinkConfirmer")
   uploadedAttachments  EntryAttachment[]     @relation("AttachmentUploader")
   gradesSignedOff      FinalGrade[]          @relation("GradeSignedOff")
+  rosterUploads        StudentRoster[]       @relation("RosterUploader")
+  rosterEntry          StudentRoster?        @relation("RosterClaim")
 
   @@map("users")
+}
+
+// Pre-registration class list uploaded by the coordinator. When a student on
+// the roster creates their account (matched by email or index number), the
+// account links to its roster row and skips email verification — the system
+// already knows them. Unlisted students can still register normally.
+model StudentRoster {
+  id           String    @id @default(uuid())
+  firstName    String    @map("first_name")
+  lastName     String    @map("last_name")
+  email        String    @unique
+  indexNumber  String?   @unique @map("index_number")
+  uploadedById String    @map("uploaded_by_id")
+  uploadedBy   User      @relation("RosterUploader", fields: [uploadedById], references: [id])
+  claimedById  String?   @unique @map("claimed_by_id")
+  claimedBy    User?     @relation("RosterClaim", fields: [claimedById], references: [id])
+  claimedAt    DateTime? @map("claimed_at")
+  createdAt    DateTime  @default(now()) @map("created_at")
+  updatedAt    DateTime  @updatedAt @map("updated_at")
+
+  @@map("student_roster")
 }
 
 model RefreshToken {

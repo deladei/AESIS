@@ -71,11 +71,28 @@ export async function register(input: RegisterInput) {
   const passwordHash       = await bcrypt.hash(password, env.BCRYPT_ROUNDS);
   const verificationToken  = generateSecureToken();
 
+  // Pre-registered class roster: if the coordinator uploaded this student
+  // (matched by email or index number, unclaimed), the system already knows
+  // them — link the account and skip email verification.
+  let rosterMatch: { id: string } | null = null;
+  if (role === 'student') {
+    rosterMatch = await prisma.studentRoster.findFirst({
+      where: {
+        claimedById: null,
+        OR: [
+          { email },
+          ...(indexNumber ? [{ indexNumber }] : []),
+        ],
+      },
+      select: { id: true },
+    });
+  }
+
   // Auto-verify whenever we can't reliably send a verification email — i.e.
   // dev (no SMTP) or prod without SENDGRID_API_KEY. Otherwise users would
   // register, never get the email, and be stuck unable to log in.
   const canSendEmail = env.NODE_ENV === 'production' && !!env.SENDGRID_API_KEY;
-  const autoVerify  = !canSendEmail;
+  const autoVerify  = !canSendEmail || rosterMatch != null;
 
   const user = await prisma.user.create({
     data: {
@@ -114,6 +131,17 @@ export async function register(input: RegisterInput) {
       await prisma.user.delete({ where: { id: user.id } }).catch(() => { /* best-effort */ });
       throw err;
     }
+  }
+
+  // Claim the roster row once the account (and placement) exist. Best-effort:
+  // a race on the unique claim must not fail the registration itself.
+  if (rosterMatch) {
+    await prisma.studentRoster
+      .update({
+        where: { id: rosterMatch.id },
+        data: { claimedById: user.id, claimedAt: new Date() },
+      })
+      .catch(() => { /* best-effort */ });
   }
 
   if (!autoVerify) {

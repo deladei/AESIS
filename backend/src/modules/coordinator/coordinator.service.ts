@@ -826,6 +826,115 @@ export async function bulkCreateSupervisors(coordinatorId: string, rows: BulkSup
   return { total: rows.length, created, updated, skipped, results };
 }
 
+// ── Student class roster (pre-registration) ───────────────────
+
+export type RosterRow = {
+  firstName: string;
+  lastName: string;
+  email: string;
+  indexNumber?: string | null;
+};
+
+export type RosterUploadResult = {
+  email: string;
+  status: 'created' | 'updated' | 'linked' | 'skipped';
+  message?: string;
+};
+
+/**
+ * Coordinator uploads the class list (name, email, optional index number).
+ * Idempotent per email:
+ *   • new email             → roster row created (awaiting the student's signup)
+ *   • existing unclaimed    → name/index refreshed
+ *   • existing claimed      → skipped (already registered — never overwritten)
+ *   • email already a student account → row created pre-linked to that account
+ * Registration then matches new students by email or index number and links
+ * them automatically (see auth.service.register).
+ */
+export async function uploadStudentRoster(coordinatorId: string, rows: RosterRow[]) {
+  const results: RosterUploadResult[] = [];
+  let created = 0, updated = 0, linked = 0, skipped = 0;
+
+  for (const r of rows) {
+    const email = r.email.trim().toLowerCase();
+    const indexNumber = r.indexNumber?.trim() || null;
+    try {
+      const existing = await prisma.studentRoster.findUnique({ where: { email } });
+      if (existing) {
+        if (existing.claimedById) {
+          skipped++;
+          results.push({ email, status: 'skipped', message: 'Already registered — left unchanged' });
+          continue;
+        }
+        await prisma.studentRoster.update({
+          where: { id: existing.id },
+          data: { firstName: r.firstName, lastName: r.lastName, indexNumber },
+        });
+        updated++;
+        results.push({ email, status: 'updated' });
+        continue;
+      }
+
+      const account = await prisma.user.findUnique({ where: { email }, select: { id: true, role: true } });
+      if (account && account.role !== 'student') {
+        skipped++;
+        results.push({ email, status: 'skipped', message: 'Email belongs to a non-student account' });
+        continue;
+      }
+
+      await prisma.studentRoster.create({
+        data: {
+          firstName: r.firstName,
+          lastName: r.lastName,
+          email,
+          indexNumber,
+          uploadedById: coordinatorId,
+          claimedById: account?.id ?? null,
+          claimedAt: account ? new Date() : null,
+        },
+      });
+      if (account) {
+        linked++;
+        results.push({ email, status: 'linked', message: 'Matched an existing student account' });
+      } else {
+        created++;
+        results.push({ email, status: 'created' });
+      }
+    } catch {
+      skipped++;
+      results.push({ email, status: 'skipped', message: 'Could not process this row (duplicate index number?)' });
+    }
+  }
+
+  return { total: rows.length, created, updated, linked, skipped, results };
+}
+
+/** Full class roster with registration status, newest first. */
+export async function listStudentRoster() {
+  const rows = await prisma.studentRoster.findMany({
+    orderBy: [{ claimedAt: 'desc' }, { createdAt: 'desc' }],
+    include: {
+      claimedBy: { select: { id: true, firstName: true, lastName: true, email: true } },
+    },
+  });
+  return {
+    total: rows.length,
+    registered: rows.filter((r) => r.claimedById != null).length,
+    rows: rows.map((r) => ({
+      id: r.id,
+      firstName: r.firstName,
+      lastName: r.lastName,
+      email: r.email,
+      indexNumber: r.indexNumber,
+      registered: r.claimedById != null,
+      claimedAt: r.claimedAt,
+      account: r.claimedBy
+        ? { id: r.claimedBy.id, name: `${r.claimedBy.firstName} ${r.claimedBy.lastName}`.trim(), email: r.claimedBy.email }
+        : null,
+    })),
+  };
+}
+
 /**
  * Placements created at registration whose region had no supervisor yet, so
  * they sit pending with no academic supervisor. The coordinator assigns one

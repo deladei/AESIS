@@ -48,6 +48,12 @@ jest.mock('../../../config/prisma', () => ({
     company: {
       findMany: jest.fn(),
     },
+    studentRoster: {
+      findUnique: jest.fn(),
+      findMany:   jest.fn(),
+      create:     jest.fn(),
+      update:     jest.fn(),
+    },
   },
 }));
 
@@ -73,6 +79,8 @@ import {
   searchEntities,
   getFeatureFlags,
   bulkCreateSupervisors,
+  uploadStudentRoster,
+  listStudentRoster,
 } from '../coordinator.service';
 import { updateCohortConfigSchema } from '../coordinator.schema';
 
@@ -1146,5 +1154,85 @@ describe('bulkCreateSupervisors', () => {
     await expect(
       bulkCreateSupervisors('ghost', [{ firstName: 'A', lastName: 'B', email: 'a@x.edu', region: 'volta' }]),
     ).rejects.toMatchObject({ statusCode: 404 });
+  });
+});
+
+// ── Student class roster ──────────────────────────────────────
+
+describe('uploadStudentRoster / listStudentRoster', () => {
+  const roster = mp.studentRoster as unknown as {
+    findUnique: jest.Mock; findMany: jest.Mock; create: jest.Mock; update: jest.Mock;
+  };
+  const u = mp.user as unknown as { findUnique: jest.Mock };
+
+  beforeEach(() => {
+    roster.findUnique.mockReset();
+    roster.findMany.mockReset();
+    roster.create.mockReset();
+    roster.update.mockReset();
+    u.findUnique.mockReset();
+  });
+
+  it('creates new rows, refreshes unclaimed ones, never touches claimed ones', async () => {
+    roster.findUnique
+      .mockResolvedValueOnce(null)                                    // new@ — create
+      .mockResolvedValueOnce({ id: 'r-2', claimedById: null })        // old@ — update
+      .mockResolvedValueOnce({ id: 'r-3', claimedById: 'stu-3' });    // done@ — skip
+    u.findUnique.mockResolvedValue(null);
+    roster.create.mockResolvedValue({ id: 'r-1' });
+    roster.update.mockResolvedValue({ id: 'r-2' });
+
+    const res = await uploadStudentRoster('coord-1', [
+      { firstName: 'Abena', lastName: 'Boateng', email: 'New@st.edu', indexNumber: 'CS/2023/0114' },
+      { firstName: 'Kwame', lastName: 'Asante', email: 'old@st.edu', indexNumber: null },
+      { firstName: 'Yaa', lastName: 'Mensah', email: 'done@st.edu', indexNumber: null },
+    ]);
+
+    expect(res).toMatchObject({ total: 3, created: 1, updated: 1, linked: 0, skipped: 1 });
+    // Email lowercased on create; uploader recorded; unclaimed until signup.
+    expect(roster.create.mock.calls[0][0].data).toMatchObject({
+      email: 'new@st.edu', indexNumber: 'CS/2023/0114', uploadedById: 'coord-1', claimedById: null,
+    });
+    // The claimed row was never updated.
+    expect(roster.update).toHaveBeenCalledTimes(1);
+    expect(res.results[2]).toMatchObject({ status: 'skipped' });
+  });
+
+  it('pre-links a row to an existing student account and skips non-student emails', async () => {
+    roster.findUnique.mockResolvedValue(null);
+    u.findUnique
+      .mockResolvedValueOnce({ id: 'stu-7', role: 'student' })  // existing student → linked
+      .mockResolvedValueOnce({ id: 'sup-1', role: 'academic_supervisor' }); // skip
+    roster.create.mockResolvedValue({ id: 'r-9' });
+
+    const res = await uploadStudentRoster('coord-1', [
+      { firstName: 'Ama', lastName: 'Owusu', email: 'ama@st.edu' },
+      { firstName: 'Kofi', lastName: 'Adjei', email: 'sup@x.edu' },
+    ]);
+
+    expect(res).toMatchObject({ created: 0, linked: 1, skipped: 1 });
+    expect(roster.create.mock.calls[0][0].data).toMatchObject({
+      claimedById: 'stu-7', claimedAt: expect.any(Date),
+    });
+  });
+
+  it('lists the roster with registration status and counts', async () => {
+    roster.findMany.mockResolvedValue([
+      {
+        id: 'r-1', firstName: 'Abena', lastName: 'Boateng', email: 'a@st.edu',
+        indexNumber: 'CS/2023/0114', claimedById: 'stu-1', claimedAt: new Date('2026-07-01'),
+        claimedBy: { id: 'stu-1', firstName: 'Abena', lastName: 'Boateng', email: 'a@st.edu' },
+      },
+      {
+        id: 'r-2', firstName: 'Kwame', lastName: 'Asante', email: 'k@st.edu',
+        indexNumber: null, claimedById: null, claimedAt: null, claimedBy: null,
+      },
+    ]);
+
+    const res = await listStudentRoster();
+    expect(res.total).toBe(2);
+    expect(res.registered).toBe(1);
+    expect(res.rows[0]).toMatchObject({ registered: true, account: { id: 'stu-1' } });
+    expect(res.rows[1]).toMatchObject({ registered: false, account: null });
   });
 });
