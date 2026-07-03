@@ -20,8 +20,6 @@ class Settings(BaseSettings):
     EMBEDDING_MODEL: str = "all-MiniLM-L6-v2"
 
     PLAGIARISM_THRESHOLD: float = 0.35
-    RISK_HIGH_THRESHOLD: float = 0.60
-    RISK_MEDIUM_THRESHOLD: float = 0.30
 
 
 settings = Settings()

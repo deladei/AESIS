@@ -1,7 +1,9 @@
 """
 Celery async task pipeline.
   analyze_logbook  — quality + plagiarism + sentiment → writes logbook_analyses
-  compute_risk     — 18-feature XGBoost → writes student_risk_scores + notification
+
+(compute_risk retired 2026-07-03: risk scoring moved to the Node backend,
+computed rule-based from live entries-pipeline data.)
 """
 import json
 from datetime import datetime, timezone
@@ -13,8 +15,6 @@ from tasks.celery_app import celery_app
 from config.database import get_sync_mongo_db, get_sync_pg_conn
 from config.settings import settings
 from services import quality_scorer, plagiarism_detector as pdet, sentiment_analyser
-from services.risk_predictor import predictor as risk_predictor
-from utils.feature_extraction import extract_features
 
 logger = get_task_logger(__name__)
 
@@ -144,9 +144,6 @@ def analyze_logbook(self, submission_id: str, student_id: str, placement_id: str
 
         logger.info(f"Analysis complete for {submission_id} — quality={quality_score}")
 
-        # ── 9. Trigger risk recomputation ──────────────────────
-        compute_risk.delay(student_id, placement_id)
-
     except Exception as exc:
         pg_conn.rollback()
         try:
@@ -158,105 +155,6 @@ def analyze_logbook(self, submission_id: str, student_id: str, placement_id: str
         except Exception:
             pass
         logger.error(f"Analysis failed for {submission_id}: {exc}")
-        raise self.retry(exc=exc)
-
-    finally:
-        pg_conn.close()
-
-
-# ── compute_risk ──────────────────────────────────────────────
-
-@celery_app.task(bind=True, max_retries=3, default_retry_delay=120)
-def compute_risk(self, student_id: str, placement_id: str):
-    logger.info(f"Computing risk for student {student_id}, placement {placement_id}")
-
-    pg_conn = get_sync_pg_conn()
-    try:
-        cur = pg_conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
-
-        # Previous tier (for escalation detection)
-        cur.execute(
-            """
-            SELECT risk_tier FROM student_risk_scores
-            WHERE student_id = %s AND placement_id = %s
-            ORDER BY computed_at DESC LIMIT 1
-            """,
-            (student_id, placement_id),
-        )
-        prev_row      = cur.fetchone()
-        previous_tier = prev_row["risk_tier"] if prev_row else None
-
-        features     = extract_features(student_id, placement_id)
-        risk_result  = risk_predictor.predict(features)
-
-        shap_json = json.dumps(risk_result.shap_values)
-
-        cur.execute(
-            """
-            INSERT INTO student_risk_scores (
-                id, student_id, placement_id,
-                risk_score, risk_tier, previous_tier,
-                top_risk_factors, shap_values, computed_at
-            ) VALUES (
-                gen_random_uuid(), %s, %s,
-                %s, %s, %s,
-                %s, %s::jsonb, NOW()
-            )
-            """,
-            (
-                student_id, placement_id,
-                risk_result.risk_score,
-                risk_result.risk_tier,
-                previous_tier,
-                risk_result.top_risk_factors,
-                shap_json,
-            ),
-        )
-
-        # ── Escalation notification if tier jumped to high ─────
-        if risk_result.risk_tier == "high" and previous_tier != "high":
-            # Find academic supervisor for this placement
-            cur.execute(
-                "SELECT academic_supervisor_id, student_id FROM placements WHERE id = %s",
-                (placement_id,),
-            )
-            placement = cur.fetchone()
-            if placement and placement["academic_supervisor_id"]:
-                sup_id = placement["academic_supervisor_id"]
-                factors_str = "; ".join(risk_result.top_risk_factors)
-                cur.execute(
-                    """
-                    INSERT INTO notifications (
-                        id, user_id, type, title, body, metadata, created_at
-                    ) VALUES (
-                        gen_random_uuid(), %s, 'risk_alert',
-                        'High-risk student alert',
-                        %s,
-                        %s::jsonb,
-                        NOW()
-                    )
-                    """,
-                    (
-                        sup_id,
-                        f"Student risk tier escalated to HIGH. Key factors: {factors_str}",
-                        json.dumps({
-                            "studentId":   student_id,
-                            "placementId": placement_id,
-                            "riskScore":   risk_result.risk_score,
-                            "factors":     risk_result.top_risk_factors,
-                        }),
-                    ),
-                )
-
-        pg_conn.commit()
-        logger.info(
-            f"Risk computed: student={student_id}, "
-            f"tier={risk_result.risk_tier}, score={risk_result.risk_score}"
-        )
-
-    except Exception as exc:
-        pg_conn.rollback()
-        logger.error(f"Risk computation failed: {exc}")
         raise self.retry(exc=exc)
 
     finally:

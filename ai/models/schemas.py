@@ -8,11 +8,6 @@ class AnalyzeLogbookRequest(BaseModel):
     placement_id: str
 
 
-class RiskPredictRequest(BaseModel):
-    student_id: str
-    placement_id: str
-
-
 class ChatMessage(BaseModel):
     role: str  # 'user' | 'assistant'
     content: str
@@ -45,10 +40,3 @@ class PlagiarismResult(BaseModel):
 class SentimentResult(BaseModel):
     sentiment_polarity: float
     sentiment_class: str
-
-
-class RiskResult(BaseModel):
-    risk_score: float
-    risk_tier: str  # 'low' | 'medium' | 'high'
-    top_risk_factors: list[str]
-    shap_values: dict
