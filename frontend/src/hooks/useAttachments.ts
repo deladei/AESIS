@@ -1,14 +1,16 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { api } from '@/lib/api';
 
-// Image/document evidence attached to a weekly logbook entry. Mirrors the
-// backend modules/entries/attachments path. Writes are only accepted while the
-// entry is editable (draft/returned) — the API enforces it; the UI hides the
-// controls otherwise.
+// Image/document evidence attached to one working DAY of a logbook entry.
+// Mirrors the backend modules/entries/attachments path. Writes are only
+// accepted while that day is still editable — the API enforces it; the UI
+// hides the controls otherwise. `dayDate` is null on files uploaded before
+// day scoping existed (legacy week-level evidence).
 export type AttachmentKind = 'image' | 'document';
 
 export interface EntryAttachment {
   id:         string;
+  dayDate:    string | null; // ISO; slice to YYYY-MM-DD
   fileUrl:    string;
   fileName:   string;
   fileSize:   number;
@@ -31,9 +33,10 @@ export function useEntryAttachments(entryId?: string) {
 export function useUploadAttachment(entryId: string) {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: async (file: File) => {
+    mutationFn: async ({ file, date }: { file: File; date?: string }) => {
       const form = new FormData();
       form.append('file', file);
+      if (date) form.append('date', date);
       // Content-Type undefined lets the browser set the multipart boundary; the
       // axios default 'application/json' would otherwise break multer parsing.
       const r = await api.post<{ data: EntryAttachment }>(

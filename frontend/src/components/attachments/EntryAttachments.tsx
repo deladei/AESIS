@@ -16,27 +16,38 @@ function fmtBytes(n: number): string {
   return `${(n / (1024 * 1024)).toFixed(1)} MB`;
 }
 
+// Short day label ("Mon 6 Jul") for the week-wide (supervisor) view.
+function fmtDay(iso: string): string {
+  return new Date(`${iso.slice(0, 10)}T00:00:00Z`).toLocaleDateString('en-GB', {
+    weekday: 'short', day: 'numeric', month: 'short', timeZone: 'UTC',
+  });
+}
+
 const apiErr = (e: unknown) =>
   ((e as { response?: { data?: { message?: string } } })?.response?.data?.message) ??
   'Upload failed. Please try again.';
 
 /**
- * Image/document evidence for a weekly entry. Images render as thumbnails,
- * documents as file chips; both open in a new tab. Upload + delete show only
- * while the entry is editable (draft/returned) — the API enforces it too.
+ * Image/document evidence. With `date` set (the student's day editor), only
+ * that day's files show and uploads are stamped to that day — each day's log
+ * carries its own files, like attachments on an email. Without `date` (the
+ * supervisor review), every file of the week shows, tagged with its day.
+ * Upload + delete show only while the day is editable — the API enforces it too.
  */
 export function EntryAttachments({
-  entryId, editable = true,
+  entryId, date, editable = true,
 }: {
   entryId: string;
+  date?: string; // YYYY-MM-DD — scope to one working day
   editable?: boolean;
 }) {
-  const { data: attachments = [], isLoading } = useEntryAttachments(entryId);
+  const { data: all = [], isLoading } = useEntryAttachments(entryId);
   const upload = useUploadAttachment(entryId);
   const remove = useDeleteAttachment(entryId);
   const fileInput = useRef<HTMLInputElement>(null);
   const [error, setError] = useState<string | null>(null);
 
+  const attachments = date ? all.filter((a) => a.dayDate?.slice(0, 10) === date) : all;
   const images = attachments.filter((a) => a.kind === 'image');
   const docs = attachments.filter((a) => a.kind === 'document');
 
@@ -50,7 +61,7 @@ export function EntryAttachments({
       return;
     }
     try {
-      await upload.mutateAsync(file);
+      await upload.mutateAsync({ file, date });
     } catch (err) {
       setError(apiErr(err));
     }
@@ -63,7 +74,9 @@ export function EntryAttachments({
           <h3 className="flex items-center gap-1.5 text-sm font-semibold text-[var(--h-0b1c30)]">
             <Paperclip className="h-4 w-4 text-[var(--h-8a4cfc)]" /> Attachments
           </h3>
-          <p className="text-xs text-[var(--h-64748b)]">Photos or documents as evidence for this week</p>
+          <p className="text-xs text-[var(--h-64748b)]">
+            {date ? 'Photos or documents as evidence for this day' : 'Photos or documents as evidence for this week'}
+          </p>
         </div>
         {editable && (
           <>
@@ -102,7 +115,7 @@ export function EntryAttachments({
           {images.length > 0 && (
             <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
               {images.map((a) => (
-                <ImageTile key={a.id} a={a} editable={editable}
+                <ImageTile key={a.id} a={a} editable={editable} showDay={!date}
                   onDelete={() => remove.mutate(a.id)} deleting={remove.isPending} />
               ))}
             </div>
@@ -110,7 +123,7 @@ export function EntryAttachments({
           {docs.length > 0 && (
             <ul className="space-y-2">
               {docs.map((a) => (
-                <DocRow key={a.id} a={a} editable={editable}
+                <DocRow key={a.id} a={a} editable={editable} showDay={!date}
                   onDelete={() => remove.mutate(a.id)} deleting={remove.isPending} />
               ))}
             </ul>
@@ -121,14 +134,19 @@ export function EntryAttachments({
   );
 }
 
-function ImageTile({ a, editable, onDelete, deleting }: {
-  a: EntryAttachment; editable: boolean; onDelete: () => void; deleting: boolean;
+function ImageTile({ a, editable, showDay, onDelete, deleting }: {
+  a: EntryAttachment; editable: boolean; showDay: boolean; onDelete: () => void; deleting: boolean;
 }) {
   return (
     <div className="group relative overflow-hidden rounded-lg border border-[var(--h-e2e6ef)]">
       <a href={a.fileUrl} target="_blank" rel="noopener noreferrer" title={a.fileName}>
         <img src={a.fileUrl} alt={a.fileName} className="h-28 w-full object-cover" />
       </a>
+      {showDay && a.dayDate && (
+        <span className="absolute bottom-1.5 left-1.5 rounded bg-black/55 px-1.5 py-0.5 text-[10px] font-medium text-white">
+          {fmtDay(a.dayDate)}
+        </span>
+      )}
       {editable && (
         <button
           type="button" onClick={onDelete} disabled={deleting} aria-label={`Remove ${a.fileName}`}
@@ -141,8 +159,8 @@ function ImageTile({ a, editable, onDelete, deleting }: {
   );
 }
 
-function DocRow({ a, editable, onDelete, deleting }: {
-  a: EntryAttachment; editable: boolean; onDelete: () => void; deleting: boolean;
+function DocRow({ a, editable, showDay, onDelete, deleting }: {
+  a: EntryAttachment; editable: boolean; showDay: boolean; onDelete: () => void; deleting: boolean;
 }) {
   return (
     <li className="flex items-center gap-3 rounded-lg border border-[var(--h-e8ebf2)] bg-[var(--h-fbfcfe)] px-3 py-2">
@@ -154,6 +172,11 @@ function DocRow({ a, editable, onDelete, deleting }: {
       >
         {a.fileName}
       </a>
+      {showDay && a.dayDate && (
+        <span className="shrink-0 rounded bg-[var(--h-eef0f5)] px-1.5 py-0.5 text-[10px] font-medium text-[var(--h-64748b)]">
+          {fmtDay(a.dayDate)}
+        </span>
+      )}
       <span className="shrink-0 text-xs text-[var(--h-64748b)]">{fmtBytes(a.fileSize)}</span>
       {editable && (
         <button

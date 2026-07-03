@@ -478,10 +478,10 @@ function DayForm({
           </div>
         </div>
 
-        {/* Evidence — available once the week exists (after first save). */}
+        {/* Evidence for THIS day — available once the week exists (after first save). */}
         {detail?.id && (
           <div className="rounded-xl border border-[var(--h-e2e6ef)] bg-[var(--h-ffffff)] p-5">
-            <EntryAttachments entryId={detail.id} editable={editable} />
+            <EntryAttachments entryId={detail.id} date={date} editable={editable} />
           </div>
         )}
       </fieldset>

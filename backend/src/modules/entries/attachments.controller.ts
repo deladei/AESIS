@@ -36,6 +36,9 @@ export const attachmentUpload = multer({
 // id arrives as the parent `:id`.
 const entryIdParam = z.object({ id: z.string().uuid() });
 const attachmentIdParam = z.object({ id: z.string().uuid(), attachmentId: z.string().uuid() });
+// Optional multipart text field: the working day this file evidences
+// (YYYY-MM-DD). The service validates it against the entry's period.
+const uploadBody = z.object({ date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional() });
 
 function actorOf(req: Request): Actor {
   return { id: req.user!.sub, role: req.user!.role as EntryRole };
@@ -52,6 +55,7 @@ export async function addAttachmentHandler(req: Request, res: Response) {
 
   const file = req.file as Express.Multer.File | undefined;
   if (!file) throw new AppError(400, 'No file uploaded');
+  const { date } = uploadBody.parse(req.body ?? {});
 
   const incoming: IncomingFile = {
     buffer: file.buffer,
@@ -59,7 +63,7 @@ export async function addAttachmentHandler(req: Request, res: Response) {
     size: file.size,
     mimeType: file.mimetype,
   };
-  const attachment = await addAttachment(actorOf(req), id, incoming);
+  const attachment = await addAttachment(actorOf(req), id, incoming, date);
   return created(res, attachment);
 }
 

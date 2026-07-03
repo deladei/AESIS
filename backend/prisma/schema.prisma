@@ -771,6 +771,9 @@ model EntryAttachment {
   id           String         @id @default(uuid())
   entryId      String         @map("entry_id")
   entry        LogbookEntry   @relation(fields: [entryId], references: [id], onDelete: Cascade)
+  // The working day this file evidences. Null on rows uploaded before
+  // day-level attachments existed (those were week-level evidence).
+  dayDate      DateTime?      @map("day_date") @db.Date
   fileUrl      String         @map("file_url") // Cloudinary secure_url
   publicId     String         @map("public_id") // Cloudinary public_id, for deletion
   fileName     String         @map("file_name")
