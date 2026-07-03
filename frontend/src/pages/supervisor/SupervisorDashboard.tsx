@@ -1,7 +1,7 @@
 import { Link } from 'react-router-dom';
 import {
   Activity, ArrowRight, CheckCircle2, MessageSquare, Sparkles, AlertTriangle,
-  CalendarClock, Zap, ArrowUpCircle, ChevronDown, Loader2, Users,
+  CalendarClock, Zap, ArrowUpCircle, ChevronRight, Loader2, Users,
 } from 'lucide-react';
 import { useSupervisorDashboard, type SupervisorDashboard as Dash } from '@/hooks/useDashboard';
 
@@ -305,7 +305,7 @@ export default function SupervisorDashboard() {
             )}
             <div className="flex justify-center bg-[var(--h-eff4ff-50)] p-4">
               <Link to="/supervisor/review" className="flex items-center gap-2 text-sm font-semibold text-[var(--h-464652)] transition-colors hover:text-[var(--h-15157d)]">
-                View all submissions <ChevronDown className="h-4 w-4" />
+                View all submissions <ChevronRight className="h-4 w-4" />
               </Link>
             </div>
           </div>
