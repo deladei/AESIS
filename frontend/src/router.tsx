@@ -27,6 +27,7 @@ import CohortSettings       from '@/pages/coordinator/CohortSettings';
 import CohortReport         from '@/pages/coordinator/CohortReport';
 import AdminReport          from '@/pages/admin/AdminReport';
 import CompaniesList        from '@/pages/coordinator/CompaniesList';
+import CompanyDetail        from '@/pages/coordinator/CompanyDetail';
 import Oversight            from '@/pages/coordinator/Oversight';
 import AdminDashboard       from '@/pages/admin/AdminDashboard';
 import AdminInterns         from '@/pages/admin/AdminInterns';
@@ -138,6 +139,7 @@ export const router = createBrowserRouter([
       { path: '/coordinator/interns',    element: <InternsList /> },
       { path: '/coordinator/interns/:placementId', element: <InternDetail /> },
       { path: '/coordinator/companies', element: <CompaniesList /> },
+      { path: '/coordinator/companies/:id', element: <CompanyDetail /> },
       { path: '/coordinator/placements', element: <PlacementApproval /> },
       { path: '/coordinator/assignments', element: <SupervisorAssignment /> },
       { path: '/coordinator/oversight',  element: <Oversight /> },

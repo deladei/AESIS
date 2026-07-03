@@ -1,4 +1,5 @@
-import { Building2, Loader2, Globe, Users, Inbox } from 'lucide-react';
+import { Link } from 'react-router-dom';
+import { Building2, Loader2, Globe, Users, Inbox, ChevronRight } from 'lucide-react';
 import { useCompanies } from '@/hooks/usePlacements';
 
 /**
@@ -28,29 +29,37 @@ export default function CompaniesList() {
       ) : (
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
           {companies.map((c) => (
-            <div key={c.id} className="rounded-xl border border-[var(--h-c4c5d5-60)] bg-[var(--h-ffffff)] p-5">
+            <Link
+              key={c.id}
+              to={`/coordinator/companies/${c.id}`}
+              className="group rounded-xl border border-[var(--h-c4c5d5-60)] bg-[var(--h-ffffff)] p-5 transition-colors hover:border-[var(--h-15157d)]"
+            >
               <div className="flex items-start gap-3">
                 <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-[var(--h-e5eeff)]">
                   <Building2 className="h-5 w-5 text-[var(--h-15157d)]" />
                 </div>
-                <div className="min-w-0">
+                <div className="min-w-0 flex-1">
                   <p className="truncate text-sm font-bold text-[var(--h-0b1c30)]">{c.name}</p>
                   <p className="truncate text-xs text-[var(--h-757684)]">{c.industry ?? 'Host company'}</p>
                 </div>
+                <ChevronRight className="h-4 w-4 shrink-0 text-[var(--h-c4c5d5)] transition-colors group-hover:text-[var(--h-15157d)]" />
               </div>
               <div className="mt-4 flex items-center justify-between text-xs text-[var(--h-444653)]">
                 <span className="inline-flex items-center gap-1">
                   <Users className="h-3.5 w-3.5 text-[var(--h-757684)]" />
-                  {c._count?.placements ?? 0} placement{(c._count?.placements ?? 0) === 1 ? '' : 's'}
+                  {c._count?.placements ?? 0} intern{(c._count?.placements ?? 0) === 1 ? '' : 's'}
                 </span>
                 {c.website && (
-                  <a href={c.website} target="_blank" rel="noopener noreferrer"
-                    className="inline-flex items-center gap-1 font-semibold text-[var(--h-15157d)] hover:underline">
+                  <a
+                    href={c.website} target="_blank" rel="noopener noreferrer"
+                    onClick={(e) => e.stopPropagation()}
+                    className="inline-flex items-center gap-1 font-semibold text-[var(--h-15157d)] hover:underline"
+                  >
                     <Globe className="h-3.5 w-3.5" /> Website
                   </a>
                 )}
               </div>
-            </div>
+            </Link>
           ))}
         </div>
       )}

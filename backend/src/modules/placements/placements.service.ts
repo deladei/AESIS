@@ -309,15 +309,26 @@ export async function assignSupervisor(
 export async function listPlacements(filters: {
   status?: string;
   academicYearId?: string;
+  q?: string;
   page?: number;
   limit?: number;
 }) {
-  const { status, academicYearId, page = 1, limit = 20 } = filters;
+  const { status, academicYearId, q, page = 1, limit = 20 } = filters;
   const { skip, take } = paginate(page, limit);
 
   const where: Record<string, unknown> = {};
   if (status) where['placementStatus'] = status;
   if (academicYearId) where['academicYearId'] = academicYearId;
+  if (q && q.trim()) {
+    const term = q.trim();
+    where['OR'] = [
+      { student: { firstName:   { contains: term, mode: 'insensitive' } } },
+      { student: { lastName:    { contains: term, mode: 'insensitive' } } },
+      { student: { email:       { contains: term, mode: 'insensitive' } } },
+      { student: { indexNumber: { contains: term, mode: 'insensitive' } } },
+      { company: { name:        { contains: term, mode: 'insensitive' } } },
+    ];
+  }
 
   const [placements, total] = await Promise.all([
     prisma.placement.findMany({
@@ -426,6 +437,33 @@ export async function getCompanyAnalytics(companyId: string) {
       0,
     ),
   };
+}
+
+/**
+ * Company roster — every intern placed at one company (coordinator/admin).
+ * Backs the coordinator company detail page.
+ */
+export async function getCompanyInterns(companyId: string) {
+  const company = await prisma.company.findUnique({
+    where: { id: companyId },
+    select: { id: true, name: true, industry: true, website: true },
+  });
+  if (!company) throw new AppError(404, 'Company not found');
+
+  const placements = await prisma.placement.findMany({
+    where: { companyId },
+    orderBy: [{ placementStatus: 'asc' }, { createdAt: 'desc' }],
+    select: {
+      id: true,
+      placementStatus: true,
+      startDate: true,
+      endDate: true,
+      student:            { select: { id: true, firstName: true, lastName: true, email: true, indexNumber: true } },
+      academicSupervisor: { select: { id: true, firstName: true, lastName: true } },
+    },
+  });
+
+  return { company, placements };
 }
 
 // ── Document upload ───────────────────────────────────────────

@@ -73,12 +73,13 @@ export function useAssignedPlacements() {
   });
 }
 
-export function useAllPlacements(page = 1, status?: string) {
+export function useAllPlacements(page = 1, status?: string, q?: string) {
   return useQuery({
-    queryKey: ['placements', 'all', { page, status }],
+    queryKey: ['placements', 'all', { page, status, q }],
     queryFn:  async () => {
       const params = new URLSearchParams({ page: String(page), limit: '20' });
       if (status) params.set('status', status);
+      if (q && q.trim()) params.set('q', q.trim());
       const r = await api.get<{
         data: Placement[] | { placements?: Placement[]; meta?: unknown };
         meta?: unknown;
@@ -114,6 +115,29 @@ export function useCompanies(page = 1) {
     queryFn:  async () => {
       const r = await api.get<{ data: Company[]; meta?: unknown }>(`/companies?page=${page}&limit=50`);
       return { companies: r.data?.data ?? [], meta: r.data?.meta };
+    },
+  });
+}
+
+export interface CompanyInternRow {
+  id: string;
+  placementStatus: string;
+  startDate: string | null;
+  endDate: string | null;
+  student: { id: string; firstName: string; lastName: string; email: string; indexNumber: string | null };
+  academicSupervisor: { id: string; firstName: string; lastName: string } | null;
+}
+
+/** One company + every intern placed there (coordinator/admin). */
+export function useCompanyInterns(companyId: string | undefined) {
+  return useQuery({
+    queryKey: ['companies', companyId, 'interns'],
+    enabled:  !!companyId,
+    queryFn:  async () => {
+      const r = await api.get<{ data: { company: Company; placements: CompanyInternRow[] } }>(
+        `/companies/${companyId}/interns`,
+      );
+      return r.data.data;
     },
   });
 }

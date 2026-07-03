@@ -29,28 +29,29 @@ interface ParsedRow {
   problem?: string;
 }
 
-// Split a single CSV line, tolerating simple quoted cells.
-function splitCsvLine(line: string): string[] {
+// Split a single delimited line, tolerating simple quoted cells.
+function splitLine(line: string, delim: string): string[] {
   const out: string[] = [];
   let cur = '', inQ = false;
   for (let i = 0; i < line.length; i++) {
     const c = line[i];
     if (c === '"') { if (inQ && line[i + 1] === '"') { cur += '"'; i++; } else inQ = !inQ; }
-    else if (c === ',' && !inQ) { out.push(cur); cur = ''; }
+    else if (c === delim && !inQ) { out.push(cur); cur = ''; }
     else cur += c;
   }
   out.push(cur);
   return out.map((s) => s.trim());
 }
 
-function parseCsv(text: string): ParsedRow[] {
-  const lines = text.split(/\r?\n/).map((l) => l.trim()).filter(Boolean);
-  if (lines.length === 0) return [];
+// Validate raw cell rows (from any file type) into upload rows.
+function rowsFromCells(cells: string[][]): ParsedRow[] {
+  const nonEmpty = cells.filter((r) => r.some((c) => c.trim() !== ''));
+  if (nonEmpty.length === 0) return [];
   // Skip a header row if present.
-  const first = lines[0].toLowerCase();
+  const first = nonEmpty[0].join(',').toLowerCase();
   const start = first.includes('email') || first.includes('region') ? 1 : 0;
-  return lines.slice(start).map((line) => {
-    const [firstName = '', lastName = '', email = '', rawRegion = ''] = splitCsvLine(line);
+  return nonEmpty.slice(start).map((row) => {
+    const [firstName = '', lastName = '', email = '', rawRegion = ''] = row.map((c) => c.trim());
     const region = normalizeRegion(rawRegion);
     let problem: string | undefined;
     if (!firstName || !lastName) problem = 'Missing name';
@@ -59,6 +60,26 @@ function parseCsv(text: string): ParsedRow[] {
     return { firstName, lastName, email, region, rawRegion, valid: !problem, problem };
   });
 }
+
+// CSV / TSV / plain text → cell rows. Sniffs the delimiter (tab beats comma).
+function cellsFromText(text: string): string[][] {
+  const lines = text.split(/\r?\n/).map((l) => l.trim()).filter(Boolean);
+  const delim = lines[0]?.includes('\t') ? '\t' : ',';
+  return lines.map((l) => splitLine(l, delim));
+}
+
+// Excel (.xlsx/.xls) → cell rows via SheetJS, first sheet only. Lazy-loaded so
+// the library never lands in the main bundle.
+async function cellsFromExcel(file: File): Promise<string[][]> {
+  const XLSX = await import('xlsx');
+  const wb = XLSX.read(await file.arrayBuffer(), { type: 'array' });
+  const sheet = wb.Sheets[wb.SheetNames[0]];
+  if (!sheet) return [];
+  const rows = XLSX.utils.sheet_to_json<unknown[]>(sheet, { header: 1, raw: false, defval: '' });
+  return rows.map((r) => r.map((c) => String(c ?? '')));
+}
+
+const EXCEL_RE = /\.(xlsx|xls)$/i;
 
 const TEMPLATE = 'firstName,lastName,email,region\nAma,Mensah,ama.mensah@uni.edu.gh,Greater Accra\nKojo,Owusu,kojo.owusu@uni.edu.gh,Ashanti\n';
 
@@ -78,11 +99,18 @@ export default function SupervisorUploadPanel() {
     e.target.value = '';
     if (!file) return;
     setError(null); setResult(null);
-    const text = await file.text();
-    const parsed = parseCsv(text);
-    if (parsed.length === 0) { setError('No rows found in that file.'); setRows([]); setFileName(null); return; }
-    setRows(parsed);
-    setFileName(file.name);
+    try {
+      const cells = EXCEL_RE.test(file.name)
+        ? await cellsFromExcel(file)
+        : cellsFromText(await file.text());
+      const parsed = rowsFromCells(cells);
+      if (parsed.length === 0) { setError('No rows found in that file.'); setRows([]); setFileName(null); return; }
+      setRows(parsed);
+      setFileName(file.name);
+    } catch {
+      setError("Couldn't read that file — use CSV, TSV, TXT or Excel (.xlsx).");
+      setRows([]); setFileName(null);
+    }
   };
 
   const onUpload = () => {
@@ -111,18 +139,22 @@ export default function SupervisorUploadPanel() {
         <h2 className="text-sm font-bold text-[var(--h-0b1c30)]">Upload supervisor roster</h2>
       </div>
       <p className="mb-4 text-xs text-[var(--h-757684)]">
-        CSV columns: <span className="font-mono">firstName, lastName, email, region</span>. Region accepts the name
+        Accepts CSV, Excel (.xlsx/.xls), TSV or plain text. Columns:{' '}
+        <span className="font-mono">firstName, lastName, email, region</span>. Region accepts the name
         (e.g. "Greater Accra"). New supervisors are created for their region — interns who pick that region at
         registration are auto-assigned to them. New accounts set their password via "Forgot password".
       </p>
 
       <div className="flex flex-wrap items-center gap-2">
-        <input ref={fileInput} type="file" accept=".csv,text/csv" className="hidden" onChange={onPick} />
+        <input
+          ref={fileInput} type="file" className="hidden" onChange={onPick}
+          accept=".csv,.tsv,.txt,.xlsx,.xls,text/csv,text/tab-separated-values,text/plain,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-excel"
+        />
         <button
           type="button" onClick={() => fileInput.current?.click()}
           className="inline-flex items-center gap-2 rounded-lg bg-[var(--h-15157d)] px-4 py-2 text-sm font-semibold text-white hover:opacity-90"
         >
-          <Upload className="h-4 w-4" /> Choose CSV
+          <Upload className="h-4 w-4" /> Choose file
         </button>
         <button
           type="button" onClick={downloadTemplate}

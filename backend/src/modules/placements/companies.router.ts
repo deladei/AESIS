@@ -26,4 +26,10 @@ router.get(
   asyncHandler(ctrl.getCompanyAnalyticsHandler),
 );
 
+router.get(
+  '/:id/interns',
+  authorize('coordinator', 'admin'),
+  asyncHandler(ctrl.getCompanyInternsHandler),
+);
+
 export default router;

@@ -53,6 +53,7 @@ export async function listPlacementsHandler(req: Request, res: Response) {
   const result = await service.listPlacements({
     status: statusFilter,
     academicYearId: req.query['academicYearId'] as string | undefined,
+    q: z.string().max(120).optional().parse(req.query['q']),
     page,
     limit,
   });
@@ -82,6 +83,12 @@ export async function getCompanyAnalyticsHandler(req: Request, res: Response) {
   const { id } = uuidParam.parse(req.params);
   const analytics = await service.getCompanyAnalytics(id);
   return ok(res, analytics);
+}
+
+export async function getCompanyInternsHandler(req: Request, res: Response) {
+  const { id } = uuidParam.parse(req.params);
+  const result = await service.getCompanyInterns(id);
+  return ok(res, result);
 }
 
 // ── Documents ─────────────────────────────────────────────────

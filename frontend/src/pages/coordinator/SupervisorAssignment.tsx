@@ -1,5 +1,6 @@
-import { useState } from 'react';
-import { Loader2, UserCheck, Check, GraduationCap, MapPin, Inbox } from 'lucide-react';
+import { useEffect, useState } from 'react';
+import { Link } from 'react-router-dom';
+import { ArrowLeft, Loader2, UserCheck, Check, GraduationCap, MapPin, Inbox, Search } from 'lucide-react';
 import {
   useAllPlacements,
   useSupervisors,
@@ -245,13 +246,32 @@ function NeedsSupervisorPanel() {
 
 export default function SupervisorAssignment() {
   const [filter, setFilter] = useState<StatusFilter>('active');
-  const { data, isLoading } = useAllPlacements(1, filter === 'all' ? undefined : filter);
+  const [search, setSearch] = useState('');
+  const [query, setQuery] = useState('');
+
+  // Debounce the student search so we don't hit the API per keystroke.
+  useEffect(() => {
+    const t = setTimeout(() => setQuery(search), 300);
+    return () => clearTimeout(t);
+  }, [search]);
+
+  const { data, isLoading } = useAllPlacements(
+    1,
+    filter === 'all' ? undefined : filter,
+    query || undefined,
+  );
 
   const placements = data?.placements ?? [];
 
   return (
     <div className="mx-auto max-w-4xl space-y-8 p-6">
       <div>
+        <Link
+          to="/coordinator"
+          className="mb-2 inline-flex items-center gap-1.5 text-sm font-medium text-[var(--h-15157d)] hover:underline"
+        >
+          <ArrowLeft className="h-4 w-4" /> Back to dashboard
+        </Link>
         <h1 className="text-xl font-bold text-[var(--h-0b1c30)]">Supervisor Assignments</h1>
         <p className="mt-0.5 text-sm text-[var(--h-757684)]">
           Set the region each supervisor covers (new interns auto-assign), clear the
@@ -272,20 +292,32 @@ export default function SupervisorAssignment() {
             populates as soon as they're assigned.
           </p>
         </div>
-        <div className="flex gap-1 rounded-lg border border-[var(--h-c4c5d5-60)] bg-[var(--h-ffffff)] p-1">
-          {FILTERS.map((f) => (
-            <button
-              key={f.key}
-              onClick={() => setFilter(f.key)}
-              className={`cursor-pointer rounded-md px-3 py-1.5 text-sm font-medium transition-colors ${
-                filter === f.key
-                  ? 'bg-[var(--h-15157d)] text-white'
-                  : 'text-[var(--h-757684)] hover:text-[var(--h-15157d)]'
-              }`}
-            >
-              {f.label}
-            </button>
-          ))}
+        <div className="flex flex-wrap items-center gap-2">
+          <div className="relative">
+            <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[var(--h-757684)]" />
+            <input
+              type="search"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder="Search student, index no. or company…"
+              className="w-64 rounded-lg border border-[var(--h-c4c5d5)] bg-[var(--h-ffffff)] py-2 pl-9 pr-3 text-sm text-[var(--h-0b1c30)] placeholder-[var(--h-757684)] focus:border-[var(--h-15157d)] focus:outline-none focus:ring-1 focus:ring-[var(--h-15157d)]"
+            />
+          </div>
+          <div className="flex gap-1 rounded-lg border border-[var(--h-c4c5d5-60)] bg-[var(--h-ffffff)] p-1">
+            {FILTERS.map((f) => (
+              <button
+                key={f.key}
+                onClick={() => setFilter(f.key)}
+                className={`cursor-pointer rounded-md px-3 py-1.5 text-sm font-medium transition-colors ${
+                  filter === f.key
+                    ? 'bg-[var(--h-15157d)] text-white'
+                    : 'text-[var(--h-757684)] hover:text-[var(--h-15157d)]'
+                }`}
+              >
+                {f.label}
+              </button>
+            ))}
+          </div>
         </div>
       </div>
 
@@ -296,7 +328,11 @@ export default function SupervisorAssignment() {
       ) : placements.length === 0 ? (
         <div className="rounded-xl border border-[var(--h-c4c5d5-60)] bg-[var(--h-ffffff)] p-10 text-center">
           <GraduationCap className="mx-auto mb-3 h-10 w-10 text-[var(--h-757684)]" />
-          <p className="text-sm text-[var(--h-757684)]">No {filter === 'all' ? '' : filter} placements found.</p>
+          <p className="text-sm text-[var(--h-757684)]">
+            {query
+              ? <>No placements match “{query}”.</>
+              : <>No {filter === 'all' ? '' : filter} placements found.</>}
+          </p>
         </div>
       ) : (
         <div className="space-y-3">
