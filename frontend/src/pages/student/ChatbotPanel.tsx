@@ -29,12 +29,30 @@ export default function ChatbotPanel() {
   ]);
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
+  // 'checking' until the health probe answers. 'limited' = engine down but the
+  // assistant still answers from the local knowledge base.
+  const [engineStatus, setEngineStatus] = useState<'checking' | 'online' | 'limited'>('checking');
   const bottomRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
+
+  useEffect(() => {
+    let cancelled = false;
+    fetch(`${API_BASE}/ai/health`, {
+      headers: { Authorization: `Bearer ${getAccessToken()}` },
+    })
+      .then((r) => (r.ok ? r.json() : { engine: false }))
+      .then((d: { engine?: boolean }) => {
+        if (!cancelled) setEngineStatus(d.engine ? 'online' : 'limited');
+      })
+      .catch(() => {
+        if (!cancelled) setEngineStatus('limited');
+      });
+    return () => { cancelled = true; };
+  }, []);
 
   const sendMessage = useCallback(async (text: string) => {
     if (!text.trim() || loading) return;
@@ -129,9 +147,17 @@ export default function ChatbotPanel() {
           <h1 className="text-sm font-semibold text-[var(--h-0b1c30)]">AESIS Assistant</h1>
           <p className="text-xs text-[var(--h-64748b)]">CS Internship Knowledge Base · regulation-grounded</p>
         </div>
-        <div className="ml-auto flex items-center gap-1.5">
-          <span className="h-2 w-2 rounded-full bg-[var(--h-1b7a45)]" />
-          <span className="text-xs text-[var(--h-64748b)]">Online</span>
+        <div className="ml-auto flex items-center gap-1.5" title={
+          engineStatus === 'limited' ? 'AI engine unreachable — answering from the built-in knowledge base' : undefined
+        }>
+          <span className={`h-2 w-2 rounded-full ${
+            engineStatus === 'online' ? 'bg-[var(--h-1b7a45)]'
+            : engineStatus === 'limited' ? 'bg-[var(--h-b45309)]'
+            : 'animate-pulse bg-[var(--h-94a3b8)]'
+          }`} />
+          <span className="text-xs text-[var(--h-64748b)]">
+            {engineStatus === 'online' ? 'Online' : engineStatus === 'limited' ? 'Limited' : 'Checking…'}
+          </span>
         </div>
       </div>
 

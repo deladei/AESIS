@@ -2,6 +2,9 @@ jest.mock('../../../config/env', () => ({
   env: {
     JWT_SECRET: 'test_secret_at_least_32_characters_long',
     NODE_ENV:   'test',
+    // Port 1 refuses instantly, so unmocked fetches fail fast into the KB fallback.
+    AI_ENGINE_URL: 'http://127.0.0.1:1',
+    AI_ENGINE_API_KEY: 'test-key',
   },
 }));
 
@@ -103,4 +106,35 @@ describe('POST /ai/chat', () => {
 
     expect(res.text).toContain('XGBoost');
   }, 15000);
+});
+
+describe('GET /ai/health', () => {
+  afterEach(() => jest.restoreAllMocks());
+
+  it('reports engine up when the AI engine /health responds ok', async () => {
+    jest.spyOn(global, 'fetch').mockResolvedValue({ ok: true } as Response);
+
+    const res = await request(app)
+      .get('/ai/health')
+      .set('Authorization', `Bearer ${token()}`);
+
+    expect(res.status).toBe(200);
+    expect(res.body).toEqual({ engine: true });
+  });
+
+  it('reports engine down when the AI engine is unreachable', async () => {
+    jest.spyOn(global, 'fetch').mockRejectedValue(new Error('ECONNREFUSED'));
+
+    const res = await request(app)
+      .get('/ai/health')
+      .set('Authorization', `Bearer ${token()}`);
+
+    expect(res.status).toBe(200);
+    expect(res.body).toEqual({ engine: false });
+  });
+
+  it('returns 401 without auth', async () => {
+    const res = await request(app).get('/ai/health');
+    expect(res.status).toBe(401);
+  });
 });

@@ -67,6 +67,27 @@ function sse(res: Response, chunk: string): void {
   res.write(`data: ${JSON.stringify(chunk)}\n\n`);
 }
 
+// Short timeout on purpose: this feeds a status dot, not a job. A cold-sleeping
+// engine (30–60s wake) reads as "limited" until it's actually answering fast.
+const HEALTH_TIMEOUT_MS = 8_000;
+
+/**
+ * Reports whether the Groq-backed AI engine is reachable. The chat itself never
+ * dies (KB fallback), so `engine:false` means degraded — KB-only answers.
+ */
+export async function healthHandler(_req: Request, res: Response) {
+  let engine = false;
+  try {
+    const upstream = await fetch(aiEngineUrl('/health'), {
+      signal: AbortSignal.timeout(HEALTH_TIMEOUT_MS),
+    });
+    engine = upstream.ok;
+  } catch {
+    engine = false;
+  }
+  res.json({ engine });
+}
+
 /**
  * Student assistant. Proxies the message to the AI engine's Groq-backed chat
  * (`/ai/chat`), streaming its tokens back as SSE. If the engine is unreachable
