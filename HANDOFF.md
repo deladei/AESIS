@@ -2692,3 +2692,20 @@ Five commits, all pushed prod:
 1. ⚠️ ROTATE prod `DATABASE_URL` — still overdue; + 3 other secrets.
 2. In-browser verifies: admin bell dropdown + navs (S76), searchable intern picker (S110), chatbot status dot (S79), per-day flow, S77 features (6-week view, late-day flag, roster upload/auto-link incl. .ods, Oversight toggle), Feedback Center call scheduler (S79), real AI alerts on admin/supervisor dashboards (S79), coordinator risk distribution now movement-aware (S79b).
 3. Product-input: none left from the S76 list — all three shipped in S79.
+
+### Session 79c — 2026-07-03 — Ghana-time day windows + future-week lockout (commit `94ef78d`, pushed prod)
+
+**Ask.** (1) Logbook said "day hasn't arrived" on a Friday that HAD arrived Ghana time — the system clock must be Ghana time. (2) Student could log week 6 before its time — block logging ahead of schedule.
+
+**Root causes.**
+1. Frontend `lib/schedule.ts` computed "today" from the **device** clock (`localYMD`). Device behind GMT (e.g. AST) → Friday-in-Ghana still read Thursday → day blocked; device ahead of GMT unlocked days early. Backend was already correct: `todayUtc()` = UTC date = Ghana date (Accra is UTC+0 year-round, no DST) — now documented in `entry.dates.ts`.
+2. The **legacy week-level route** (`POST /entries` + `POST /entries/:id/submit`) never checked the week had started — future week draftable AND submittable (empty activities allowed), bypassing the per-day anti-cheat window entirely. Also accepted activities dated outside the week period. The per-day path was already safe.
+
+**Fix (`fix(logbook)` `94ef78d`).**
+- `ghanaYMD()` (Intl, `Africa/Accra`) replaces `localYMD` in `buildSchedule` + `dayWindow` — device timezone can no longer shift the window either way.
+- Backend `validateDraftDates`: 422 on future `periodStart` ("This week has not started yet") + 422 on activity date outside `[periodStart, periodEnd]`. `submitEntry`: independent 422 on future `periodStart` (defense in depth — guards a planted draft row).
+- Editor transparency: future day = read-only (fieldset locked, save/submit gone), day card copy "Locked until the day arrives", banner names the Ghana-time rule.
+
+**Verification.** 3 new integration tests (future week save, out-of-period activity, planted-draft submit); entries+finalization 101/101; full suite 46/46, **590/590 green**; frontend `tsc` + `vite build` clean. Pushed prod.
+
+**Carried.** Same as S79b + in-browser verify: Friday cell unlocks on Friday Ghana time; week-6 day opens read-only with lock banner.
