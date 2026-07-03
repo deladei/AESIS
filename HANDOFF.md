@@ -2709,3 +2709,23 @@ Five commits, all pushed prod:
 **Verification.** 3 new integration tests (future week save, out-of-period activity, planted-draft submit); entries+finalization 101/101; full suite 46/46, **590/590 green**; frontend `tsc` + `vite build` clean. Pushed prod.
 
 **Carried.** Same as S79b + in-browser verify: Friday cell unlocks on Friday Ghana time; week-6 day opens read-only with lock banner.
+
+### Session 79d — 2026-07-03 — Day-scoped logbook attachments (commit `d2c4b85`, pushed prod)
+
+**Ask.** Student attached one image weeks ago; it showed "attached to every new log" and no new files could be attached. Should work like mainstream attach flows (per-message, Gmail-style).
+
+**Root cause (two compounding by-design behaviours).**
+1. Attachments were **week-level** (`entry_attachment` rows keyed only to the entry) — the day editor rendered the whole week's files under every day, so one old image appeared on each new day's log.
+2. The write gate required `isEditable(entry.status)` = draft|returned. The per-day flow rolls the week to `submitted` on the FIRST day submit — every later upload that week 409'd. Hence "cannot attach any new".
+
+**Fix (`feat(attachments)` `d2c4b85`).** Attachments now belong to one working day:
+- **Migration `20260703170000_attachment_day_date`** — additive nullable `day_date DATE` on `entry_attachment`. Legacy rows (null) remain week-level evidence.
+- **Backend** — upload takes optional multipart `date`; validated in-period + not future (Ghana/UTC). New `assertDayWritable` gate mirrors day edit rules: acknowledged week locks all; a submitted day locks its files unless the week was returned; null-day files keep the old draft/returned gate. Delete uses the same gate. List returns `dayDate`.
+- **Frontend** — `EntryAttachments` takes `date`: student day editor shows/uploads only that day's files ("evidence for this day"); supervisor EntryReview (no date) sees the full week, each file tagged with its day chip. Upload sends the day.
+- Note: legacy null-day files no longer render in the student day view (that was the complaint); supervisor still sees them.
+
+**Local env note.** Applied via `db push` to both `aisystem_db` and `aesis_logbook_test` (local DBs have no migration history — S78 note). Prod applies the migration via `migrate deploy` on Render start.
+
+**Verification.** 7 new/updated attachment service tests (day-draft upload during in-review week OK, submitted-day 409, returned-week re-attach OK, out-of-period 422, future-day 422, day-scoped delete gates); entries suites 96/96; **full suite 46/46, 597/597 green**; frontend `tsc` + `vite build` clean. Pushed prod.
+
+**Carried.** Same as S79c + in-browser verify: upload on today's day → file shows only on that day; other days clean; supervisor review shows day tags; old week-level file gone from student day view.
