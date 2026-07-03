@@ -166,8 +166,8 @@ export default function AdminDashboard() {
               <div className="rounded-lg border border-[var(--h-ba1a1a-10)] bg-[var(--h-ffdad6-30)] p-3">
                 <p className="text-sm italic text-[var(--h-93000a)]">"AI predicts potential burnout or blockers in the 'Authentication' module."</p>
               </div>
-              {/* Real destination — the Messages page schedules calls + sends messages */}
-              <Link to="/admin/messages" className="flex w-full items-center justify-center gap-2 rounded-lg border border-[var(--h-712ae2)] py-2 text-sm font-medium text-[var(--h-712ae2)] transition-colors hover:bg-[var(--h-712ae2-5)]">
+              {/* Real destination — the Feedback Center chats + schedules calls */}
+              <Link to="/feedback" className="flex w-full items-center justify-center gap-2 rounded-lg border border-[var(--h-712ae2)] py-2 text-sm font-medium text-[var(--h-712ae2)] transition-colors hover:bg-[var(--h-712ae2-5)]">
                 <CalendarClock className="h-4 w-4" /> Schedule check-in
               </Link>
             </div>

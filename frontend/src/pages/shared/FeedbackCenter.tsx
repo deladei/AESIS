@@ -5,6 +5,7 @@ import { useFeedbackInterns } from '@/hooks/useDashboard';
 import { useMyPlacements } from '@/hooks/usePlacements';
 import { useSubmissions, useSubmitFeedback } from '@/hooks/useLogbook';
 import { ChatThread } from '@/components/messaging/ChatThread';
+import ScheduleCallCard from '@/components/messaging/ScheduleCallCard';
 
 /**
  * Feedback & Mentorship Center — wired to live data.
@@ -300,6 +301,13 @@ function ReviewerView() {
             </div>
           </form>
         </section>
+
+        {/* Call scheduling (admin-only endpoint) — folded in from /admin/messages */}
+        {user?.role === 'admin' && selected && (
+          <section className="col-span-12">
+            <ScheduleCallCard placementId={selected.placementId} internName={selected.name} />
+          </section>
+        )}
       </div>
     </div>
   );

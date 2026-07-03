@@ -1,33 +1,9 @@
-import { useQuery, useMutation } from '@tanstack/react-query';
+import { useMutation } from '@tanstack/react-query';
 import { api } from '@/lib/api';
 
-export interface MessageRecipient {
-  placementId: string;
-  name: string;
-  email: string;
-  company: string | null;
-}
-
-export function useMessageRecipients() {
-  return useQuery({
-    queryKey: ['admin', 'messaging', 'recipients'],
-    queryFn: async () => {
-      const r = await api.get<{ data: MessageRecipient[] }>('/admin/messaging/recipients');
-      return r.data.data;
-    },
-  });
-}
-
-export function useMessageIntern() {
-  return useMutation({
-    mutationFn: async ({ placementId, body }: { placementId: string; body: string }) => {
-      const r = await api.post<{ data: { ok: boolean; emailedTo: string } }>(
-        `/admin/messaging/${placementId}/message`, { body },
-      );
-      return r.data.data;
-    },
-  });
-}
+// The one-way message composer retired with /admin/messages — the Feedback
+// Center's ChatThread (two-way, in-app + email fan-out) replaced it. Only the
+// call scheduler survives, rendered in the Feedback Center for admins.
 
 export interface ScheduleCallArgs {
   placementId: string;

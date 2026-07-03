@@ -9,7 +9,7 @@ import NotificationBell from './NotificationBell';
 import {
   LayoutDashboard, Users, Sparkles, MessageSquareText,
   FileBarChart, GraduationCap, LogOut,
-  ClipboardCheck, UserRound, Send, Award,
+  ClipboardCheck, UserRound, Award,
 } from 'lucide-react';
 
 interface NavItem {
@@ -24,7 +24,6 @@ const navItems: NavItem[] = [
   { label: 'Interns',         href: '/admin/interns', icon: Users },
   { label: 'Review Logbooks', href: '/admin/review',    icon: ClipboardCheck },
   { label: 'Finalization',    href: '/admin/finalize',  icon: Award },
-  { label: 'Messages',        href: '/admin/messages',  icon: Send },
   { label: 'AI Insights',     href: '/ai-insights', icon: Sparkles },
   { label: 'Feedback Center', href: '/feedback', icon: MessageSquareText },
   { label: 'My Profile',      href: '/profile',         icon: UserRound },

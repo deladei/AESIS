@@ -30,7 +30,6 @@ import CompaniesList        from '@/pages/coordinator/CompaniesList';
 import CompanyDetail        from '@/pages/coordinator/CompanyDetail';
 import AdminDashboard       from '@/pages/admin/AdminDashboard';
 import AdminInterns         from '@/pages/admin/AdminInterns';
-import AdminMessages        from '@/pages/admin/AdminMessages';
 import FeedbackCenter       from '@/pages/shared/FeedbackCenter';
 import AIInsights           from '@/pages/shared/AIInsights';
 import ProfilePage          from '@/pages/shared/ProfilePage';
@@ -170,7 +169,8 @@ export const router = createBrowserRouter([
     children: [
       { path: '/admin/dashboard', element: <AdminDashboard /> },
       { path: '/admin/interns',   element: <AdminInterns /> },
-      { path: '/admin/messages',  element: <AdminMessages /> },
+      // Messaging + call scheduling folded into the Feedback Center
+      { path: '/admin/messages',  element: <Navigate to="/feedback" replace /> },
       { path: '/admin/review',    element: <EntryReview /> },
       { path: '/admin/finalize',  element: <PlacementFinalization /> },
     ],
