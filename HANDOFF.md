@@ -2729,3 +2729,15 @@ Five commits, all pushed prod:
 **Verification.** 7 new/updated attachment service tests (day-draft upload during in-review week OK, submitted-day 409, returned-week re-attach OK, out-of-period 422, future-day 422, day-scoped delete gates); entries suites 96/96; **full suite 46/46, 597/597 green**; frontend `tsc` + `vite build` clean. Pushed prod.
 
 **Carried.** Same as S79c + in-browser verify: upload on today's day → file shows only on that day; other days clean; supervisor review shows day tags; old week-level file gone from student day view.
+
+### Session 79e — 2026-07-03 — "Add activity isn't working" → locked-day transparency (commit `fbb2c7d`, pushed prod)
+
+**Ask.** User: clicking "Add activity" does nothing.
+
+**Diagnosis.** No functional bug found on an editable day: `ghanaYMD()` verified correct (today → `lateBy 0`, not future, editable), state handler sound, only one Add-activity button exists (DayForm). The dead-click repro is a LOCKED day: the form sits in a `<fieldset disabled>` at 70% opacity, so on (a) a future day, or (b) a day in an ACKNOWLEDGED week, the button renders but silently ignores clicks — case (b) had **no banner at all**. Likely triggers: user re-testing week-6 future days right after S79c shipped the lockout, or a day in their acknowledged week 1. (If it persists on TODAY's day after the Vercel deploy, re-investigate — nothing in the code path explains that.)
+
+**Fix (`fix(logbook)` `fbb2c7d`).** Locks now explain themselves: new acknowledged-week banner ("locked by your supervisor"); Add-activity button + dashed tap-to-add zone render only when editable (empty state becomes plain "Nothing was logged for this day"); future day cards dimmed in the week grid. No dead controls left (SaaS polish rule).
+
+**Verification.** Frontend `tsc` + `vite build` clean. Pushed prod.
+
+**Carried.** Same as S79d + in-browser verify: today's day → Add activity adds a card + saves; acknowledged-week day → gray banner, no add controls; future day → dimmed card + lock banner.
