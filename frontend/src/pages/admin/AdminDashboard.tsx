@@ -37,11 +37,12 @@ function pulseBadge(p: Pulse, isTop: boolean): { label: string; tone: string } {
   return { label: 'On Track', tone: 'bg-[var(--h-dce9ff)] text-[var(--h-464652)]' };
 }
 
+// Entry-pipeline statuses (the dashboard's recent rows are logbook entries).
 const STATUS_TONE: Record<string, { label: string; tone: string }> = {
   submitted:    { label: 'Pending Review', tone: 'bg-amber-100 text-amber-800' },
-  under_review: { label: 'Under Review',   tone: 'bg-sky-100 text-sky-800' },
-  approved:     { label: 'Approved',       tone: 'bg-emerald-100 text-emerald-800' },
-  flagged:      { label: 'Flagged',        tone: 'bg-rose-100 text-rose-800' },
+  acknowledged: { label: 'Acknowledged',   tone: 'bg-emerald-100 text-emerald-800' },
+  returned:     { label: 'Returned',       tone: 'bg-rose-100 text-rose-800' },
+  draft:        { label: 'Draft',          tone: 'bg-slate-100 text-slate-700' },
 };
 
 export default function AdminDashboard() {
@@ -234,7 +235,7 @@ export default function AdminDashboard() {
                   )}
                   {data?.recentSubmissions.map((s) => {
                     const status = STATUS_TONE[s.status] ?? { label: s.status, tone: 'bg-slate-100 text-slate-700' };
-                    const isPending = s.status === 'submitted' || s.status === 'under_review';
+                    const isPending = s.status === 'submitted';
                     return (
                       <tr key={s.id} className="transition-colors hover:bg-[var(--h-eff4ff)]">
                         <td className="px-6 py-4">
@@ -250,11 +251,11 @@ export default function AdminDashboard() {
                         </td>
                         <td className="px-6 py-4 text-right">
                           {isPending ? (
-                            <Link to={`/supervisor/review?submissionId=${s.id}`} className="inline-block rounded-lg bg-[var(--h-15157d)] px-4 py-1.5 text-sm font-semibold text-white transition-transform active:scale-95">
+                            <Link to={`/admin/review?entryId=${s.id}`} className="inline-block rounded-lg bg-[var(--h-15157d)] px-4 py-1.5 text-sm font-semibold text-white transition-transform active:scale-95">
                               Review
                             </Link>
                           ) : (
-                            <Link to={`/supervisor/review?submissionId=${s.id}`} aria-label="View submission" className="inline-block text-[var(--h-464652)] transition-colors hover:text-[var(--h-15157d)]">
+                            <Link to={`/admin/review?entryId=${s.id}`} aria-label="View entry" className="inline-block text-[var(--h-464652)] transition-colors hover:text-[var(--h-15157d)]">
                               <MoreVertical className="h-5 w-5" />
                             </Link>
                           )}

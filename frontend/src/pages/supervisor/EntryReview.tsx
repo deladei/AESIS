@@ -1,4 +1,5 @@
 import { useState, useEffect, useMemo } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import {
   Loader2, CheckCircle2, RotateCcw, Sparkles, Clock, Inbox, AlertCircle,
   CalendarDays, Tag, FileText,
@@ -48,19 +49,27 @@ const STATUS_LABEL: Record<EntryStatus, string> = {
 export default function EntryReview() {
   const { data: queue = [], isLoading } = useReviewQueue('submitted');
 
-  const [selectedId, setSelectedId] = useState<string | null>(null);
+  // Deep-link support (e.g. the admin dashboard's Recent Submissions rows pass
+  // ?entryId=). The linked entry may already be reviewed, so it's honoured even
+  // when it isn't in the awaiting-review queue.
+  const [searchParams] = useSearchParams();
+  const deepLinkId = searchParams.get('entryId');
+
+  const [selectedId, setSelectedId] = useState<string | null>(deepLinkId);
   const [comment, setComment] = useState('');
   const [score, setScore] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [doneMsg, setDoneMsg] = useState<string | null>(null);
 
-  // Auto-select the first item; keep selection valid as the queue changes.
+  // Auto-select the first item; keep selection valid as the queue changes —
+  // but never clobber a deep-linked entry that lives outside the queue.
   useEffect(() => {
+    if (selectedId === deepLinkId && deepLinkId) return;
     if (queue.length === 0) { setSelectedId(null); return; }
     if (!selectedId || !queue.some((e) => e.id === selectedId)) {
       setSelectedId(queue[0].id);
     }
-  }, [queue, selectedId]);
+  }, [queue, selectedId, deepLinkId]);
 
   const { data: detail, isLoading: detailLoading } = useEntry(selectedId ?? undefined);
 
@@ -353,11 +362,17 @@ export default function EntryReview() {
                   )}
                 </div>
 
-                {/* Action card */}
+                {/* Action card — read-only once the week already has a decision
+                    (a deep-linked entry can arrive here acknowledged/returned). */}
                 <div className="rounded-xl border border-[var(--h-e2e6ef)] bg-[var(--h-ffffff)] p-5">
                   {doneMsg ? (
                     <div className="flex items-start gap-2 text-sm text-[var(--h-1b7a45)]">
                       <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0" /> {doneMsg}
+                    </div>
+                  ) : detail.status !== 'submitted' ? (
+                    <div className="flex items-start gap-2 text-sm text-[var(--h-464652)]">
+                      <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-[var(--h-1b7a45)]" />
+                      This week is {STATUS_LABEL[detail.status].toLowerCase()} — no action needed. The decision and score are in the entry's history.
                     </div>
                   ) : (
                     <>
