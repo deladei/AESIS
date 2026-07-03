@@ -1,7 +1,7 @@
 import { useState, useEffect, useMemo, useCallback } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import {
-  Loader2, Plus, X, Trash2, CheckCircle2, Clock, RotateCcw, Lock, Send,
+  Loader2, Plus, X, Trash2, CheckCircle2, Clock, RotateCcw, Send,
   Calendar, AlertCircle, BookOpen, Sparkles, ChevronRight, ChevronLeft, ShieldCheck,
 } from 'lucide-react';
 import { useMyPlacements } from '@/hooks/usePlacements';
@@ -14,8 +14,9 @@ import {
   type ScheduleWeek, buildSchedule, toYMD, localYMD, ymd, fmtRange, fmtDate, addDaysYMD,
 } from '@/lib/schedule';
 
-// Logging window: a day is submittable on its date through this many days after
-// (mirrors the backend DAY_GRACE_DAYS anti-cheat rule). Past that, it locks.
+// Grace window: a day logged within this many days of its date is on time.
+// Later days can still be logged, but are flagged late to the supervisor
+// (mirrors the backend DAY_GRACE_DAYS rule).
 const DAY_GRACE_DAYS = 2;
 
 const COMPETENCY_SUGGESTIONS = [
@@ -59,25 +60,27 @@ function buildDays(week: ScheduleWeek): DayCell[] {
   return cells;
 }
 
-// Client-side mirror of the backend anti-cheat window.
+// Client-side mirror of the backend window: only future days are blocked. Past
+// days are always loggable — beyond the grace window they're flagged late.
 function dayWindow(dateYMD: string): { future: boolean; blocked: boolean; lateBy: number } {
   const today = new Date(`${localYMD(new Date())}T00:00:00Z`).getTime();
   const date = new Date(`${dateYMD}T00:00:00Z`).getTime();
   const lateBy = Math.round((today - date) / 86_400_000);
-  return { future: lateBy < 0, blocked: lateBy < 0 || lateBy > DAY_GRACE_DAYS, lateBy };
+  return { future: lateBy < 0, blocked: lateBy < 0, lateBy };
 }
 
 type LocalActivity = { description: string; competencyTags: string[] };
 
-const WEEK_STATUS_META: Record<EntryStatus | 'not_started', { label: string; cls: string; Icon: React.ElementType }> = {
+const WEEK_STATUS_META: Record<EntryStatus | 'not_started' | 'upcoming', { label: string; cls: string; Icon: React.ElementType }> = {
   not_started:  { label: 'Not started',  cls: 'bg-[var(--h-eef0f5)] text-[var(--h-64748b)]', Icon: Calendar },
+  upcoming:     { label: 'Upcoming',     cls: 'bg-[var(--h-eef0f5)] text-[var(--h-94a3b8)]', Icon: Clock },
   draft:        { label: 'In progress',  cls: 'bg-[var(--h-fff4e0)] text-[var(--h-9a6700)]', Icon: Clock },
   submitted:    { label: 'In review',    cls: 'bg-[var(--h-e1e8ff)] text-[var(--h-15157d)]', Icon: Send },
   returned:     { label: 'Returned',     cls: 'bg-[var(--h-ffe2dc)] text-[var(--h-b3261e)]', Icon: RotateCcw },
   acknowledged: { label: 'Acknowledged', cls: 'bg-[var(--h-dcf5e6)] text-[var(--h-1b7a45)]', Icon: CheckCircle2 },
 };
 
-function WeekStatusPill({ status }: { status: EntryStatus | 'not_started' }) {
+function WeekStatusPill({ status }: { status: EntryStatus | 'not_started' | 'upcoming' }) {
   const { label, cls, Icon } = WEEK_STATUS_META[status] ?? WEEK_STATUS_META.not_started;
   return (
     <span className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-semibold ${cls}`}>
@@ -199,7 +202,8 @@ function WeekTable({
           {schedule.map((w) => {
             const e = entryByWeek.get(w.weekNumber);
             const submitted = (e?.days ?? []).filter((d) => d.status === 'submitted').length;
-            const status: EntryStatus | 'not_started' = e?.status ?? 'not_started';
+            const status: EntryStatus | 'not_started' | 'upcoming' =
+              e?.status ?? (w.upcoming ? 'upcoming' : 'not_started');
             return (
               <tr
                 key={w.weekNumber}
@@ -257,7 +261,7 @@ function DayGrid({
           const n = actCount.get(d.ymd) ?? 0;
           const w = dayWindow(d.ymd);
           const submitted = day?.status === 'submitted';
-          const locked = !submitted && w.blocked && !w.future; // window closed, never logged
+          const missed = !submitted && !w.future && w.lateBy > DAY_GRACE_DAYS; // still loggable, flagged late
           return (
             <button
               key={d.ymd}
@@ -272,8 +276,8 @@ function DayGrid({
                   </span>
                 ) : w.future ? (
                   <span className="rounded-full bg-[var(--h-eef0f5)] px-2 py-0.5 text-[10px] font-semibold text-[var(--h-94a3b8)]">Upcoming</span>
-                ) : locked ? (
-                  <span className="inline-flex items-center gap-1 rounded-full bg-[var(--h-ffe2dc)] px-2 py-0.5 text-[10px] font-semibold text-[var(--h-b3261e)]"><Lock className="h-3 w-3" /> Closed</span>
+                ) : missed ? (
+                  <span className="inline-flex items-center gap-1 rounded-full bg-[var(--h-fff4e0)] px-2 py-0.5 text-[10px] font-semibold text-[var(--h-9a6700)]"><AlertCircle className="h-3 w-3" /> Log late</span>
                 ) : n > 0 ? (
                   <span className="rounded-full bg-[var(--h-fff4e0)] px-2 py-0.5 text-[10px] font-semibold text-[var(--h-9a6700)]">Draft</span>
                 ) : (
@@ -397,17 +401,12 @@ function DayForm({
       {/* Anti-cheat / status banners */}
       {!daySubmitted && win.future && (
         <div className="flex items-start gap-2 rounded-lg border border-[var(--h-bcc8ff)] bg-[var(--h-eef1ff)] px-4 py-3 text-sm text-[var(--h-15157d)]">
-          <Clock className="mt-0.5 h-4 w-4 shrink-0" /> This day hasn't arrived yet — you can log it on the day or up to {DAY_GRACE_DAYS} days after.
+          <Clock className="mt-0.5 h-4 w-4 shrink-0" /> This day hasn't arrived yet — you can log it from the day itself onward.
         </div>
       )}
-      {!daySubmitted && !win.future && win.blocked && (
-        <div className="flex items-start gap-2 rounded-lg border border-[var(--h-f5b8ad)] bg-[var(--h-fff1ee)] px-4 py-3 text-sm text-[var(--h-b3261e)]">
-          <Lock className="mt-0.5 h-4 w-4 shrink-0" /> The logging window for this day has closed (more than {DAY_GRACE_DAYS} days ago). Contact your coordinator if this needs an exception.
-        </div>
-      )}
-      {!daySubmitted && !win.blocked && win.lateBy > 0 && (
+      {!daySubmitted && !win.future && win.lateBy > 0 && (
         <div className="flex items-start gap-2 rounded-lg border border-[var(--h-f3d690)] bg-[var(--h-fff4e0)] px-4 py-3 text-sm text-[var(--h-9a6700)]">
-          <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" /> You're logging this {win.lateBy} day{win.lateBy === 1 ? '' : 's'} late — it will be flagged for your supervisor.
+          <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" /> You're logging this {win.lateBy} day{win.lateBy === 1 ? '' : 's'} late — you can still submit it, but it will be flagged as late for your supervisor.
         </div>
       )}
       {daySubmitted && (
@@ -496,7 +495,7 @@ function DayForm({
             {saved ? <><CheckCircle2 className="h-4 w-4 text-[var(--h-1b7a45)]" /> Saved</> : saveDay.isPending ? <><Loader2 className="h-4 w-4 animate-spin" /> Saving…</> : 'Save draft'}
           </button>
           <button type="button" onClick={handleSubmit} disabled={busy || win.blocked}
-            title={win.blocked ? (win.future ? 'You can submit this day once it arrives' : 'The logging window for this day has closed') : ''}
+            title={win.blocked ? 'You can submit this day once it arrives' : ''}
             className="inline-flex flex-1 items-center justify-center gap-2 rounded-lg bg-[var(--h-15157d)] px-4 py-2.5 text-sm font-semibold text-white hover:bg-[var(--h-1f1fa0)] disabled:cursor-not-allowed disabled:opacity-60">
             {submitDay.isPending ? <><Loader2 className="h-4 w-4 animate-spin" /> Submitting…</> : <><Send className="h-4 w-4" /> {daySubmitted ? 'Resubmit day' : 'Submit day'}</>}
           </button>

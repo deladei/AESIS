@@ -8,6 +8,7 @@ export interface ScheduleWeek {
   label:       number; // 1..N position within the visible window — display only
   periodStart: string;
   periodEnd:   string;
+  upcoming:    boolean; // week hasn't started yet — visible but its days are locked
 }
 
 export const SCHEDULE_WEEKS = 6;
@@ -35,26 +36,24 @@ export function addDaysYMD(start: Date, days: number): Date {
 }
 
 // The internship is a fixed 6-week programme anchored at the placement start
-// (week 1), revealing one week at a time as real time passes — a brand-new
-// placement shows only Week 1, never exceeding week 6.
+// (week 1). All 6 weeks are always visible so the student sees the full
+// programme; weeks whose start date hasn't arrived yet are marked `upcoming`
+// (their days stay locked until the date arrives).
 export function buildSchedule(startDate: string | null): ScheduleWeek[] {
   if (!startDate) return [];
   const start = new Date(`${ymd(startDate)}T00:00:00Z`);
   const today = new Date(`${localYMD(new Date())}T00:00:00Z`);
   if (today.getTime() < start.getTime()) return []; // placement hasn't started yet
 
-  const weekMs = 7 * 86_400_000;
-  const currentOffset = Math.floor((today.getTime() - start.getTime()) / weekMs);
-  const lastOffset = Math.min(currentOffset, SCHEDULE_WEEKS - 1); // never past week 6
-
   const weeks: ScheduleWeek[] = [];
-  for (let off = 0; off <= lastOffset; off++) {
+  for (let off = 0; off < SCHEDULE_WEEKS; off++) {
     const periodStart = addDaysYMD(start, off * 7);
     weeks.push({
       weekNumber:  off + 1,
       label:       off + 1,
       periodStart: toYMD(periodStart),
       periodEnd:   toYMD(addDaysYMD(periodStart, 6)),
+      upcoming:    periodStart.getTime() > today.getTime(),
     });
   }
   return weeks;

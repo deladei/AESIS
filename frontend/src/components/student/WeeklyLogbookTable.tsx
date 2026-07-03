@@ -6,10 +6,11 @@ import {
 import { useEntries, type EntryStatus } from '@/hooks/useEntries';
 import { buildSchedule, fmtRange } from '@/lib/schedule';
 
-type WeekStatus = EntryStatus | 'not_started';
+type WeekStatus = EntryStatus | 'not_started' | 'upcoming';
 
 const STATUS_META: Record<WeekStatus, { label: string; cls: string; Icon: React.ElementType }> = {
   not_started:  { label: 'Not started',  cls: 'bg-[var(--h-eef0f5)] text-[var(--h-64748b)] border-[var(--h-d8dce6)]', Icon: Calendar },
+  upcoming:     { label: 'Upcoming',     cls: 'bg-[var(--h-eef0f5)] text-[var(--h-94a3b8)] border-[var(--h-d8dce6)]', Icon: Clock },
   draft:        { label: 'Draft',        cls: 'bg-[var(--h-fff4e0)] text-[var(--h-9a6700)] border-[var(--h-f3d690)]', Icon: Clock },
   submitted:    { label: 'Submitted',    cls: 'bg-[var(--h-e1e8ff)] text-[var(--h-15157d)] border-[var(--h-bcc8ff)]', Icon: Send },
   returned:     { label: 'Returned',     cls: 'bg-[var(--h-ffe2dc)] text-[var(--h-b3261e)] border-[var(--h-f5b8ad)]', Icon: RotateCcw },
@@ -87,7 +88,7 @@ export function WeeklyLogbookTable({ placementId, startDate }: WeeklyLogbookTabl
             <tbody>
               {[...schedule].reverse().map((w) => {
                 const entry = entryByWeek.get(w.weekNumber);
-                const status: WeekStatus = entry?.status ?? 'not_started';
+                const status: WeekStatus = entry?.status ?? (w.upcoming ? 'upcoming' : 'not_started');
                 return (
                   <tr
                     key={w.weekNumber}

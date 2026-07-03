@@ -5,16 +5,16 @@ import { parseDateOnly, isFuture, todayUtc, daysBetween } from './entry.dates';
 import { authorizePlacement, assertPlacementAccess, type Actor } from './entries.policy';
 import type { SaveDayInput } from './entries.schema';
 
-// Anti-cheat transparency: a day may be submitted on its own date or within this
-// grace window — never in the future, never long after the fact. Stops a student
-// backfilling a whole internship at the end. Days submitted after their own date
-// are flagged `loggedLate` so the supervisor sees logged-vs-actual.
+// Anti-cheat transparency: a day submitted within this grace window of its own
+// date is on time. A forgotten day can still be submitted later — it is never
+// hard-blocked — but anything after its own date is flagged `loggedLate` so the
+// supervisor sees logged-vs-actual. Only future days are rejected.
 export const DAY_GRACE_DAYS = 2;
 
 /**
- * Pure anti-cheat window check (date-only, UTC days). A day is submittable on its
- * own date through `DAY_GRACE_DAYS` after; never in the future, never beyond the
- * grace window. `loggedLate` is true whenever it's submitted after its own date.
+ * Pure window check (date-only, UTC days). A day is submittable on its own date
+ * or any day after; never in the future. `loggedLate` is true whenever it's
+ * submitted after its own date, so late backfills reach the supervisor flagged.
  * Extracted pure so the rule is unit-tested without a database.
  */
 export function evaluateDayWindow(date: Date, today: Date): {
@@ -22,7 +22,7 @@ export function evaluateDayWindow(date: Date, today: Date): {
 } {
   const lateBy = daysBetween(date, today); // today − date, in whole days
   const future = lateBy < 0;
-  return { future, blocked: future || lateBy > DAY_GRACE_DAYS, lateBy, loggedLate: lateBy > 0 };
+  return { future, blocked: future, lateBy, loggedLate: lateBy > 0 };
 }
 
 // A week entry returned to the API alongside its per-day state. Reused by the
@@ -110,12 +110,6 @@ export async function submitDay(actor: Actor, entryId: string, dateStr: string) 
   const date = parseDateOnly(dateStr, 'date');
   const window = evaluateDayWindow(date, todayUtc());
   if (window.future) throw new AppError(422, 'You cannot submit a day in the future');
-  if (window.blocked) {
-    throw new AppError(
-      422,
-      `The logging window for this day has closed — it was ${window.lateBy} days ago (max ${DAY_GRACE_DAYS}).`,
-    );
-  }
   const loggedLate = window.loggedLate;
   const supervisorId = entry.placement.academicSupervisorId;
   const wasInReview = entry.status === 'submitted';
