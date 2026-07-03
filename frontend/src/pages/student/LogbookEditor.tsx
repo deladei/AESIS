@@ -267,7 +267,7 @@ function DayGrid({
             <button
               key={d.ymd}
               onClick={() => onPick(d.ymd)}
-              className="rounded-xl border border-[var(--h-e2e6ef)] bg-[var(--h-ffffff)] p-4 text-left transition-colors hover:border-[var(--h-8a4cfc)]"
+              className={`rounded-xl border border-[var(--h-e2e6ef)] bg-[var(--h-ffffff)] p-4 text-left transition-colors ${w.future ? 'opacity-60 hover:border-[var(--h-d8dce6)]' : 'hover:border-[var(--h-8a4cfc)]'}`}
             >
               <div className="mb-1 flex items-center justify-between">
                 <span className="text-sm font-bold text-[var(--h-0b1c30)]">{WEEKDAY_LONG[d.dow]}</span>
@@ -408,7 +408,12 @@ function DayForm({
           <Clock className="mt-0.5 h-4 w-4 shrink-0" /> This day hasn't arrived yet (Ghana time) — logging opens on the day itself. It's locked until then.
         </div>
       )}
-      {!daySubmitted && !win.future && win.lateBy > 0 && (
+      {!daySubmitted && weekStatus === 'acknowledged' && (
+        <div className="flex items-start gap-2 rounded-lg border border-[var(--h-d8dce6)] bg-[var(--h-eef0f5)] px-4 py-3 text-sm text-[var(--h-464652)]">
+          <ShieldCheck className="mt-0.5 h-4 w-4 shrink-0" /> This week has been acknowledged by your supervisor and is locked — days can no longer be added or edited.
+        </div>
+      )}
+      {!daySubmitted && !win.future && weekStatus !== 'acknowledged' && win.lateBy > 0 && (
         <div className="flex items-start gap-2 rounded-lg border border-[var(--h-f3d690)] bg-[var(--h-fff4e0)] px-4 py-3 text-sm text-[var(--h-9a6700)]">
           <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" /> You're logging this {win.lateBy} day{win.lateBy === 1 ? '' : 's'} late — you can still submit it, but it will be flagged as late for your supervisor.
         </div>
@@ -427,16 +432,24 @@ function DayForm({
               <h3 className="text-sm font-semibold text-[var(--h-0b1c30)]">What did you work on?</h3>
               <p className="text-xs text-[var(--h-64748b)]">Log each activity for this day</p>
             </div>
-            <button type="button" onClick={addActivity} className="inline-flex items-center gap-1 rounded-lg bg-[var(--h-f1ecff)] px-3 py-1.5 text-sm font-medium text-[var(--h-712ae2)] hover:bg-[var(--h-e6dcff)]">
-              <Plus className="h-4 w-4" /> Add activity
-            </button>
+            {editable && (
+              <button type="button" onClick={addActivity} className="inline-flex items-center gap-1 rounded-lg bg-[var(--h-f1ecff)] px-3 py-1.5 text-sm font-medium text-[var(--h-712ae2)] hover:bg-[var(--h-e6dcff)]">
+                <Plus className="h-4 w-4" /> Add activity
+              </button>
+            )}
           </div>
 
           <div className="space-y-4">
             {activities.length === 0 && (
-              <button type="button" onClick={addActivity} className="w-full rounded-lg border border-dashed border-[var(--h-d8dce6)] py-7 text-center text-sm text-[var(--h-94a3b8)] hover:border-[var(--h-8a4cfc)] hover:text-[var(--h-712ae2)]">
-                Nothing logged yet — tap to add an activity.
-              </button>
+              editable ? (
+                <button type="button" onClick={addActivity} className="w-full rounded-lg border border-dashed border-[var(--h-d8dce6)] py-7 text-center text-sm text-[var(--h-94a3b8)] hover:border-[var(--h-8a4cfc)] hover:text-[var(--h-712ae2)]">
+                  Nothing logged yet — tap to add an activity.
+                </button>
+              ) : (
+                <p className="w-full rounded-lg border border-dashed border-[var(--h-d8dce6)] py-7 text-center text-sm text-[var(--h-94a3b8)]">
+                  Nothing was logged for this day.
+                </p>
+              )
             )}
             {activities.map((a, i) => {
               const detected = detectCompetencies(a.description, a.competencyTags);
