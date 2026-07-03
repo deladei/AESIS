@@ -10,8 +10,8 @@ celery_app = Celery(
 
 # Namespace ALL Celery-managed Redis keys (queues, results, kombu bindings, …)
 # under `aesis:` so this worker can share a Redis instance with other projects.
-# Without this, the generic queue names `analysis` and `risk` would collide
-# with any other Celery app on the same broker.
+# Without this, the generic queue name `analysis` would collide with any other
+# Celery app on the same broker.
 _REDIS_KEY_PREFIX = {"global_keyprefix": "aesis:"}
 
 celery_app.conf.update(
@@ -27,6 +27,5 @@ celery_app.conf.update(
     result_backend_transport_options=_REDIS_KEY_PREFIX,
     task_routes={
         "tasks.analysis_tasks.analyze_logbook": {"queue": "analysis"},
-        "tasks.analysis_tasks.compute_risk":    {"queue": "risk"},
     },
 )

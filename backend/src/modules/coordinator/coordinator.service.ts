@@ -8,6 +8,7 @@ import { meanQualityScore, SYSTEM_MAX_WEEKS } from '../../shared/utils/quality';
 import { createNotification } from '../notifications/notifications.service';
 import { assignSupervisor } from '../placements/placements.service';
 import { emitToUser } from '../../shared/utils/socketEmitter';
+import { refreshRiskSnapshots, latestRiskDistribution } from '../risk/risk.service';
 import { Prisma, type RiskTier, type NotificationType } from '@prisma/client';
 
 // ── Dashboard ─────────────────────────────────────────────────
@@ -18,10 +19,13 @@ export async function getCoordinatorDashboard(opts: { academicYearId?: string } 
   const cohort = opts.academicYearId ? { academicYearId: opts.academicYearId } : {};
   const activeScope: Prisma.PlacementWhereInput = { placementStatus: 'active', ...cohort };
 
+  // Snapshots first, so the tiers read below are current. Never throws.
+  await refreshRiskSnapshots();
+
   const [
     activePlacements,
     pendingApprovals,
-    riskRows,
+    riskDistribution,
     scheduledByWeek,
     qualityRows,
     partnerCompanyRows,
@@ -30,12 +34,9 @@ export async function getCoordinatorDashboard(opts: { academicYearId?: string } 
   ] = await Promise.all([
     prisma.placement.count({ where: activeScope }),
     prisma.placement.count({ where: { placementStatus: 'pending', ...cohort } }),
-    // Latest risk score per active placement — group by tier
-    prisma.studentRiskScore.groupBy({
-      by:    ['riskTier'],
-      _count: { _all: true },
-      where: { placement: activeScope },
-    }),
+    // Latest risk tier per active placement (the table is a movement history —
+    // never aggregate it raw).
+    latestRiskDistribution(activeScope),
     // All submissions for active placements — grouped by week
     prisma.logbookSubmission.groupBy({
       by:      ['weekNumber'],
@@ -89,12 +90,6 @@ export async function getCoordinatorDashboard(opts: { academicYearId?: string } 
     );
     return n + (attention ? 1 : 0);
   }, 0);
-
-  // Risk distribution map
-  const riskDistribution: Record<RiskTier, number> = { low: 0, medium: 0, high: 0 };
-  for (const row of riskRows) {
-    riskDistribution[row.riskTier] = row._count._all;
-  }
 
   // Overall compliance rate
   const totalScheduled = scheduledByWeek.reduce((s, r) => s + r._count._all, 0);
@@ -238,7 +233,6 @@ export async function listStudents(filters: StudentListFilters) {
 
   const where: Prisma.PlacementWhereInput = {
     placementStatus: 'active',
-    ...(riskTier ? { riskScores: { some: { riskTier } } } : {}),
     ...(programmeId ? { student: { programmeId } } : {}),
     ...(academicYearId ? { academicYearId } : {}),
     ...(supervisorId
@@ -248,11 +242,13 @@ export async function listStudents(filters: StudentListFilters) {
       : {}),
   };
 
-  // `status`/`attention` filter on values computed after the query, and
-  // progress/score/status sort likewise — all need the full matching set loaded,
-  // then filtered/sorted/paginated in memory. A cohort is bounded (tens of
-  // interns), so this stays cheap. Everything else pages in the database.
-  const inMemory = status != null || attention != null
+  // `status`/`attention`/`riskTier` filter on values computed after the query
+  // (riskTier must match the LATEST snapshot — `some:` would match historical
+  // tiers), and progress/score/status sort likewise — all need the full
+  // matching set loaded, then filtered/sorted/paginated in memory. A cohort is
+  // bounded (tens of interns), so this stays cheap. Everything else pages in
+  // the database.
+  const inMemory = status != null || attention != null || riskTier != null
     || (sortBy != null && COMPUTED_SORTS.includes(sortBy));
 
   const orderBy: Prisma.PlacementOrderByWithRelationInput =
@@ -317,6 +313,9 @@ export async function listStudents(filters: StudentListFilters) {
   });
 
   if (inMemory) {
+    if (riskTier) {
+      rows = rows.filter(r => r.riskTier === riskTier);
+    }
     if (status) {
       rows = rows.filter(r => (r.lastStatus ?? 'not_started') === status);
     }

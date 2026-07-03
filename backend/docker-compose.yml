@@ -84,7 +84,7 @@ services:
     container_name: aesis_celery
     restart: unless-stopped
     env_file: ../ai/.env
-    command: celery -A tasks.celery_app worker --loglevel=info -Q analysis,risk --concurrency=2
+    command: celery -A tasks.celery_app worker --loglevel=info -Q analysis --concurrency=2
     depends_on:
       redis:
         condition: service_healthy

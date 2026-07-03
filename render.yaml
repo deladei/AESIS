@@ -129,7 +129,7 @@ services:
     region: oregon
     plan: starter
     dockerfilePath: Dockerfile
-    dockerCommand: celery -A tasks.celery_app worker --loglevel=info -Q analysis,risk --concurrency=2
+    dockerCommand: celery -A tasks.celery_app worker --loglevel=info -Q analysis --concurrency=2
     envVars:
       - key: ENVIRONMENT
         value: production

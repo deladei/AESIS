@@ -5,8 +5,12 @@ jest.mock('../../config/prisma', () => ({
     user:                { findMany: jest.fn() },
     placement:           { count: jest.fn() },
     logbookSubmission:   { count: jest.fn() },
-    studentRiskScore:    { count: jest.fn() },
   },
+}));
+
+jest.mock('../../modules/risk/risk.service', () => ({
+  refreshRiskSnapshots:   jest.fn().mockResolvedValue(undefined),
+  latestRiskDistribution: jest.fn(),
 }));
 
 jest.mock('../../config/logger', () => ({
@@ -21,8 +25,10 @@ import cron from 'node-cron';
 import { startWeeklyReportJob } from '../weeklyReport';
 import { prisma } from '../../config/prisma';
 import { sendEmail } from '../../shared/utils/email';
+import { refreshRiskSnapshots, latestRiskDistribution } from '../../modules/risk/risk.service';
 
 const mockPrisma = prisma as jest.Mocked<typeof prisma>;
+const mockDistribution = latestRiskDistribution as jest.Mock;
 
 afterEach(() => jest.clearAllMocks());
 
@@ -50,16 +56,19 @@ describe('startWeeklyReportJob', () => {
     (mockPrisma.logbookSubmission.count as jest.Mock)
       .mockResolvedValueOnce(15)   // submittedLastWeek
       .mockResolvedValueOnce(20);  // totalScheduledLastWeek
-    (mockPrisma.studentRiskScore.count as jest.Mock).mockResolvedValue(2);
+    mockDistribution.mockResolvedValue({ low: 10, medium: 8, high: 2 });
 
     await invokeJob();
 
+    expect(refreshRiskSnapshots).toHaveBeenCalled();
     expect(sendEmail).toHaveBeenCalledWith(
       expect.objectContaining({
         to:      'coord@cs.edu',
         subject: expect.stringContaining('Weekly Report'),
       }),
     );
+    // High count comes from the latest-tier distribution, not raw history rows.
+    expect((sendEmail as jest.Mock).mock.calls[0][0].html).toContain('2');
   });
 
   it('skips email when no coordinators exist', async () => {
@@ -76,7 +85,7 @@ describe('startWeeklyReportJob', () => {
     ]);
     (mockPrisma.placement.count as jest.Mock).mockResolvedValue(5);
     (mockPrisma.logbookSubmission.count as jest.Mock).mockResolvedValue(0);
-    (mockPrisma.studentRiskScore.count as jest.Mock).mockResolvedValue(0);
+    mockDistribution.mockResolvedValue({ low: 0, medium: 0, high: 0 });
 
     await invokeJob();
 

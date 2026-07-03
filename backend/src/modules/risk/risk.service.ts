@@ -4,6 +4,7 @@ import { emitToUser } from '../../shared/utils/socketEmitter';
 import { todayUtc, daysBetween } from '../entries/entry.dates';
 import { scoreRisk, type RiskInput, type RiskScore } from './risk.signals';
 import type { Actor } from '../entries/entries.policy';
+import type { Prisma, RiskTier } from '@prisma/client';
 
 export interface PlacementRisk extends RiskScore {
   placementId: string;
@@ -175,4 +176,32 @@ export async function refreshRiskSnapshots(supervisorId?: string): Promise<void>
   } catch (err) {
     logger.warn('risk: snapshot refresh failed', { supervisorId, err });
   }
+}
+
+/**
+ * Tier counts over the LATEST snapshot per placement. `student_risk_scores` is
+ * a history of tier movements (one row per change), so aggregating the raw
+ * table counts a placement once per movement — readers must go through here.
+ * Placements with no snapshot yet (too new to score) are omitted.
+ */
+export async function latestRiskDistribution(
+  where: Prisma.PlacementWhereInput,
+): Promise<Record<RiskTier, number>> {
+  const placements = await prisma.placement.findMany({
+    where,
+    select: {
+      riskScores: {
+        orderBy: { computedAt: 'desc' },
+        take: 1,
+        select: { riskTier: true },
+      },
+    },
+  });
+
+  const counts: Record<RiskTier, number> = { low: 0, medium: 0, high: 0 };
+  for (const p of placements) {
+    const tier = p.riskScores[0]?.riskTier;
+    if (tier) counts[tier] += 1;
+  }
+  return counts;
 }

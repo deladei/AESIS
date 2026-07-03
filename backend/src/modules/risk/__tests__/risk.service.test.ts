@@ -1,4 +1,13 @@
-import { riskInputsOf } from '../risk.service';
+jest.mock('../../../config/prisma', () => ({
+  prisma: {
+    placement: { findMany: jest.fn() },
+  },
+}));
+
+import { prisma } from '../../../config/prisma';
+import { riskInputsOf, latestRiskDistribution } from '../risk.service';
+
+const mp = prisma as jest.Mocked<typeof prisma>;
 
 const DAY = 86_400_000;
 const daysAgo = (n: number) => new Date(Date.now() - n * DAY);
@@ -86,5 +95,30 @@ describe('riskInputsOf', () => {
       }),
     )!;
     expect(input.daysSinceLastActivity).toBeNull();
+  });
+});
+
+describe('latestRiskDistribution', () => {
+  beforeEach(() => jest.clearAllMocks());
+
+  it('counts each placement once by its latest snapshot only', async () => {
+    // The select clause takes only the newest row per placement, so each
+    // placement arrives with at most one riskScores element regardless of how
+    // many movement rows exist in the history table.
+    (mp.placement.findMany as jest.Mock).mockResolvedValue([
+      { riskScores: [{ riskTier: 'high' }] },
+      { riskScores: [{ riskTier: 'low' }] },   // was high earlier — history ignored
+      { riskScores: [{ riskTier: 'low' }] },
+      { riskScores: [] },                      // too new to score — omitted
+    ]);
+
+    const dist = await latestRiskDistribution({ placementStatus: 'active' });
+
+    expect(dist).toEqual({ low: 2, medium: 0, high: 1 });
+    const call = (mp.placement.findMany as jest.Mock).mock.calls[0][0];
+    expect(call.select.riskScores).toMatchObject({
+      orderBy: { computedAt: 'desc' },
+      take: 1,
+    });
   });
 });

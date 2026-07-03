@@ -2,6 +2,7 @@ import cron from 'node-cron';
 import { prisma } from '../config/prisma';
 import { logger } from '../config/logger';
 import { sendEmail } from '../shared/utils/email';
+import { refreshRiskSnapshots, latestRiskDistribution } from '../modules/risk/risk.service';
 
 /**
  * Fires every Monday 08:00.
@@ -33,7 +34,11 @@ async function runWeeklyReport() {
     lastSunday.setDate(now.getDate() - 1);
     lastSunday.setHours(23, 59, 59, 999);
 
-    const [activePlacements, submittedLastWeek, totalScheduledLastWeek, highRiskCount] =
+    // Recompute snapshots so the count below reflects current tiers, not the
+    // last dashboard load. Never throws.
+    await refreshRiskSnapshots();
+
+    const [activePlacements, submittedLastWeek, totalScheduledLastWeek, riskDistribution] =
       await Promise.all([
         prisma.placement.count({ where: { placementStatus: 'active' } }),
         // Submissions submitted last week
@@ -47,14 +52,11 @@ async function runWeeklyReport() {
         prisma.logbookSubmission.count({
           where: { deadline: { gte: lastMonday, lte: lastSunday } },
         }),
-        // Students with high risk tier on active placements
-        prisma.studentRiskScore.count({
-          where: {
-            riskTier:  'high',
-            placement: { placementStatus: 'active' },
-          },
-        }),
+        // Latest tier per active placement (the risk table is a movement
+        // history — a raw count would include superseded high rows).
+        latestRiskDistribution({ placementStatus: 'active' }),
       ]);
+    const highRiskCount = riskDistribution.high;
 
     const complianceRate = totalScheduledLastWeek > 0
       ? Math.round((submittedLastWeek / totalScheduledLastWeek) * 100)

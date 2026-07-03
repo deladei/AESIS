@@ -7,7 +7,6 @@ jest.mock('../../../config/prisma', () => ({
       update:    jest.fn(),
     },
     studentRiskScore: {
-      groupBy:  jest.fn(),
       findMany: jest.fn(),
     },
     logbookSubmission: {
@@ -57,7 +56,16 @@ jest.mock('../../../config/prisma', () => ({
   },
 }));
 
+// The dashboard refreshes + reads risk through the risk service — mocked so
+// these tests keep exercising coordinator logic only (and so the refresh can't
+// consume the ordered placement.findMany stubs).
+jest.mock('../../risk/risk.service', () => ({
+  refreshRiskSnapshots:   jest.fn().mockResolvedValue(undefined),
+  latestRiskDistribution: jest.fn().mockResolvedValue({ low: 0, medium: 0, high: 0 }),
+}));
+
 import { prisma } from '../../../config/prisma';
+import { refreshRiskSnapshots, latestRiskDistribution } from '../../risk/risk.service';
 import {
   getCoordinatorDashboard,
   listStudents,
@@ -123,11 +131,7 @@ describe('getCoordinatorDashboard', () => {
       .mockResolvedValueOnce(40)   // active
       .mockResolvedValueOnce(5);   // pending
 
-    (mp.studentRiskScore.groupBy as jest.Mock).mockResolvedValue([
-      { riskTier: 'low',    _count: { _all: 25 } },
-      { riskTier: 'medium', _count: { _all: 10 } },
-      { riskTier: 'high',   _count: { _all: 5  } },
-    ]);
+    (latestRiskDistribution as jest.Mock).mockResolvedValue({ low: 25, medium: 10, high: 5 });
 
     (mp.logbookSubmission.groupBy as jest.Mock)
       .mockResolvedValueOnce([
@@ -157,7 +161,7 @@ describe('getCoordinatorDashboard', () => {
 
   it('returns avgPerformance null when no analyses exist', async () => {
     (mp.placement.count as jest.Mock).mockResolvedValue(0);
-    (mp.studentRiskScore.groupBy as jest.Mock).mockResolvedValue([]);
+    (latestRiskDistribution as jest.Mock).mockResolvedValue({ low: 0, medium: 0, high: 0 });
     (mp.logbookSubmission.groupBy as jest.Mock)
       .mockResolvedValueOnce([])
       .mockResolvedValueOnce([]);
@@ -171,7 +175,7 @@ describe('getCoordinatorDashboard', () => {
 
   it('excludes an out-of-range stored score so avgPerformance can never leave [0, 100]', async () => {
     (mp.placement.count as jest.Mock).mockResolvedValue(0);
-    (mp.studentRiskScore.groupBy as jest.Mock).mockResolvedValue([]);
+    (latestRiskDistribution as jest.Mock).mockResolvedValue({ low: 0, medium: 0, high: 0 });
     (mp.logbookSubmission.groupBy as jest.Mock)
       .mockResolvedValueOnce([])
       .mockResolvedValueOnce([]);
@@ -188,7 +192,7 @@ describe('getCoordinatorDashboard', () => {
 
   it('returns complianceRate 100 when no submissions are scheduled', async () => {
     (mp.placement.count as jest.Mock).mockResolvedValue(0);
-    (mp.studentRiskScore.groupBy as jest.Mock).mockResolvedValue([]);
+    (latestRiskDistribution as jest.Mock).mockResolvedValue({ low: 0, medium: 0, high: 0 });
     (mp.logbookSubmission.groupBy as jest.Mock)
       .mockResolvedValueOnce([])   // scheduled
       .mockResolvedValueOnce([]);  // submitted
@@ -201,9 +205,7 @@ describe('getCoordinatorDashboard', () => {
 
   it('builds riskDistribution with zero counts for missing tiers', async () => {
     (mp.placement.count as jest.Mock).mockResolvedValue(0);
-    (mp.studentRiskScore.groupBy as jest.Mock).mockResolvedValue([
-      { riskTier: 'high', _count: { _all: 3 } },
-    ]);
+    (latestRiskDistribution as jest.Mock).mockResolvedValue({ low: 0, medium: 0, high: 3 });
     (mp.logbookSubmission.groupBy as jest.Mock).mockResolvedValue([]);
     stubDashboardExtras();
 
@@ -214,7 +216,7 @@ describe('getCoordinatorDashboard', () => {
 
   it('builds submissionTrends with correct scheduled/submitted per week', async () => {
     (mp.placement.count as jest.Mock).mockResolvedValue(10);
-    (mp.studentRiskScore.groupBy as jest.Mock).mockResolvedValue([]);
+    (latestRiskDistribution as jest.Mock).mockResolvedValue({ low: 0, medium: 0, high: 0 });
     (mp.logbookSubmission.groupBy as jest.Mock)
       .mockResolvedValueOnce([
         { weekNumber: 1, _count: { _all: 10 } },
@@ -326,14 +328,25 @@ describe('listStudents', () => {
     expect(student.progressPct).toBe(0);
   });
 
-  it('passes riskTier filter to prisma when provided', async () => {
-    (mp.placement.findMany as jest.Mock).mockResolvedValue([]);
-    (mp.placement.count   as jest.Mock).mockResolvedValue(0);
+  it('filters riskTier on the LATEST snapshot in memory — a historical tier must not match', async () => {
+    // p-1 is high NOW; p-2 was high once but its latest snapshot is low. A
+    // `riskScores: { some: … }` filter would wrongly return both.
+    (mp.placement.findMany as jest.Mock).mockResolvedValue([
+      { ...fakePlacement, id: 'p-1',
+        riskScores: [{ riskTier: 'high', riskScore: 0.8, computedAt: new Date() }] },
+      { ...fakePlacement, id: 'p-2',
+        student: { ...fakePlacement.student, id: 'u-2', firstName: 'Kwame' },
+        riskScores: [{ riskTier: 'low', riskScore: 0.1, computedAt: new Date() }] },
+    ]);
+    (mp.logbookEntry.groupBy as jest.Mock).mockResolvedValue([]);
 
-    await listStudents({ page: 1, limit: 20, riskTier: 'high' });
+    const result = await listStudents({ page: 1, limit: 20, riskTier: 'high' });
 
+    expect(result.students).toHaveLength(1);
+    expect(result.students[0].placementId).toBe('p-1');
+    // The where clause must not pre-filter on the history table.
     const call = (mp.placement.findMany as jest.Mock).mock.calls[0][0];
-    expect(call.where).toMatchObject({ riskScores: { some: { riskTier: 'high' } } });
+    expect(call.where).not.toHaveProperty('riskScores');
   });
 
   it('does not add riskScores filter when riskTier is omitted', async () => {
@@ -953,7 +966,7 @@ describe('getCoordinatorDashboard — needsAttention', () => {
 
   it('counts only placements the attention derivation flags', async () => {
     (mp.placement.count as jest.Mock).mockResolvedValue(0);
-    (mp.studentRiskScore.groupBy as jest.Mock).mockResolvedValue([]);
+    (latestRiskDistribution as jest.Mock).mockResolvedValue({ low: 0, medium: 0, high: 0 });
     (mp.logbookSubmission.groupBy as jest.Mock).mockResolvedValueOnce([]).mockResolvedValueOnce([]);
     const PAST = new Date('2020-01-01');
     stubDashboardExtras({
