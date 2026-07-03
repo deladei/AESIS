@@ -68,7 +68,7 @@ export default function StudentRosterPanel() {
       setRows(parsed);
       setFileName(file.name);
     } catch {
-      setError("Couldn't read that file — use CSV, TSV, TXT or Excel (.xlsx).");
+      setError("Couldn't read that file — use CSV, TSV, TXT, Excel (.xlsx) or ODS.");
       setRows([]); setFileName(null);
     }
   };
