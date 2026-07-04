@@ -18,7 +18,7 @@ interface AuthState {
   isLoading:       boolean;
   login:           (email: string, password: string) => Promise<AuthUser>;
   logout:          () => Promise<void>;
-  register:        (input: RegisterInput) => Promise<void>;
+  register:        (input: RegisterInput) => Promise<RegisterResult>;
   updateUser:      (patch: Partial<AuthUser>) => void;
 }
 
@@ -35,6 +35,10 @@ export interface RegisterInput {
   // Student-only university index / matric number (unique). Required by the API
   // when role=student.
   indexNumber?: string;
+  // Academic-supervisor-only identity. Required by the API when
+  // role=academic_supervisor: unique university staff ID + honorific title.
+  staffId?: string;
+  title?:   string;
   // Student-only: the full placement is created at registration and a regional
   // academic supervisor is auto-assigned. Required by the API when role=student.
   region?:                 string;
@@ -44,6 +48,12 @@ export interface RegisterInput {
   companySupervisorEmail?: string;
   startDate?:              string;
   endDate?:                string;
+}
+
+export interface RegisterResult {
+  // Whether a verification email is on its way — drives the success screen copy
+  // ("check your inbox" vs "sign in now").
+  requiresVerification: boolean;
 }
 
 const AuthContext = createContext<AuthState | null>(null);
@@ -82,8 +92,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     queryClient.clear();
   }, []);
 
-  const register = useCallback(async (input: RegisterInput) => {
-    await api.post('/auth/register', input);
+  const register = useCallback(async (input: RegisterInput): Promise<RegisterResult> => {
+    const r = await api.post<{ data: { requiresVerification?: boolean } }>('/auth/register', input);
+    // Older backend responses omit the flag; default to the safe "verify" copy.
+    return { requiresVerification: r.data.data.requiresVerification ?? true };
   }, []);
 
   // Patch the in-memory user (e.g. after an avatar upload) so the shell reflects

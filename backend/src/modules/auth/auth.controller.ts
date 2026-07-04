@@ -21,10 +21,13 @@ import { prisma } from '../../config/prisma';
 export async function registerHandler(req: Request, res: Response) {
   const input = registerSchema.parse(req.body);
   const user  = await authService.register(input);
-  const message = env.NODE_ENV === 'development'
-    ? 'Account created. You can now sign in.'
-    : 'Account created. Check your email for a verification link.';
-  return created(res, { message, userId: user.id });
+  // The service knows whether this account was auto-verified (roster match,
+  // mail disabled) — trust it rather than guessing from NODE_ENV, so the
+  // client can show "check your inbox" only when a mail is actually coming.
+  const message = user.requiresVerification
+    ? 'Account created. Check your email for a verification link.'
+    : 'Account created. You can now sign in.';
+  return created(res, { message, userId: user.id, requiresVerification: user.requiresVerification });
 }
 
 export async function verifyEmailHandler(req: Request, res: Response) {

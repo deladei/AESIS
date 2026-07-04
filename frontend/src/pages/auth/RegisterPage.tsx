@@ -30,6 +30,9 @@ interface FormState {
   gender: '' | 'male' | 'female' | 'other';
   indexNumber: string;
   programmeId: string;
+  // Academic supervisor identity
+  staffId: string;
+  title: string;
   // Student placement (created at registration)
   region: string;
   companyName: string;
@@ -45,6 +48,7 @@ export default function RegisterPage() {
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const [success, setSuccess] = useState(false);
+  const [requiresVerification, setRequiresVerification] = useState(false);
   const [programmes, setProgrammes] = useState<Programme[]>([]);
   const [programmeOpen, setProgrammeOpen] = useState(false);
   const [programmeLoadError, setProgrammeLoadError] = useState(false);
@@ -61,6 +65,8 @@ export default function RegisterPage() {
     gender:                 '',
     indexNumber:            '',
     programmeId:            '',
+    staffId:                '',
+    title:                  '',
     region:                 '',
     companyName:            '',
     companyAddress:         '',
@@ -128,6 +134,10 @@ export default function RegisterPage() {
     if (!form.email.includes('@') || !form.email.includes('.')) e.email = 'Enter a valid email address';
     if (form.password.length < 8) e.password = 'Minimum 8 characters';
     if (!form.gender) e.gender = 'Select your gender';
+    if (form.role === 'academic_supervisor') {
+      if (!form.title) e.title = 'Select your title';
+      if (form.staffId.trim().length < 3) e.staffId = 'Enter your staff ID';
+    }
     if (form.role === 'student') {
       if (!form.indexNumber.trim()) e.indexNumber = 'Required';
       if (!form.programmeId) e.programmeId = 'Select a programme';
@@ -171,8 +181,12 @@ export default function RegisterPage() {
               endDate:                form.endDate,
             }
           : {}),
+        ...(form.role === 'academic_supervisor'
+          ? { staffId: form.staffId.trim(), title: form.title }
+          : {}),
       };
-      await register(payload);
+      const result = await register(payload);
+      setRequiresVerification(result.requiresVerification);
       setSuccess(true);
     } catch (err: unknown) {
       const msg = (err as { response?: { data?: { message?: string } } })?.response?.data?.message;
@@ -201,8 +215,13 @@ export default function RegisterPage() {
           </div>
           <h2 className="text-2xl font-bold text-white mb-3">Account created!</h2>
           <p className="text-slate-400 text-sm mb-8">
-            Your account for <span className="text-slate-200 font-medium">{form.email}</span> is ready.
-            You can now sign in.
+            {requiresVerification ? (
+              <>We sent a verification link to <span className="text-slate-200 font-medium">{form.email}</span>.
+              Check your inbox to activate your account before signing in.</>
+            ) : (
+              <>Your account for <span className="text-slate-200 font-medium">{form.email}</span> is ready.
+              You can now sign in.</>
+            )}
           </p>
           <Link
             to="/auth/login"
@@ -345,6 +364,38 @@ export default function RegisterPage() {
             </select>
             {errors.gender && <p className="mt-1 text-xs text-red-400">{errors.gender}</p>}
           </div>
+
+          {form.role === 'academic_supervisor' && (
+            <div className="grid grid-cols-1 sm:grid-cols-[8rem_1fr] gap-4">
+              <div>
+                <label htmlFor="title" className="block text-sm font-medium text-slate-300 mb-1.5">Title</label>
+                <select
+                  id="title"
+                  value={form.title}
+                  onChange={(e) => setField('title', e.target.value)}
+                  className={`${fieldClass(!!errors.title)} cursor-pointer ${form.title ? 'text-slate-100' : 'text-slate-500'}`}
+                >
+                  <option value="" disabled>Select</option>
+                  {['Prof.', 'Dr.', 'Mr.', 'Mrs.', 'Ms.'].map((t) => (
+                    <option key={t} value={t} className="text-slate-100">{t}</option>
+                  ))}
+                </select>
+                {errors.title && <p className="mt-1 text-xs text-red-400">{errors.title}</p>}
+              </div>
+              <div>
+                <label htmlFor="staffId" className="block text-sm font-medium text-slate-300 mb-1.5">Staff ID</label>
+                <input
+                  id="staffId"
+                  type="text"
+                  placeholder="e.g. STF-2041"
+                  value={form.staffId}
+                  onChange={(e) => setField('staffId', e.target.value)}
+                  className={fieldClass(!!errors.staffId)}
+                />
+                {errors.staffId && <p className="mt-1 text-xs text-red-400">{errors.staffId}</p>}
+              </div>
+            </div>
+          )}
 
           {form.role === 'student' && (
             <div>

@@ -36,6 +36,9 @@ export async function register(input: RegisterInput) {
   const { firstName, lastName, email, password, role, programmeId, gender } = input;
   // Index number is a student-only identifier; ignore it for other roles.
   const indexNumber = role === 'student' ? input.indexNumber! : null;
+  // Staff ID + title identify an academic supervisor; ignored for other roles.
+  const staffId = role === 'academic_supervisor' ? input.staffId! : null;
+  const title   = role === 'academic_supervisor' ? input.title!   : null;
 
   // Students must pick a CS programme; supervisors are department-wide.
   let departmentId: string | null = null;
@@ -66,6 +69,13 @@ export async function register(input: RegisterInput) {
   if (indexNumber) {
     const dupIndex = await prisma.user.findUnique({ where: { indexNumber } });
     if (dupIndex) throw new AppError(409, 'An account with this index number already exists');
+  }
+
+  // Unique staff-ID check (academic supervisors only) — one staff record can
+  // never back two accounts.
+  if (staffId) {
+    const dupStaff = await prisma.user.findUnique({ where: { staffId } });
+    if (dupStaff) throw new AppError(409, 'An account with this staff ID already exists');
   }
 
   const passwordHash       = await bcrypt.hash(password, env.BCRYPT_ROUNDS);
@@ -103,6 +113,8 @@ export async function register(input: RegisterInput) {
       role,
       gender,
       indexNumber,
+      staffId,
+      title,
       departmentId,
       programmeId:        resolvedProgrammeId,
       isVerified:         autoVerify,
@@ -152,7 +164,9 @@ export async function register(input: RegisterInput) {
     });
   }
 
-  return user;
+  // Tell the client whether a verification email is on its way, so the
+  // success screen can say "check your inbox" instead of "sign in now".
+  return { ...user, requiresVerification: !autoVerify };
 }
 
 // ── Profile (everything the system knows about the signed-in user) ───────────

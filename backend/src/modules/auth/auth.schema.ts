@@ -24,6 +24,10 @@ export const registerSchema = z.object({
   programmeId: z.string().uuid('Invalid programme ID').optional(),
   // Student university index/matric number (unique). Required for students below.
   indexNumber: z.string().trim().min(3, 'Index number is too short').max(40).optional(),
+  // Academic-supervisor identity. Required for that role below: a university
+  // staff ID (unique — one staff record cannot back two accounts) + honorific.
+  staffId: z.string().trim().min(3, 'Staff ID is too short').max(30).optional(),
+  title:   z.enum(['Prof.', 'Dr.', 'Mr.', 'Mrs.', 'Ms.']).optional(),
   // Student placement fields
   region:                 z.enum(REGION_VALUES).optional(),
   companyName:            z.string().trim().min(2).max(200).optional(),
@@ -33,6 +37,10 @@ export const registerSchema = z.object({
   startDate:              z.string().date('Invalid start date (YYYY-MM-DD)').optional(),
   endDate:                z.string().date('Invalid end date (YYYY-MM-DD)').optional(),
 }).superRefine((data, ctx) => {
+  if (data.role === 'academic_supervisor') {
+    if (!data.staffId) ctx.addIssue({ code: 'custom', path: ['staffId'], message: 'Staff ID is required' });
+    if (!data.title)   ctx.addIssue({ code: 'custom', path: ['title'],   message: 'Title is required' });
+  }
   if (data.role !== 'student') return;
   if (!data.programmeId)            ctx.addIssue({ code: 'custom', path: ['programmeId'],            message: 'Students must select a programme' });
   if (!data.indexNumber)           ctx.addIssue({ code: 'custom', path: ['indexNumber'],           message: 'Index number is required' });

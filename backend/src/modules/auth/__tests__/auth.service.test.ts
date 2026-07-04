@@ -206,6 +206,62 @@ describe('authService.register', () => {
 
     expect(mockPrisma.studentRoster.findFirst).not.toHaveBeenCalled();
   });
+
+  const supervisorInput = {
+    firstName: 'Kwabena', lastName: 'Mensah', email: 'kmensah@cs.edu',
+    password: 'Password@123', role: 'academic_supervisor' as const,
+    gender: 'male' as const, staffId: 'STF-2041', title: 'Dr.',
+  } as never;
+
+  it('persists staffId and title on the created academic supervisor', async () => {
+    (mockPrisma.user.findUnique as jest.Mock).mockResolvedValue(null);
+    (mockPrisma.department.findUnique as jest.Mock).mockResolvedValue({ id: 'dept-uuid-1', code: 'CS' });
+    (mockPrisma.user.create as jest.Mock).mockResolvedValue({
+      id: 'user-uuid-3', email: 'kmensah@cs.edu', firstName: 'Kwabena', lastName: 'Mensah', role: 'academic_supervisor',
+    });
+
+    await authService.register(supervisorInput);
+
+    expect(mockPrisma.user.create).toHaveBeenCalledWith(
+      expect.objectContaining({ data: expect.objectContaining({ staffId: 'STF-2041', title: 'Dr.' }) }),
+    );
+  });
+
+  it('throws 409 if staff ID already exists', async () => {
+    (mockPrisma.department.findUnique as jest.Mock).mockResolvedValue({ id: 'dept-uuid-1', code: 'CS' });
+    // First findUnique = email lookup (free), second = staff-ID lookup (taken).
+    (mockPrisma.user.findUnique as jest.Mock)
+      .mockResolvedValueOnce(null)
+      .mockResolvedValueOnce(fakeUser({ staffId: 'STF-2041' }));
+    await expect(authService.register(supervisorInput)).rejects.toMatchObject({ statusCode: 409 });
+  });
+
+  it('ignores staffId and title for student registrations', async () => {
+    (mockPrisma.academicProgramme.findUnique as jest.Mock).mockResolvedValue(fakeProgramme);
+    (mockPrisma.user.findUnique as jest.Mock).mockResolvedValue(null);
+    (mockPrisma.user.create as jest.Mock).mockResolvedValue({
+      id: 'user-uuid-1', email: validInput.email, firstName: 'Ada', lastName: 'Okonkwo', role: 'student',
+    });
+
+    await authService.register({ ...validInput, staffId: 'STF-9999', title: 'Dr.' } as never);
+
+    expect(mockPrisma.user.create).toHaveBeenCalledWith(
+      expect.objectContaining({ data: expect.objectContaining({ staffId: null, title: null }) }),
+    );
+  });
+
+  it('reports requiresVerification=false when the account is auto-verified', async () => {
+    // Test env has no SendGrid key, so registration auto-verifies.
+    (mockPrisma.academicProgramme.findUnique as jest.Mock).mockResolvedValue(fakeProgramme);
+    (mockPrisma.user.findUnique as jest.Mock).mockResolvedValue(null);
+    (mockPrisma.user.create as jest.Mock).mockResolvedValue({
+      id: 'user-uuid-1', email: validInput.email, firstName: 'Ada', lastName: 'Okonkwo', role: 'student',
+    });
+
+    const result = await authService.register(validInput);
+
+    expect(result.requiresVerification).toBe(false);
+  });
 });
 
 // ─────────────────────────────────────────────────────────────

@@ -276,6 +276,10 @@ model User {
   // is the student's university index/matric number (unique, students only).
   gender              Gender?            @map("gender")
   indexNumber         String?            @unique @map("index_number")
+  // Academic-supervisor identity, self-reported at registration and unique so
+  // one staff record can't back two accounts: university staff ID + honorific.
+  staffId             String?            @unique @map("staff_id")
+  title               String?            @map("title")
   departmentId        String             @map("department_id")
   department          Department         @relation(fields: [departmentId], references: [id])
   programmeId         String?            @map("programme_id")
