@@ -47,3 +47,6 @@ dist/
 # Local DB backups / dumps — never commit (contain prod data)
 # Scoped to backups/ so it doesn't swallow Prisma's migration.sql files.
 backups/
+
+# Claude Code local state (worktrees, settings)
+.claude/
