@@ -9,6 +9,9 @@ import { AdminShell } from '@/components/layout/AdminShell';
 
 import LoginPage         from '@/pages/auth/LoginPage';
 import RegisterPage      from '@/pages/auth/RegisterPage';
+import VerifyEmailPage   from '@/pages/auth/VerifyEmailPage';
+import ResetPasswordPage from '@/pages/auth/ResetPasswordPage';
+import ResetPasswordConfirmPage from '@/pages/auth/ResetPasswordConfirmPage';
 import StudentDashboard  from '@/pages/student/StudentDashboard';
 import LogbookEditor     from '@/pages/student/LogbookEditor';
 import SubmissionHistory from '@/pages/student/SubmissionHistory';
@@ -100,6 +103,10 @@ export const router = createBrowserRouter([
   { path: '/',               element: <RootRedirect /> },
   { path: '/auth/login',     element: <LoginPage /> },
   { path: '/auth/register',  element: <RegisterPage /> },
+  // Email-link landing pages (public — reached from verification/reset emails)
+  { path: '/auth/verify-email',           element: <VerifyEmailPage /> },
+  { path: '/auth/reset-password',         element: <ResetPasswordPage /> },
+  { path: '/auth/reset-password/confirm', element: <ResetPasswordConfirmPage /> },
 
   // Public company attestation (magic link — no account, no shell)
   { path: '/attest/:token',  element: <Attestation /> },
