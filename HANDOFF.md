@@ -2758,3 +2758,18 @@ Five commits, all pushed prod:
 **Carried (unchanged from S79e).**
 1. ⚠️ ROTATE prod `DATABASE_URL` — still overdue; + 3 other secrets.
 2. In-browser verifies: S79e locked-day transparency batch + NEW: register as academic supervisor on prod → Title/Staff ID fields appear, duplicate staff ID rejected, success screen says "check your inbox" (prod has SendGrid).
+
+### Session 80b — 2026-07-04 — .claude gitignored + email-link landing pages (commits `f42a532`, `06cef02`, pushed prod)
+
+**Ask.** (1) Gitignore the untracked `.claude/` dir. (2) Did email verification (supervisor signup) + forgot-password (student/supervisor) get built?
+
+**Findings.** `.claude/` = stale local worktree of shipped S77 work (`logbook-six-weeks-late-flag`, still registered in `git worktree list`) — ignored via `chore` `f42a532`, worktree itself left in place. Email flows: backend complete for years (GET /auth/verify-email, POST /auth/reset-password, PATCH /auth/reset-password/confirm — role-agnostic, anti-enumeration, 1h expiry, revokes refresh tokens) **but zero frontend landing pages existed**: verification + reset emails link to `${FRONTEND_URL}/auth/…` routes that weren't in the router, and the login page's "Forgot password?" pointed at a dead route. Net effect on prod: any supervisor who registered could never activate their account.
+
+**Fix (`feat(auth)` `06cef02`).** Three public routes + pages (light theme, matches LoginPage):
+- `/auth/verify-email` — consumes `?token=` exactly once on mount (useRef guard — backend invalidates the token on first use and StrictMode double-mounts effects), verifying/success/failure states.
+- `/auth/reset-password` — email form → neutral "check your inbox if registered" (mirrors the API's anti-enumeration copy), 429 + cold-start messaging.
+- `/auth/reset-password/confirm` — new password + confirm from `?token=`, min 8, missing-token and expired-token paths both route to requesting a fresh link; success notes other sessions were signed out.
+
+**Verification.** Frontend `tsc` + `vite build` clean. Backend untouched. Pushed prod.
+
+**Carried.** Same as S80 + in-browser verify (prod, SendGrid live): register supervisor → email arrives → link verifies → sign-in works; forgot-password round-trip for a student + a supervisor.
