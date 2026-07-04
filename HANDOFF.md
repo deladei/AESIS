@@ -2741,3 +2741,20 @@ Five commits, all pushed prod:
 **Verification.** Frontend `tsc` + `vite build` clean. Pushed prod.
 
 **Carried.** Same as S79d + in-browser verify: today's day → Add activity adds a card + saves; acknowledged-week day → gray banner, no add controls; future day → dimmed card + lock banner.
+
+### Session 80 — 2026-07-04 — Supervisor staff identity at registration (commit `6633185`, pushed prod)
+
+**Ask.** Resume S79's cut-off work (session limit hit mid-edit): academic supervisors register with a unique staff ID + honorific title; registration response reports whether a verification email is coming.
+
+**Shipped (`feat(auth)` `6633185`).**
+- **Migration `20260703190000_supervisor_staff_identity`** — additive nullable `staff_id TEXT` (unique) + `title TEXT` on `users`.
+- **Backend** — Zod requires `staffId` (3–30 chars) + `title` (Prof./Dr./Mr./Mrs./Ms.) when role=academic_supervisor; service 409s on duplicate staff ID, nulls both fields for other roles. `register()` returns `requiresVerification: !autoVerify`; controller message + response flag now come from the real auto-verify outcome (roster match / no SendGrid) instead of guessing from NODE_ENV.
+- **Frontend** — Register page shows Title select + Staff ID input for the supervisor role (validated client-side); AuthContext `register()` returns `{ requiresVerification }` (defaults true if flag absent); success screen says "check your inbox" vs "you can now sign in" accordingly.
+
+**Local env note.** `staff_id`/`title` applied via `db push --accept-data-loss` to `aisystem_db` + `aesis_logbook_test` (only "loss" = unique index on the brand-new all-NULL column; local DBs have no migration history — S78 note). Prod applies via `migrate deploy` on Render start.
+
+**Verification.** 4 new auth service tests (supervisor persists staffId/title, dup staff ID 409, student ignores staffId/title, requiresVerification=false when auto-verified); auth suites 55/55. Full suite run 1: 598/601 — 3 fails all in `grades.controller.test.ts`, 21/21 green in isolation (weak-box flake, module untouched); **run 2: 46/46 suites, 601/601 green**. Backend `tsc` clean; frontend `tsc` + `vite build` clean. Pushed `main` → Render + Vercel.
+
+**Carried (unchanged from S79e).**
+1. ⚠️ ROTATE prod `DATABASE_URL` — still overdue; + 3 other secrets.
+2. In-browser verifies: S79e locked-day transparency batch + NEW: register as academic supervisor on prod → Title/Staff ID fields appear, duplicate staff ID rejected, success screen says "check your inbox" (prod has SendGrid).
