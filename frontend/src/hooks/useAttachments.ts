@@ -30,10 +30,12 @@ export function useEntryAttachments(entryId?: string) {
   });
 }
 
-export function useUploadAttachment(entryId: string) {
+// entryId is per-call, not per-hook: the day editor may create the week entry
+// on the fly for the very first upload, so the id isn't known at mount.
+export function useUploadAttachment() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: async ({ file, date }: { file: File; date?: string }) => {
+    mutationFn: async ({ entryId, file, date }: { entryId: string; file: File; date?: string }) => {
       const form = new FormData();
       form.append('file', file);
       if (date) form.append('date', date);
@@ -46,16 +48,18 @@ export function useUploadAttachment(entryId: string) {
       );
       return r.data.data;
     },
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['entry-attachments', entryId] }),
+    onSuccess: (_data, { entryId }) =>
+      qc.invalidateQueries({ queryKey: ['entry-attachments', entryId] }),
   });
 }
 
-export function useDeleteAttachment(entryId: string) {
+export function useDeleteAttachment() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: async (attachmentId: string) => {
+    mutationFn: async ({ entryId, attachmentId }: { entryId: string; attachmentId: string }) => {
       await api.delete(`/entries/${entryId}/attachments/${attachmentId}`);
     },
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['entry-attachments', entryId] }),
+    onSuccess: (_data, { entryId }) =>
+      qc.invalidateQueries({ queryKey: ['entry-attachments', entryId] }),
   });
 }

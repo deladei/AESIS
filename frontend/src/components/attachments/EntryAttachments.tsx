@@ -28,22 +28,31 @@ const apiErr = (e: unknown) =>
   'Upload failed. Please try again.';
 
 /**
- * Image/document evidence. With `date` set (the student's day editor), only
- * that day's files show and uploads are stamped to that day — each day's log
- * carries its own files, like attachments on an email. Without `date` (the
- * supervisor review), every file of the week shows, tagged with its day.
+ * Image/document evidence — always optional; a day can be submitted with no
+ * files. With `date` set (the student's day editor), only that day's files
+ * show and uploads are stamped to that day — each day's log carries its own
+ * files, like attachments on an email. Without `date` (the supervisor
+ * review), every file of the week shows, tagged with its day.
  * Upload + delete show only while the day is editable — the API enforces it too.
+ * `entryId` may be absent before the week entry exists; the first upload then
+ * creates it via `ensureEntryId` (the day editor saves the draft on the fly).
  */
 export function EntryAttachments({
-  entryId, date, editable = true,
+  entryId, ensureEntryId, date, editable = true,
 }: {
-  entryId: string;
+  entryId?: string;
+  ensureEntryId?: () => Promise<string>; // create the week entry for a first upload
   date?: string; // YYYY-MM-DD — scope to one working day
   editable?: boolean;
 }) {
-  const { data: all = [], isLoading } = useEntryAttachments(entryId);
-  const upload = useUploadAttachment(entryId);
-  const remove = useDeleteAttachment(entryId);
+  // Remembers the id minted by ensureEntryId until the parent's detail refetch
+  // catches up — without it the list would query `undefined` and look empty.
+  const [createdId, setCreatedId] = useState<string | null>(null);
+  const effectiveId = entryId ?? createdId ?? undefined;
+
+  const { data: all = [], isLoading } = useEntryAttachments(effectiveId);
+  const upload = useUploadAttachment();
+  const remove = useDeleteAttachment();
   const fileInput = useRef<HTMLInputElement>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -61,7 +70,13 @@ export function EntryAttachments({
       return;
     }
     try {
-      await upload.mutateAsync({ file, date });
+      let id = effectiveId;
+      if (!id) {
+        if (!ensureEntryId) throw new Error('missing entry');
+        id = await ensureEntryId();
+        setCreatedId(id);
+      }
+      await upload.mutateAsync({ entryId: id, file, date });
     } catch (err) {
       setError(apiErr(err));
     }
@@ -75,7 +90,7 @@ export function EntryAttachments({
             <Paperclip className="h-4 w-4 text-[var(--h-8a4cfc)]" /> Attachments
           </h3>
           <p className="text-xs text-[var(--h-64748b)]">
-            {date ? 'Photos or documents as evidence for this day' : 'Photos or documents as evidence for this week'}
+            {date ? 'Photos or documents as evidence for this day (optional)' : 'Photos or documents as evidence for this week'}
           </p>
         </div>
         {editable && (
@@ -108,7 +123,7 @@ export function EntryAttachments({
         </div>
       ) : attachments.length === 0 ? (
         <p className="rounded-lg border border-dashed border-[var(--h-d8dce6)] py-6 text-center text-sm text-[var(--h-94a3b8)]">
-          {editable ? 'No files yet — add a photo or document.' : 'No files attached.'}
+          {editable ? 'No files yet — add a photo or document if you have evidence to share.' : 'No files attached.'}
         </p>
       ) : (
         <div className="space-y-4">
@@ -116,7 +131,8 @@ export function EntryAttachments({
             <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
               {images.map((a) => (
                 <ImageTile key={a.id} a={a} editable={editable} showDay={!date}
-                  onDelete={() => remove.mutate(a.id)} deleting={remove.isPending} />
+                  onDelete={() => effectiveId && remove.mutate({ entryId: effectiveId, attachmentId: a.id })}
+                  deleting={remove.isPending} />
               ))}
             </div>
           )}
@@ -124,7 +140,8 @@ export function EntryAttachments({
             <ul className="space-y-2">
               {docs.map((a) => (
                 <DocRow key={a.id} a={a} editable={editable} showDay={!date}
-                  onDelete={() => remove.mutate(a.id)} deleting={remove.isPending} />
+                  onDelete={() => effectiveId && remove.mutate({ entryId: effectiveId, attachmentId: a.id })}
+                  deleting={remove.isPending} />
               ))}
             </ul>
           )}

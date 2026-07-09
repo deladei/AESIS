@@ -491,12 +491,16 @@ function DayForm({
           </div>
         </div>
 
-        {/* Evidence for THIS day — available once the week exists (after first save). */}
-        {detail?.id && (
-          <div className="rounded-xl border border-[var(--h-e2e6ef)] bg-[var(--h-ffffff)] p-5">
-            <EntryAttachments entryId={detail.id} date={date} editable={editable} />
-          </div>
-        )}
+        {/* Evidence for THIS day — always shown; the first upload creates the
+            week draft on the fly. Files are optional; a day submits fine without any. */}
+        <div className="rounded-xl border border-[var(--h-e2e6ef)] bg-[var(--h-ffffff)] p-5">
+          <EntryAttachments
+            entryId={detail?.id}
+            ensureEntryId={async () => (await saveDay.mutateAsync(payload())).id}
+            date={date}
+            editable={editable}
+          />
+        </div>
       </fieldset>
 
       {error && (
