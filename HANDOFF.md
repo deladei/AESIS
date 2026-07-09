@@ -2795,3 +2795,23 @@ Five commits, all pushed prod:
 3. Prod smoke of the enrichment worker after Render deploy (first v2 assessment row lands with report fields).
 
 **S81 addendum — deploy verification + env fix (`10c388c`).** All three deploys confirmed live from this box: AI engine OpenAPI exposes the v2 schemas (QualityBreakdown/PlagiarismReport/CorpusDoc/FeedbackDraft), Vercel bundle carries the new EntryReview strings, backend health ok (no version marker — dashboard glance still worthwhile for the migration boot log). Also fixed the since-S47 cosmetic `environment:development` on the AI engine: the live service was created outside the blueprint so render.yaml's ENVIRONMENT never applied — now baked as Docker `ENV ENVIRONMENT=production` (dashboard var would still outrank). Added `ai/.dockerignore` so local docker builds can't bake `ai/.env` secrets via `COPY . .`. Verified on prod: `/health` → `environment: production`, groq connected.
+
+### Session 82 — 2026-07-09 — ai/ pytest suite + CI greened + legacy-pipeline retirement audit (commits `00cc95f`, `23dc082`, pushed prod)
+
+**Ask.** Continue post-S81: (3) pytest suite for ai/ (zero Python tests; v2 logic only ad-hoc verified), (4) legacy `analyze_logbook` retirement audit — audit first, plan before touching (S79 precedent).
+
+**Shipped.**
+- **`test(ai)` `00cc95f` — 52-test pytest suite + CI job.** Prior (limit-hit) session's scaffolding finished: quality clamp boundary + rubric scoring, stateless plagiarism (TF-IDF, semantic re-rank via deterministic stub embedder, every fail-open edge), Groq draft (fail-open, prompt guardrails, length cap), and new `tests/test_enrich_router.py` — /ai/enrich auth, rubric-adapter field mapping (descriptions→tasks, deduped tags→technologies, learning→reflection), out-of-range clamp at the API boundary (poisoned scorer test), plagiarism wired end-to-end, placement summary. Suite runs WITHOUT torch/sentence-transformers: conftest autouse fixture blocks `services.chatbot` (sys.modules[…]=None) so dev box and CI (full pinned requirements) behave identically; `stub_chatbot_embedder` opts the semantic stage in. Run: `cd ai && python3 -m pytest`. New `ai` job in ci.yml (Python 3.11, pip cache, requirements + requirements-dev). CLAUDE.md test-command line updated.
+- **`fix(ci)` `23dc082` — CI was red on EVERY push (pre-existing).** (1) eslint type-aware parsing crashed on test files (excluded from tsconfig.json) → tests ignored in eslint config; `no-namespace` allows declarations (Express req.user augmentation). (2) 4 real lint errors fixed: unused `ipAddress` (login), unused `uuidParam` import, `require('jsonwebtoken')` + floating `socket.join` promise in server.ts. (3) Frontend job `tsc -b --noEmit` → TS6310 on composite tsconfig.node.json; now plain `tsc --noEmit` (matches local verify). Lint 0 errors; socket+auth suites 57/57; both tsc clean.
+
+**Audit (read-only) — legacy `analyze_logbook` is UI-unreachable dead code.**
+- Only trigger chain: `submitLogbook` (legacy POST /logbook/submissions/:id/submit) → `enqueueAiAnalysis` → /ai/analyze/logbook → Celery. Frontend hook `useSubmitLogbook` imported by ZERO components (`useSaveDraft` also orphaned). No other enqueuer anywhere.
+- Still-live legacy READS (unaffected by retiring the writer): FeedbackCenter + StudentDashboard use `useSubmissions`/`useSubmitFeedback`; coordinator dashboards average `logbook_analyses.qualityScore` (3 sites); FeedbackCenter renders old analysis fields. Table already frozen in practice.
+- Redis (Upstash) STAYS — backend rate limiter uses it; only the broker role dies. Mongo STAYS (legacy draft/feedback flow). Money = `aesis-celery-worker` Render starter plan.
+- Retirement plan (NOT executed — awaiting approval): delete ai/ analysis router+tasks+legacy plagiarism_detector+sentiment_analyser + prune celery/redis/vaderSentiment deps; drop `enqueueAiAnalysis` + the `aiAnalysisStatus:'pending'` set in submitLogbook; remove worker from render.yaml + docker-compose; user deletes worker service + CELERY_BROKER_URL in Render dashboard. Keep `logbook_analyses` + readers. Pre-flight: confirm no 'processing' rows + idle worker logs.
+
+**Carried (from S81).**
+1. ⚠️ ROTATE prod `DATABASE_URL` — still overdue; + 3 other secrets.
+2. In-browser verifies: S81 list unchanged (enrichment v2 panel, email round-trips, locked-day batch, supervisor registration).
+3. Prod smoke of enrichment worker (first v2 assessment row).
+4. NEW: approve + execute the legacy-pipeline retirement plan above.
