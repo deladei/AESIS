@@ -22,6 +22,7 @@ from fastapi import APIRouter, Header, HTTPException
 from pydantic import BaseModel, Field
 
 from config.settings import settings
+from services.entry_plagiarism import CorpusDoc, PlagiarismReport, check_entry
 from services.quality_scorer import clamp_quality_score, score as compute_quality
 
 router = APIRouter(prefix="/ai", tags=["enrich"])
@@ -72,6 +73,11 @@ class EnrichEntryRequest(BaseModel):
     week_number: int | None = None
     activities: list[ActivityIn] = Field(default_factory=list)
     reflection: ReflectionIn | None = None
+    # Plagiarism corpus: other entries' text, built by the Node worker from
+    # Postgres on every check (stateless — nothing survives a restart to go
+    # stale). Each doc's text must be composed the same way _entry_text()
+    # composes the candidate. Empty list ⇒ plagiarism stage reports unchecked.
+    corpus: list[CorpusDoc] = Field(default_factory=list)
 
 
 class ActivityRelevance(BaseModel):
@@ -107,6 +113,7 @@ class EnrichEntryResponse(BaseModel):
     relevance: float = Field(ge=0.0, le=1.0)
     summary: EntrySummary
     quality: QualityBreakdown
+    plagiarism: PlagiarismReport
 
 
 def _require_internal(x_api_key: str | None) -> None:
@@ -134,6 +141,16 @@ def _classify_activity(text: str, tags: list[str]) -> ActivityRelevance:
         on_topic=relevance >= 0.34,
         themes=matched_themes,
     )
+
+
+# ── Canonical entry text (candidate side of the plagiarism check) ────────────
+def _entry_text(activities: list[ActivityIn], reflection: ReflectionIn | None) -> str:
+    """One flat text per entry. The Node worker composes corpus docs from the
+    same fields in the same order so candidate and corpus are comparable."""
+    parts = [a.description for a in activities]
+    if reflection:
+        parts += [reflection.learning, reflection.challenges]
+    return " ".join(p for p in parts if p)
 
 
 # ── Quality rubric — reuses the shared heuristic scorer ──────────────────────
@@ -218,9 +235,14 @@ async def enrich_entry(
     overall = round(sum(a.relevance for a in scored) / len(scored), 3) if scored else 0.0
     summary = _summarize(body, scored)
     quality = _score_quality(body)
+    plagiarism = check_entry(_entry_text(body.activities, body.reflection), body.corpus)
 
     return EnrichEntryResponse(
-        model_name=MODEL_NAME, relevance=overall, summary=summary, quality=quality
+        model_name=MODEL_NAME,
+        relevance=overall,
+        summary=summary,
+        quality=quality,
+        plagiarism=plagiarism,
     )
 
 
