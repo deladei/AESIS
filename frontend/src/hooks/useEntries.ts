@@ -36,10 +36,49 @@ export interface EntryEvent {
   createdAt:  string;
 }
 
+// 6-dimension rubric breakdown (0–100 each). Advisory only — never a grade.
+export interface QualityBreakdown {
+  overall: number;
+  task_depth: number;
+  tech_vocab: number;
+  reflection: number;
+  temporal_consistency: number;
+  relevance: number;
+  flags?: string[];
+  feedback?: string;
+}
+
+export interface PlagiarismMatch {
+  entry_id: string;
+  similarity: number;
+  tfidf_similarity: number;
+  semantic_similarity: number | null;
+  same_student: boolean;
+}
+
+export interface PlagiarismReport {
+  checked: boolean;
+  corpus_size: number;
+  max_similarity: number;
+  flagged: boolean;
+  matches: PlagiarismMatch[];
+}
+
+// Draft for the supervisor to edit before sending — never auto-sent.
+export interface FeedbackDraft {
+  text: string;
+  model: string;
+}
+
 export interface EntryAssessment {
   id:        string;
   relevance: string | number | null;
   summary:   unknown;
+  // Report fields ship with aesis-entry-enrichment/v2; older assessments and
+  // student/company reads (plagiarism + draft are redacted server-side) carry null.
+  quality?:       QualityBreakdown | null;
+  plagiarism?:    PlagiarismReport | null;
+  feedbackDraft?: FeedbackDraft | null;
   createdAt: string;
 }
 

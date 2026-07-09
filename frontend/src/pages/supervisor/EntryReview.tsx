@@ -6,7 +6,8 @@ import {
 } from 'lucide-react';
 import {
   useReviewQueue, useEntry, useAcknowledgeEntry, useReturnEntry,
-  type LogbookEntry, type EntryStatus,
+  type LogbookEntry, type EntryStatus, type QualityBreakdown, type PlagiarismReport,
+  type FeedbackDraft,
 } from '@/hooks/useEntries';
 import { EntryAttachments } from '@/components/attachments/EntryAttachments';
 
@@ -40,6 +41,24 @@ interface AiSummary {
   themes?: string[];
   concerns?: string[];
 }
+
+// A rubric value is only renderable if it's a real number in range — anything
+// else is skipped, never shown as 0 (no impossible states).
+function pct100(v: unknown): number | null {
+  const n = Number(v);
+  return Number.isFinite(n) && n >= 0 && n <= 100 ? Math.round(n) : null;
+}
+
+// The quality.relevance dimension is deliberately omitted: the panel already
+// shows CS relevance from the classifier, and two differently-computed
+// "relevance" numbers side by side would only conflict.
+const QUALITY_DIMS: { key: keyof QualityBreakdown; label: string }[] = [
+  { key: 'overall', label: 'Overall writing quality' },
+  { key: 'task_depth', label: 'Task detail' },
+  { key: 'tech_vocab', label: 'Technical vocabulary' },
+  { key: 'reflection', label: 'Reflection' },
+  { key: 'temporal_consistency', label: 'Chronology' },
+];
 
 const STATUS_LABEL: Record<EntryStatus, string> = {
   draft: 'Draft', submitted: 'Submitted', returned: 'Returned',
@@ -84,6 +103,16 @@ export default function EntryReview() {
     const s = detail?.assessments?.[0]?.summary;
     return s && typeof s === 'object' ? (s as AiSummary) : null;
   }, [detail?.assessments]);
+
+  const latest = detail?.assessments?.[0];
+  const quality: QualityBreakdown | null =
+    latest?.quality && typeof latest.quality === 'object' ? latest.quality : null;
+  const plagiarism: PlagiarismReport | null =
+    latest?.plagiarism && typeof latest.plagiarism === 'object' ? latest.plagiarism : null;
+  const draft: FeedbackDraft | null =
+    latest?.feedbackDraft && typeof latest.feedbackDraft.text === 'string' && latest.feedbackDraft.text
+      ? latest.feedbackDraft
+      : null;
 
   // Days the student submitted after their own date (anti-cheat transparency).
   const lateDates = useMemo(
@@ -352,6 +381,65 @@ export default function EntryReview() {
                           </ul>
                         </div>
                       )}
+
+                      {/* Quality breakdown (v2 assessments only) */}
+                      {quality && QUALITY_DIMS.some((d) => pct100(quality[d.key]) != null) && (
+                        <div className="border-t border-[var(--h-f0f2f7)] pt-3">
+                          <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-[var(--h-64748b)]">Writing quality</p>
+                          <div className="space-y-2">
+                            {QUALITY_DIMS.map(({ key, label }) => {
+                              const v = pct100(quality[key]);
+                              if (v == null) return null;
+                              return (
+                                <div key={key}>
+                                  <div className="mb-0.5 flex justify-between text-xs">
+                                    <span className="text-[var(--h-64748b)]">{label}</span>
+                                    <span className="font-mono text-[var(--h-0b1c30)]">{v}</span>
+                                  </div>
+                                  <div className="h-1 w-full rounded-full bg-[var(--h-eef0f5)]">
+                                    <div
+                                      className={`h-1 rounded-full ${v >= 60 ? 'bg-[var(--h-1b7a45)]' : 'bg-[var(--h-d99a00)]'}`}
+                                      style={{ width: `${v}%` }}
+                                    />
+                                  </div>
+                                </div>
+                              );
+                            })}
+                          </div>
+                          {quality.feedback && (
+                            <p className="mt-2 text-xs leading-relaxed text-[var(--h-464652)]">{quality.feedback}</p>
+                          )}
+                        </div>
+                      )}
+
+                      {/* Similarity report — only rendered when a check actually ran */}
+                      {plagiarism?.checked && (
+                        plagiarism.flagged && plagiarism.matches.length > 0 ? (
+                          <div className="rounded-lg border border-[var(--h-f5d9a8)] bg-[var(--h-fff4e0)] p-3">
+                            <p className="mb-1 text-xs font-semibold text-[var(--h-9a6700)]">Similarity notice</p>
+                            <ul className="space-y-1 text-xs text-[var(--h-464652)]">
+                              {plagiarism.matches.map((m, i) => {
+                                const v = pct100(m.similarity * 100);
+                                return (
+                                  <li key={i}>
+                                    {v != null ? `≈${v}% similar` : 'Similar'} to{' '}
+                                    {m.same_student ? "this student's earlier week" : "another student's entry"}
+                                  </li>
+                                );
+                              })}
+                            </ul>
+                            <p className="mt-1.5 text-[11px] text-[var(--h-9a6700)]">
+                              Worth comparing side by side — similarity is not a verdict.
+                            </p>
+                          </div>
+                        ) : (
+                          <p className="text-[11px] text-[var(--h-94a3b8)]">
+                            No unusual similarity across {plagiarism.corpus_size} other submitted{' '}
+                            {plagiarism.corpus_size === 1 ? 'entry' : 'entries'}.
+                          </p>
+                        )
+                      )}
+
                       <p className="text-[11px] text-[var(--h-94a3b8)]">AI scores are advisory. Your review is final.</p>
                     </div>
                   ) : (
@@ -390,6 +478,26 @@ export default function EntryReview() {
                         Feedback
                         <span className="ml-2 text-xs font-normal text-[var(--h-64748b)]">Required to return</span>
                       </label>
+                      {draft && (
+                        <div className="mb-2 rounded-lg border border-[var(--h-e1e8ff)] bg-[var(--h-f8f9ff)] p-3">
+                          <p className="mb-1 flex items-center gap-1.5 text-xs font-semibold text-[var(--h-15157d)]">
+                            <Sparkles className="h-3 w-3" /> Suggested draft
+                          </p>
+                          <p className="text-xs leading-relaxed text-[var(--h-464652)]">{draft.text}</p>
+                          {comment !== draft.text && (
+                            <button
+                              type="button"
+                              onClick={() => setComment(draft.text)}
+                              className="mt-2 rounded-md border border-[var(--h-d8dce6)] bg-[var(--h-ffffff)] px-2.5 py-1 text-xs font-semibold text-[var(--h-15157d)] transition-colors hover:bg-[var(--h-f1ecff)]"
+                            >
+                              Insert into feedback
+                            </button>
+                          )}
+                          <p className="mt-1.5 text-[11px] text-[var(--h-94a3b8)]">
+                            AI-drafted — review and edit before sending. The student sees only what you send.
+                          </p>
+                        </div>
+                      )}
                       <textarea
                         id="comment" rows={5} value={comment}
                         onChange={(e) => setComment(e.target.value)}
