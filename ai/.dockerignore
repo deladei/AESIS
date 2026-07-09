@@ -1,0 +1,6 @@
+# Never bake local secrets/config into the image (COPY . . above would).
+# Render builds from git (where .env is ignored anyway); this guards local builds.
+.env
+*.env
+__pycache__/
+*.pyc
