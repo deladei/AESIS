@@ -1,0 +1,4 @@
+# Test-only dependencies — NOT installed in the deploy image (Dockerfile
+# installs requirements.txt only). Run: cd ai && python3 -m pytest
+pytest==8.4.2
+pytest-asyncio==1.4.0
