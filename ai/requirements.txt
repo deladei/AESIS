@@ -4,15 +4,9 @@ pydantic-settings==2.3.1
 python-dotenv==1.0.1
 httpx==0.27.0
 
-# Database drivers
+# Database drivers (motor pulls its own pinned pymongo)
 motor==3.4.0
-pymongo==4.7.2
 asyncpg==0.29.0
-psycopg2-binary==2.9.9
-
-# Task queue
-celery[redis]==5.4.0
-redis==5.0.7
 
 # NLP / ML — all free, all local
 # CPU-only torch (avoids 3–5 GB of CUDA wheels pulled by the default GPU build).
@@ -22,6 +16,5 @@ torch==2.3.1+cpu
 sentence-transformers==3.0.1
 faiss-cpu==1.8.0
 scikit-learn==1.5.0
-vaderSentiment==3.3.2
 nltk==3.8.1
 numpy==1.26.4

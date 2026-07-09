@@ -65,10 +65,8 @@ services:
         condition: service_healthy
       mongo:
         condition: service_healthy
-      redis:
-        condition: service_healthy
     volumes:
-      - ai_models:/tmp  # cache downloaded models + FAISS indices
+      - ai_models:/tmp  # cache downloaded models
     healthcheck:
       # python:3.11-slim has no curl — use urllib (always available).
       test: ['CMD', 'python', '-c', 'import urllib.request,sys; sys.exit(0 if urllib.request.urlopen("http://localhost:8000/health", timeout=3).status == 200 else 1)']
@@ -76,24 +74,6 @@ services:
       timeout: 10s
       retries: 5
       start_period: 60s  # allow time for model warm-up
-
-  celery-worker:
-    build:
-      context: ../ai
-      dockerfile: Dockerfile
-    container_name: aesis_celery
-    restart: unless-stopped
-    env_file: ../ai/.env
-    command: celery -A tasks.celery_app worker --loglevel=info -Q analysis --concurrency=2
-    depends_on:
-      redis:
-        condition: service_healthy
-      postgres:
-        condition: service_healthy
-      mongo:
-        condition: service_healthy
-    volumes:
-      - ai_models:/tmp
 
 volumes:
   postgres_data:

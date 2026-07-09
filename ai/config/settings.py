@@ -9,7 +9,6 @@ class Settings(BaseSettings):
 
     POSTGRES_DSN: str = "postgresql://aisystem_user:aisystem1234@localhost:5432/aisystem_db"
     MONGO_URI: str = "mongodb://localhost:27017/aesis"
-    REDIS_URL: str = "redis://localhost:6379/0"
 
     # Chatbot LLM — Groq (OpenAI-compatible). Free tier: ~14.4k req/day.
     # Get a key at https://console.groq.com → leave blank to force fallback responses.

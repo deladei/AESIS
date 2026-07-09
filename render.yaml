@@ -105,59 +105,32 @@ services:
         sync: false
       - key: MONGO_URI
         sync: false
-      # External Upstash (dashboard, S47) — keep sync:false (see #4 / backend note).
-      - key: REDIS_URL
-        sync: false
       # FastAPI validates the inbound x-api-key against env AI_API_KEY
       # (ai/config/settings.py + routers/*._require_internal), NOT
       # AI_ENGINE_API_KEY. Its VALUE must equal the backend's
       # AI_ENGINE_API_KEY (what the backend sends as x-api-key).
       - key: AI_API_KEY
         sync: false
-      - key: CELERY_BROKER_URL
-        sync: false
       - key: GROQ_API_KEY
         sync: false
       - key: GROQ_MODEL
         value: llama-3.1-8b-instant
 
-  # ── Celery Worker (background, same Docker image) ──────────────────────────
-  - type: worker
-    name: aesis-celery-worker
-    runtime: docker
-    rootDir: ai
-    region: oregon
-    plan: starter
-    dockerfilePath: Dockerfile
-    dockerCommand: celery -A tasks.celery_app worker --loglevel=info -Q analysis --concurrency=2
-    envVars:
-      - key: ENVIRONMENT
-        value: production
-      # Worker shares the AI image — reads POSTGRES_DSN, not DATABASE_URL.
-      # Set to the Neon string in the dashboard. See HANDOFF S45.
-      - key: POSTGRES_DSN
-        sync: false
-      - key: MONGO_URI
-        sync: false
-      # External Upstash (dashboard, S47) — keep sync:false (see #4 / backend note).
-      - key: REDIS_URL
-        sync: false
-      # Worker shares the AI image; same key var as the engine: AI_API_KEY
-      # (value = backend's AI_ENGINE_API_KEY). Not AI_ENGINE_API_KEY.
-      - key: AI_API_KEY
-        sync: false
-      - key: CELERY_BROKER_URL
-        sync: false
+# ── Celery worker — RETIRED (S82, 2026-07-09) ────────────────────────────────
+# The legacy analyze_logbook pipeline was UI-unreachable dead code; the v2
+# synchronous /ai/enrich/entry pipeline replaced it. The `aesis-celery-worker`
+# service was removed from this blueprint — ALSO delete the service in the
+# Render dashboard (it bills starter-plan money) and drop the now-unused
+# CELERY_BROKER_URL + REDIS_URL env vars from aesis-ai-engine there.
 
 # ── Redis (EXTERNAL — Upstash) ───────────────────────────────────────────────
-# NOTE (Session 57 reconcile, #4): live Redis is an EXTERNAL Upstash instance,
-# set per-service in the dashboard (REDIS_URL / CELERY_BROKER_URL, sync:false) —
-# the SAME pattern as Neon Postgres below. There is intentionally NO Render
-# `keyvalue` block: an earlier render.yaml declared a managed `aesis-redis` and
-# wired every service to it via `fromService`, which on a blueprint sync would
-# override the live Upstash URLs with an empty Render instance (broker data lost,
-# AI rate limiter hung). Do not re-add a managed redis unless you also migrate
-# the broker off Upstash. See HANDOFF S47.
+# Still used by the BACKEND (rate limiter); the AI side no longer touches Redis
+# since the Celery retirement. Set per-service in the dashboard (REDIS_URL,
+# sync:false) — the SAME pattern as Neon Postgres below. There is intentionally
+# NO Render `keyvalue` block: an earlier render.yaml declared a managed
+# `aesis-redis` and wired every service to it via `fromService`, which on a
+# blueprint sync would override the live Upstash URL with an empty Render
+# instance. See HANDOFF S47/S82.
 #
 # NOTE (Session 45): the prod Postgres is now a FREE Neon instance (external,
 # non-expiring) — host ep-autumn-waterfall-a6nt7o2h.us-west-2.aws.neon.tech.

@@ -2,7 +2,6 @@ import { prisma } from '../../config/prisma';
 import { getMongo, COLLECTIONS } from '../../config/mongo';
 import { AppError } from '../../middleware/errorHandler';
 import { paginate, buildMeta } from '../../shared/utils/pagination';
-import { env } from '../../config/env';
 import { emitToUser } from '../../shared/utils/socketEmitter';
 import { sanitizeLogbookText } from '../../shared/utils/sanitize';
 import type { SaveDraftInput, FeedbackInput } from './logbook.schema';
@@ -85,7 +84,6 @@ export async function submitLogbook(submissionId: string, studentId: string) {
     where: { id: submissionId },
     data: {
       submissionStatus: 'submitted',
-      aiAnalysisStatus: 'pending',
       submittedAt:      now,
       isLate,
     },
@@ -103,8 +101,6 @@ export async function submitLogbook(submissionId: string, studentId: string) {
       metadata:   { weekNumber: submission.weekNumber, isLate },
     },
   });
-
-  void enqueueAiAnalysis(submissionId, studentId, submission.placementId);
 
   return updated;
 }
@@ -302,23 +298,4 @@ async function upsertMongoLogbook(
   );
 
   return id;
-}
-
-async function enqueueAiAnalysis(submissionId: string, studentId: string, placementId: string): Promise<void> {
-  try {
-    const res = await fetch(`${env.AI_ENGINE_URL}/ai/analyze/logbook`, {
-      method:  'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'x-api-key':    env.AI_ENGINE_API_KEY,
-      },
-      body: JSON.stringify({ submission_id: submissionId, student_id: studentId, placement_id: placementId }),
-    });
-    if (!res.ok) {
-      console.error(`[AI engine] Enqueue failed: ${res.status}`);
-    }
-  } catch (err) {
-    // Non-fatal — AI analysis runs async; submission is already saved
-    console.error(`[AI engine] Could not reach AI engine: ${(err as Error).message}`);
-  }
 }

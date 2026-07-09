@@ -1,8 +1,5 @@
 import asyncpg
-import psycopg2
-import psycopg2.extras
 from motor.motor_asyncio import AsyncIOMotorClient
-from pymongo import MongoClient
 from config.settings import settings
 
 # ── Async clients (FastAPI routers) ──────────────────────────
@@ -31,16 +28,3 @@ async def close_connections():
         _motor_client.close()
     if _pg_pool:
         await _pg_pool.close()
-
-
-# ── Sync clients (Celery tasks) ───────────────────────────────
-
-def get_sync_mongo_db():
-    client = MongoClient(settings.MONGO_URI)
-    return client.get_default_database()
-
-
-def get_sync_pg_conn():
-    conn = psycopg2.connect(settings.POSTGRES_DSN)
-    conn.autocommit = False
-    return conn

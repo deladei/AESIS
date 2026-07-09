@@ -14,11 +14,11 @@ Three top-level services in one repo (deployed separately):
 ## Stack
 - Frontend: **React 18 + TypeScript + Vite**, Tailwind CSS + shadcn/ui, TanStack Query v5, React Router v6, Recharts, Socket.io client. Dev port 5173. Deployed to **Vercel**.
 - Backend API: **Node.js + Express + TypeScript**, Prisma ORM. Dev port 3001 (has drifted to 3002 — check `backend/.env`). Deployed to **Render** (`aesis-backend`).
-- AI enrichment service: **standalone FastAPI (Python 3.11)** — NOT the same process as the API. Deployed to Render (`aesis-ai-engine` web + `aesis-celery-worker`). Two paths:
-  - **New (active) pipeline** — synchronous `POST /ai/enrich/entry`: a **local deterministic keyword classifier** (`aesis-entry-relevance/v1`), classify→summarize. No LLM, no training data, no cost. Advisory; never implies a grade.
-  - **Legacy pipeline** — Celery async (`analyze_logbook`, `compute_risk`) over a Redis broker: rule-based NLP quality scorer + TF-IDF/FAISS plagiarism + VADER sentiment + XGBoost risk (rule-based fallback).
+- AI enrichment service: **standalone FastAPI (Python 3.11)** — NOT the same process as the API. Deployed to Render (`aesis-ai-engine` web). One pipeline:
+  - Synchronous `POST /ai/enrich/entry` (`aesis-entry-enrichment/v2`): local deterministic keyword classifier (classify→summarize) + 6-dim rule-based quality rubric + stateless TF-IDF/FAISS+MiniLM plagiarism (corpus supplied per request) + optional Groq feedback draft (fail-open). Advisory; never implies a grade.
   - Chatbot uses **Groq** (`llama-3.1-8b-instant`, OpenAI-compatible). **There is no Gemini/OpenAI anywhere** — do not assume an external LLM scores anything.
-- Database: **PostgreSQL** (primary, via Prisma) + **MongoDB** (legacy logbook entry text/doc store — optional, code degrades gracefully if absent) + **Redis** (Celery broker + risk-alert pub/sub). **No RLS** — authorization is enforced in the app layer (see Roles).
+  - Legacy Celery pipeline (`analyze_logbook` + worker + Redis broker) **retired S82 (2026-07-09)** — v2 covers it; historical `logbook_analyses` rows still serve coordinator dashboards.
+- Database: **PostgreSQL** (primary, via Prisma) + **MongoDB** (legacy logbook entry text/doc store — optional, code degrades gracefully if absent) + **Redis** (backend rate limiter only). **No RLS** — authorization is enforced in the app layer (see Roles).
 - Auth: **custom JWT** (`jsonwebtoken`). Access token in memory; refresh token as HttpOnly cookie, persisted **SHA-256-hashed** in DB. PII (phone/address) encrypted AES-256-GCM at the app layer.
 - Storage (file uploads): **multer `memoryStorage`** on the legacy logbook attachments route; currently writes a **placeholder URL** — real S3/Cloudinary is an open TODO (`logbook.controller.ts`). Do not assume object storage exists yet.
 - Package managers / runtimes: **Node 22.x** (`backend/package.json` engines), **Python 3.11** (`ai/Dockerfile`). npm in `backend/` and `frontend/`; pip in `ai/`.
