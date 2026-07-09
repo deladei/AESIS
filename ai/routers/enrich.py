@@ -23,6 +23,7 @@ from pydantic import BaseModel, Field
 
 from config.settings import settings
 from services.entry_plagiarism import CorpusDoc, PlagiarismReport, check_entry
+from services.feedback_draft import FeedbackDraft, draft_feedback
 from services.quality_scorer import clamp_quality_score, score as compute_quality
 
 router = APIRouter(prefix="/ai", tags=["enrich"])
@@ -114,6 +115,9 @@ class EnrichEntryResponse(BaseModel):
     summary: EntrySummary
     quality: QualityBreakdown
     plagiarism: PlagiarismReport
+    # Human-in-loop: a draft for the SUPERVISOR to edit before sending — never
+    # shown to the student as-is. None whenever Groq is unconfigured or down.
+    feedback_draft: FeedbackDraft | None = None
 
 
 def _require_internal(x_api_key: str | None) -> None:
@@ -236,6 +240,13 @@ async def enrich_entry(
     summary = _summarize(body, scored)
     quality = _score_quality(body)
     plagiarism = check_entry(_entry_text(body.activities, body.reflection), body.corpus)
+    feedback = await draft_feedback(
+        activities=[a.description for a in body.activities],
+        learning=body.reflection.learning if body.reflection else "",
+        challenges=body.reflection.challenges if body.reflection else "",
+        rubric_feedback=quality.feedback,
+        concerns=summary.concerns,
+    )
 
     return EnrichEntryResponse(
         model_name=MODEL_NAME,
@@ -243,6 +254,7 @@ async def enrich_entry(
         summary=summary,
         quality=quality,
         plagiarism=plagiarism,
+        feedback_draft=feedback,
     )
 
 
