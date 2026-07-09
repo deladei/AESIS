@@ -22,10 +22,11 @@ from fastapi import APIRouter, Header, HTTPException
 from pydantic import BaseModel, Field
 
 from config.settings import settings
+from services.quality_scorer import clamp_quality_score, score as compute_quality
 
 router = APIRouter(prefix="/ai", tags=["enrich"])
 
-MODEL_NAME = "aesis-entry-relevance/v1"
+MODEL_NAME = "aesis-entry-enrichment/v2"
 
 # A small, transparent CS competency vocabulary. Deliberately not an LLM: at
 # pilot scale a keyword classifier is explainable to a defense panel and has no
@@ -87,10 +88,25 @@ class EntrySummary(BaseModel):
     concerns: list[str] = Field(default_factory=list)
 
 
+class QualityBreakdown(BaseModel):
+    """Rubric-based quality scores, all on a uniform 0–100 scale. Advisory only —
+    these inform the supervisor's read of an entry, never a grade."""
+
+    overall: float = Field(ge=0.0, le=100.0)
+    task_depth: float = Field(ge=0.0, le=100.0)
+    tech_vocab: float = Field(ge=0.0, le=100.0)
+    reflection: float = Field(ge=0.0, le=100.0)
+    temporal_consistency: float = Field(ge=0.0, le=100.0)
+    relevance: float = Field(ge=0.0, le=100.0)
+    flags: list[str] = Field(default_factory=list)
+    feedback: str = ""
+
+
 class EnrichEntryResponse(BaseModel):
     model_name: str
     relevance: float = Field(ge=0.0, le=1.0)
     summary: EntrySummary
+    quality: QualityBreakdown
 
 
 def _require_internal(x_api_key: str | None) -> None:
@@ -117,6 +133,48 @@ def _classify_activity(text: str, tags: list[str]) -> ActivityRelevance:
         relevance=round(relevance, 3),
         on_topic=relevance >= 0.34,
         themes=matched_themes,
+    )
+
+
+# ── Quality rubric — reuses the shared heuristic scorer ──────────────────────
+def _bounded(raw: float) -> float:
+    """Coerce a rubric score into [0, 100]. The scorer is bounded by construction;
+    this is the boundary guard so an out-of-range value can never leave the API
+    (response_model would 500, and the Node side degrades to no assessment)."""
+    clamped, _ = clamp_quality_score(raw)
+    return clamped if clamped is not None else 0.0
+
+
+def _score_quality(req: EnrichEntryRequest) -> QualityBreakdown:
+    """Map the weekly-entry shape onto the rubric scorer's legacy field contract:
+    activity descriptions are the 'tasks' narrative, author competency tags stand
+    in for the 'technologies' list, and the reflection splits into learning
+    (reflection rubric) and challenges (feeds task depth)."""
+    tasks = " ".join(a.description for a in req.activities)
+    technologies = " ".join(sorted({t for a in req.activities for t in a.competency_tags}))
+    challenges = req.reflection.challenges if req.reflection else ""
+    learning = req.reflection.learning if req.reflection else ""
+
+    q = compute_quality(
+        tasks=tasks,
+        technologies=technologies,
+        challenges=challenges,
+        reflection=learning,
+    )
+
+    flags: list[str] = []
+    if q.is_relevance_flagged:
+        flags.append("low_cs_relevance")
+
+    return QualityBreakdown(
+        overall=_bounded(q.quality_score),
+        task_depth=_bounded(q.task_depth_score),
+        tech_vocab=_bounded(q.tech_vocab_score),
+        reflection=_bounded(q.reflection_score),
+        temporal_consistency=_bounded(q.temporal_consistency_score),
+        relevance=_bounded(q.relevance_score * 100),
+        flags=flags,
+        feedback=q.ai_feedback_summary,
     )
 
 
@@ -159,8 +217,11 @@ async def enrich_entry(
     scored = [_classify_activity(a.description, a.competency_tags) for a in body.activities]
     overall = round(sum(a.relevance for a in scored) / len(scored), 3) if scored else 0.0
     summary = _summarize(body, scored)
+    quality = _score_quality(body)
 
-    return EnrichEntryResponse(model_name=MODEL_NAME, relevance=overall, summary=summary)
+    return EnrichEntryResponse(
+        model_name=MODEL_NAME, relevance=overall, summary=summary, quality=quality
+    )
 
 
 # ── Cross-week (placement) summary — runs ONCE at finalization ───────────────
