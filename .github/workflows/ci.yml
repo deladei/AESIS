@@ -14,6 +14,23 @@ jobs:
       run:
         working-directory: backend
 
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: test
+          POSTGRES_PASSWORD: test
+          # The DB the integration suite hardwires (it rewrites DATABASE_URL's
+          # pathname to /aesis_logbook_test) — without it the suite self-skips.
+          POSTGRES_DB: aesis_logbook_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U test"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
     steps:
       - uses: actions/checkout@v4
 
@@ -33,14 +50,27 @@ jobs:
       - name: Lint
         run: npm run lint
 
-      - name: Test (coverage)
-        run: npm run test:coverage
+      # migrate deploy, not db push: the append-only entry_event trigger lives
+      # in migration SQL and the integration suite asserts it. Same command
+      # prod runs, on a fresh DB.
+      - name: Migrate test database
+        run: npx prisma migrate deploy
+        env:
+          DATABASE_URL: postgresql://test:test@localhost:5432/aesis_logbook_test
+
+      # --runInBand: the DB-integration suites share one Postgres and flake
+      # under parallel workers (same reason as the local convention).
+      - name: Test
+        run: npm test -- --runInBand
         env:
           NODE_ENV: test
-          DATABASE_URL: postgresql://test:test@localhost:5432/test
+          DATABASE_URL: postgresql://test:test@localhost:5432/aesis_logbook_test
           MONGO_URI: mongodb://localhost:27017/test
           REDIS_URL: redis://localhost:6379
-          JWT_SECRET: 00000000000000000000000000000000
+          # Quoted: unquoted all-digit YAML scalars starting with 0 parse as
+          # octal integer 0 — JWT_SECRET became "0" and failed min(32),
+          # killing every suite that imports env.ts.
+          JWT_SECRET: "00000000000000000000000000000000"
           ENCRYPTION_KEY: "0000000000000000000000000000000000000000000000000000000000000000"
           AI_ENGINE_URL: http://localhost:8000
           AI_ENGINE_API_KEY: test-key
