@@ -73,10 +73,55 @@ async function claimNext(): Promise<ClaimedJob | null> {
   return rows[0] ?? null;
 }
 
+// Mirrors the AI side's _entry_text(): activity descriptions, then reflection
+// learning + challenges, joined flat — candidate and corpus must be comparable.
+function entryText(
+  activities: { description: string }[],
+  reflection: { learning: string; challenges: string } | null,
+): string {
+  const parts = activities.map((a) => a.description);
+  if (reflection) parts.push(reflection.learning, reflection.challenges);
+  return parts.filter(Boolean).join(' ');
+}
+
+// Cap mirrors the AI side's MAX_CORPUS_DOCS; keeps payloads bounded as the
+// cohort's corpus grows.
+const CORPUS_LIMIT = 400;
+
+/**
+ * Plagiarism corpus: every OTHER submitted/acknowledged entry's text (drafts
+ * stay private), most recent first. Rebuilt per check — the AI engine is
+ * stateless, so a restart can never leave a stale/empty index behind.
+ */
+async function buildCorpus(entryId: string, studentId: string) {
+  const others = await prisma.logbookEntry.findMany({
+    where: { id: { not: entryId }, status: { in: ['submitted', 'acknowledged'] } },
+    orderBy: { updatedAt: 'desc' },
+    take: CORPUS_LIMIT,
+    include: {
+      activities: { orderBy: { activityDate: 'asc' }, select: { description: true } },
+      reflection: { select: { learning: true, challenges: true } },
+      placement: { select: { studentId: true } },
+    },
+  });
+
+  return others
+    .map((e) => ({
+      entry_id: e.id,
+      text: entryText(e.activities, e.reflection),
+      same_student: e.placement.studentId === studentId,
+    }))
+    .filter((d) => d.text.length > 0);
+}
+
 async function buildPayload(entryId: string): Promise<EnrichmentPayload | null> {
   const entry = await prisma.logbookEntry.findUnique({
     where: { id: entryId },
-    include: { activities: { orderBy: { activityDate: 'asc' } }, reflection: true },
+    include: {
+      activities: { orderBy: { activityDate: 'asc' } },
+      reflection: true,
+      placement: { select: { studentId: true } },
+    },
   });
   if (!entry) return null;
 
@@ -91,6 +136,7 @@ async function buildPayload(entryId: string): Promise<EnrichmentPayload | null> 
     reflection: entry.reflection
       ? { learning: entry.reflection.learning, challenges: entry.reflection.challenges }
       : null,
+    corpus: await buildCorpus(entry.id, entry.placement.studentId),
   };
 }
 
@@ -104,6 +150,11 @@ async function onSuccess(job: ClaimedJob, payload: EnrichmentPayload, result: Aw
         modelName: result.model_name,
         relevance: result.relevance,
         summary: result.summary as unknown as Prisma.InputJsonValue,
+        // Report fields are absent from older AI-engine responses; a null
+        // feedback_draft (Groq down) is stored as SQL NULL, not JSON null.
+        quality: (result.quality as unknown as Prisma.InputJsonValue) ?? undefined,
+        plagiarism: (result.plagiarism as unknown as Prisma.InputJsonValue) ?? undefined,
+        feedbackDraft: (result.feedback_draft as unknown as Prisma.InputJsonValue) ?? undefined,
       },
     }),
     prisma.enrichmentQueue.update({

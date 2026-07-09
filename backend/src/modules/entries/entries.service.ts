@@ -446,6 +446,17 @@ export async function getEntry(actor: Actor, entryId: string) {
   if (actor.role === 'company_supervisor' && entry.reflection && !entry.reflection.supervisorVisible) {
     entry.reflection = null;
   }
+
+  // Plagiarism reports reference other students' entries and the feedback
+  // draft is the academic supervisor's to edit (human-in-loop) — neither is
+  // for student or company-supervisor eyes. Quality breakdown stays visible.
+  if (actor.role === 'student' || actor.role === 'company_supervisor') {
+    entry.assessments = entry.assessments.map((a) => ({
+      ...a,
+      plagiarism: null,
+      feedbackDraft: null,
+    }));
+  }
   return entry;
 }
 

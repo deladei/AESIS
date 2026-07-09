@@ -29,7 +29,7 @@ import {
   listEntries,
 } from '../entries.service';
 import { processOne } from '../enrichment.worker';
-import type { EnrichFn, EnrichmentResult } from '../enrichment.client';
+import type { EnrichFn, EnrichmentResult, EnrichmentPayload } from '../enrichment.client';
 import type { Actor } from '../entries.policy';
 import {
   recordAssessment,
@@ -531,6 +531,81 @@ describe('AI enrichment (Path 2)', () => {
     const job = await prisma.enrichmentQueue.findFirst({ where: { entryId } });
     expect(job?.status).toBe('succeeded');
     expect(await prisma.aiAssessment.count({ where: { entryId } })).toBe(1);
+  });
+
+  // ── v2 report fields: persistence + role-scoped redaction ──────────────
+  const reportResult: EnrichmentResult = {
+    ...goodResult,
+    quality: {
+      overall: 38.9,
+      task_depth: 53.3,
+      tech_vocab: 36.2,
+      reflection: 35.3,
+      temporal_consistency: 25,
+      relevance: 100,
+      flags: ['low_cs_relevance'],
+      feedback: 'Use chronological language.',
+    },
+    plagiarism: {
+      checked: true,
+      corpus_size: 3,
+      max_similarity: 0.87,
+      flagged: true,
+      matches: [
+        {
+          entry_id: 'someone-elses-entry',
+          similarity: 0.87,
+          tfidf_similarity: 0.87,
+          semantic_similarity: null,
+          same_student: false,
+        },
+      ],
+    },
+    feedback_draft: { text: 'Solid API work this week.', model: 'llama-3.1-8b-instant' },
+  };
+
+  itdb('persists v2 report fields; getEntry redacts plagiarism + draft for the student', async () => {
+    const entryId = await submitFreshWeek(36);
+    await processOne(async () => reportResult);
+
+    const supervisorView = await getEntry(supervisorA, entryId);
+    const supAssessment = supervisorView.assessments[0] as any;
+    expect(supAssessment.quality.overall).toBeCloseTo(38.9);
+    expect(supAssessment.plagiarism.flagged).toBe(true);
+    expect(supAssessment.feedbackDraft.text).toContain('API');
+
+    const studentView = await getEntry(studentA, entryId);
+    const stuAssessment = studentView.assessments[0] as any;
+    expect(stuAssessment.quality.overall).toBeCloseTo(38.9); // quality stays visible
+    expect(stuAssessment.plagiarism).toBeNull();
+    expect(stuAssessment.feedbackDraft).toBeNull();
+  });
+
+  itdb("payload corpus carries other students' submitted entries, never the candidate", async () => {
+    const otherDraft = await saveDraft(studentB, { ...week(37), placementId: placementB });
+    await submitEntry(studentB, otherDraft.id);
+    const entryId = await submitFreshWeek(38);
+
+    const payloads: EnrichmentPayload[] = [];
+    const capture: EnrichFn = async (p) => {
+      payloads.push(p);
+      return goodResult;
+    };
+    await processOne(capture); // studentB's job
+    await processOne(capture); // studentA's job
+
+    const mine = payloads.find((p) => p.entry_id === entryId);
+    expect(mine).toBeDefined();
+    const ids = mine!.corpus.map((d) => d.entry_id);
+    expect(ids).toContain(otherDraft.id); // another student's submitted entry
+    expect(ids).not.toContain(entryId); // never compares against itself
+
+    const doc = mine!.corpus.find((d) => d.entry_id === otherDraft.id)!;
+    expect(doc.same_student).toBe(false);
+    expect(doc.text).toContain('Built an API endpoint'); // activities + reflection text
+    expect(doc.text).toContain('Learned Express');
+    // studentA's own earlier submitted weeks appear tagged same_student.
+    expect(mine!.corpus.some((d) => d.same_student)).toBe(true);
   });
 });
 

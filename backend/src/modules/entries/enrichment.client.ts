@@ -19,6 +19,42 @@ const activityRelevanceSchema = z.object({
   themes: z.array(z.string()).default([]),
 });
 
+// 6-dimension rubric — every score hard-bounded to [0, 100] so an out-of-range
+// AI value can never be persisted (hard rule).
+const qualityBreakdownSchema = z.object({
+  overall: z.number().min(0).max(100),
+  task_depth: z.number().min(0).max(100),
+  tech_vocab: z.number().min(0).max(100),
+  reflection: z.number().min(0).max(100),
+  temporal_consistency: z.number().min(0).max(100),
+  relevance: z.number().min(0).max(100),
+  flags: z.array(z.string()).default([]),
+  feedback: z.string().default(''),
+});
+
+const plagiarismMatchSchema = z.object({
+  entry_id: z.string().min(1),
+  similarity: z.number().min(0).max(1),
+  tfidf_similarity: z.number().min(0).max(1),
+  semantic_similarity: z.number().min(0).max(1).nullable().default(null),
+  same_student: z.boolean(),
+});
+
+const plagiarismReportSchema = z.object({
+  checked: z.boolean(),
+  corpus_size: z.number().int().min(0),
+  max_similarity: z.number().min(0).max(1),
+  flagged: z.boolean(),
+  matches: z.array(plagiarismMatchSchema).default([]),
+});
+
+// Draft for the SUPERVISOR to edit (human-in-loop) — null when Groq is
+// unconfigured/down. Never sent to a student as-is.
+const feedbackDraftSchema = z.object({
+  text: z.string().min(1),
+  model: z.string().min(1),
+});
+
 export const enrichmentResponseSchema = z.object({
   model_name: z.string().min(1),
   relevance: z.number().min(0).max(1),
@@ -28,6 +64,11 @@ export const enrichmentResponseSchema = z.object({
     activity_relevance: z.array(activityRelevanceSchema).default([]),
     concerns: z.array(z.string()).default([]),
   }),
+  // Optional so an older AI-engine deploy (v1 response) still parses — those
+  // assessments simply carry no report fields.
+  quality: qualityBreakdownSchema.optional(),
+  plagiarism: plagiarismReportSchema.optional(),
+  feedback_draft: feedbackDraftSchema.nullable().optional(),
 });
 
 export type EnrichmentResult = z.infer<typeof enrichmentResponseSchema>;
@@ -37,6 +78,10 @@ export interface EnrichmentPayload {
   week_number: number;
   activities: { description: string; competency_tags: string[]; activity_date: string }[];
   reflection: { learning: string; challenges: string } | null;
+  // Plagiarism corpus: other submitted/acknowledged entries' text, rebuilt from
+  // Postgres per check (the AI engine keeps no index). Empty ⇒ stage reports
+  // unchecked. Text composition must mirror the AI side's _entry_text().
+  corpus: { entry_id: string; text: string; same_student: boolean }[];
 }
 
 /** How the worker calls the model. Injectable so tests need no live FastAPI. */

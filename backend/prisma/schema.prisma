@@ -827,6 +827,14 @@ model AiAssessment {
   modelName String       @map("model_name")
   relevance Decimal?     @db.Decimal(4, 3)
   summary   Json?        @db.JsonB
+  // 6-dimension rubric breakdown (0-100 each, Zod-validated before write).
+  quality   Json?        @db.JsonB
+  // Similarity report vs other submitted entries. Redacted on student and
+  // company-supervisor reads (match ids point at other students' entries).
+  plagiarism Json?       @db.JsonB
+  // Groq draft for the SUPERVISOR to edit before sending (human-in-loop);
+  // redacted on student and company-supervisor reads.
+  feedbackDraft Json?    @map("feedback_draft") @db.JsonB
   createdAt DateTime     @default(now()) @map("created_at")
 
   @@index([entryId])
