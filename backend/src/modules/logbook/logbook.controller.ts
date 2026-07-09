@@ -3,7 +3,7 @@ import multer from 'multer';
 import { z } from 'zod';
 import { AppError } from '../../middleware/errorHandler';
 import { ok, created } from '../../shared/utils/response';
-import { uuidParam, paginationQuery } from '../../shared/validators/common';
+import { paginationQuery } from '../../shared/validators/common';
 import {
   saveDraftSchema,
   feedbackSchema,

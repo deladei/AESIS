@@ -3,7 +3,9 @@ import tsParser from '@typescript-eslint/parser';
 
 export default [
   {
-    ignores: ['dist/**', 'node_modules/**', 'coverage/**'],
+    // Test files are excluded from tsconfig.json, so the type-aware parser
+    // can't lint them ("file was not found in any of the provided projects").
+    ignores: ['dist/**', 'node_modules/**', 'coverage/**', '**/__tests__/**', '**/*.test.ts'],
   },
   {
     files: ['src/**/*.ts'],
@@ -24,6 +26,9 @@ export default [
       '@typescript-eslint/no-unused-vars': ['error', { argsIgnorePattern: '^_' }],
       '@typescript-eslint/explicit-function-return-type': 'off',
       '@typescript-eslint/no-floating-promises': 'error',
+      // `declare global { namespace Express { … } }` in authenticate.ts is the
+      // canonical way to augment req.user — allow declaration namespaces.
+      '@typescript-eslint/no-namespace': ['error', { allowDeclarations: true }],
       'no-console': 'warn',
     },
   },

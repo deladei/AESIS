@@ -93,8 +93,10 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      # Plain --noEmit (not -b): build mode trips TS6310 on the composite
+      # tsconfig.node.json reference. Matches the local verify command.
       - name: Typecheck
-        run: npx tsc -b --noEmit
+        run: npx tsc --noEmit
 
       - name: Build
         run: npm run build

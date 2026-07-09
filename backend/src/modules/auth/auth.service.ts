@@ -308,7 +308,7 @@ export async function verifyEmail(token: string) {
 
 // ── Login ─────────────────────────────────────────────────────
 
-export async function login(input: LoginInput, ipAddress?: string) {
+export async function login(input: LoginInput, _ipAddress?: string) {
   const { email, password } = input;
 
   const user = await prisma.user.findUnique({ where: { email } });

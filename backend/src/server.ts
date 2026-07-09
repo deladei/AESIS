@@ -1,4 +1,5 @@
 import http from 'http';
+import jwt from 'jsonwebtoken';
 import { Server as SocketServer } from 'socket.io';
 import { createApp } from './app';
 import { env } from './config/env';
@@ -37,7 +38,6 @@ async function bootstrap() {
     if (!token) return next(new Error('No token provided'));
 
     try {
-      const jwt = require('jsonwebtoken');
       const payload = jwt.verify(token, env.JWT_SECRET);
       socket.data.user = payload;
       next();
@@ -49,7 +49,7 @@ async function bootstrap() {
   io.on('connection', (socket) => {
     const userId: string = socket.data.user?.sub;
     if (userId) {
-      socket.join(`user:${userId}`);
+      void socket.join(`user:${userId}`);
       logger.debug(`Socket connected: user ${userId}`);
     }
     socket.on('disconnect', () => {
