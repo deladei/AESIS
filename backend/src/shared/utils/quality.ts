@@ -57,6 +57,47 @@ export function meanQualityScore(rawScores: unknown[]): number | null {
   return Math.round(clamped * 10) / 10;
 }
 
+/**
+ * Extract the overall score from a v2 `ai_assessment.quality` JSONB payload.
+ *
+ * The v2 enrichment pipeline (S81) writes `{ overall, task_depth, … }` to
+ * `ai_assessment.quality`; the legacy `logbook_analyses` writer was retired in
+ * S82, so this is where NEW quality signal lives. The payload is Zod-validated
+ * at write time, but this reader still treats it as untrusted (hard rule:
+ * validate every AI-originated value) — anything non-object, missing, or
+ * out-of-range yields null and is excluded from aggregates.
+ */
+export function v2QualityOverall(quality: unknown): number | null {
+  if (typeof quality !== 'object' || quality === null || Array.isArray(quality)) return null;
+  const n = toQualityNumber((quality as Record<string, unknown>).overall);
+  return isValidQualityScore(n) ? n : null;
+}
+
+/** Shape of the entries relation each aggregate site selects for v2 quality. */
+export interface EntryWithLatestAssessment {
+  assessments?: { quality: unknown }[];
+}
+
+/**
+ * Merge legacy and v2 quality scores into one raw list for meanQualityScore.
+ *
+ * Legacy: `logbook_analyses.qualityScore` per submission (frozen history —
+ * writer retired S82). V2: the LATEST `ai_assessment.quality.overall` per
+ * weekly entry (callers select `assessments … orderBy createdAt desc, take 1`).
+ * Both streams describe the same 0–100 advisory quality of one logged week, so
+ * a single mean over the union keeps dashboards honest across the pipeline
+ * switch instead of freezing at the legacy data.
+ */
+export function mergedQualityScores(
+  legacyScores: unknown[],
+  entries: EntryWithLatestAssessment[],
+): (number | null)[] {
+  return [
+    ...legacyScores.map(toQualityNumber),
+    ...entries.map((e) => v2QualityOverall(e.assessments?.[0]?.quality)),
+  ];
+}
+
 /** Whole weeks spanned by [start, end], minimum 1. */
 export function weeksBetween(start: Date, end: Date): number {
   return Math.max(1, Math.round((end.getTime() - start.getTime()) / WEEK_MS));

@@ -4,7 +4,7 @@ import { prisma } from '../../config/prisma';
 import { env } from '../../config/env';
 import { paginate, buildMeta } from '../../shared/utils/pagination';
 import { AppError } from '../../middleware/errorHandler';
-import { meanQualityScore, SYSTEM_MAX_WEEKS } from '../../shared/utils/quality';
+import { meanQualityScore, mergedQualityScores, SYSTEM_MAX_WEEKS } from '../../shared/utils/quality';
 import { createNotification } from '../notifications/notifications.service';
 import { assignSupervisor } from '../placements/placements.service';
 import { emitToUser } from '../../shared/utils/socketEmitter';
@@ -28,6 +28,7 @@ export async function getCoordinatorDashboard(opts: { academicYearId?: string } 
     riskDistribution,
     scheduledByWeek,
     qualityRows,
+    v2QualityEntries,
     partnerCompanyRows,
     threshold,
     attentionPlacements,
@@ -46,9 +47,15 @@ export async function getCoordinatorDashboard(opts: { academicYearId?: string } 
     }),
     // Cohort-wide logbook quality scores (active placements). Averaged below via
     // the validated/clamped path so a corrupt stored score can't skew the mean.
+    // Two sources: legacy logbook_analyses (frozen history — writer retired S82)…
     prisma.logbookAnalysis.findMany({
       select: { qualityScore: true },
       where:  { submission: { placement: activeScope } },
+    }),
+    // …and the v2 pipeline: latest ai_assessment.quality per weekly entry.
+    prisma.logbookEntry.findMany({
+      where:  { placement: activeScope, assessments: { some: {} } },
+      select: { assessments: { select: { quality: true }, orderBy: { createdAt: 'desc' }, take: 1 } },
     }),
     // Distinct companies hosting at least one active placement
     prisma.placement.findMany({
@@ -62,7 +69,12 @@ export async function getCoordinatorDashboard(opts: { academicYearId?: string } 
       where:  activeScope,
       select: {
         academicSupervisorId: true,
-        logbookEntries:     { select: { status: true, submittedAt: true, periodEnd: true } },
+        logbookEntries: {
+          select: {
+            status: true, submittedAt: true, periodEnd: true,
+            assessments: { select: { quality: true }, orderBy: { createdAt: 'desc' }, take: 1 },
+          },
+        },
         logbookSubmissions: { select: { analysis: { select: { qualityScore: true } } } },
       },
     }),
@@ -83,7 +95,10 @@ export async function getCoordinatorDashboard(opts: { academicYearId?: string } 
   const needsAttention = attentionPlacements.reduce((n, p) => {
     const overdueLogs = p.logbookEntries.filter(e => e.status === 'draft' && e.periodEnd != null && new Date(e.periodEnd) < now).length;
     const submittedWeeks = p.logbookEntries.filter(e => e.submittedAt != null).length;
-    const avgQualityScore = meanQualityScore(p.logbookSubmissions.map(s => s.analysis?.qualityScore ?? null));
+    const avgQualityScore = meanQualityScore(mergedQualityScores(
+      p.logbookSubmissions.map(s => s.analysis?.qualityScore ?? null),
+      p.logbookEntries,
+    ));
     const { attention } = deriveAttention(
       { hasSupervisor: p.academicSupervisorId != null, submittedWeeks, overdueLogs, avgQualityScore },
       threshold,
@@ -110,7 +125,10 @@ export async function getCoordinatorDashboard(opts: { academicYearId?: string } 
   // meanQualityScore drops null + out-of-range scores and clamps to [0, 100], so
   // a corrupt stored value can never push this metric outside that range. Null
   // when no log carries a valid score (UI renders "—").
-  const avgPerformance = meanQualityScore(qualityRows.map((r) => r.qualityScore));
+  const avgPerformance = meanQualityScore(mergedQualityScores(
+    qualityRows.map((r) => r.qualityScore),
+    v2QualityEntries,
+  ));
 
   return {
     overview: {
@@ -178,12 +196,16 @@ const STUDENT_SELECT = {
     select:  { riskTier: true, riskScore: true, computedAt: true },
   },
   // All real entries — the latest (week desc → [0]) drives the "last activity"
-  // columns; the full set drives the overdue-log attention signal.
+  // columns; the full set drives the overdue-log attention signal and (via the
+  // latest ai_assessment per entry) the v2 half of the quality signal.
   logbookEntries: {
     orderBy: { weekNumber: 'desc' },
-    select:  { weekNumber: true, status: true, submittedAt: true, periodEnd: true },
+    select:  {
+      weekNumber: true, status: true, submittedAt: true, periodEnd: true,
+      assessments: { select: { quality: true }, orderBy: { createdAt: 'desc' }, take: 1 },
+    },
   },
-  // Legacy submissions carry the AI quality scores → the low-score signal.
+  // Legacy submissions carry the frozen pre-S82 AI quality scores.
   logbookSubmissions: { select: { analysis: { select: { qualityScore: true } } } },
 } satisfies Prisma.PlacementSelect;
 
@@ -283,7 +305,10 @@ export async function listStudents(filters: StudentListFilters) {
     const overdueLogs    = p.logbookEntries.filter(
       e => e.status === 'draft' && e.periodEnd != null && new Date(e.periodEnd) < now,
     ).length;
-    const avgQualityScore = meanQualityScore(p.logbookSubmissions.map(s => s.analysis?.qualityScore ?? null));
+    const avgQualityScore = meanQualityScore(mergedQualityScores(
+      p.logbookSubmissions.map(s => s.analysis?.qualityScore ?? null),
+      p.logbookEntries,
+    ));
     const { attention, reasons } = deriveAttention(
       { hasSupervisor: sup != null, submittedWeeks, overdueLogs, avgQualityScore },
       threshold,
@@ -472,7 +497,10 @@ export async function exportStudentsCsv(opts: { ids?: string[]; academicYearId?:
     const submittedWeeks = submittedMap.get(p.id) ?? 0;
     const sup = p.academicSupervisor;
     const overdueLogs = p.logbookEntries.filter(e => e.status === 'draft' && e.periodEnd != null && new Date(e.periodEnd) < now).length;
-    const avgQualityScore = meanQualityScore(p.logbookSubmissions.map(s => s.analysis?.qualityScore ?? null));
+    const avgQualityScore = meanQualityScore(mergedQualityScores(
+      p.logbookSubmissions.map(s => s.analysis?.qualityScore ?? null),
+      p.logbookEntries,
+    ));
     const { attention } = deriveAttention({ hasSupervisor: sup != null, submittedWeeks, overdueLogs, avgQualityScore }, threshold);
     lines.push([
       `${p.student.firstName} ${p.student.lastName}`.trim(),
@@ -524,7 +552,10 @@ export async function getStudentDetail(placementId: string) {
     prisma.logbookEntry.findMany({
       where:   { placementId },
       orderBy: { weekNumber: 'asc' },
-      select:  { id: true, weekNumber: true, status: true, periodStart: true, periodEnd: true, submittedAt: true, hoursLogged: true },
+      select:  {
+        id: true, weekNumber: true, status: true, periodStart: true, periodEnd: true, submittedAt: true, hoursLogged: true,
+        assessments: { select: { quality: true }, orderBy: { createdAt: 'desc' }, take: 1 },
+      },
     }),
     prisma.studentRiskScore.findMany({
       where:   { placementId },
@@ -580,7 +611,7 @@ export async function getStudentDetail(placementId: string) {
       submittedWeeks, totalWeeks,
       progressPct: totalWeeks > 0 ? Math.round((submittedWeeks / totalWeeks) * 100) : 0,
     },
-    avgQuality: meanQualityScore(analyses.map(a => a.qualityScore)),
+    avgQuality: meanQualityScore(mergedQualityScores(analyses.map(a => a.qualityScore), entries)),
     entries: entries.map(e => ({
       id: e.id, weekNumber: e.weekNumber, status: e.status,
       periodStart: e.periodStart, periodEnd: e.periodEnd, submittedAt: e.submittedAt,
@@ -984,9 +1015,14 @@ export async function getOversight(now: Date = new Date()) {
       },
       academicSupervisor: { select: { id: true, firstName: true, lastName: true } },
       riskScores: { orderBy: { computedAt: 'desc' }, take: 1, select: { riskTier: true } },
-      // Active weekly pipeline — drives overdue + activity.
-      logbookEntries: { select: { status: true, periodEnd: true, submittedAt: true, updatedAt: true } },
-      // Legacy submissions carry the quality scores + written feedback.
+      // Active weekly pipeline — drives overdue + activity + v2 quality.
+      logbookEntries: {
+        select: {
+          status: true, periodEnd: true, submittedAt: true, updatedAt: true,
+          assessments: { select: { quality: true }, orderBy: { createdAt: 'desc' }, take: 1 },
+        },
+      },
+      // Legacy submissions carry the frozen pre-S82 quality scores + written feedback.
       logbookSubmissions: {
         select: {
           submittedAt: true,
@@ -1003,9 +1039,10 @@ export async function getOversight(now: Date = new Date()) {
     ).length;
 
     // Validated numeric mean — null (→ "—") when nothing scorable, never 0.
-    const avgQualityScore = meanQualityScore(
+    const avgQualityScore = meanQualityScore(mergedQualityScores(
       p.logbookSubmissions.map((s) => s.analysis?.qualityScore ?? null),
-    );
+      p.logbookEntries,
+    ));
     const lowAvgScore = lowAvgThreshold > 0 && avgQualityScore !== null && avgQualityScore < lowAvgThreshold;
 
     const feedbackCount     = p.logbookSubmissions.reduce((n, s) => n + s.feedback.length, 0);
@@ -1138,6 +1175,9 @@ export async function getPerformanceDistribution(opts: { academicYearId?: string
         id: true,
         student: { select: { firstName: true, lastName: true } },
         logbookSubmissions: { select: { analysis: { select: { qualityScore: true } } } },
+        logbookEntries: {
+          select: { assessments: { select: { quality: true }, orderBy: { createdAt: 'desc' }, take: 1 } },
+        },
       },
     }),
     getActivePerformanceThreshold(),
@@ -1147,7 +1187,10 @@ export async function getPerformanceDistribution(opts: { academicYearId?: string
     .map((p) => ({
       placementId: p.id,
       name: `${p.student.firstName} ${p.student.lastName}`.trim(),
-      avg:  meanQualityScore(p.logbookSubmissions.map((s) => s.analysis?.qualityScore ?? null)),
+      avg:  meanQualityScore(mergedQualityScores(
+        p.logbookSubmissions.map((s) => s.analysis?.qualityScore ?? null),
+        p.logbookEntries,
+      )),
     }))
     .filter((s): s is { placementId: string; name: string; avg: number } => s.avg !== null);
 

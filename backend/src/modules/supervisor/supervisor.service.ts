@@ -1,5 +1,6 @@
 import { prisma } from '../../config/prisma';
 import { refreshRiskSnapshots } from '../risk/risk.service';
+import { meanQualityScore, mergedQualityScores } from '../../shared/utils/quality';
 
 export async function getSupervisorDashboard(supervisorId: string) {
   // Bring risk tiers up to date before reading them (never throws).
@@ -29,6 +30,15 @@ export async function getSupervisorDashboard(supervisorId: string) {
             analysis: { select: { qualityScore: true } },
           },
         },
+        // v2 pipeline: recent weekly entries' latest ai_assessment carries the
+        // quality signal now that the legacy analysis writer is retired (S82).
+        logbookEntries: {
+          orderBy: { weekNumber: 'desc' },
+          take:    4,
+          select: {
+            assessments: { select: { quality: true }, orderBy: { createdAt: 'desc' }, take: 1 },
+          },
+        },
       },
     }),
     prisma.logbookSubmission.count({
@@ -46,13 +56,12 @@ export async function getSupervisorDashboard(supervisorId: string) {
     // Reverse so oldest-first for sparkline (front-end Recharts)
     const recent = [...p.logbookSubmissions].reverse();
 
-    const qualityScores = recent
-      .map(s => s.analysis?.qualityScore != null ? Number(s.analysis.qualityScore) : null)
-      .filter((v): v is number => v !== null);
-
-    const avgQualityScore = qualityScores.length
-      ? Math.round(qualityScores.reduce((a, b) => a + b, 0) / qualityScores.length * 10) / 10
-      : null;
+    // Validated mean over both sources: recent legacy submissions (frozen
+    // history) + recent v2 entry assessments.
+    const avgQualityScore = meanQualityScore(mergedQualityScores(
+      recent.map(s => s.analysis?.qualityScore ?? null),
+      p.logbookEntries,
+    ));
 
     return {
       placementId: p.id,

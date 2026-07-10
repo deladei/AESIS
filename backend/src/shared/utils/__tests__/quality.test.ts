@@ -3,6 +3,8 @@ import {
   isValidQualityScore,
   clampQualityScore,
   meanQualityScore,
+  v2QualityOverall,
+  mergedQualityScores,
   weeksBetween,
   expectedWeeks,
   weekProgress,
@@ -70,6 +72,67 @@ describe('quality-score coercion + validation', () => {
     expect(clampQualityScore(-20)).toBe(0);
     expect(clampQualityScore('73.5')).toBe(73.5);
     expect(clampQualityScore('nope')).toBeNull();
+  });
+});
+
+describe('v2QualityOverall', () => {
+  it('extracts a valid overall score from a v2 quality payload', () => {
+    expect(v2QualityOverall({ overall: 78, task_depth: 80 })).toBe(78);
+    expect(v2QualityOverall({ overall: '78' })).toBe(78); // Decimal-as-string safe
+    expect(v2QualityOverall({ overall: 0 })).toBe(0);
+    expect(v2QualityOverall({ overall: 100 })).toBe(100);
+  });
+
+  it('rejects non-object payloads', () => {
+    expect(v2QualityOverall(null)).toBeNull();
+    expect(v2QualityOverall(undefined)).toBeNull();
+    expect(v2QualityOverall(78)).toBeNull();
+    expect(v2QualityOverall('78')).toBeNull();
+    expect(v2QualityOverall([78])).toBeNull();
+  });
+
+  it('rejects missing or out-of-range overall so it never reaches an aggregate', () => {
+    expect(v2QualityOverall({})).toBeNull();
+    expect(v2QualityOverall({ overall: null })).toBeNull();
+    expect(v2QualityOverall({ overall: 'abc' })).toBeNull();
+    expect(v2QualityOverall({ overall: -1 })).toBeNull();
+    expect(v2QualityOverall({ overall: 101 })).toBeNull();
+    expect(v2QualityOverall({ overall: 151565326582 })).toBeNull();
+  });
+});
+
+describe('mergedQualityScores', () => {
+  const entry = (quality: unknown) => ({ assessments: [{ quality }] });
+
+  it('unions legacy scores with the latest v2 assessment per entry', () => {
+    const merged = mergedQualityScores(
+      [80, '74'],
+      [entry({ overall: 60 }), entry({ overall: 90 })],
+    );
+    expect(merged).toEqual([80, 74, 60, 90]);
+    expect(meanQualityScore(merged)).toBe(76);
+  });
+
+  it('yields null (→ "—") through meanQualityScore when neither source has scores', () => {
+    expect(meanQualityScore(mergedQualityScores([], []))).toBeNull();
+    expect(meanQualityScore(mergedQualityScores([null], [{ assessments: [] }]))).toBeNull();
+  });
+
+  it('drops unscorable rows from both streams without skewing the mean', () => {
+    const merged = mergedQualityScores(
+      [null, 90, 'junk'],
+      [{ assessments: [] }, entry(null), entry({ overall: 200 }), entry({ overall: 70 })],
+    );
+    // Only 90 and 70 survive validation → mean 80.
+    expect(meanQualityScore(merged)).toBe(80);
+  });
+
+  it('uses only the first (latest) assessment when callers select take:1', () => {
+    const merged = mergedQualityScores(
+      [],
+      [{ assessments: [{ quality: { overall: 55 } }, { quality: { overall: 99 } }] }],
+    );
+    expect(meanQualityScore(merged)).toBe(55);
   });
 });
 

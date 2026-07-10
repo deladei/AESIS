@@ -103,6 +103,7 @@ const mp = prisma as jest.Mocked<typeof prisma>;
 function stubDashboardExtras(
   opts: {
     scores?: (number | string | null)[];
+    v2Scores?: (number | string | null)[];
     companies?: number;
     threshold?: number;
     attention?: unknown[];
@@ -110,6 +111,10 @@ function stubDashboardExtras(
 ) {
   (mp.logbookAnalysis.findMany as jest.Mock).mockResolvedValue(
     (opts.scores ?? []).map((s) => ({ qualityScore: s })),
+  );
+  // v2 pipeline: latest ai_assessment per weekly entry (merged into avgPerformance).
+  (mp.logbookEntry.findMany as jest.Mock).mockResolvedValue(
+    (opts.v2Scores ?? []).map((s) => ({ assessments: [{ quality: { overall: s } }] })),
   );
   (mp.cohortConfig.findFirst as jest.Mock).mockResolvedValue({
     performanceThreshold: opts.threshold ?? 50,
@@ -188,6 +193,20 @@ describe('getCoordinatorDashboard', () => {
     expect(result.overview.avgPerformance).toBe(70);
     expect(result.overview.avgPerformance!).toBeGreaterThanOrEqual(0);
     expect(result.overview.avgPerformance!).toBeLessThanOrEqual(100);
+  });
+
+  it('merges v2 entry-assessment scores with legacy analyses in avgPerformance', async () => {
+    (mp.placement.count as jest.Mock).mockResolvedValue(0);
+    (latestRiskDistribution as jest.Mock).mockResolvedValue({ low: 0, medium: 0, high: 0 });
+    (mp.logbookSubmission.groupBy as jest.Mock)
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([]);
+    // Legacy 80 (frozen history) + v2 60 → one mean of 70 across the pipeline switch.
+    stubDashboardExtras({ scores: ['80'], v2Scores: [60], companies: 0 });
+
+    const result = await getCoordinatorDashboard();
+
+    expect(result.overview.avgPerformance).toBe(70);
   });
 
   it('returns complianceRate 100 when no submissions are scheduled', async () => {
@@ -1039,31 +1058,34 @@ describe('getPerformanceDistribution', () => {
   it('buckets validated scores, lists below-threshold, and excludes unscorable interns', async () => {
     (mp.cohortConfig.findFirst as jest.Mock).mockResolvedValue({ performanceThreshold: 50 });
     (mp.placement.findMany as jest.Mock).mockResolvedValue([
-      { id: 'p1', student: { firstName: 'High', lastName: 'Scorer' }, logbookSubmissions: [{ analysis: { qualityScore: '85' } }] },
-      { id: 'p2', student: { firstName: 'Mid',  lastName: 'Scorer' }, logbookSubmissions: [{ analysis: { qualityScore: '65' } }] },
-      { id: 'p3', student: { firstName: 'Low',  lastName: 'Scorer' }, logbookSubmissions: [{ analysis: { qualityScore: '40' } }] },
+      { id: 'p1', student: { firstName: 'High', lastName: 'Scorer' }, logbookSubmissions: [{ analysis: { qualityScore: '85' } }], logbookEntries: [] },
+      { id: 'p2', student: { firstName: 'Mid',  lastName: 'Scorer' }, logbookSubmissions: [{ analysis: { qualityScore: '65' } }], logbookEntries: [] },
+      { id: 'p3', student: { firstName: 'Low',  lastName: 'Scorer' }, logbookSubmissions: [{ analysis: { qualityScore: '40' } }], logbookEntries: [] },
       // out-of-range excluded → unscored
-      { id: 'p4', student: { firstName: 'Corrupt', lastName: 'Row' }, logbookSubmissions: [{ analysis: { qualityScore: '999' } }] },
+      { id: 'p4', student: { firstName: 'Corrupt', lastName: 'Row' }, logbookSubmissions: [{ analysis: { qualityScore: '999' } }], logbookEntries: [] },
       // nothing scorable
-      { id: 'p5', student: { firstName: 'No', lastName: 'Data' }, logbookSubmissions: [] },
+      { id: 'p5', student: { firstName: 'No', lastName: 'Data' }, logbookSubmissions: [], logbookEntries: [] },
+      // v2-only intern: no legacy analysis, scored via ai_assessment.quality
+      { id: 'p6', student: { firstName: 'Abena', lastName: 'Osei' }, logbookSubmissions: [],
+        logbookEntries: [{ assessments: [{ quality: { overall: 45 } }] }] },
     ]);
 
     const r = await getPerformanceDistribution();
 
     expect(r.threshold).toBe(50);
-    expect(r.scoredCount).toBe(3);
+    expect(r.scoredCount).toBe(4);
     expect(r.unscoredCount).toBe(2);
-    // 40 → 40–59, 65 → 60–79, 85 → 80–100
-    expect(r.buckets.find((b) => b.label === '40–59')!.count).toBe(1);
+    // 40, 45 → 40–59, 65 → 60–79, 85 → 80–100
+    expect(r.buckets.find((b) => b.label === '40–59')!.count).toBe(2);
     expect(r.buckets.find((b) => b.label === '60–79')!.count).toBe(1);
     expect(r.buckets.find((b) => b.label === '80–100')!.count).toBe(1);
-    expect(r.belowThreshold.map((s) => s.name)).toEqual(['Low Scorer']);
+    expect(r.belowThreshold.map((s) => s.name).sort()).toEqual(['Abena Osei', 'Low Scorer']);
   });
 
   it('returns an empty below-threshold list when the threshold is disabled (0)', async () => {
     (mp.cohortConfig.findFirst as jest.Mock).mockResolvedValue({ performanceThreshold: 0 });
     (mp.placement.findMany as jest.Mock).mockResolvedValue([
-      { id: 'p1', student: { firstName: 'Low', lastName: 'Scorer' }, logbookSubmissions: [{ analysis: { qualityScore: '10' } }] },
+      { id: 'p1', student: { firstName: 'Low', lastName: 'Scorer' }, logbookSubmissions: [{ analysis: { qualityScore: '10' } }], logbookEntries: [] },
     ]);
 
     const r = await getPerformanceDistribution();

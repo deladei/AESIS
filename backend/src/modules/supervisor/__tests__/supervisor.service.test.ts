@@ -24,6 +24,7 @@ const makePlacement = (overrides: Record<string, unknown> = {}) => ({
     { weekNumber: 2, submissionStatus: 'approved', submittedAt: new Date(), analysis: { qualityScore: 70 } },
     { weekNumber: 1, submissionStatus: 'approved', submittedAt: new Date(), analysis: { qualityScore: 60 } },
   ],
+  logbookEntries: [],
   ...overrides,
 });
 
@@ -49,6 +50,43 @@ describe('getSupervisorDashboard', () => {
     // (80 + 74 + 70 + 60) / 4 = 71
     expect(result.overview.avgQualityScore).toBe(71);
     expect(result.students[0].avgQualityScore).toBe(71);
+  });
+
+  it('merges v2 entry-assessment quality into avgQualityScore', async () => {
+    const withV2 = makePlacement({
+      logbookSubmissions: [
+        { weekNumber: 1, submissionStatus: 'approved', submittedAt: new Date(), analysis: { qualityScore: 80 } },
+      ],
+      logbookEntries: [
+        { assessments: [{ quality: { overall: 60 } }] },
+        { assessments: [] }, // unassessed entry contributes nothing
+      ],
+    });
+    (mp.placement.findMany      as jest.Mock).mockResolvedValue([withV2]);
+    (mp.logbookSubmission.count as jest.Mock).mockResolvedValue(0);
+
+    const result = await getSupervisorDashboard('sup-1');
+
+    // Legacy 80 + v2 60 → mean 70; the empty assessment list is excluded.
+    expect(result.students[0].avgQualityScore).toBe(70);
+  });
+
+  it('uses v2 assessments alone once legacy analyses stop (post-S82 cohorts)', async () => {
+    const v2Only = makePlacement({
+      logbookSubmissions: [
+        { weekNumber: 1, submissionStatus: 'submitted', submittedAt: new Date(), analysis: null },
+      ],
+      logbookEntries: [
+        { assessments: [{ quality: { overall: 90 } }] },
+        { assessments: [{ quality: { overall: 70 } }] },
+      ],
+    });
+    (mp.placement.findMany      as jest.Mock).mockResolvedValue([v2Only]);
+    (mp.logbookSubmission.count as jest.Mock).mockResolvedValue(0);
+
+    const result = await getSupervisorDashboard('sup-1');
+
+    expect(result.students[0].avgQualityScore).toBe(80);
   });
 
   it('returns recentWeeks oldest-first (for sparkline)', async () => {
