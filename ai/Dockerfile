@@ -19,7 +19,7 @@ RUN python -c "import nltk; nltk.download('punkt', quiet=True); nltk.download('p
 COPY . .
 
 # Create __init__.py files for packages
-RUN touch config/__init__.py models/__init__.py services/__init__.py tasks/__init__.py routers/__init__.py utils/__init__.py
+RUN touch config/__init__.py models/__init__.py services/__init__.py routers/__init__.py utils/__init__.py
 
 # Containers are the deployed form of this service; bare-metal local dev keeps
 # the "development" default from settings.py. A real env var outranks any .env
