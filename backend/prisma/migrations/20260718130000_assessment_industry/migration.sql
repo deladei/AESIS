@@ -3,6 +3,11 @@
 -- the application layer; on paper it travelled under confidential cover to the
 -- Head of Department, hidden from the student AND the university supervisor.
 
+-- Evidence-origin for records that may arrive on paper (scan keyed in by
+-- staff) or digitally (tokenised link). Local DBs had this type via db push,
+-- which masked its absence from the migration chain until CI replayed it.
+CREATE TYPE "RecordOrigin" AS ENUM ('digital', 'paper');
+
 CREATE TABLE "assessment_industry" (
     "id" TEXT NOT NULL,
     "placement_id" TEXT NOT NULL,
