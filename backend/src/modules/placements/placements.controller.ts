@@ -4,8 +4,11 @@ import {
   updatePlacementStatusSchema,
   assignSupervisorSchema,
   createCompanySchema,
+  createTransferRequestSchema,
+  decideTransferRequestSchema,
 } from './placements.schema';
 import * as service from './placements.service';
+import * as transfers from './transfers.service';
 import { ok, created } from '../../shared/utils/response';
 import { AppError } from '../../middleware/errorHandler';
 import { paginationQuery, uuidParam } from '../../shared/validators/common';
@@ -46,7 +49,7 @@ export async function assignSupervisorHandler(req: Request, res: Response) {
 
 export async function listPlacementsHandler(req: Request, res: Response) {
   const { page, limit } = paginationQuery.parse(req.query);
-  const statusFilter = z.enum(['pending', 'active', 'completed', 'withdrawn', 'failed'])
+  const statusFilter = z.enum(['pending', 'active', 'completed', 'withdrawn', 'failed', 'transferred_out', 'cancelled'])
     .optional()
     .parse(req.query['status']);
 
@@ -63,6 +66,36 @@ export async function listPlacementsHandler(req: Request, res: Response) {
 export async function getSupervisorPlacementsHandler(req: Request, res: Response) {
   const placements = await service.getSupervisorPlacements(req.user!.sub);
   return ok(res, placements);
+}
+
+// ── Change of attachment (transfer) ───────────────────────────
+
+export async function createTransferRequestHandler(req: Request, res: Response) {
+  const { id }  = uuidParam.parse(req.params);
+  const input   = createTransferRequestSchema.parse(req.body);
+  const request = await transfers.createTransferRequest(req.user!.sub, id, input);
+  return created(res, request);
+}
+
+export async function getMyTransferRequestsHandler(req: Request, res: Response) {
+  const requests = await transfers.getMyTransferRequests(req.user!.sub);
+  return ok(res, requests);
+}
+
+export async function listTransferRequestsHandler(req: Request, res: Response) {
+  const { page, limit } = paginationQuery.parse(req.query);
+  const status = z.enum(['requested', 'approved', 'rejected'])
+    .optional()
+    .parse(req.query['status']);
+  const result = await transfers.listTransferRequests({ status, page, limit });
+  return ok(res, result.requests, result.meta);
+}
+
+export async function decideTransferRequestHandler(req: Request, res: Response) {
+  const { id }  = uuidParam.parse(req.params);
+  const input   = decideTransferRequestSchema.parse(req.body);
+  const request = await transfers.decideTransferRequest(id, req.user!.sub, input);
+  return ok(res, request);
 }
 
 // ── Companies ─────────────────────────────────────────────────

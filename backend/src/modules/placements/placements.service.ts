@@ -1,3 +1,4 @@
+import { Prisma } from '@prisma/client';
 import { prisma } from '../../config/prisma';
 import { AppError } from '../../middleware/errorHandler';
 import { paginate, buildMeta } from '../../shared/utils/pagination';
@@ -184,6 +185,10 @@ export async function updatePlacementStatus(
   const updateData: Record<string, unknown> = {
     placementStatus: input.status,
     approvedBy:      coordinatorId,
+    // Only a live (pending/active) placement is "current" — the partial unique
+    // index allows one per student. Closing statuses clear the flag; re-approval
+    // restores it (a second live placement then fails the index → 409 below).
+    isCurrent:       input.status === 'active',
   };
 
   if (input.status === 'active') {
@@ -200,17 +205,25 @@ export async function updatePlacementStatus(
     updateData['academicSupervisorId'] = chosen;
   }
 
-  if (input.status === 'rejected') {
+  if (input.status === 'rejected' || input.status === 'cancelled') {
     updateData['rejectionReason'] = input.rejectionReason;
   }
 
-  const updated = await prisma.placement.update({
-    where: { id: placementId },
-    data:  updateData,
-    include: {
-      student: { select: { id: true, firstName: true, lastName: true, email: true } },
-    },
-  });
+  let updated;
+  try {
+    updated = await prisma.placement.update({
+      where: { id: placementId },
+      data:  updateData,
+      include: {
+        student: { select: { id: true, firstName: true, lastName: true, email: true } },
+      },
+    });
+  } catch (err) {
+    if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === 'P2002') {
+      throw new AppError(409, 'Student already has a current placement');
+    }
+    throw err;
+  }
 
   // No logbook rows are pre-generated on approval. A student's weekly entries
   // are created only when they actually start logging (the entries pipeline),

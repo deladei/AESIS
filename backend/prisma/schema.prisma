@@ -32,6 +32,23 @@ enum PlacementStatus {
   completed
   withdrawn
   failed
+  // A transfer closed this placement; the student continues elsewhere. Weeks
+  // completed here still count toward the attachment minimum.
+  transferred_out
+  // "Any attachment not properly authorized will be cancelled" — a cancelled
+  // placement's weeks do NOT count toward the minimum.
+  cancelled
+}
+
+// Change-of-attachment request. The logbook rule: a student starts and
+// finishes at one establishment; a change needs the university's written
+// permission IN ADVANCE (authorization letter), else the attachment is
+// cancelled. The attachment is continuous across an approved transfer — week
+// numbering never resets.
+enum TransferStatus {
+  requested
+  approved
+  rejected
 }
 
 // Self-reported at registration. `other` covers anyone who does not identify
@@ -364,6 +381,8 @@ model User {
   verifiedIndustrySupervisors IndustrySupervisor[] @relation("IndustrySupervisorVerifier")
   createdAssessmentTokens     AssessmentToken[]    @relation("AssessmentTokenCreator")
   enteredIndustryAssessments  AssessmentIndustry[] @relation("IndustryAssessmentEnteredBy")
+  transferRequests            PlacementTransferRequest[] @relation("TransferStudent")
+  transfersDecided            PlacementTransferRequest[] @relation("TransferDecider")
 
   @@map("users")
 }
@@ -445,6 +464,13 @@ model Placement {
   rejectionReason      String?            @map("rejection_reason")
   approvedAt           DateTime?          @map("approved_at")
   approvedBy           String?            @map("approved_by") // coordinator user id
+  // Transfer support: exactly ONE current placement per student (partial unique
+  // index in migration SQL — Prisma cannot model it). A transferred/cancelled
+  // placement keeps its rows for history; supersedes links the chain.
+  isCurrent             Boolean     @default(true) @map("is_current")
+  supersedesPlacementId String?     @map("supersedes_placement_id")
+  supersedes            Placement?  @relation("PlacementSupersedes", fields: [supersedesPlacementId], references: [id])
+  supersededBy          Placement[] @relation("PlacementSupersedes")
   // Manual coordinator "flag for attention". These columns ARE the flag's audit
   // record (who/when/why); cleared on un-flag. No FK on flaggedById by design.
   flaggedAt            DateTime?          @map("flagged_at")
@@ -468,6 +494,8 @@ model Placement {
   industrySupervisors IndustrySupervisor[]
   assessmentTokens    AssessmentToken[]
   industryAssessments AssessmentIndustry[]
+  transfersFrom       PlacementTransferRequest[] @relation("TransferFrom")
+  transfersTo         PlacementTransferRequest[] @relation("TransferTo")
 
   @@map("placements")
 }
@@ -1030,6 +1058,31 @@ model AssessmentToken {
 
   @@index([placementId])
   @@map("assessment_token")
+}
+
+// Change-of-attachment request; to_placement is created only on approval.
+// new_company_address is the full address, not a P.O. box (logbook rule).
+model PlacementTransferRequest {
+  id                     String         @id @default(uuid())
+  studentId              String         @map("student_id")
+  student                User           @relation("TransferStudent", fields: [studentId], references: [id], onDelete: Cascade)
+  fromPlacementId        String         @map("from_placement_id")
+  fromPlacement          Placement      @relation("TransferFrom", fields: [fromPlacementId], references: [id])
+  toPlacementId          String?        @map("to_placement_id")
+  toPlacement            Placement?     @relation("TransferTo", fields: [toPlacementId], references: [id])
+  newCompanyName         String         @map("new_company_name")
+  newCompanyAddress      String         @map("new_company_address")
+  reason                 String
+  authorizationLetterUrl String?        @map("authorization_letter_url")
+  status                 TransferStatus @default(requested)
+  requestedAt            DateTime       @default(now()) @map("requested_at")
+  decidedById            String?        @map("decided_by_id")
+  decidedBy              User?          @relation("TransferDecider", fields: [decidedById], references: [id])
+  decidedAt              DateTime?      @map("decided_at")
+  decisionNote           String?        @map("decision_note")
+
+  @@index([studentId])
+  @@map("placement_transfer_request")
 }
 
 // CONFIDENTIAL: the Industrial Attachment Performance Evaluation Form, verbatim

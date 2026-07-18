@@ -57,6 +57,32 @@ router.patch(
   asyncHandler(ctrl.assignSupervisorHandler),
 );
 
+// ── Change of attachment (transfer) ───────────────────────────
+// Literal paths must register before the '/:id' param route.
+router.get(
+  '/transfer-requests',
+  authorize('coordinator', 'admin'),
+  asyncHandler(ctrl.listTransferRequestsHandler),
+);
+
+router.get(
+  '/transfer-requests/mine',
+  authorize('student'),
+  asyncHandler(ctrl.getMyTransferRequestsHandler),
+);
+
+router.patch(
+  '/transfer-requests/:id/decision',
+  authorize('coordinator', 'admin'),
+  asyncHandler(ctrl.decideTransferRequestHandler),
+);
+
+router.post(
+  '/:id/transfer-requests',
+  authorize('student'),
+  asyncHandler(ctrl.createTransferRequestHandler),
+);
+
 // ── Shared (student + supervisor + coordinator) ───────────────
 router.get(
   '/:id',
