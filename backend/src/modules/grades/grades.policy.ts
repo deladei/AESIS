@@ -33,9 +33,12 @@ export async function loadGradeOwnership(placementId: string): Promise<GradeOwne
 const isOwnSupervisor = (a: Actor, o: GradeOwnership) =>
   a.role === 'academic_supervisor' && o.academicSupervisorId === a.id;
 
+// Coordinator, HoD and admin form the grade-office staff set.
+const isStaff = (a: Actor) => a.role === 'admin' || a.role === 'coordinator' || a.role === 'hod';
+
 /** Who may READ the grade at all (the serializer further filters WHAT they see). */
 export function assertCanReadGrade(actor: Actor, o: GradeOwnership): void {
-  if (actor.role === 'admin' || actor.role === 'coordinator') return;
+  if (isStaff(actor)) return;
   if (isOwnSupervisor(actor, o)) return;
   if (actor.role === 'student' && o.studentId === actor.id) return;
   throw new AppError(403, 'Access denied');
@@ -48,7 +51,7 @@ export function assertCanReadGrade(actor: Actor, o: GradeOwnership): void {
  * placements — NEVER the industry component.
  */
 export function assertCanScoreComponent(actor: Actor, o: GradeOwnership, component: GradeComponent): void {
-  if (actor.role === 'admin' || actor.role === 'coordinator') return;
+  if (isStaff(actor)) return;
   if (isOwnSupervisor(actor, o)) {
     if (component === 'industry') {
       throw new AppError(403, 'The industry score is not entered by the academic supervisor');
@@ -58,9 +61,9 @@ export function assertCanScoreComponent(actor: Actor, o: GradeOwnership, compone
   throw new AppError(403, 'Not permitted to score this placement');
 }
 
-/** Aggregation, override, sign-off and release are coordinator (HoD) authority. */
+/** Aggregation, override, sign-off and release are coordinator/HoD authority. */
 export function assertCanManageGrade(actor: Actor): void {
-  if (actor.role === 'admin' || actor.role === 'coordinator') return;
+  if (isStaff(actor)) return;
   throw new AppError(403, 'Only the coordinator may aggregate, override, or release a grade');
 }
 
@@ -97,7 +100,7 @@ export function serializeGrade(actor: Actor, o: GradeOwnership, g: GradeRow | nu
   const released = g?.status === 'released';
   const effectiveTotal = g ? g.coordinatorOverride ?? g.total : null;
 
-  if (actor.role === 'admin' || actor.role === 'coordinator') {
+  if (isStaff(actor)) {
     return {
       status: g?.status ?? 'draft',
       released,

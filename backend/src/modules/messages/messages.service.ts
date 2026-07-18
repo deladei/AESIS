@@ -39,14 +39,15 @@ function canRead(actor: Actor, p: { studentId: string; academicSupervisorId: str
   return (
     actor.role === 'admin' ||
     actor.role === 'coordinator' ||
+    actor.role === 'hod' ||
     actor.id === p.studentId ||
     actor.id === p.academicSupervisorId
   );
 }
 
 function canPost(actor: Actor, p: { studentId: string; academicSupervisorId: string | null }): boolean {
-  // Coordinators are read-only oversight; everyone else who can read can post.
-  return actor.role !== 'coordinator' && canRead(actor, p);
+  // Coordinators and the HoD are read-only oversight; everyone else who can read can post.
+  return actor.role !== 'coordinator' && actor.role !== 'hod' && canRead(actor, p);
 }
 
 export async function listThread(actor: Actor, placementId: string) {

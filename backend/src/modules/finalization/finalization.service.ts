@@ -43,7 +43,7 @@ function assertCanFinalize(actor: Actor, placement: PlacementCore): void {
 
 /** Academic supervisor (own), coordinator, or admin may invite an attestation. */
 function assertCanInvite(actor: Actor, placement: PlacementCore): void {
-  if (actor.role === 'admin' || actor.role === 'coordinator') return;
+  if (actor.role === 'admin' || actor.role === 'coordinator' || actor.role === 'hod') return;
   if (actor.role === 'academic_supervisor' && placement.academicSupervisorId === actor.id) return;
   throw new AppError(403, 'Not permitted to invite a company attestation for this placement');
 }
@@ -195,7 +195,7 @@ type FinalAssessmentOwnership = {
  * grade is never exposed to them.
  */
 function assertCanViewFinalAssessment(actor: Actor, p: FinalAssessmentOwnership, finalized: boolean): void {
-  if (actor.role === 'admin' || actor.role === 'coordinator') return;
+  if (actor.role === 'admin' || actor.role === 'coordinator' || actor.role === 'hod') return;
   if (actor.role === 'academic_supervisor' && p.academicSupervisorId === actor.id) return;
 
   const isStudent = actor.role === 'student' && p.studentId === actor.id;

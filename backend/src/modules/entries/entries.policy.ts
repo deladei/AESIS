@@ -40,6 +40,7 @@ export function assertPlacementAccess(
       return;
 
     case 'coordinator':
+    case 'hod':
       // Read-only across all CS placements; never transitions or writes.
       if (mode === 'read') return;
       throw new AppError(403, 'Coordinator access to logbook entries is read-only');
@@ -90,6 +91,7 @@ export function entryScopeFilter(actor: Actor): Prisma.LogbookEntryWhereInput {
   switch (actor.role) {
     case 'admin':
     case 'coordinator':
+    case 'hod':
       return {}; // full read scope
     case 'student':
       return { placement: { studentId: actor.id } };

@@ -14,6 +14,7 @@ export type EntryRole =
   | 'academic_supervisor'
   | 'company_supervisor'
   | 'coordinator'
+  | 'hod'
   | 'admin';
 
 interface TransitionDef {

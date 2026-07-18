@@ -52,4 +52,26 @@ describe('authorize middleware', () => {
 
     expect(next).toHaveBeenCalled();
   });
+
+  it('hod satisfies a coordinator-gated route', () => {
+    const guard = authorize('coordinator', 'admin');
+    const req   = makeReq({ sub: 'uid', role: 'hod' });
+    const next  = makeNext();
+
+    guard(req, fakeRes, next);
+
+    expect(next).toHaveBeenCalled();
+  });
+
+  it('coordinator does NOT satisfy an hod-only route', () => {
+    const guard = authorize('hod', 'admin');
+    const req   = makeReq({ sub: 'uid', role: 'coordinator' });
+    expect(() => guard(req, fakeRes, makeNext())).toThrow('Insufficient permissions');
+  });
+
+  it('hod does not inherit non-coordinator roles', () => {
+    const guard = authorize('student', 'academic_supervisor');
+    const req   = makeReq({ sub: 'uid', role: 'hod' });
+    expect(() => guard(req, fakeRes, makeNext())).toThrow('Insufficient permissions');
+  });
 });

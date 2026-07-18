@@ -20,6 +20,9 @@ enum UserRole {
   academic_supervisor
   company_supervisor
   coordinator
+  // Head of Department: coordinator powers plus final-grade release sign-off.
+  // Not self-registerable; provisioned by an admin.
+  hod
   admin
 }
 
