@@ -14,6 +14,7 @@ import {
   verifySupervisor,
   visitConfirmSupervisor,
 } from './industry.service';
+import { issueAssessmentToken } from './industry.token';
 import type { Actor } from '../entries/entries.policy';
 import type { EntryRole } from '../entries/entry.stateMachine';
 
@@ -50,4 +51,15 @@ export async function visitConfirmHandler(req: Request, res: Response) {
   const { id } = idParam.parse(req.params);
   const input = visitConfirmSchema.parse(req.body);
   return ok(res, await visitConfirmSupervisor(actorOf(req), id, input));
+}
+
+const issueTokenSchema = z.object({
+  purpose: z.enum(['weekly_comment', 'final_assessment']),
+  weekNumber: z.number().int().min(1).max(52).optional(),
+});
+
+export async function issueTokenHandler(req: Request, res: Response) {
+  const { id } = idParam.parse(req.params);
+  const input = issueTokenSchema.parse(req.body);
+  return created(res, await issueAssessmentToken(actorOf(req), id, input));
 }

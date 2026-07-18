@@ -144,6 +144,15 @@ enum EmailDomainType {
   none
 }
 
+// What a single-use industry-supervisor token authorizes. weekly_comment needs
+// a week_number; final_assessment may only be issued for a VERIFIED supervisor
+// (DB trigger on assessment_token enforces — the teeth of the verification
+// control).
+enum TokenPurpose {
+  weekly_comment
+  final_assessment
+}
+
 // Lifecycle of a placement's aggregated final grade.
 //   draft    -> components being entered; not yet aggregated/signed
 //   approved -> aggregated & signed off by coordinator (HoD); NOT student-visible
@@ -345,6 +354,7 @@ model User {
   rosterUploads        StudentRoster[]       @relation("RosterUploader")
   rosterEntry          StudentRoster?        @relation("RosterClaim")
   verifiedIndustrySupervisors IndustrySupervisor[] @relation("IndustrySupervisorVerifier")
+  createdAssessmentTokens     AssessmentToken[]    @relation("AssessmentTokenCreator")
 
   @@map("users")
 }
@@ -447,6 +457,7 @@ model Placement {
   finalGrade          FinalGrade?
   messages            Message[]
   industrySupervisors IndustrySupervisor[]
+  assessmentTokens    AssessmentToken[]
 
   @@map("placements")
 }
@@ -981,8 +992,33 @@ model IndustrySupervisor {
   verificationNote   String?            @map("verification_note")
   createdAt          DateTime           @default(now()) @map("created_at")
 
+  assessmentTokens AssessmentToken[]
+
   @@index([placementId])
   @@map("industry_supervisor")
+}
+
+// Single-use, time-bound, scoped tokens for industry-supervisor writes. Only
+// the SHA-256 hash is stored — the raw token exists only in the link. A token
+// is not a login: it may write exactly one record, scoped to its placement +
+// supervisor + purpose (+ week for weekly comments).
+model AssessmentToken {
+  id                   String             @id @default(uuid())
+  tokenHash            String             @unique @map("token_hash")
+  placementId          String             @map("placement_id")
+  placement            Placement          @relation(fields: [placementId], references: [id], onDelete: Cascade)
+  industrySupervisorId String             @map("industry_supervisor_id")
+  industrySupervisor   IndustrySupervisor @relation(fields: [industrySupervisorId], references: [id], onDelete: Cascade)
+  purpose              TokenPurpose
+  weekNumber           Int?               @map("week_number")
+  expiresAt            DateTime           @map("expires_at")
+  usedAt               DateTime?          @map("used_at")
+  createdById          String?            @map("created_by_id")
+  createdBy            User?              @relation("AssessmentTokenCreator", fields: [createdById], references: [id])
+  createdAt            DateTime           @default(now()) @map("created_at")
+
+  @@index([placementId])
+  @@map("assessment_token")
 }
 
 // Coordinator-extendable webmail lookup (gmail, yahoo, …). A table rather than
