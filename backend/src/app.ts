@@ -26,6 +26,8 @@ import insightsRouter      from './modules/insights/insights.router';
 import adminRouter         from './modules/admin/admin.router';
 import aiRouter            from './modules/ai/ai.router';
 import riskRouter          from './modules/risk/risk.router';
+import industryRouter      from './modules/industry/industry.router';
+import industryPlacementRouter from './modules/industry/industry.placement.router';
 // Future phases — uncomment as modules are built:
 // import usersRouter        from './modules/users/users.router';
 
@@ -86,6 +88,7 @@ export function createApp() {
   app.use('/api/v1/placements',    finalizationRouter); // assessment / finalize / attestation invite
   app.use('/api/v1/placements',    objectivesPlacementRouter); // learning objectives (define/list)
   app.use('/api/v1/placements',    messagesRouter); // two-way mentorship messaging thread
+  app.use('/api/v1/placements',    industryPlacementRouter); // industry supervisor records (list/add)
   app.use('/api/v1/companies',     companiesRouter);
   app.use('/api/v1/logbook',       logbookRouter);
   app.use('/api/v1/entries',       entriesRouter);
@@ -102,6 +105,7 @@ export function createApp() {
   app.use('/api/v1/admin',         adminRouter);
   app.use('/api/v1/ai',            aiRouter);
   app.use('/api/v1/risk',          riskRouter); // advisory risk signals (entries data)
+  app.use('/api/v1/industry-supervisors', industryRouter); // record edits + verification
   // Future phases — uncomment as modules are built:
   // app.use('/api/v1/users',         usersRouter);
 

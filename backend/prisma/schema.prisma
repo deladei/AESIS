@@ -123,6 +123,27 @@ enum AuditAction {
   grade_released
 }
 
+// Identity verification of an industry supervisor RECORD (no account). The
+// industry assessment is worth 30/100 marks and the contact details come from
+// the student — verification restores the control the paper form's letterhead
+// and signature provided. Only coordinator_approved / visit_confirmed records
+// may be issued a final_assessment token (DB trigger enforces).
+enum VerificationStatus {
+  unverified
+  coordinator_approved
+  visit_confirmed
+  rejected
+}
+
+// Classification of a supervisor's email domain against the webmail_domain
+// lookup. A webmail address FLAGS for coordinator attention — never a hard
+// block (many legitimate Ghanaian SMEs run on Gmail).
+enum EmailDomainType {
+  company
+  webmail
+  none
+}
+
 // Lifecycle of a placement's aggregated final grade.
 //   draft    -> components being entered; not yet aggregated/signed
 //   approved -> aggregated & signed off by coordinator (HoD); NOT student-visible
@@ -323,6 +344,7 @@ model User {
   gradesSignedOff      FinalGrade[]          @relation("GradeSignedOff")
   rosterUploads        StudentRoster[]       @relation("RosterUploader")
   rosterEntry          StudentRoster?        @relation("RosterClaim")
+  verifiedIndustrySupervisors IndustrySupervisor[] @relation("IndustrySupervisorVerifier")
 
   @@map("users")
 }
@@ -424,6 +446,7 @@ model Placement {
   learningObjectives  LearningObjective[]
   finalGrade          FinalGrade?
   messages            Message[]
+  industrySupervisors IndustrySupervisor[]
 
   @@map("placements")
 }
@@ -933,6 +956,42 @@ model FinalGrade {
   updatedAt DateTime @updatedAt @map("updated_at")
 
   @@map("final_grades")
+}
+
+// Industry supervisors are RECORDS, not users — they act only via single-use
+// tokenised links (assessment_token) handled server-side. Many per placement:
+// a student rotating through units gets a supervisor record per unit. Their
+// 30-mark assessment channel is gated on verification_status.
+model IndustrySupervisor {
+  id                 String             @id @default(uuid())
+  placementId        String             @map("placement_id")
+  placement          Placement          @relation(fields: [placementId], references: [id], onDelete: Cascade)
+  name               String
+  designation        String?
+  departmentUnit     String?            @map("department_unit")
+  phone              String?
+  email              String?
+  emailDomainType    EmailDomainType    @default(none) @map("email_domain_type")
+  periodStart        DateTime?          @map("period_start") @db.Date
+  periodEnd          DateTime?          @map("period_end") @db.Date
+  verificationStatus VerificationStatus @default(unverified) @map("verification_status")
+  verifiedById       String?            @map("verified_by_id")
+  verifiedBy         User?              @relation("IndustrySupervisorVerifier", fields: [verifiedById], references: [id])
+  verifiedAt         DateTime?          @map("verified_at")
+  verificationNote   String?            @map("verification_note")
+  createdAt          DateTime           @default(now()) @map("created_at")
+
+  @@index([placementId])
+  @@map("industry_supervisor")
+}
+
+// Coordinator-extendable webmail lookup (gmail, yahoo, …). A table rather than
+// a hard-coded list so extending it needs no deploy. Classifies; never blocks.
+model WebmailDomain {
+  domain    String   @id
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@map("webmail_domain")
 }
 
 // Table-as-queue for the fail-open enrichment worker (no message broker).
