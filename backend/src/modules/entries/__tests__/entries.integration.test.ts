@@ -628,8 +628,10 @@ describe('placement finalization', () => {
     await acknowledgeEntry(supervisorA, draft.id, {});
   }
   async function freshPlacement(): Promise<string> {
+    // isCurrent: false — studentA's current slot is placementA; the partial
+    // unique index allows one current placement per student.
     const p = await prisma.placement.create({
-      data: { studentId: studentA.id, academicSupervisorId: supervisorA.id, academicYearId: yearId },
+      data: { studentId: studentA.id, academicSupervisorId: supervisorA.id, academicYearId: yearId, isCurrent: false },
     });
     return p.id;
   }
@@ -737,6 +739,9 @@ describe('company attestation (magic link)', () => {
         academicSupervisorId: supervisorA.id,
         academicYearId: yearId,
         companyId: company.id,
+        // One current placement per student (partial unique index): studentA's
+        // current slot is placementA.
+        isCurrent: false,
       },
     });
     pid = p.id;
