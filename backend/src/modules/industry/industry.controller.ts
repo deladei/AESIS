@@ -6,7 +6,15 @@ import {
   updateIndustrySupervisorSchema,
   verifySupervisorSchema,
   visitConfirmSchema,
+  paperAssessmentSchema,
+  industryAssessmentScoresSchema,
 } from './industry.schema';
+import {
+  listIndustryAssessments,
+  submitPaperAssessment,
+  getAssessmentFormContext,
+  submitDigitalAssessment,
+} from './industry.assessment';
 import {
   createSupervisor,
   listSupervisors,
@@ -51,6 +59,30 @@ export async function visitConfirmHandler(req: Request, res: Response) {
   const { id } = idParam.parse(req.params);
   const input = visitConfirmSchema.parse(req.body);
   return ok(res, await visitConfirmSupervisor(actorOf(req), id, input));
+}
+
+export async function listAssessmentsHandler(req: Request, res: Response) {
+  const { id } = idParam.parse(req.params); // placement id
+  return ok(res, await listIndustryAssessments(actorOf(req), id));
+}
+
+export async function paperAssessmentHandler(req: Request, res: Response) {
+  const { id } = idParam.parse(req.params); // placement id
+  const input = paperAssessmentSchema.parse(req.body);
+  return created(res, await submitPaperAssessment(actorOf(req), id, input));
+}
+
+const tokenParam = z.object({ token: z.string().min(32).max(128) });
+
+export async function formContextHandler(req: Request, res: Response) {
+  const { token } = tokenParam.parse(req.params);
+  return ok(res, await getAssessmentFormContext(token));
+}
+
+export async function digitalAssessmentHandler(req: Request, res: Response) {
+  const { token } = tokenParam.parse(req.params);
+  const input = industryAssessmentScoresSchema.parse(req.body);
+  return created(res, await submitDigitalAssessment(token, input));
 }
 
 const issueTokenSchema = z.object({

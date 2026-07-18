@@ -144,6 +144,14 @@ enum EmailDomainType {
   none
 }
 
+// Provenance of an industry record. `paper` = the coordinator keyed in a
+// scanned form (scan is the evidence, entered_by named); `digital` = arrived
+// through a tokenised link. A CHECK constraint makes the evidence mandatory.
+enum RecordOrigin {
+  digital
+  paper
+}
+
 // What a single-use industry-supervisor token authorizes. weekly_comment needs
 // a week_number; final_assessment may only be issued for a VERIFIED supervisor
 // (DB trigger on assessment_token enforces — the teeth of the verification
@@ -355,6 +363,7 @@ model User {
   rosterEntry          StudentRoster?        @relation("RosterClaim")
   verifiedIndustrySupervisors IndustrySupervisor[] @relation("IndustrySupervisorVerifier")
   createdAssessmentTokens     AssessmentToken[]    @relation("AssessmentTokenCreator")
+  enteredIndustryAssessments  AssessmentIndustry[] @relation("IndustryAssessmentEnteredBy")
 
   @@map("users")
 }
@@ -458,6 +467,7 @@ model Placement {
   messages            Message[]
   industrySupervisors IndustrySupervisor[]
   assessmentTokens    AssessmentToken[]
+  industryAssessments AssessmentIndustry[]
 
   @@map("placements")
 }
@@ -992,7 +1002,8 @@ model IndustrySupervisor {
   verificationNote   String?            @map("verification_note")
   createdAt          DateTime           @default(now()) @map("created_at")
 
-  assessmentTokens AssessmentToken[]
+  assessmentTokens    AssessmentToken[]
+  industryAssessments AssessmentIndustry[]
 
   @@index([placementId])
   @@map("industry_supervisor")
@@ -1019,6 +1030,41 @@ model AssessmentToken {
 
   @@index([placementId])
   @@map("assessment_token")
+}
+
+// CONFIDENTIAL: the Industrial Attachment Performance Evaluation Form, verbatim
+// criteria and maxima (sum = 100). Sent "under confidential cover to the Head
+// of Department" on paper — so staff-only here: the student AND the academic
+// supervisor never read this table (sealed-envelope rule). Raw scores only;
+// the /100 total scales to its cohort weight at aggregation, never stored
+// scaled. DB CHECKs enforce the maxima, the total, and the evidence rule.
+model AssessmentIndustry {
+  id                          String             @id @default(uuid())
+  placementId                 String             @map("placement_id")
+  placement                   Placement          @relation(fields: [placementId], references: [id], onDelete: Cascade)
+  industrySupervisorId        String             @map("industry_supervisor_id")
+  industrySupervisor          IndustrySupervisor @relation(fields: [industrySupervisorId], references: [id])
+  attendance                  Int // max 20 — the single heaviest criterion
+  punctuality                 Int // max 15
+  cooperation                 Int // max 10
+  aptitude                    Int // max 15
+  understanding               Int // max 20
+  safety                      Int // max 10
+  autonomy                    Int // max 10
+  rawTotal                    Int                @map("raw_total") // = sum, CHECK-enforced
+  additionalComments          String?            @map("additional_comments")
+  reportingOfficerName        String             @map("reporting_officer_name")
+  reportingOfficerDesignation String?            @map("reporting_officer_designation")
+  companyHodName              String?            @map("company_hod_name")
+  origin                      RecordOrigin       @default(digital)
+  scanUrl                     String?            @map("scan_url")
+  enteredById                 String?            @map("entered_by_id")
+  enteredBy                   User?              @relation("IndustryAssessmentEnteredBy", fields: [enteredById], references: [id])
+  tokenId                     String?            @map("token_id")
+  submittedAt                 DateTime           @default(now()) @map("submitted_at")
+
+  @@unique([placementId, industrySupervisorId])
+  @@map("assessment_industry")
 }
 
 // Coordinator-extendable webmail lookup (gmail, yahoo, …). A table rather than

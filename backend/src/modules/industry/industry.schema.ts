@@ -39,6 +39,32 @@ export const visitConfirmSchema = z.object({
   note: z.string().trim().max(500).optional(),
 });
 
+// The Industrial Attachment Performance Evaluation Form — criteria maxima
+// verbatim from the instrument. Zod bounds mirror the DB CHECKs so a violation
+// fails fast with a readable message instead of a constraint error.
+export const industryAssessmentScoresSchema = z.object({
+  attendance: z.number().int().min(0).max(20),
+  punctuality: z.number().int().min(0).max(15),
+  cooperation: z.number().int().min(0).max(10),
+  aptitude: z.number().int().min(0).max(15),
+  understanding: z.number().int().min(0).max(20),
+  safety: z.number().int().min(0).max(10),
+  autonomy: z.number().int().min(0).max(10),
+  additionalComments: z.string().trim().max(2000).optional(),
+  reportingOfficerName: z.string().trim().min(2).max(120),
+  reportingOfficerDesignation: z.string().trim().max(120).optional(),
+  companyHodName: z.string().trim().max(120).optional(),
+});
+
+// Paper path: the coordinator keys in a scanned form. The scan is the evidence.
+export const paperAssessmentSchema = industryAssessmentScoresSchema.extend({
+  industrySupervisorId: z.string().uuid(),
+  scanUrl: z.string().url().max(2000),
+});
+
+export type IndustryAssessmentScores = z.infer<typeof industryAssessmentScoresSchema>;
+export type PaperAssessmentInput = z.infer<typeof paperAssessmentSchema>;
+
 export type CreateIndustrySupervisorInput = z.infer<typeof createIndustrySupervisorSchema>;
 export type UpdateIndustrySupervisorInput = z.infer<typeof updateIndustrySupervisorSchema>;
 export type VerifySupervisorInput = z.infer<typeof verifySupervisorSchema>;

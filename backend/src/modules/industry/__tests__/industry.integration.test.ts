@@ -15,6 +15,11 @@ process.env.DATABASE_URL = base.toString();
 import { prisma } from '../../../config/prisma';
 import { AppError } from '../../../middleware/errorHandler';
 import { issueAssessmentToken, resolveAssessmentToken } from '../industry.token';
+import {
+  submitPaperAssessment,
+  submitDigitalAssessment,
+  listIndustryAssessments,
+} from '../industry.assessment';
 import type { Actor } from '../../entries/entries.policy';
 
 jest.setTimeout(60_000);
@@ -67,8 +72,8 @@ beforeAll(async () => {
   if (!dbAvailable) return;
 
   await prisma.$executeRawUnsafe(
-    `TRUNCATE assessment_token, industry_supervisor, placements, notifications,
-     users, academic_years, departments RESTART IDENTITY CASCADE`,
+    `TRUNCATE assessment_industry, assessment_token, industry_supervisor, final_grades,
+     placements, notifications, users, academic_years, departments RESTART IDENTITY CASCADE`,
   );
 
   const dept = await prisma.department.create({ data: { name: 'Computer Science', code: 'CS' } });
@@ -167,6 +172,97 @@ describe('assessment_token verification gate (DB trigger)', () => {
     await expect(
       issueAssessmentToken(student, sup.id, { purpose: 'final_assessment' }),
     ).rejects.toMatchObject({ statusCode: 403 });
+  });
+
+  itdb('7-criterion form: DB rejects over-max criteria, wrong totals, and evidence-less rows', async () => {
+    const sup = await mkIndustrySupervisor('coordinator_approved');
+    const base = {
+      placementId,
+      industrySupervisorId: sup.id,
+      attendance: 18, punctuality: 14, cooperation: 9, aptitude: 13,
+      understanding: 17, safety: 8, autonomy: 9,
+      rawTotal: 88,
+      reportingOfficerName: 'Kofi Asante',
+      origin: 'paper' as const,
+      scanUrl: 'https://files.example/scan.pdf',
+      enteredById: coordinator.id,
+    };
+
+    // attendance beyond the instrument's 20 → CHECK violation
+    await expect(
+      prisma.assessmentIndustry.create({ data: { ...base, attendance: 21, rawTotal: 91 } }),
+    ).rejects.toThrow();
+
+    // stored total that is not the criteria sum → CHECK violation
+    await expect(
+      prisma.assessmentIndustry.create({ data: { ...base, rawTotal: 99 } }),
+    ).rejects.toThrow();
+
+    // paper with no scan (18) → CHECK violation
+    await expect(
+      prisma.assessmentIndustry.create({ data: { ...base, scanUrl: null } }),
+    ).rejects.toThrow();
+
+    // digital naming a staff enterer (18a) → CHECK violation
+    await expect(
+      prisma.assessmentIndustry.create({
+        data: { ...base, origin: 'digital', tokenId: 'tok', scanUrl: null },
+      }),
+    ).rejects.toThrow();
+
+    // the valid paper row lands
+    const okRow = await prisma.assessmentIndustry.create({ data: base });
+    expect(okRow.rawTotal).toBe(88);
+    await prisma.assessmentIndustry.delete({ where: { id: okRow.id } });
+  });
+
+  itdb('digital submit consumes the token and maps raw_total onto the grade spine', async () => {
+    const sup = await mkIndustrySupervisor('visit_confirmed');
+    const { token } = await issueAssessmentToken(coordinator, sup.id, { purpose: 'final_assessment' });
+
+    const scores = {
+      attendance: 18, punctuality: 12, cooperation: 10, aptitude: 14,
+      understanding: 16, safety: 9, autonomy: 8,
+      reportingOfficerName: 'Kofi Asante',
+    };
+    const result = await submitDigitalAssessment(token, scores);
+    expect(result.rawTotal).toBe(87);
+
+    const grade = await prisma.finalGrade.findUniqueOrThrow({ where: { placementId } });
+    expect(grade.industryRaw).toBe(87);
+
+    // Single use: same link again → 410
+    await expect(submitDigitalAssessment(token, scores)).rejects.toMatchObject({ statusCode: 410 });
+
+    const stored = await prisma.assessmentIndustry.findFirstOrThrow({
+      where: { placementId, industrySupervisorId: sup.id },
+    });
+    expect(stored.origin).toBe('digital');
+    expect(stored.enteredById).toBeNull();
+  });
+
+  itdb('paper submit requires staff; students and supervisors cannot read assessments', async () => {
+    const sup = await mkIndustrySupervisor('coordinator_approved');
+    const input = {
+      industrySupervisorId: sup.id,
+      attendance: 15, punctuality: 10, cooperation: 8, aptitude: 12,
+      understanding: 15, safety: 7, autonomy: 7,
+      reportingOfficerName: 'Adjoa Osei',
+      scanUrl: 'https://files.example/evaluation-scan.pdf',
+    };
+
+    await expect(submitPaperAssessment(student, placementId, input)).rejects.toMatchObject({ statusCode: 403 });
+
+    const row = await submitPaperAssessment(coordinator, placementId, input);
+    expect(row.rawTotal).toBe(74);
+    expect(row.origin).toBe('paper');
+
+    // Sealed-envelope rule: academic supervisor AND student get 403 (tests 1, 5)
+    await expect(listIndustryAssessments(student, placementId)).rejects.toMatchObject({ statusCode: 403 });
+    await expect(listIndustryAssessments(supervisorA, placementId)).rejects.toMatchObject({ statusCode: 403 });
+
+    const staffView = await listIndustryAssessments(coordinator, placementId);
+    expect(staffView.length).toBeGreaterThan(0);
   });
 
   itdb('resolve: valid → row; wrong purpose → 404; used → 410; expired → 410; raw never stored', async () => {

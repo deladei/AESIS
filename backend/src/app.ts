@@ -28,6 +28,7 @@ import aiRouter            from './modules/ai/ai.router';
 import riskRouter          from './modules/risk/risk.router';
 import industryRouter      from './modules/industry/industry.router';
 import industryPlacementRouter from './modules/industry/industry.placement.router';
+import industryPublicRouter from './modules/industry/industry.public.router';
 // Future phases — uncomment as modules are built:
 // import usersRouter        from './modules/users/users.router';
 
@@ -106,6 +107,7 @@ export function createApp() {
   app.use('/api/v1/ai',            aiRouter);
   app.use('/api/v1/risk',          riskRouter); // advisory risk signals (entries data)
   app.use('/api/v1/industry-supervisors', industryRouter); // record edits + verification
+  app.use('/api/v1/industry-form', industryPublicRouter); // PUBLIC magic-link 7-criterion form
   // Future phases — uncomment as modules are built:
   // app.use('/api/v1/users',         usersRouter);
 
