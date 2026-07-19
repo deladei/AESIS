@@ -38,6 +38,7 @@ import AIInsights           from '@/pages/shared/AIInsights';
 import ProfilePage          from '@/pages/shared/ProfilePage';
 import Attestation          from '@/pages/public/Attestation';
 import IndustryScore        from '@/pages/public/IndustryScore';
+import WeeklyComment        from '@/pages/public/WeeklyComment';
 
 type UserRole = 'student' | 'academic_supervisor' | 'coordinator' | 'admin';
 
@@ -112,6 +113,8 @@ export const router = createBrowserRouter([
   { path: '/attest/:token',  element: <Attestation /> },
   // Public company-supervisor industry score (magic link — no account, no shell)
   { path: '/grade/:token',   element: <IndustryScore /> },
+  // Public industry-supervisor weekly logbook comment (magic link — no account, no shell)
+  { path: '/weekly-comment/:token', element: <WeeklyComment /> },
 
   // Student
   {
