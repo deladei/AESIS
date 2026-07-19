@@ -2851,3 +2851,23 @@ Five commits, all pushed prod:
 **S83 addendum — CI greened on the Batch 0 chain (`75ecd58`, `5469177`).** CI replay on fresh Postgres exposed two things local DBs masked: (1) `20260718130000_assessment_industry` used `"RecordOrigin"` without creating it (local DBs had it via db push) — type now created in that migration; full 28-migration chain verified against a scratch DB; `render.yaml` startCommand carries a swallowed `migrate resolve --rolled-back 20260718130000_assessment_industry` guard in case prod recorded the failed attempt — REMOVE after one confirmed clean prod deploy. (2) entries integration fixtures created extra placements per student → new partial unique index tripped; fixtures now `isCurrent: false`. CI run 29660563112: all 3 jobs green, backend 669/669.
 
 **S83 addendum 2 — batch re-split (user-directed).** Batch 1-2 worktree session found mid-flight with NOTHING committed (rebased to `7e7daa2`; only an uncommitted migration draft that still duplicates main's industry DDL — now also stale vs `RecordOrigin` fix). User reassigned to the main-tree session: (a) Batch 2 backend — tokenised weekly-comment channel + paper path (`industry_weekly_comment`), (b) frontend — public weekly-comment form now; student daily logbook + weekly summary UI BLOCKED until the daily-entry API exists (still the other session's Batch 1 backend, unless reassigned too). Worktree session should DROP `industry_weekly_comment` + all industry/token DDL from its migration — main owns them after this session's Batch 2 work.
+
+### Session 84 — 2026-07-18 — Batch 2: industry weekly-comment channel + public form (commits `289906e`, `172795b`, pushed prod)
+
+**Context.** Re-split from S83 addendum 2: this main-tree session took Batch 2 (a) backend weekly-comment channel + (b) public form; the worktree session keeps Batch 1 (daily logbook). Prior limit-hit session left schema model + migration + `industry.weekly.ts` service uncommitted; this session finished and shipped.
+
+**Shipped.**
+- **`feat(industry)` `289906e` — formative weekly-comment channel.** `industry_weekly_comment` table (migration `20260718160000`): student-readable (entries placement policy, NOT sealed-envelope), evidence rule CHECK-enforced (`iwc_paper_needs_evidence`: paper → scan_url + entered_by; digital → token_id, no enterer), supervisor name/unit snapshotted at comment time (unit rotation can't rewrite history). Digital path: week number ALWAYS from the week-scoped `weekly_comment` token (issue endpoint + DB trigger already existed from Batch 0), token consumed in the same tx as the insert (second submit → 410, rollback). Paper path: coordinator/hod/admin keys in the scan. Routes: `GET/POST /placements/:id/weekly-comments[/paper]`, public `GET/POST /industry-form/weekly/:token` (declared before `/:token`). New DB-integration suite: digital e2e + single-use, paper evidence + 403s + cross-placement 404, raw-insert CHECK violations both directions, read scope (own student ✓ / other student ✗ / assigned supervisor ✓). Industry suites 27/27; tsc + lint clean.
+- **`feat(public)` `172795b` — `/weekly-comment/:token` page.** Mirrors IndustryScore shell: context card (trainee/supervisor/organisation), 3–2000-char textarea + counter, 410 expired/used copy, honest visibility note (trainee + university supervisor see it). New `useWeeklyComment.ts` hooks. Frontend tsc + vite build clean.
+- Local DBs: migration verified complete on `aisystem_db` + `aesis_logbook_test` (prior session had part-applied it; all CHECKs/FKs confirmed present via pg_constraint).
+
+**Not done (deliberate).** Issuance UI for weekly links (backend `POST /industry-supervisors/:id/tokens` exists; no frontend button yet — coordinator/supervisor UI candidate for a later batch). Student logbook UI still blocked on Batch 1 daily-entry API (worktree session).
+
+**Carried.**
+1. ⚠️ ROTATE prod `DATABASE_URL` + 3 other secrets (overdue since S81).
+2. In-browser verifies (S81 list) + prod smoke of enrichment worker.
+3. Render dashboard nit: drop dead `CELERY_BROKER_URL`/`REDIS_URL` vars from `aesis-ai-engine`.
+4. Prod boot log check: migrations `100000`–`160000` applied clean (this deploy adds `160000`); then REMOVE the swallowed `migrate resolve` guard from render.yaml (S83 addendum).
+5. Batch1-2 worktree: rebase onto ≥`172795b`, DROP all industry/token/`industry_weekly_comment` DDL from its migration (main owns them now), re-timestamp its migration dir.
+6. Batch 1 dependency: chain-aware duplicate-week guard + minimum-weeks summation across `supersedes` chain.
+7. NEW: weekly-comment link issuance UI (+ a sensible sender: email the link to the industry supervisor).
