@@ -7,6 +7,8 @@ import {
   listSupervisorsHandler,
   listAssessmentsHandler,
   paperAssessmentHandler,
+  listWeeklyCommentsHandler,
+  paperWeeklyCommentHandler,
 } from './industry.controller';
 
 // Per-placement industry supervisor records. Mounted under /placements;
@@ -28,6 +30,15 @@ router.post(
   '/:id/industry-assessment/paper',
   authorize('coordinator', 'admin'),
   asyncHandler(paperAssessmentHandler),
+);
+
+// FORMATIVE weekly comments: the student reads these, so the read is scoped by
+// the placement policy in the service (own / assigned / staff), not staff-only.
+router.get('/:id/weekly-comments', asyncHandler(listWeeklyCommentsHandler));
+router.post(
+  '/:id/weekly-comments/paper',
+  authorize('coordinator', 'hod', 'admin'),
+  asyncHandler(paperWeeklyCommentHandler),
 );
 
 export default router;

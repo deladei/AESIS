@@ -8,7 +8,15 @@ import {
   visitConfirmSchema,
   paperAssessmentSchema,
   industryAssessmentScoresSchema,
+  paperWeeklyCommentSchema,
+  digitalWeeklyCommentSchema,
 } from './industry.schema';
+import {
+  listWeeklyComments,
+  submitPaperWeeklyComment,
+  getWeeklyCommentFormContext,
+  submitDigitalWeeklyComment,
+} from './industry.weekly';
 import {
   listIndustryAssessments,
   submitPaperAssessment,
@@ -83,6 +91,31 @@ export async function digitalAssessmentHandler(req: Request, res: Response) {
   const { token } = tokenParam.parse(req.params);
   const input = industryAssessmentScoresSchema.parse(req.body);
   return created(res, await submitDigitalAssessment(token, input));
+}
+
+const weekQuery = z.object({ week: z.coerce.number().int().min(1).max(52).optional() });
+
+export async function listWeeklyCommentsHandler(req: Request, res: Response) {
+  const { id } = idParam.parse(req.params); // placement id
+  const { week } = weekQuery.parse(req.query);
+  return ok(res, await listWeeklyComments(actorOf(req), id, week));
+}
+
+export async function paperWeeklyCommentHandler(req: Request, res: Response) {
+  const { id } = idParam.parse(req.params); // placement id
+  const input = paperWeeklyCommentSchema.parse(req.body);
+  return created(res, await submitPaperWeeklyComment(actorOf(req), id, input));
+}
+
+export async function weeklyFormContextHandler(req: Request, res: Response) {
+  const { token } = tokenParam.parse(req.params);
+  return ok(res, await getWeeklyCommentFormContext(token));
+}
+
+export async function digitalWeeklyCommentHandler(req: Request, res: Response) {
+  const { token } = tokenParam.parse(req.params);
+  const input = digitalWeeklyCommentSchema.parse(req.body);
+  return created(res, await submitDigitalWeeklyComment(token, input));
 }
 
 const issueTokenSchema = z.object({

@@ -65,6 +65,27 @@ export const paperAssessmentSchema = industryAssessmentScoresSchema.extend({
 export type IndustryAssessmentScores = z.infer<typeof industryAssessmentScoresSchema>;
 export type PaperAssessmentInput = z.infer<typeof paperAssessmentSchema>;
 
+// Weekly comment (formative — the student reads it). Digital path carries only
+// the comment: week, supervisor and date all come from the token/record, never
+// the body. Paper path mirrors the paper assessment: scan is the evidence.
+export const digitalWeeklyCommentSchema = z.object({
+  comment: z.string().trim().min(3).max(2000),
+});
+
+export const paperWeeklyCommentSchema = digitalWeeklyCommentSchema.extend({
+  industrySupervisorId: z.string().uuid(),
+  weekNumber: z.number().int().min(1).max(52),
+  commentDate: z.coerce.date(),
+  scanUrl: z.string().url().max(2000),
+  // Snapshot overrides for when the paper form names someone other than the
+  // current record (unit rotation); default to the supervisor record.
+  supervisorName: z.string().trim().min(2).max(120).optional(),
+  departmentUnit: z.string().trim().max(120).optional(),
+});
+
+export type DigitalWeeklyCommentInput = z.infer<typeof digitalWeeklyCommentSchema>;
+export type PaperWeeklyCommentInput = z.infer<typeof paperWeeklyCommentSchema>;
+
 export type CreateIndustrySupervisorInput = z.infer<typeof createIndustrySupervisorSchema>;
 export type UpdateIndustrySupervisorInput = z.infer<typeof updateIndustrySupervisorSchema>;
 export type VerifySupervisorInput = z.infer<typeof verifySupervisorSchema>;

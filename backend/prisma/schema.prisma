@@ -383,6 +383,8 @@ model User {
   enteredIndustryAssessments  AssessmentIndustry[] @relation("IndustryAssessmentEnteredBy")
   transferRequests            PlacementTransferRequest[] @relation("TransferStudent")
   transfersDecided            PlacementTransferRequest[] @relation("TransferDecider")
+  weeklyCommentsAsStudent     IndustryWeeklyComment[]    @relation("WeeklyCommentStudent")
+  weeklyCommentsEntered       IndustryWeeklyComment[]    @relation("WeeklyCommentEnteredBy")
 
   @@map("users")
 }
@@ -494,6 +496,7 @@ model Placement {
   industrySupervisors IndustrySupervisor[]
   assessmentTokens    AssessmentToken[]
   industryAssessments AssessmentIndustry[]
+  industryWeeklyComments IndustryWeeklyComment[]
   transfersFrom       PlacementTransferRequest[] @relation("TransferFrom")
   transfersTo         PlacementTransferRequest[] @relation("TransferTo")
 
@@ -1032,6 +1035,7 @@ model IndustrySupervisor {
 
   assessmentTokens    AssessmentToken[]
   industryAssessments AssessmentIndustry[]
+  weeklyComments      IndustryWeeklyComment[]
 
   @@index([placementId])
   @@map("industry_supervisor")
@@ -1118,6 +1122,37 @@ model AssessmentIndustry {
 
   @@unique([placementId, industrySupervisorId])
   @@map("assessment_industry")
+}
+
+// FORMATIVE weekly comment from an industry supervisor — unlike
+// assessment_industry, the STUDENT READS this (the logbook's weekly comment
+// block, one per unit supervisor per week). Same two arrival paths and the
+// same evidence rule, CHECK-enforced in migration SQL: paper needs
+// scan_url + entered_by; digital needs token_id and NO staff enterer.
+model IndustryWeeklyComment {
+  id                   String             @id @default(uuid())
+  placementId          String             @map("placement_id")
+  placement            Placement          @relation(fields: [placementId], references: [id], onDelete: Cascade)
+  studentId            String             @map("student_id")
+  student              User               @relation("WeeklyCommentStudent", fields: [studentId], references: [id], onDelete: Cascade)
+  industrySupervisorId String             @map("industry_supervisor_id")
+  industrySupervisor   IndustrySupervisor @relation(fields: [industrySupervisorId], references: [id])
+  weekNumber           Int                @map("week_number")
+  comment              String
+  // Snapshot of the signer at comment time — the record must keep saying who
+  // signed even if the supervisor record is later edited (unit rotation).
+  supervisorName       String             @map("supervisor_name")
+  departmentUnit       String?            @map("department_unit")
+  commentDate          DateTime           @map("comment_date") @db.Date
+  origin               RecordOrigin       @default(digital)
+  scanUrl              String?            @map("scan_url")
+  enteredById          String?            @map("entered_by_id")
+  enteredBy            User?              @relation("WeeklyCommentEnteredBy", fields: [enteredById], references: [id])
+  tokenId              String?            @map("token_id")
+  createdAt            DateTime           @default(now()) @map("created_at")
+
+  @@index([placementId, weekNumber])
+  @@map("industry_weekly_comment")
 }
 
 // Coordinator-extendable webmail lookup (gmail, yahoo, …). A table rather than
