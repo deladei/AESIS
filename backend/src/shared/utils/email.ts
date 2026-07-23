@@ -67,6 +67,56 @@ export function buildVerificationEmail(name: string, token: string): EmailPayloa
   `;
 }
 
+export function buildWeeklyCommentInviteEmail(
+  supervisorName: string,
+  studentName: string,
+  companyName: string | null,
+  weekNumber: number,
+  url: string,
+): EmailPayload['html'] {
+  const org = companyName ? ` at ${companyName}` : '';
+  return `
+    <div style="font-family:sans-serif;max-width:600px;margin:0 auto;">
+      <h2 style="color:#1e40af;">Weekly comment — ${studentName}, week ${weekNumber}</h2>
+      <p>Hello ${supervisorName},</p>
+      <p>You are invited to leave a short weekly comment on <strong>${studentName}</strong>'s
+         internship${org} for <strong>week ${weekNumber}</strong>. Your comment is shared with
+         the trainee and their university supervisor.</p>
+      <p style="margin:24px 0;">
+        <a href="${url}" style="background:#1e40af;color:white;padding:12px 24px;border-radius:6px;text-decoration:none;font-weight:600;">
+          Leave week ${weekNumber} comment
+        </a>
+      </p>
+      <p style="color:#64748b;font-size:14px;">This is a single-use link — it works once and then expires. No account or password is needed.</p>
+      <p style="color:#64748b;font-size:12px;">Or copy this URL: ${url}</p>
+    </div>
+  `;
+}
+
+export function buildAssessmentInviteEmail(
+  supervisorName: string,
+  studentName: string,
+  companyName: string | null,
+  url: string,
+): EmailPayload['html'] {
+  const org = companyName ? ` at ${companyName}` : '';
+  return `
+    <div style="font-family:sans-serif;max-width:600px;margin:0 auto;">
+      <h2 style="color:#1e40af;">Industry assessment — ${studentName}</h2>
+      <p>Hello ${supervisorName},</p>
+      <p>You are invited to complete the confidential end-of-placement assessment for
+         <strong>${studentName}</strong>'s internship${org}.</p>
+      <p style="margin:24px 0;">
+        <a href="${url}" style="background:#1e40af;color:white;padding:12px 24px;border-radius:6px;text-decoration:none;font-weight:600;">
+          Complete assessment
+        </a>
+      </p>
+      <p style="color:#64748b;font-size:14px;">This is a single-use link — it works once and then expires. No account or password is needed.</p>
+      <p style="color:#64748b;font-size:12px;">Or copy this URL: ${url}</p>
+    </div>
+  `;
+}
+
 export function buildPasswordResetEmail(name: string, token: string): EmailPayload['html'] {
   const url = `${env.FRONTEND_URL}/auth/reset-password/confirm?token=${token}`;
   return `

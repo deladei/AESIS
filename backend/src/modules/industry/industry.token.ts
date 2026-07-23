@@ -1,7 +1,23 @@
 import crypto from 'crypto';
 import { prisma } from '../../config/prisma';
 import { AppError } from '../../middleware/errorHandler';
+import { env } from '../../config/env';
+import {
+  sendEmail,
+  buildWeeklyCommentInviteEmail,
+  buildAssessmentInviteEmail,
+} from '../../shared/utils/email';
 import type { Actor } from '../entries/entries.policy';
+
+// Public magic-link landing pages (frontend routes). Purpose decides which.
+const PUBLIC_PATH: Record<IssueTokenInput['purpose'], string> = {
+  weekly_comment: '/weekly-comment',
+  final_assessment: '/grade',
+};
+
+function publicLink(purpose: IssueTokenInput['purpose'], token: string): string {
+  return `${env.FRONTEND_URL}${PUBLIC_PATH[purpose]}/${token}`;
+}
 
 // Assessment tokens: single-use, time-bound, scoped. Same hash-only guarantees
 // as the attestation/grade-invite links — a DB read can never reveal a usable
@@ -25,21 +41,32 @@ export interface IssueTokenInput {
   purpose: 'weekly_comment' | 'final_assessment';
   weekNumber?: number;
   ttlHours?: number;
+  /** Also email the link to the industry supervisor's address on record. */
+  send?: boolean;
 }
 
 /**
  * Issue a token for an industry supervisor record. Staff, or the assigned
- * academic supervisor, may issue. Returns the RAW token exactly once — it is
- * never stored or logged.
+ * academic supervisor, may issue. Returns the RAW token (and its public link)
+ * exactly once — neither is ever stored or logged. When `send` is set, the
+ * link is also emailed to the supervisor's address on record.
  */
 export async function issueAssessmentToken(actor: Actor, industrySupervisorId: string, input: IssueTokenInput) {
   const supervisor = await prisma.industrySupervisor.findUnique({
     where: { id: industrySupervisorId },
     select: {
       id: true,
+      name: true,
+      email: true,
       placementId: true,
       verificationStatus: true,
-      placement: { select: { academicSupervisorId: true } },
+      placement: {
+        select: {
+          academicSupervisorId: true,
+          student: { select: { firstName: true, lastName: true } },
+          company: { select: { name: true } },
+        },
+      },
     },
   });
   if (!supervisor) throw new AppError(404, 'Industry supervisor not found');
@@ -54,8 +81,15 @@ export async function issueAssessmentToken(actor: Actor, industrySupervisorId: s
     throw new AppError(422, 'A weekly comment link needs its week number');
   }
 
+  // Validate deliverability BEFORE minting the token, so a send-with-no-email
+  // request fails cleanly instead of leaving an orphaned single-use token.
+  if (input.send && !supervisor.email) {
+    throw new AppError(422, 'This supervisor has no email address on record — add one or copy the link manually');
+  }
+
   const { token, tokenHash } = generateAssessmentToken();
   const expiresAt = new Date(Date.now() + (input.ttlHours ?? DEFAULT_TTL_HOURS) * 3_600_000);
+  const url = publicLink(input.purpose, token);
 
   try {
     const row = await prisma.assessmentToken.create({
@@ -69,7 +103,26 @@ export async function issueAssessmentToken(actor: Actor, industrySupervisorId: s
         createdById: actor.id,
       },
     });
-    return { token, tokenId: row.id, expiresAt: row.expiresAt };
+
+    let emailedTo: string | null = null;
+    if (input.send && supervisor.email) {
+      const studentName = `${supervisor.placement.student.firstName} ${supervisor.placement.student.lastName}`;
+      const companyName = supervisor.placement.company?.name ?? null;
+      const html =
+        input.purpose === 'weekly_comment'
+          ? buildWeeklyCommentInviteEmail(supervisor.name, studentName, companyName, input.weekNumber!, url)
+          : buildAssessmentInviteEmail(supervisor.name, studentName, companyName, url);
+      const subject =
+        input.purpose === 'weekly_comment'
+          ? `Weekly comment for ${studentName} — week ${input.weekNumber}`
+          : `Industry assessment for ${studentName}`;
+      // sendEmail is fail-open (logs on failure); the token is already issued so
+      // the caller can still copy the link if delivery silently fails.
+      await sendEmail({ to: supervisor.email, subject, html });
+      emailedTo = supervisor.email;
+    }
+
+    return { token, url, tokenId: row.id, expiresAt: row.expiresAt, emailedTo };
   } catch (err) {
     // The DB gate rejects final_assessment tokens for unverified supervisors.
     const message = err instanceof Error ? err.message : String(err);

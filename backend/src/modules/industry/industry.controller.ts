@@ -121,6 +121,7 @@ export async function digitalWeeklyCommentHandler(req: Request, res: Response) {
 const issueTokenSchema = z.object({
   purpose: z.enum(['weekly_comment', 'final_assessment']),
   weekNumber: z.number().int().min(1).max(52).optional(),
+  send: z.boolean().optional(),
 });
 
 export async function issueTokenHandler(req: Request, res: Response) {

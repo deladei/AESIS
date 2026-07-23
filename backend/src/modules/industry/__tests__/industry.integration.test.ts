@@ -12,9 +12,18 @@ base.hostname = '127.0.0.1';
 base.pathname = '/aesis_logbook_test';
 process.env.DATABASE_URL = base.toString();
 
+jest.mock('../../../shared/utils/email', () => ({
+  sendEmail: jest.fn().mockResolvedValue(undefined),
+  buildWeeklyCommentInviteEmail: jest.fn(() => '<html>weekly</html>'),
+  buildAssessmentInviteEmail: jest.fn(() => '<html>assessment</html>'),
+}));
+
 import { prisma } from '../../../config/prisma';
 import { AppError } from '../../../middleware/errorHandler';
+import { sendEmail } from '../../../shared/utils/email';
 import { issueAssessmentToken, resolveAssessmentToken } from '../industry.token';
+
+const mockSendEmail = sendEmail as jest.Mock;
 import {
   submitPaperAssessment,
   submitDigitalAssessment,
@@ -165,6 +174,39 @@ describe('assessment_token verification gate (DB trigger)', () => {
 
     const okToken = await issueAssessmentToken(coordinator, sup.id, { purpose: 'weekly_comment', weekNumber: 3 });
     expect(okToken.token).toBeDefined();
+  });
+
+  itdb('issue returns a purpose-scoped public link', async () => {
+    const sup = await mkIndustrySupervisor('coordinator_approved');
+    const weekly = await issueAssessmentToken(coordinator, sup.id, { purpose: 'weekly_comment', weekNumber: 4 });
+    expect(weekly.url).toBe(`${process.env.FRONTEND_URL ?? 'http://localhost:5173'}/weekly-comment/${weekly.token}`);
+
+    const assessment = await issueAssessmentToken(coordinator, sup.id, { purpose: 'final_assessment' });
+    expect(assessment.url).toBe(`${process.env.FRONTEND_URL ?? 'http://localhost:5173'}/grade/${assessment.token}`);
+  });
+
+  itdb('send=true emails the link to the supervisor and reports the address', async () => {
+    mockSendEmail.mockClear();
+    const sup = await mkIndustrySupervisor('unverified'); // has email in fixture
+    const res = await issueAssessmentToken(coordinator, sup.id, { purpose: 'weekly_comment', weekNumber: 5, send: true });
+    expect(res.emailedTo).toBe('kofi.asante@vodafone.com.gh');
+    expect(mockSendEmail).toHaveBeenCalledTimes(1);
+    expect(mockSendEmail).toHaveBeenCalledWith(
+      expect.objectContaining({ to: 'kofi.asante@vodafone.com.gh', subject: expect.stringContaining('week 5') }),
+    );
+  });
+
+  itdb('send=true with no email on record → 422, no token minted', async () => {
+    mockSendEmail.mockClear();
+    const sup = await prisma.industrySupervisor.create({
+      data: { placementId, name: 'Yaa Mensah', verificationStatus: 'unverified' },
+    });
+    await expect(
+      issueAssessmentToken(coordinator, sup.id, { purpose: 'weekly_comment', weekNumber: 6, send: true }),
+    ).rejects.toMatchObject({ statusCode: 422 });
+    expect(mockSendEmail).not.toHaveBeenCalled();
+    const count = await prisma.assessmentToken.count({ where: { industrySupervisorId: sup.id } });
+    expect(count).toBe(0);
   });
 
   itdb('student may not issue tokens', async () => {
