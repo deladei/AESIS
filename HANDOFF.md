@@ -2882,4 +2882,7 @@ Five commits, all pushed prod:
 
 **Not done (deliberate).** Creating/editing IndustrySupervisor records (UI issues links against existing records only; empty-state shown otherwise). In-browser prod smoke of the email path still pending (dev logs, no real SendGrid send locally).
 
-**Carried.** (unchanged 1–6 above) — plus prod smoke of the weekly-link email once deployed.
+**Carried.**
+- ~~#1 secret rotation~~ **DONE out-of-session (confirmed S85)** — prod `DATABASE_URL` + 3 secrets rotated; drop it from the queue.
+- #2–6 above unchanged.
+- Plus prod smoke of the weekly-link email once deployed.
