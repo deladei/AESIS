@@ -2870,4 +2870,16 @@ Five commits, all pushed prod:
 4. Prod boot log check: migrations `100000`–`160000` applied clean (this deploy adds `160000`); then REMOVE the swallowed `migrate resolve` guard from render.yaml (S83 addendum).
 5. Batch1-2 worktree: rebase onto ≥`172795b`, DROP all industry/token/`industry_weekly_comment` DDL from its migration (main owns them now), re-timestamp its migration dir.
 6. Batch 1 dependency: chain-aware duplicate-week guard + minimum-weeks summation across `supersedes` chain.
-7. NEW: weekly-comment link issuance UI (+ a sensible sender: email the link to the industry supervisor).
+7. NEW: weekly-comment link issuance UI (+ a sensible sender: email the link to the industry supervisor). — **DONE S85.**
+
+### Session 85 — 2026-07-22 — Weekly-comment link issuance UI + backend email sender (carried #7)
+
+**Context.** Closed carried #7 (S84): coordinators/supervisors had no way to *issue* a weekly-comment link. Discovered the S84 tree also held **uncommitted** backend work — the `send`/`url`/`emailedTo` email-sender enhancement to `issueAssessmentToken` (never committed → not on prod). My frontend depends on it, so backend + frontend shipped together this session.
+
+**Shipped.**
+- **`feat(industry)` — backend email sender (was uncommitted S84 WIP).** `issueAssessmentToken` now builds the absolute public link (`publicLink(purpose, token)` → `${FRONTEND_URL}/weekly-comment|/grade/<token>`) and, when `send:true`, emails it via `sendEmail` using new templates `buildWeeklyCommentInviteEmail` / `buildAssessmentInviteEmail` (`shared/utils/email.ts`). Deliverability validated BEFORE minting (send+no-email → 422, no orphan token). Return shape now `{ token, url, tokenId, expiresAt, emailedTo }`. `send:boolean` added to `issueTokenSchema`. +42 lines integration tests (URL scoping, send emails+reports address, 422-no-email-no-token); Ghanaian fixture names. Industry suites **30 passed** locally (DB-gated `itdb` assertions skip on this box — no test DB; CI runs them).
+- **`feat(industry)` — frontend issuance UI.** New `frontend/src/components/industry/WeeklyLinkPanel.tsx`: lists a placement's industry supervisors (`useIndustrySupervisors`), week `<select>` (1..totalWeeks), **Email link** (`send:true`, disabled when no email) + **Get link** (`send:false`) → copyable URL, inline copied-state + error banner (no toast/modal — repo has none; mirrors `GradePanel` industry-invite). New hooks `useIndustrySupervisors` + `useIssueWeeklyLink` in `useWeeklyComment.ts`. Mounted on coordinator `InternDetail` (after GradePanel, `progress.totalWeeks`) and supervisor `PlacementFinalization` (totalWeeks derived from max entry week). Frontend `tsc --noEmit` + `vite build` clean.
+
+**Not done (deliberate).** Creating/editing IndustrySupervisor records (UI issues links against existing records only; empty-state shown otherwise). In-browser prod smoke of the email path still pending (dev logs, no real SendGrid send locally).
+
+**Carried.** (unchanged 1–6 above) — plus prod smoke of the weekly-link email once deployed.

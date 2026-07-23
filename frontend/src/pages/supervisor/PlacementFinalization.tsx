@@ -8,6 +8,7 @@ import {
 } from '@/hooks/usePlacements';
 import { ObjectivesPanel } from '@/components/objectives/ObjectivesPanel';
 import { GradePanel } from '@/components/grades/GradePanel';
+import { WeeklyLinkPanel } from '@/components/industry/WeeklyLinkPanel';
 import { useEntries, type LogbookEntry, type EntryStatus } from '@/hooks/useEntries';
 import {
   useRecordAssessment, useFinalizePlacement, useInviteAttestation,
@@ -261,6 +262,12 @@ function FinalizationDetail({ placement }: { placement: Placement }) {
 
       {/* Final-grade component scores (own three only) */}
       <GradePanel placementId={placement.id} />
+
+      {/* Weekly comment link — issue/email the industry supervisor a formative-comment link */}
+      <WeeklyLinkPanel
+        placementId={placement.id}
+        totalWeeks={Math.max(sortedEntries.length ? sortedEntries[sortedEntries.length - 1].weekNumber : 0, 1)}
+      />
 
       {/* Weekly resolution */}
       <div className="rounded-xl border border-[var(--h-e2e6ef)] bg-[var(--h-ffffff)] p-5">
