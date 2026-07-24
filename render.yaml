@@ -7,11 +7,7 @@ services:
     region: oregon
     plan: free
     buildCommand: npm ci && npm run build && npx prisma generate
-    # The resolve guard clears the failed 20260718130000 attempt (missing
-    # RecordOrigin type, fixed in the migration) so deploy can retry it; it
-    # no-ops with an error (swallowed) once prod is past it — remove after a
-    # confirmed clean deploy.
-    startCommand: npx prisma migrate resolve --rolled-back 20260718130000_assessment_industry || true; npx prisma migrate deploy && node dist/server.js
+    startCommand: npx prisma migrate deploy && node dist/server.js
     healthCheckPath: /health
     envVars:
       - key: NODE_ENV
