@@ -2924,4 +2924,6 @@ Five commits, all pushed prod:
 3. **#3** Render dashboard nit: drop dead `CELERY_BROKER_URL`/`REDIS_URL` from `aesis-ai-engine`.
 4. **S85** prod smoke of the weekly-link email (real SendGrid).
 5. **NEW** prod smoke of `/student/daily-logbook` once Vercel + Render finish (create a day entry, weekly report, absence; confirm SIWES tables live on Neon).
-6. **NEW** wire the stashed Batch 1 WIP (reviewer panel + holiday-calendar admin UI).
+6. ~~**NEW** wire the stashed Batch 1 WIP (reviewer panel + holiday-calendar admin UI).~~ **DONE (S86 addendum below).**
+
+**S86 addendum — wired the stashed Batch 1 WIP (`315d424`, pushed prod).** Recovered the two stashed files onto main and wired them (stash then dropped): (1) **`SiwesCalendarPanel`** (read-only chain-aware daily calendar) mounted on coordinator `InternDetail` (after `WeeklyLinkPanel`) + supervisor `PlacementFinalization` — reviewers see the daily logbook, never author it. (2) **Holiday-calendar admin** — new `HolidayCalendarCard` in coordinator `CohortSettings` (after `ExportGradesCard`), consuming the already-committed+tested `GET/POST/DELETE /siwes/non-working-days` endpoints via the recovered `useNonWorkingDays/Create/Delete` hooks; add-date + label form, deletable rows, empty-state, mirrors the existing settings-card pattern. Frontend `tsc --noEmit` + `vite build` clean. Batch 1 frontend now fully landed — no SIWES WIP outstanding. (Push hit one transient DNS failure after the commit; succeeded on retry.)
