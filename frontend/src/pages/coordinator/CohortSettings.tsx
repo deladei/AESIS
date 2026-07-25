@@ -1,7 +1,9 @@
 import { useEffect, useState } from 'react';
-import { Clock, Loader2, Check, AlertCircle, Gauge, Scale, Send, CheckCircle2, Download } from 'lucide-react';
+import { Clock, Loader2, Check, AlertCircle, Gauge, Scale, Send, CheckCircle2, Download, CalendarDays, Plus, Trash2 } from 'lucide-react';
 import { useCohortConfig, useUpdateCohortConfig } from '@/hooks/useCohortConfig';
 import { useReleaseCohort, useCohortReport, type CohortReport } from '@/hooks/useGrade';
+import { useNonWorkingDays, useCreateNonWorkingDay, useDeleteNonWorkingDay } from '@/hooks/useSiwes';
+import { fmtDate } from '@/lib/schedule';
 
 const WEIGHT_FIELDS = [
   { key: 'weightIndustry',   label: 'Industry',   hint: 'Company supervisor' },
@@ -176,6 +178,109 @@ function ExportGradesCard({ academicYearId, yearLabel }: { academicYearId: strin
       <p className="mt-3 text-xs text-[var(--h-757684)]">
         Only released grades are included — drafts and signed-off-but-unreleased grades are omitted.
       </p>
+    </section>
+  );
+}
+
+/**
+ * Holiday calendar — public holidays and other non-working days for the cohort.
+ * These days are excluded from the SIWES daily-logbook attendance rules (a
+ * declared holiday beats the weekday pattern, so a missing entry never flags on
+ * one). Config, so rows are deletable — unlike the evidence tables.
+ */
+function HolidayCalendarCard({ academicYearId, yearLabel }: { academicYearId: string; yearLabel: string }) {
+  const { data: days = [], isLoading } = useNonWorkingDays(academicYearId);
+  const create = useCreateNonWorkingDay(academicYearId);
+  const remove = useDeleteNonWorkingDay(academicYearId);
+  const [day, setDay] = useState('');
+  const [label, setLabel] = useState('');
+
+  const onAdd = () => {
+    if (!day || !label.trim()) return;
+    create.mutate(
+      { day, label: label.trim() },
+      { onSuccess: () => { setDay(''); setLabel(''); } },
+    );
+  };
+
+  const sorted = [...days].sort((a, b) => a.day.localeCompare(b.day));
+
+  return (
+    <section className="rounded-xl bg-[var(--h-ffffff)] p-8 shadow-sm">
+      <div className="mb-6 flex items-center gap-3">
+        <div className="flex h-10 w-10 items-center justify-center rounded-full bg-[var(--h-eff4ff)] text-[var(--h-15157d)]">
+          <CalendarDays className="h-5 w-5" />
+        </div>
+        <div>
+          <h2 className="text-sm font-bold text-[var(--h-0b1c30)]">Holiday calendar</h2>
+          <p className="text-xs text-[var(--h-757684)]">
+            Public holidays and non-working days in {yearLabel} — excluded from daily-logbook attendance.
+          </p>
+        </div>
+      </div>
+
+      {isLoading ? (
+        <div className="flex h-16 items-center justify-center">
+          <Loader2 className="h-5 w-5 animate-spin text-[var(--h-8a4cfc)]" />
+        </div>
+      ) : sorted.length === 0 ? (
+        <p className="mb-4 text-sm text-[var(--h-757684)]">No holidays configured for {yearLabel} yet.</p>
+      ) : (
+        <ul className="mb-4 divide-y divide-[var(--h-eef1ff)]">
+          {sorted.map((d) => (
+            <li key={d.id} className="flex items-center justify-between py-2.5">
+              <span className="flex items-center gap-3 text-sm">
+                <span className="w-28 font-semibold text-[var(--h-0b1c30)]">{fmtDate(d.day.slice(0, 10))}</span>
+                <span className="text-[var(--h-444653)]">{d.label}</span>
+              </span>
+              <button
+                onClick={() => remove.mutate(d.id)}
+                disabled={remove.isPending}
+                className="rounded-lg p-1.5 text-[var(--h-757684)] transition-colors hover:bg-[var(--h-fdecea)] hover:text-[var(--h-8a1c1c)] disabled:opacity-50"
+                aria-label={`Remove ${d.label}`}
+              >
+                <Trash2 className="h-4 w-4" />
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
+
+      <div className="flex flex-wrap items-end gap-3 border-t border-[var(--h-eef1ff)] pt-4">
+        <label className="flex flex-col gap-1 text-xs font-semibold text-[var(--h-757684)]">
+          Date
+          <input
+            type="date"
+            value={day}
+            onChange={(e) => setDay(e.target.value)}
+            className="rounded-lg border border-[var(--h-c4c5d5)] px-3 py-2 text-sm text-[var(--h-0b1c30)]"
+          />
+        </label>
+        <label className="flex min-w-[12rem] flex-1 flex-col gap-1 text-xs font-semibold text-[var(--h-757684)]">
+          Label
+          <input
+            type="text"
+            value={label}
+            onChange={(e) => setLabel(e.target.value)}
+            placeholder="e.g. Independence Day"
+            className="rounded-lg border border-[var(--h-c4c5d5)] px-3 py-2 text-sm text-[var(--h-0b1c30)]"
+          />
+        </label>
+        <button
+          onClick={onAdd}
+          disabled={!day || !label.trim() || create.isPending}
+          className="inline-flex items-center gap-2 rounded-lg bg-[var(--h-15157d)] px-5 py-2.5 text-sm font-semibold text-white transition-colors hover:opacity-90 disabled:cursor-not-allowed disabled:bg-[var(--h-c4c5d5)]"
+        >
+          {create.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />}
+          Add holiday
+        </button>
+      </div>
+
+      {(create.isError || remove.isError) && (
+        <p className="mt-4 inline-flex items-center gap-1.5 text-sm font-medium text-[var(--h-8a1c1c)]">
+          <AlertCircle className="h-4 w-4" /> Couldn't save the change — try again.
+        </p>
+      )}
     </section>
   );
 }
@@ -523,6 +628,7 @@ export default function CohortSettings() {
 
       <BulkReleaseCard academicYearId={config.academicYearId} yearLabel={config.academicYearLabel} />
       <ExportGradesCard academicYearId={config.academicYearId} yearLabel={config.academicYearLabel} />
+      <HolidayCalendarCard academicYearId={config.academicYearId} yearLabel={config.academicYearLabel} />
     </div>
   );
 }

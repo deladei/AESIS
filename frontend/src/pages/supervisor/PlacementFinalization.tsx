@@ -9,6 +9,7 @@ import {
 import { ObjectivesPanel } from '@/components/objectives/ObjectivesPanel';
 import { GradePanel } from '@/components/grades/GradePanel';
 import { WeeklyLinkPanel } from '@/components/industry/WeeklyLinkPanel';
+import { SiwesCalendarPanel } from '@/components/shared/SiwesCalendarPanel';
 import { useEntries, type LogbookEntry, type EntryStatus } from '@/hooks/useEntries';
 import {
   useRecordAssessment, useFinalizePlacement, useInviteAttestation,
@@ -268,6 +269,9 @@ function FinalizationDetail({ placement }: { placement: Placement }) {
         placementId={placement.id}
         totalWeeks={Math.max(sortedEntries.length ? sortedEntries[sortedEntries.length - 1].weekNumber : 0, 1)}
       />
+
+      {/* SIWES daily logbook — read-only chain-aware calendar (supervisor oversight) */}
+      <SiwesCalendarPanel placementId={placement.id} />
 
       {/* Weekly resolution */}
       <div className="rounded-xl border border-[var(--h-e2e6ef)] bg-[var(--h-ffffff)] p-5">

@@ -134,3 +134,51 @@ export function useRecordAbsence(placementId: string | undefined) {
     onSuccess: () => qc.invalidateQueries({ queryKey: calendarKey(placementId) }),
   });
 }
+
+// ── Cohort holiday calendar (coordinator configuration) ───────
+
+export interface NonWorkingDay {
+  id:             string;
+  academicYearId: string;
+  day:            string; // ISO
+  label:          string;
+}
+
+const nwdKey = (academicYearId: string | undefined) => ['siwes-non-working-days', academicYearId];
+
+export function useNonWorkingDays(academicYearId: string | undefined) {
+  return useQuery({
+    queryKey: nwdKey(academicYearId),
+    enabled:  !!academicYearId,
+    queryFn:  async () => {
+      const r = await api.get<{ data: NonWorkingDay[] }>('/siwes/non-working-days', {
+        params: { academicYearId },
+      });
+      return r.data.data;
+    },
+  });
+}
+
+export function useCreateNonWorkingDay(academicYearId: string | undefined) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (input: { day: string; label: string }) => {
+      const r = await api.post<{ data: NonWorkingDay }>('/siwes/non-working-days', {
+        academicYearId,
+        ...input,
+      });
+      return r.data.data;
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: nwdKey(academicYearId) }),
+  });
+}
+
+export function useDeleteNonWorkingDay(academicYearId: string | undefined) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (id: string) => {
+      await api.delete(`/siwes/non-working-days/${id}`);
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: nwdKey(academicYearId) }),
+  });
+}

@@ -5,6 +5,7 @@ import {
 import { useInternDetail } from '@/hooks/useDashboard';
 import { GradePanel } from '@/components/grades/GradePanel';
 import { WeeklyLinkPanel } from '@/components/industry/WeeklyLinkPanel';
+import { SiwesCalendarPanel } from '@/components/shared/SiwesCalendarPanel';
 
 const STATUS_CLS: Record<string, string> = {
   submitted:    'bg-[var(--h-e1e8ff)] text-[var(--h-15157d)]',
@@ -151,6 +152,9 @@ export default function InternDetail() {
 
       {/* Weekly comment link — issue/email the industry supervisor a formative-comment link */}
       {placementId && <div className="mt-4"><WeeklyLinkPanel placementId={placementId} totalWeeks={progress.totalWeeks} /></div>}
+
+      {/* SIWES daily logbook — read-only chain-aware calendar (coordinator oversight) */}
+      {placementId && <div className="mt-4"><SiwesCalendarPanel placementId={placementId} /></div>}
 
       <div className="mt-4 grid grid-cols-1 gap-4 lg:grid-cols-2">
         {/* Feedback */}
