@@ -28,6 +28,7 @@ import aiRouter            from './modules/ai/ai.router';
 import riskRouter          from './modules/risk/risk.router';
 import industryRouter      from './modules/industry/industry.router';
 import industryPlacementRouter from './modules/industry/industry.placement.router';
+import siwesRouter         from './modules/siwes/siwes.router';
 import industryPublicRouter from './modules/industry/industry.public.router';
 // Future phases — uncomment as modules are built:
 // import usersRouter        from './modules/users/users.router';
@@ -94,6 +95,7 @@ export function createApp() {
   app.use('/api/v1/logbook',       logbookRouter);
   app.use('/api/v1/entries',       entriesRouter);
   app.use('/api/v1/entries',       objectivesEntryRouter); // entry <-> objective links
+  app.use('/api/v1/siwes',         siwesRouter); // SIWES daily logbook (daily entries / weekly reports / absences)
 
   app.use('/api/v1/grades',        gradesRouter); // final-grade spine (aggregate/override/release)
   app.use('/api/v1/grade-invite',  gradesPublicRouter); // PUBLIC magic-link industry score

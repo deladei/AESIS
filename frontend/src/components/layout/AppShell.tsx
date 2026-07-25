@@ -4,7 +4,7 @@ import { cn } from '@/lib/utils';
 import { useAuth } from '@/contexts/AuthContext';
 import { useUnreadCount } from '@/hooks/useNotifications';
 import {
-  LayoutDashboard, BookOpen, Bell, MessageSquare, FileText,
+  LayoutDashboard, BookOpen, CalendarDays, Bell, MessageSquare, FileText,
   Users, ClipboardCheck, AlertTriangle, Building2, BarChart3,
   Shield, ChevronLeft, ChevronRight, LogOut, Settings, UserCheck,
 } from 'lucide-react';
@@ -22,6 +22,7 @@ const navByRole: Record<UserRole, NavItem[]> = {
   student: [
     { label: 'Dashboard',        href: '/student/dashboard',     icon: LayoutDashboard },
     { label: 'Logbook',          href: '/student/logbook',       icon: BookOpen },
+    { label: 'Daily logbook',    href: '/student/daily-logbook', icon: CalendarDays },
     { label: 'Submissions',      href: '/student/submissions',   icon: FileText },
     { label: 'AESIS Assistant',  href: '/student/chatbot',       icon: MessageSquare },
     { label: 'Notifications',    href: '/student/notifications', icon: Bell },

@@ -281,8 +281,9 @@ model AcademicYear {
   isActive  Boolean  @default(false) @map("is_active")
   createdAt DateTime @default(now()) @map("created_at")
 
-  placements    Placement[]
-  cohortConfigs CohortConfig[]
+  placements     Placement[]
+  cohortConfigs  CohortConfig[]
+  nonWorkingDays NonWorkingDay[]
 
   @@map("academic_years")
 }
@@ -312,6 +313,13 @@ model CohortConfig {
   weightUniversity         Int          @default(30) @map("weight_university")
   weightReport             Int          @default(30) @map("weight_report")
   weightLogbook            Int          @default(10) @map("weight_logbook")
+  // SIWES daily-logbook calendar + admissibility window (Batch 1). The logbook
+  // cover says 8 weeks, the department says minimum 6 — configuration absorbs
+  // the discrepancy (CHECK duration_weeks >= 6 in migration SQL).
+  durationWeeks            Int          @default(6) @map("duration_weeks")
+  workingDays              Int[]        @default([1, 2, 3, 4, 5]) @map("working_days") // ISO dow
+  entryEditWindowDays      Int          @default(2) @map("entry_edit_window_days")
+  syncGraceDays            Int          @default(3) @map("sync_grace_days") // hard outer bound past placement end
   createdAt                DateTime     @default(now()) @map("created_at")
 
   @@unique([academicYearId])
@@ -385,6 +393,12 @@ model User {
   transfersDecided            PlacementTransferRequest[] @relation("TransferDecider")
   weeklyCommentsAsStudent     IndustryWeeklyComment[]    @relation("WeeklyCommentStudent")
   weeklyCommentsEntered       IndustryWeeklyComment[]    @relation("WeeklyCommentEnteredBy")
+
+  // SIWES daily logbook (Batch 1)
+  siwesDailyEntries     DailyEntry[]    @relation("SiwesDailyEntries")
+  siwesWeeklySummaries  WeeklySummary[] @relation("SiwesWeeklySummaries")
+  siwesAbsences         Absence[]       @relation("SiwesAbsences")
+  siwesAbsencesRecorded Absence[]       @relation("SiwesAbsenceRecorder")
 
   @@map("users")
 }
@@ -499,6 +513,11 @@ model Placement {
   industryWeeklyComments IndustryWeeklyComment[]
   transfersFrom       PlacementTransferRequest[] @relation("TransferFrom")
   transfersTo         PlacementTransferRequest[] @relation("TransferTo")
+
+  // SIWES daily logbook (Batch 1)
+  siwesDailyEntries    DailyEntry[]
+  siwesWeeklySummaries WeeklySummary[]
+  siwesAbsences        Absence[]
 
   @@map("placements")
 }
@@ -1221,4 +1240,96 @@ model EntryObjective {
   @@index([objectiveId])
   @@index([entryId])
   @@map("entry_objective")
+}
+
+// ─────────────────────────────────────────────
+// SIWES DAILY LOGBOOK (Batch 1)
+// Models mirror the official UENR industrial-attachment instrument. Batch 0
+// shipped IndustrySupervisor / AssessmentToken / WebmailDomain /
+// AssessmentIndustry; the main-tree session owns industry_weekly_comment
+// (Batch 2). These models extend that foundation, never duplicate it.
+// ─────────────────────────────────────────────
+
+enum AbsenceKind {
+  sick
+  permitted
+  unexcused
+}
+
+// One calendar day of the SIWES logbook. Fields mirror the instrument's Weekly
+// Progress Chart exactly (Description of Work Done / New Skills Learnt).
+// created_at is server evidence (immutable via trigger); clientDraftedAt is the
+// student's offline-draft CLAIM (forgeable; a nudge, never a control). Lateness
+// is derived at read time from created_at — deliberately never stored.
+model DailyEntry {
+  id                String    @id @default(uuid())
+  studentId         String    @map("student_id")
+  student           User      @relation("SiwesDailyEntries", fields: [studentId], references: [id], onDelete: Cascade)
+  placementId       String    @map("placement_id")
+  placement         Placement @relation(fields: [placementId], references: [id])
+  weekNumber        Int       @map("week_number") // student-relative: never resets on transfer
+  workDate          DateTime  @map("work_date") @db.Date
+  descriptionOfWork String    @map("description_of_work")
+  newSkillsLearnt   String    @map("new_skills_learnt")
+  sketchUrl         String?   @map("sketch_url")
+  clientDraftedAt   DateTime? @map("client_drafted_at")
+  createdAt         DateTime  @default(now()) @map("created_at")
+  updatedAt         DateTime  @updatedAt @map("updated_at")
+
+  @@unique([studentId, workDate])
+  @@index([placementId])
+  @@map("daily_entry")
+}
+
+// "Trainee's Weekly Report" — one free-text summary per week.
+model WeeklySummary {
+  id          String    @id @default(uuid())
+  studentId   String    @map("student_id")
+  student     User      @relation("SiwesWeeklySummaries", fields: [studentId], references: [id], onDelete: Cascade)
+  placementId String    @map("placement_id")
+  placement   Placement @relation(fields: [placementId], references: [id])
+  weekNumber  Int       @map("week_number")
+  weekEnding  DateTime  @map("week_ending") @db.Date
+  reportText  String    @map("report_text")
+  createdAt   DateTime  @default(now()) @map("created_at")
+  updatedAt   DateTime  @updatedAt @map("updated_at")
+
+  @@unique([studentId, weekNumber])
+  @@index([placementId])
+  @@map("weekly_summary")
+}
+
+// Cohort calendar: public holidays etc. A day with no entry is ambiguous
+// (holiday? sick? no-show?) — this table + absence disambiguate so the
+// missing-entry flag never fires on Independence Day.
+model NonWorkingDay {
+  id             String       @id @default(uuid())
+  academicYearId String       @map("academic_year_id")
+  academicYear   AcademicYear @relation(fields: [academicYearId], references: [id], onDelete: Cascade)
+  day            DateTime     @db.Date
+  label          String
+  createdAt      DateTime     @default(now()) @map("created_at")
+
+  @@unique([academicYearId, day])
+  @@map("non_working_day")
+}
+
+// Per-person excused/unexcused days. Attendance is 20/100 of the industry
+// assessment — a defensible record must distinguish sick leave from a no-show.
+model Absence {
+  id           String      @id @default(uuid())
+  studentId    String      @map("student_id")
+  student      User        @relation("SiwesAbsences", fields: [studentId], references: [id], onDelete: Cascade)
+  placementId  String      @map("placement_id")
+  placement    Placement   @relation(fields: [placementId], references: [id])
+  absenceDate  DateTime    @map("absence_date") @db.Date
+  kind         AbsenceKind
+  reason       String?
+  recordedById String?     @map("recorded_by_id")
+  recordedBy   User?       @relation("SiwesAbsenceRecorder", fields: [recordedById], references: [id])
+  createdAt    DateTime    @default(now()) @map("created_at")
+
+  @@unique([studentId, absenceDate])
+  @@index([placementId])
+  @@map("absence")
 }

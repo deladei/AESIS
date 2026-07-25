@@ -14,6 +14,7 @@ import ResetPasswordPage from '@/pages/auth/ResetPasswordPage';
 import ResetPasswordConfirmPage from '@/pages/auth/ResetPasswordConfirmPage';
 import StudentDashboard  from '@/pages/student/StudentDashboard';
 import LogbookEditor     from '@/pages/student/LogbookEditor';
+import DailyLogbook      from '@/pages/student/DailyLogbook';
 import SubmissionHistory from '@/pages/student/SubmissionHistory';
 import NotificationInbox from '@/pages/student/NotificationInbox';
 import ChatbotPanel      from '@/pages/student/ChatbotPanel';
@@ -122,6 +123,7 @@ export const router = createBrowserRouter([
     children: [
       { path: '/student/dashboard',     element: <StudentDashboard /> },
       { path: '/student/logbook',       element: <LogbookEditor /> },
+      { path: '/student/daily-logbook', element: <DailyLogbook /> },
       { path: '/student/submissions',   element: <SubmissionHistory /> },
       { path: '/student/notifications', element: <NotificationInbox /> },
       { path: '/student/chatbot',       element: <ChatbotPanel /> },
