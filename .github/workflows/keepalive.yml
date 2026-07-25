@@ -1,0 +1,45 @@
+name: Keep-alive
+
+# Pings the Render free-tier backend on a schedule so it never idles into a
+# spin-down. Render free web services sleep after ~15 min of no traffic, and
+# the next request then pays a full cold start (Node boot + migrate deploy) —
+# that is the "server starting" delay on login. ai-engine is on the paid
+# Starter plan and never sleeps, so only aesis-backend needs this.
+#
+# Notes:
+# - Effective once on the default branch (GitHub schedules crons from `main`).
+# - GitHub cron can be delayed under load; if a gap ever exceeds ~15 min the
+#   instance sleeps and the next ping simply cold-wakes it — self-healing.
+# - Neon's DB compute still autosuspends (Neon free), so the first login after
+#   DB idle waits a few seconds for Neon to wake — seconds, not the minutes a
+#   Render cold start costs. Keeping Neon always-on would exhaust its free
+#   compute-hour budget, so we intentionally don't ping the DB here (/health is
+#   static). This keeps the web instance warm, which is what removes the
+#   "server starting" wall.
+
+on:
+  schedule:
+    - cron: '*/10 * * * *'   # every 10 min — Render sleeps at ~15 min idle
+  workflow_dispatch: {}        # manual "wake it now" trigger
+
+# A newer run supersedes an in-flight one rather than queueing.
+concurrency:
+  group: keepalive
+  cancel-in-progress: true
+
+jobs:
+  ping:
+    name: Ping backend /health
+    runs-on: ubuntu-latest
+    steps:
+      - name: Wake / keep aesis-backend warm
+        run: |
+          url="https://aesis.onrender.com/health"
+          for i in 1 2 3 4 5; do
+            code=$(curl -sS -o /dev/null -m 240 -w '%{http_code}' "$url" || echo 000)
+            echo "attempt $i → HTTP $code"
+            [ "$code" = "200" ] && { echo "backend healthy"; exit 0; }
+            sleep 15
+          done
+          echo "backend did not return 200 after retries"
+          exit 1
