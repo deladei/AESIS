@@ -5,6 +5,8 @@ import cookieParser from 'cookie-parser';
 import { requestLogger } from './middleware/requestLogger';
 import { globalErrorHandler } from './middleware/errorHandler';
 import { env } from './config/env';
+import { prisma } from './config/prisma';
+import { logger } from './config/logger';
 
 import authRouter          from './modules/auth/auth.router';
 import placementsRouter    from './modules/placements/placements.router';
@@ -79,9 +81,27 @@ export function createApp() {
   // ── Logging ───────────────────────────────────────────────────
   app.use(requestLogger);
 
-  // ── Health check ──────────────────────────────────────────────
+  // ── Health checks ─────────────────────────────────────────────
+  // Liveness: process is up. Deliberately touches nothing — it must answer
+  // even when a data store is down, so Render can tell "booted" from "boot
+  // loop". It is NOT proof the API works (see /health/db).
   app.get('/health', (_req, res) => {
     res.json({ status: 'ok', service: 'aesis-api', timestamp: new Date().toISOString() });
+  });
+
+  // Readiness: the API can actually serve. Twice now (S87 Neon failed
+  // migration, S88 Neon compute-quota death) prod was returning 500 on every
+  // DB-backed route while /health stayed green and the keep-alive alarm slept.
+  // One round-trip to Postgres closes that gap. 503 on failure so the
+  // scheduled ping fails loudly instead of silently passing.
+  app.get('/health/db', async (_req, res) => {
+    try {
+      await prisma.$queryRaw`SELECT 1`;
+      res.json({ status: 'ok', service: 'aesis-api', db: 'up', timestamp: new Date().toISOString() });
+    } catch (err) {
+      logger.error('Health check: Postgres unreachable', { error: (err as Error).message });
+      res.status(503).json({ status: 'error', service: 'aesis-api', db: 'down', timestamp: new Date().toISOString() });
+    }
   });
 
   // ── API routes ────────────────────────────────────────────────

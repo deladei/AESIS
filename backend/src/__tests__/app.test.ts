@@ -6,6 +6,10 @@ jest.mock('../config/env', () => ({
   },
 }));
 
+jest.mock('../config/prisma', () => ({
+  prisma: { $queryRaw: jest.fn() },
+}));
+
 // Stub all routers used by createApp to avoid deep dependency loading
 jest.mock('../modules/auth/auth.router',                  () => { const r = require('express').Router(); return r; });
 jest.mock('../modules/placements/placements.router',      () => { const r = require('express').Router(); return r; });
@@ -18,15 +22,41 @@ jest.mock('../modules/ai/ai.router',                     () => { const r = requi
 
 import request from 'supertest';
 import { createApp } from '../app';
+import { prisma } from '../config/prisma';
+
+const queryRaw = prisma.$queryRaw as unknown as jest.Mock;
 
 const app = createApp();
 
 describe('createApp', () => {
+  beforeEach(() => queryRaw.mockReset());
+
   it('GET /health returns 200 with status ok', async () => {
     const res = await request(app).get('/health');
     expect(res.status).toBe(200);
     expect(res.body).toHaveProperty('status', 'ok');
     expect(res.body).toHaveProperty('service', 'aesis-api');
+  });
+
+  it('GET /health stays 200 even when Postgres is down (liveness, not readiness)', async () => {
+    queryRaw.mockRejectedValue(new Error('connection refused'));
+    const res = await request(app).get('/health');
+    expect(res.status).toBe(200);
+  });
+
+  it('GET /health/db returns 200 when the DB round-trip succeeds', async () => {
+    queryRaw.mockResolvedValue([{ '?column?': 1 }]);
+    const res = await request(app).get('/health/db');
+    expect(res.status).toBe(200);
+    expect(res.body).toHaveProperty('db', 'up');
+    expect(queryRaw).toHaveBeenCalledTimes(1);
+  });
+
+  it('GET /health/db returns 503 when the DB is unreachable', async () => {
+    queryRaw.mockRejectedValue(new Error('Your account or project has exceeded the compute time quota'));
+    const res = await request(app).get('/health/db');
+    expect(res.status).toBe(503);
+    expect(res.body).toHaveProperty('db', 'down');
   });
 
   it('unknown routes return 404', async () => {

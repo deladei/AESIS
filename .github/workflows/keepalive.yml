@@ -10,12 +10,15 @@ name: Keep-alive
 # - Effective once on the default branch (GitHub schedules crons from `main`).
 # - GitHub cron can be delayed under load; if a gap ever exceeds ~15 min the
 #   instance sleeps and the next ping simply cold-wakes it — self-healing.
-# - /health is static (no DB), so this ping never touches Postgres. It doesn't
-#   need to: prod moved off Neon to Supabase in S87 precisely because Neon free
-#   meters compute-hours and a warm backend exhausted them. Supabase free has no
-#   compute-hour budget — it only pauses a project after ~7 days of zero
-#   activity, which normal traffic plus the 60s enrichment poll prevents.
-#   Keeping the web instance warm is what removes the "server starting" wall.
+# - It pings /health/db, NOT /health. /health is static and answered 200 all
+#   through both outages (S87 failed migration, S88 Neon compute-quota death)
+#   while every DB-backed route 500'd — so a green ping meant nothing. /health/db
+#   does one `SELECT 1`, so a non-200 fails this run and GitHub emails: this is
+#   the uptime alarm, not just a warmer.
+# - Pinging the DB every 10 min is safe on Supabase (no compute-hour metering;
+#   a project only pauses after ~7 days of zero activity, and this prevents
+#   that too). It would NOT have been safe on Neon, which is exactly why prod
+#   moved off it — see RUNBOOK.md.
 
 on:
   schedule:
@@ -29,12 +32,12 @@ concurrency:
 
 jobs:
   ping:
-    name: Ping backend /health
+    name: Ping backend /health/db
     runs-on: ubuntu-latest
     steps:
-      - name: Wake / keep aesis-backend warm
+      - name: Wake aesis-backend and assert Postgres is reachable
         run: |
-          url="https://aesis.onrender.com/health"
+          url="https://aesis.onrender.com/health/db"
           for i in 1 2 3 4 5; do
             code=$(curl -sS -o /dev/null -m 240 -w '%{http_code}' "$url" || echo 000)
             echo "attempt $i → HTTP $code"
