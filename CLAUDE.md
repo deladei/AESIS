@@ -2,6 +2,7 @@
 
 > Repo-root context for Claude Code. Read every session.
 > **Also read `HANDOFF.md` first** — it is the running session log and the source of truth for current state.
+> When prod is broken, go to **`RUNBOOK.md`** — boot-loop / failed-migration recovery, dump-restore, alarms.
 
 ## Project
 AESIS (AI-Enhanced Student Internship Supervision System). CS-department pilot for tracking and supervising student internships: students submit weekly logbook entries, supervisors review/score them, faculty oversee, and the placement closes with a final assessment + company attestation. An AI enrichment path scores and tags entries (advisory only).

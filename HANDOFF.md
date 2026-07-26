@@ -2927,3 +2927,64 @@ Five commits, all pushed prod:
 6. ~~**NEW** wire the stashed Batch 1 WIP (reviewer panel + holiday-calendar admin UI).~~ **DONE (S86 addendum below).**
 
 **S86 addendum — wired the stashed Batch 1 WIP (`315d424`, pushed prod).** Recovered the two stashed files onto main and wired them (stash then dropped): (1) **`SiwesCalendarPanel`** (read-only chain-aware daily calendar) mounted on coordinator `InternDetail` (after `WeeklyLinkPanel`) + supervisor `PlacementFinalization` — reviewers see the daily logbook, never author it. (2) **Holiday-calendar admin** — new `HolidayCalendarCard` in coordinator `CohortSettings` (after `ExportGradesCard`), consuming the already-committed+tested `GET/POST/DELETE /siwes/non-working-days` endpoints via the recovered `useNonWorkingDays/Create/Delete` hooks; add-date + label form, deletable rows, empty-state, mirrors the existing settings-card pattern. Frontend `tsc --noEmit` + `vite build` clean. Batch 1 frontend now fully landed — no SIWES WIP outstanding. (Push hit one transient DNS failure after the commit; succeeded on retry.)
+
+### Session 87 — 2026-07-25 — PROD OUTAGE FIXED (4 days down): failed migration row, not the Neon quota
+
+**Context.** User reported login stuck on "server is starting" for ~4 days, and separately that the Neon
+free plan had hit its monthly limit. Those turned out to be two different things, and the quota was NOT
+the outage.
+
+**Root cause.** `_prisma_migrations` on prod held `20260718130000_assessment_industry` as **started,
+never finished, never rolled back** (`applied_steps_count = 0`, error 42704 `type "RecordOrigin" does not
+exist` — the migration file at that time was missing its `CREATE TYPE`, since fixed). Prisma then refuses
+every later deploy with P3009, so `startCommand` (`migrate deploy && node dist/server.js`) exited non-zero
+on every boot → permanent restart loop → even the static `/health` route never answered. This is exactly
+what the `migrate resolve --rolled-back 20260718130000 || true` guard in render.yaml had been papering
+over; **S86 dropped that guard on the reasoning that ≥3 clean deploys had happened since — that reasoning
+was wrong** (the failed row was still there), and prod went down. CI could never catch this: CI migrates a
+clean DB and never sees prod's `_prisma_migrations` state.
+
+**Fixed (prod live again).** `migrate resolve --rolled-back 20260718130000_assessment_industry` then
+`migrate deploy` against Neon → applied the 5 pending migrations (`130000` assessment_industry, `140000`
+placement_transfer, `150000` final_grade_release_guard, `160000` industry_weekly_comment, `170000`
+siwes_daily_logbook). Prod DB had been **6 migrations behind** — all of S84–S86's schema work had never
+reached it. Verified: 0 unfinished migrations, 30 applied, 45 tables, all SIWES/industry tables present,
+6 user triggers, data intact (18 users / 7 placements / 239 refresh tokens). `/health` → **200**; user
+confirmed login works.
+
+**Shipped.**
+- **`9f8d9ff` `perf(entries)`** — `startEnrichmentWorker` default poll **15s → 60s**. The 15s poll held a
+  DB connection hot 24/7, which pins Neon compute on (Neon free meters compute-hours per ACCOUNT) and is
+  what actually exhausted the monthly budget. Enrichment is advisory; a minute of latency costs nothing.
+- **`08cf331` `chore(deploy)`** — Supabase-oriented docs in `render.yaml` / `.env.example` /
+  `schema.prisma` / `keepalive.yml`. **No `DIRECT_URL` was added**: Prisma hard-fails P1012 on an unset
+  env var (verified with `prisma validate`), which would have broken local dev, tests and CI. Session-mode
+  pooler as a single URL is also the right fit for one long-lived Node process.
+- **Keep-alive workflow `7e1cb6b` finally pushed.** It had been committed but never pushed (`main` was
+  ahead 1; GitHub 404'd the workflow), so it had never run once. It now doubles as the missing uptime
+  **alarm** — non-200 fails the scheduled run and GitHub emails. Same outage would surface in ~10 min
+  instead of 4 days.
+- **`RUNBOOK.md` (new)** — boot-loop diagnosis, failed-migration recovery commands, dump/restore with the
+  `SCHEMA - public` TOC filter, parity query, secret-rotation order. Linked from `CLAUDE.md`.
+
+**Supabase standby (staged, NOT cut over).** Full verified copy loaded: `pg_dump` (custom, `--no-owner
+--no-acl --schema=public`) from Neon PG 18.4 → `pg_restore` into Supabase PG 17.6 session pooler, clean
+with `--exit-on-error` once the benign `CREATE SCHEMA public` TOC entry is filtered out. Parity: 45/45
+tables, every row count identical except `refresh_tokens` 240 vs 239 — the user's login landing on Neon
+after the dump, i.e. proof Neon is live and taking writes. **A cutover therefore needs a re-dump at flip
+time**, then `DATABASE_URL` → the session-pooler string (port 5432, NOT 6543, NOT `db.<ref>.supabase.co`
+which is IPv6-only).
+
+**Security.** Prod Neon `DATABASE_URL` and the Supabase DB password were both pasted into chat this
+session (the "never paste secrets in chat" rule from S43 was broken again). **Both must be rotated.**
+
+**Carried.**
+1. **Rotate the two pasted DB passwords** (Neon + Supabase) — user, console-only.
+2. **Decide Neon vs Supabase.** Prod is healthy on Neon now; Supabase standby is warm. Cutover = re-dump
+   + flip `DATABASE_URL` + Manual Deploy.
+3. **NEW (user request): merge the daily logbook and the logbook itself** without overlap — there are
+   currently three pipelines (legacy `modules/logbook/`, weekly `modules/entries/`, daily
+   `modules/siwes/`). Needs a design pass before any code.
+4. Prod smokes still open: enrichment worker, weekly-link SendGrid email, `/student/daily-logbook`
+   end-to-end (its tables only reached prod today), S81 in-browser list.
+5. Render dashboard nit: drop dead `CELERY_BROKER_URL`/`REDIS_URL` from `aesis-ai-engine`.
