@@ -230,8 +230,15 @@ export async function runEnrichmentOnce(enrich: EnrichFn = enrichEntryViaFastApi
 let timer: NodeJS.Timeout | null = null;
 let running = false;
 
-/** Start the background polling loop. Safe to call once at server boot. */
-export function startEnrichmentWorker(intervalMs = 15_000): void {
+/**
+ * Start the background polling loop. Safe to call once at server boot.
+ *
+ * The default interval is 60s, not seconds-fast: enrichment is advisory (never
+ * a grade), so a minute of latency costs nothing, while a tight poll holds a DB
+ * connection hot around the clock. On Neon that pinned its compute permanently
+ * on and burned the free monthly compute-hour budget, which took prod down.
+ */
+export function startEnrichmentWorker(intervalMs = 60_000): void {
   if (timer) return;
   timer = setInterval(async () => {
     if (running) return; // never overlap ticks
