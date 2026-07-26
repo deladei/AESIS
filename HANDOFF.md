@@ -2988,3 +2988,65 @@ session (the "never paste secrets in chat" rule from S43 was broken again). **Bo
 4. Prod smokes still open: enrichment worker, weekly-link SendGrid email, `/student/daily-logbook`
    end-to-end (its tables only reached prod today), S81 in-browser list.
 5. Render dashboard nit: drop dead `CELERY_BROKER_URL`/`REDIS_URL` from `aesis-ai-engine`.
+
+---
+
+### Session 88 — 2026-07-26 — Neon died on quota; prod cut over to Supabase; alarm made DB-aware
+
+**Context.** Session opened on the S87 carried item "decide Neon vs Supabase". It was not a decision
+anymore — prod was **already down again**, and had been since some point after S87 closed.
+
+**Root cause.** Neon's free plan meters **compute-hours per account**, and the budget was exhausted. The
+endpoint now refuses every connection outright: `ERROR: Your account or project has exceeded the compute
+time quota`. Nothing in the repo could fix it. Note this is a *different* failure from S87 (that was a
+failed `_prisma_migrations` row → P3009 boot loop); same symptom class, unrelated mechanism.
+
+**Why nobody noticed (again).** `/health` is static. The backend booted fine and answered `/health` 200
+throughout, so the S87 keep-alive workflow — the alarm added specifically so an outage would surface in
+~10 min — passed on every run while every DB-backed route returned 500. The probe that proved it:
+`POST /api/v1/auth/login` with a nonexistent address (pure `findUnique`, no writes) → **500**.
+
+**Cutover (prod live on Supabase).**
+- Pre-flip `pg_dump` of the Supabase standby taken first, so the flip itself was reversible —
+  173 KB, 45 `TABLE DATA` sections, kept at `~/backups/aesis/supabase-preflip-20260726.dump`.
+- **The RUNBOOK's "re-dump Neon immediately before flipping" step could not be run** — a quota-dead
+  database cannot be dumped. The Jul 25 copy was all there was. Accepted knowingly: the newest row on
+  either side was 2026-07-17, so the expected loss was zero, and post-cutover parity confirmed it.
+- `DATABASE_URL` → Supabase **session pooler** (`aws-1-us-west-2.pooler.supabase.com:5432`).
+- First deploy failed **P1012** — "the URL must start with the protocol `postgresql://`". The value had
+  been pasted from the Supabase console with its field label run into it (`database=postgres` +
+  URL). Re-pasted clean → `30 migrations found` → **"No pending migrations to apply"** → live.
+- Verified: `/health` 200, bogus login **401** (was 500), 45 tables, **30 applied / 0 unfinished / 1
+  rolled_back** (the S87 landmine, correctly resolved and carried by the dump), rows 18 users /
+  7 placements / 239 refresh_tokens — exact parity with pre-flip. User confirmed real login + data.
+
+**Shipped.**
+- **`7466f45` `feat(health)`** — new **`GET /health/db`** (one `prisma.$queryRaw SELECT 1`, 503 on
+  failure, logs the driver error) and `keepalive.yml` now pings **that** instead of `/health`. A dead
+  database now fails the scheduled run and GitHub emails within ~10 min. `/health` keeps its
+  no-dependency contract as the liveness check that tells "booted" from "boot loop". 4 new Jest cases
+  in `src/__tests__/app.test.ts` (incl. `/health` staying 200 while the DB is down). Safe to poll on
+  Supabase — no compute-hour metering; it would **not** have been safe on Neon, which is the whole
+  reason prod moved.
+- **`RUNBOOK.md`** — Live/Decommissioned swapped (Supabase PG 17.6 live; Neon quota-dead, do not
+  re-point), alarm row updated, a `/health` × `/health/db` truth table that localises the fault in one
+  step, the P1012 mangled-paste trap, and a "provider quota death" section warning that a dead provider
+  cannot be dumped.
+
+**Security.** The Supabase DB password and the full Neon URL (password included) were pasted into chat
+again this session — the same rule broken in S43 and S87. Both are burned. The user chose "flip now,
+rotate after" to shorten the outage, so **prod is currently running on a compromised password**.
+
+**Carried.**
+1. **ROTATE the Supabase DB password** (console → Settings → Database → Reset), update Render
+   `DATABASE_URL`, re-verify `/health/db` + login. Not optional, and not deferrable past this session.
+2. **Neon project not yet deleted** — do it, so no stale string can be re-pointed at a dead DB. Its
+   password is burned too; deleting the project retires it without a rotation.
+3. Supabase free pauses a project after ~7 days of zero activity; the 10-min keep-alive ping now
+   prevents that on its own.
+4. **Logbook consolidation WIP is still uncommitted** (schema + `entries.day.service.ts` +
+   `siwes.service.ts` + tests + migration `20260726000000_logbook_consolidation`). Untouched by this
+   session — deliberately kept out of every commit. Phases 1+2 must still land together.
+5. Prod smokes still open from S87: enrichment worker, weekly-link SendGrid email,
+   `/student/daily-logbook` end-to-end, S81 in-browser list.
+6. Render dashboard nit: drop dead `CELERY_BROKER_URL`/`REDIS_URL` from `aesis-ai-engine`.

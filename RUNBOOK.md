@@ -7,21 +7,32 @@
 
 | Signal | Meaning |
 |---|---|
-| `.github/workflows/keepalive.yml` run **fails** (GitHub emails you) | `https://aesis.onrender.com/health` did not return 200 after 5 tries over ~5 min. Prod is down or boot-looping. Start with "Prod won't boot" below. |
+| `.github/workflows/keepalive.yml` run **fails** (GitHub emails you) | `https://aesis.onrender.com/health/db` did not return 200 after 5 tries over ~5 min. Either the process is down/boot-looping, or Postgres is unreachable. Start with "Prod won't boot" below. |
 | Render deploy marked failed | Build or `startCommand` failed. Read the boot log before anything else. |
 
 The keep-alive cron runs every 10 min, so an outage surfaces within ~10 minutes. It exists because
 the S87 outage (below) went unnoticed for **four days**.
 
+**It pings `/health/db`, not `/health`, and that distinction is the whole alarm.** `/health` is
+static; it returned 200 throughout *both* the S87 and S88 outages while every DB-backed route
+returned 500. A green `/health` proves only that Node is running.
+
 ---
 
 ## Symptom: login hangs / "server is starting" forever
 
-`/health` is a **static** route with no DB access (`backend/src/app.ts`). So:
+`/health` is a **static** route with no DB access; `/health/db` does one `SELECT 1`
+(`backend/src/app.ts`). Probe both — the pair localises the fault in one step:
 
-- `/health` slow (~30 s) then 200 → normal Render free cold start. Harmless; keep-alive prevents it.
-- `/health` times out with **zero bytes**, repeatedly → the process is not running at all. The
-  service is boot-looping. Go to the next section.
+| `/health` | `/health/db` | Meaning |
+|---|---|---|
+| 200 (after ~30 s) | 200 | Normal Render free cold start. Harmless; keep-alive prevents it. |
+| 200 | **503** | Process is up, **database is unreachable**. Skip the boot-loop section — go to "Database" and check the provider console (quota, paused project, rotated password). |
+| times out, **zero bytes**, repeatedly | — | Process is not running at all; service is boot-looping. Next section. |
+
+A quick equivalent when you want to exercise a real query path: `POST /api/v1/auth/login` with an
+address that does not exist. It is a pure `findUnique` with no writes — **401** means the DB is
+wired, **500** means it is not.
 
 ## Symptom: prod won't boot (boot loop)
 
@@ -84,16 +95,30 @@ psql "$DATABASE_URL" -tAc "select count(*) from _prisma_migrations
 Prod Postgres is external to Render — `DATABASE_URL` is set in the Render dashboard (`sync: false`
 in `render.yaml`), never as a Render-managed resource.
 
-- **Live:** Neon (`ep-autumn-waterfall-a6nt7o2h.us-west-2.aws.neon.tech`), PostgreSQL 18.
-  Free plan meters **compute-hours per account** — an always-on connection exhausts the month. This
-  is why `startEnrichmentWorker` polls at 60 s, not 15 s.
-- **Standby:** Supabase (`aws-1-us-west-2.pooler.supabase.com:5432`), PostgreSQL 17, loaded with a
-  verified copy as of 2026-07-25. Free plan does not meter compute; it only pauses a project after
-  ~7 days of zero activity.
+- **Live:** Supabase (`aws-1-us-west-2.pooler.supabase.com:5432`), PostgreSQL 17.6 — cut over
+  2026-07-26 (S88). Free plan does **not** meter compute; a project only pauses after ~7 days of
+  zero activity, which the keep-alive ping alone prevents.
+- **Decommissioned:** Neon (`ep-autumn-waterfall-a6nt7o2h...`), PostgreSQL 18. Its free plan meters
+  **compute-hours per account**; the budget ran out and it now refuses every connection with
+  `ERROR: Your account or project has exceeded the compute time quota`. **Do not re-point anything
+  at it** — treat it as gone, like `aesis-postgres-2` before it.
 
-If switching to Supabase, `DATABASE_URL` **must** be the session-mode pooler string (port **5432**).
-Not port 6543 — transaction mode cannot run `prisma migrate deploy`. Not `db.<ref>.supabase.co` —
-IPv6-only, unreachable from Render.
+`DATABASE_URL` **must** be the session-mode pooler string (port **5432**), and nothing may precede
+`postgresql://` in the value — a mangled paste from the Supabase console (`database=postgres` ran
+into the URL) produced a P1012 boot loop during the S88 cutover. Not port 6543 — transaction mode
+cannot run `prisma migrate deploy`. Not `db.<ref>.supabase.co` — IPv6-only, unreachable from Render.
+
+### Cause seen in production (S88, 2026-07-26 — provider quota death)
+
+Every DB-backed route 500s, `/health` still 200s, and `psql` against the provider returns
+`ERROR: Your account or project has exceeded the compute time quota`. The database is refusing
+connections outright; nothing in the repo can fix it. Options are: wait for the plan's monthly
+reset, upgrade the plan, or **cut over to the standby**.
+
+The trap: a dead provider cannot be dumped. "Re-dump immediately before flipping" (below) becomes
+impossible, and the newest available copy is whatever was dumped last. Keep the standby fresh, and
+take a dump of the *target* before it becomes the system of record so the cutover itself is
+reversible.
 
 ### Dump / restore
 
