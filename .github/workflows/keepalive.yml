@@ -10,12 +10,12 @@ name: Keep-alive
 # - Effective once on the default branch (GitHub schedules crons from `main`).
 # - GitHub cron can be delayed under load; if a gap ever exceeds ~15 min the
 #   instance sleeps and the next ping simply cold-wakes it — self-healing.
-# - Neon's DB compute still autosuspends (Neon free), so the first login after
-#   DB idle waits a few seconds for Neon to wake — seconds, not the minutes a
-#   Render cold start costs. Keeping Neon always-on would exhaust its free
-#   compute-hour budget, so we intentionally don't ping the DB here (/health is
-#   static). This keeps the web instance warm, which is what removes the
-#   "server starting" wall.
+# - /health is static (no DB), so this ping never touches Postgres. It doesn't
+#   need to: prod moved off Neon to Supabase in S87 precisely because Neon free
+#   meters compute-hours and a warm backend exhausted them. Supabase free has no
+#   compute-hour budget — it only pauses a project after ~7 days of zero
+#   activity, which normal traffic plus the 60s enrichment poll prevents.
+#   Keeping the web instance warm is what removes the "server starting" wall.
 
 on:
   schedule:

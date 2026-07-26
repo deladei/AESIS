@@ -6,6 +6,12 @@ generator client {
   provider = "prisma-client-js"
 }
 
+// In prod DATABASE_URL is Supabase's SESSION-mode pooler (Supavisor, port 5432,
+// aws-*.pooler.supabase.com — the direct db.*.supabase.co host is IPv6-only and
+// unreachable from Render). Session mode is deliberate: this is one long-lived
+// Node process, not serverless, and unlike transaction mode (6543) it can run
+// `prisma migrate deploy`. So no `directUrl` is needed — one URL for app and
+// migrations, same as local dev.
 datasource db {
   provider = "postgresql"
   url      = env("DATABASE_URL")

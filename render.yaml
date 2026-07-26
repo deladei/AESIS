@@ -14,11 +14,20 @@ services:
         value: production
       - key: PORT
         value: 10000
-      # Prod DB migrated to a FREE Neon Postgres (external, non-expiring) in
-      # Session 45 after the Render free Postgres expired. Neon is NOT a
-      # Render-managed resource, so DATABASE_URL is set in the dashboard
-      # (sync:false). Do NOT relink this to aesis-postgres-2 (dead) or prod
-      # login breaks again. See HANDOFF S45.
+      # Prod DB is a FREE Supabase Postgres (external), migrated off Neon in
+      # Session 87: Neon free meters COMPUTE-HOURS per account and our 60s
+      # enrichment poll kept its compute pinned on, so the monthly budget ran
+      # out and `migrate deploy` could no longer connect — the boot loop that
+      # took prod down. Supabase free does not meter compute (it only pauses a
+      # project after ~7 days of zero activity). Before Neon it was a Render
+      # free Postgres, which expired (S45) — do NOT relink to aesis-postgres-2
+      # (dead).
+      #
+      # The value MUST be the SESSION-mode pooler string:
+      #   postgresql://postgres.<ref>:<pw>@aws-N-<region>.pooler.supabase.com:5432/postgres
+      # Not port 6543 (transaction mode can't run `prisma migrate deploy`) and
+      # not db.<ref>.supabase.co (IPv6-only, unreachable from Render).
+      # External resource → set in the dashboard, sync:false.
       - key: DATABASE_URL
         sync: false
       - key: MONGO_URI
