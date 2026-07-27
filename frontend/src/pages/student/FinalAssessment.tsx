@@ -1,4 +1,5 @@
-import { Loader2, Award, Lock, FileText, Building2, Star, CheckCircle2 } from 'lucide-react';
+import { useState } from 'react';
+import { Loader2, Award, Lock, FileText, Building2, Star, CheckCircle2, Sparkles } from 'lucide-react';
 import { useMyPlacements } from '@/hooks/usePlacements';
 import { useFinalAssessment } from '@/hooks/useFinalization';
 import { GradePanel } from '@/components/grades/GradePanel';
@@ -18,6 +19,7 @@ function fmtDate(iso: string | null): string {
  * placement is finalized (403 otherwise), so a locked state is shown until then.
  */
 export default function FinalAssessment() {
+  const [showSample, setShowSample] = useState(false);
   const { data: placements, isLoading: placementsLoading } = useMyPlacements();
   const placement = placements?.find((p) => p.placementStatus === 'active') ?? placements?.[0];
   const { data, isLoading, isError } = useFinalAssessment(placement?.id);
@@ -39,13 +41,25 @@ export default function FinalAssessment() {
         {placement && <GradePanel placementId={placement.id} />}
         <div className="flex items-start gap-3 rounded-xl bg-[var(--h-f3f3f7)] p-8 text-[var(--h-444653)]">
           <Lock className="mt-0.5 h-5 w-5 shrink-0 text-[var(--h-15157d)]" />
-          <div>
+          <div className="min-w-0">
             <p className="font-semibold text-[var(--h-0b1c30)]">Not available yet</p>
             <p className="mt-1 text-sm">
               Your final assessment will appear here once your supervisor finalizes and signs off your internship.
             </p>
+            {/* The recap is built entirely from the student's own logbook, so
+                showing an example now is also a nudge to keep logging. */}
+            <button
+              type="button"
+              onClick={() => setShowSample((v) => !v)}
+              className="mt-3 inline-flex items-center gap-1.5 rounded-lg border border-[var(--h-d3c4ff)] bg-[var(--h-ffffff)] px-3 py-1.5 text-xs font-semibold text-[var(--h-712ae2)] transition-colors hover:bg-[var(--h-f6f1ff)]"
+            >
+              <Sparkles className="h-3.5 w-3.5" />
+              {showSample ? 'Hide the example recap' : 'Preview your end-of-internship recap'}
+            </button>
           </div>
         </div>
+
+        {showSample && <InternshipRecap enabled sample />}
       </div>
     );
   }

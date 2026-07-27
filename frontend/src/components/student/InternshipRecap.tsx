@@ -143,13 +143,46 @@ function buildCards(r: Recap): Card[] {
   return cards;
 }
 
-export function InternshipRecap({ enabled }: { enabled: boolean }) {
-  const { data, isLoading } = useRecap(enabled);
+/**
+ * A worked example, shown before a student's own recap unlocks so the page can
+ * say what is coming rather than only that it is locked. Ghanaian placement
+ * data, per the project's demo-data convention.
+ */
+export const SAMPLE_RECAP: Recap = {
+  totalEntries: 42,
+  weeksCovered: 8,
+  totalWeeksInAttachment: 8,
+  daysOnTime: 35,
+  longestOnTimeStreak: 5,
+  themes: [
+    { tag: 'Teamwork', count: 14 },
+    { tag: 'Problem Solving', count: 11 },
+    { tag: 'Technical Writing', count: 7 },
+    { tag: 'Testing', count: 6 },
+    { tag: 'Communication', count: 4 },
+  ],
+  skills: [
+    'Configured the branch router and documented the address plan',
+    'Ran the month-end reconciliation with the accounts officer',
+    'Wrote the handover notes for the stock-taking process',
+  ],
+  challenges: [
+    'The first week I did not understand the filing system and kept asking the same questions.',
+    'Explaining a delay to a client on the phone was harder than doing the actual work.',
+  ],
+  firstEntryDate: '2026-02-02',
+  lastEntryDate: '2026-03-27',
+};
+
+export function InternshipRecap({ enabled, sample = false }: { enabled: boolean; sample?: boolean }) {
+  const { data, isLoading } = useRecap(enabled && !sample);
   const [index, setIndex] = useState(0);
 
-  if (!enabled || isLoading || !data?.available || !data.recap) return null;
+  const source = sample ? SAMPLE_RECAP : data?.recap;
+  if (!sample && (!enabled || isLoading || !data?.available || !source)) return null;
+  if (!source) return null;
 
-  const cards = buildCards(data.recap);
+  const cards = buildCards(source);
   const card = cards[Math.min(index, cards.length - 1)];
   const Icon = card.icon;
 
@@ -157,7 +190,14 @@ export function InternshipRecap({ enabled }: { enabled: boolean }) {
     <section className="overflow-hidden rounded-2xl border border-[var(--h-d3c4ff)] bg-gradient-to-br from-[var(--h-f6f1ff)] to-[var(--h-eef1ff)] p-6 shadow-sm">
       <div className="mb-4 flex items-center gap-2">
         <Sparkles className="h-4 w-4 text-[var(--h-712ae2)]" />
-        <h2 className="text-sm font-bold text-[var(--h-712ae2)]">Your internship, wrapped</h2>
+        <h2 className="text-sm font-bold text-[var(--h-712ae2)]">
+          {sample ? 'Example — what your recap will look like' : 'Your internship, wrapped'}
+        </h2>
+        {sample && (
+          <span className="ml-auto rounded-full bg-[var(--h-fff4e0)] px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-[var(--h-9a6700)]">
+            Sample data
+          </span>
+        )}
       </div>
 
       {/* key on the card so remounting replays the CSS transition */}
