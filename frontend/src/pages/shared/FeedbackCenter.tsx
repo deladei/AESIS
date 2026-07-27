@@ -6,6 +6,12 @@ import { useMyPlacements } from '@/hooks/usePlacements';
 import { useSubmissions, useSubmitFeedback } from '@/hooks/useLogbook';
 import { ChatThread } from '@/components/messaging/ChatThread';
 import ScheduleCallCard from '@/components/messaging/ScheduleCallCard';
+import { FieldError } from '@/components/shared/FieldError';
+import { freeText } from '@/lib/validation';
+
+// Mirrors logbook.schema's `feedbackText: min(10).max(5000)`.
+const FEEDBACK_MAX = 5000;
+const FEEDBACK_TEXT = freeText(FEEDBACK_MAX, 'Feedback').min(10, 'Feedback must be at least 10 characters');
 
 /**
  * Feedback & Mentorship Center — wired to live data.
@@ -47,6 +53,7 @@ function ReviewerView() {
   const [selectedId, setSelectedId] = useState<string>('');
   const [rating, setRating] = useState<number | null>(null);
   const [feedbackText, setFeedbackText] = useState('');
+  const [feedbackErr, setFeedbackErr] = useState<string | undefined>();
   const [chatSearch, setChatSearch] = useState('');
 
   const selected = useMemo(
@@ -85,7 +92,10 @@ function ReviewerView() {
   const canReview = !!sub?.canReceiveFeedback;
 
   const onSubmit = (outcome: 'approved' | 'flagged') => {
-    if (!sub || !feedbackText.trim()) return;
+    if (!sub) return;
+    const parsed = FEEDBACK_TEXT.safeParse(feedbackText);
+    if (!parsed.success) { setFeedbackErr(parsed.error.issues[0]?.message); return; }
+    setFeedbackErr(undefined);
     submitFeedback.mutate(
       { submissionId: sub.id, feedbackText: feedbackText.trim(), rating: rating ?? undefined, outcome },
       { onSuccess: () => { setFeedbackText(''); setRating(null); } },
@@ -266,11 +276,19 @@ function ReviewerView() {
               <textarea
                 rows={5}
                 value={feedbackText}
+                maxLength={FEEDBACK_MAX}
+                aria-invalid={!!feedbackErr}
                 disabled={!canReview}
                 onChange={(e) => setFeedbackText(e.target.value)}
                 placeholder={canReview ? 'Enter detailed observations about progress, strengths, and areas to improve…' : 'This intern has no submission awaiting review.'}
                 className="w-full rounded-xl border border-[var(--h-c7c5d4)] bg-[var(--h-eff4ff)] p-3 text-sm text-[var(--h-0b1c30)] focus:border-[var(--h-15157d)] focus:outline-none focus:ring-2 focus:ring-[var(--h-15157d-20)] disabled:opacity-60"
               />
+              <div className="flex items-start justify-between gap-3">
+                <FieldError message={feedbackErr} />
+                <span className="ml-auto shrink-0 text-[11px] text-[var(--h-757684)]">
+                  {feedbackText.trim().length}/{FEEDBACK_MAX}
+                </span>
+              </div>
             </div>
 
             {submitFeedback.isError && (

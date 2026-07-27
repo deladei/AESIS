@@ -4,6 +4,8 @@ import {
   Loader2, GraduationCap, CheckCircle2, AlertCircle, Award, CalendarDays,
 } from 'lucide-react';
 import { useIndustryContext, useSubmitIndustryScore } from '@/hooks/useGrade';
+import { FieldError } from '@/components/shared/FieldError';
+import { score as scoreField } from '@/lib/validation';
 
 function fmtDate(iso: string | null): string {
   if (!iso) return '—';
@@ -46,11 +48,15 @@ export default function IndustryScore() {
   const [done, setDone] = useState(false);
 
   const num = Number(score);
-  const valid = score !== '' && Number.isFinite(num) && num >= 0 && num <= 100;
+  // Shared 0–100 rule — this endpoint is public (magic link), so the server
+  // re-parses it regardless; this only puts the message under the field.
+  const scoreCheck = score === '' ? null : scoreField(100, 'Score').safeParse(num);
+  const valid = scoreCheck?.success === true;
+  const scoreError = scoreCheck && !scoreCheck.success ? scoreCheck.error.issues[0]?.message : undefined;
 
   const handleSubmit = async () => {
     setFormErr(null);
-    if (!valid) { setFormErr('Enter a score between 0 and 100.'); return; }
+    if (!valid) { setFormErr(scoreError ?? 'Enter a score between 0 and 100.'); return; }
     try {
       await submit.mutateAsync(num);
       setDone(true);
@@ -136,8 +142,11 @@ export default function IndustryScore() {
         id="score" type="number" min={0} max={100} step="0.5" value={score}
         onChange={(e) => setScore(e.target.value)}
         placeholder="e.g. 78"
-        className="mb-4 w-full rounded-lg border border-[var(--h-d8dce6)] bg-[var(--h-ffffff)] px-3 py-2.5 text-sm text-[var(--h-0b1c30)] placeholder-[var(--h-94a3b8)] focus:border-[var(--h-8a4cfc)] focus:outline-none focus:ring-1 focus:ring-[var(--h-8a4cfc)]"
+        aria-invalid={!!scoreError}
+        className="mb-1 w-full rounded-lg border border-[var(--h-d8dce6)] bg-[var(--h-ffffff)] px-3 py-2.5 text-sm text-[var(--h-0b1c30)] placeholder-[var(--h-94a3b8)] focus:border-[var(--h-8a4cfc)] focus:outline-none focus:ring-1 focus:ring-[var(--h-8a4cfc)]"
       />
+
+      <div className="mb-3"><FieldError message={scoreError} /></div>
 
       {formErr && (
         <div className="mb-3 flex items-start gap-2 text-xs text-[var(--h-b3261e)]">

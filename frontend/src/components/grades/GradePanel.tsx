@@ -9,6 +9,8 @@ import {
   useGradeAudit,
   type GradeView, type GradeStatus, type GradeComponent, type GradeAuditEntry,
 } from '@/hooks/useGrade';
+import { FieldError } from '@/components/shared/FieldError';
+import { score } from '@/lib/validation';
 
 const apiErr = (e: unknown) =>
   ((e as { response?: { data?: { message?: string } } })?.response?.data?.message) ??
@@ -62,7 +64,11 @@ function ComponentRow({
 
   const meta = COMPONENT_META[component];
   const num = typeof draft === 'string' ? Number(draft) : draft;
-  const valid = draft !== '' && Number.isFinite(num) && num >= 0 && num <= 100;
+  // Same 0–100 rule the API enforces (shared/validation `score`), so the
+  // inline message matches what a bypassed client would get back.
+  const parsed = draft === '' ? null : score(100, 'Score').safeParse(num);
+  const valid = parsed?.success === true;
+  const error = parsed && !parsed.success ? parsed.error.issues[0]?.message : undefined;
   const changed = String(value ?? '') !== String(draft);
   const inputId = `grade-${component}`;
 
@@ -86,6 +92,7 @@ function ComponentRow({
           disabled={locked || saving}
           onChange={(e) => setDraft(e.target.value)}
           placeholder="0–100"
+          aria-invalid={!!error}
         />
         <button
           type="button"
@@ -96,6 +103,7 @@ function ComponentRow({
           {saving ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : 'Save'}
         </button>
       </div>
+      <FieldError message={error} />
     </div>
   );
 }

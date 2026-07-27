@@ -4,6 +4,8 @@ import { useCohortConfig, useUpdateCohortConfig } from '@/hooks/useCohortConfig'
 import { useReleaseCohort, useCohortReport, type CohortReport } from '@/hooks/useGrade';
 import { useNonWorkingDays, useCreateNonWorkingDay, useDeleteNonWorkingDay } from '@/hooks/useSiwes';
 import { fmtDate } from '@/lib/schedule';
+import { FieldError } from '@/components/shared/FieldError';
+import { boundedInt } from '@/lib/validation';
 
 const WEIGHT_FIELDS = [
   { key: 'weightIndustry',   label: 'Industry',   hint: 'Company supervisor' },
@@ -336,20 +338,30 @@ export default function CohortSettings() {
     );
   }
 
+  // Bounds come from the shared field rules, so the inline message here is the
+  // same text the API would return for the same value.
+  const hoursCheck = hours.trim() === '' ? null : boundedInt(0, 168, 'Minimum hours per week').safeParse(Number(hours));
+  const hoursError = hoursCheck && !hoursCheck.success ? hoursCheck.error.issues[0]?.message : undefined;
   const parsed   = Number(hours);
-  const valid    = hours.trim() !== '' && Number.isInteger(parsed) && parsed >= 0 && parsed <= 168;
+  const valid    = hoursCheck?.success === true;
   const dirty    = valid && parsed !== config.minWeeklyHours;
   const expected = valid && parsed > 0 ? parsed * config.totalWeeks : 0;
 
+  const thresholdCheck = threshold.trim() === '' ? null : boundedInt(0, 100, 'Minimum average score').safeParse(Number(threshold));
+  const thresholdError = thresholdCheck && !thresholdCheck.success ? thresholdCheck.error.issues[0]?.message : undefined;
   const parsedT  = Number(threshold);
-  const validT   = threshold.trim() !== '' && Number.isInteger(parsedT) && parsedT >= 0 && parsedT <= 100;
+  const validT   = thresholdCheck?.success === true;
   const dirtyT   = validT && parsedT !== config.performanceThreshold;
 
   // Final-grade weights — validated as a set: each a whole 0–100 and the four
   // summing to exactly 100 (mirrors the backend schema).
   const parsedW = WEIGHT_FIELDS.map((f) => Number(weights[f.key]));
-  const eachValidW = WEIGHT_FIELDS.every((f, i) =>
-    weights[f.key].trim() !== '' && Number.isInteger(parsedW[i]) && parsedW[i] >= 0 && parsedW[i] <= 100);
+  const weightErrors = WEIGHT_FIELDS.map((f, i) => {
+    if (weights[f.key].trim() === '') return `${f.label} is required`;
+    const r = boundedInt(0, 100, f.label).safeParse(parsedW[i]);
+    return r.success ? undefined : r.error.issues[0]?.message;
+  });
+  const eachValidW = weightErrors.every((e) => e === undefined);
   const sumW = parsedW.reduce((a, b) => a + (Number.isFinite(b) ? b : 0), 0);
   const validW = eachValidW && sumW === 100;
   const dirtyW = eachValidW && WEIGHT_FIELDS.some((f, i) => parsedW[i] !== config[f.key]);
@@ -413,12 +425,14 @@ export default function CohortSettings() {
               max={168}
               step={1}
               value={hours}
+              aria-invalid={!!hoursError}
               onChange={(e) => setHours(e.target.value)}
               className="w-32 rounded-lg border border-[var(--h-c4c5d5)] px-4 py-2.5 pr-14 text-base font-semibold text-[var(--h-0b1c30)] outline-none focus:border-[var(--h-15157d)] focus:ring-2 focus:ring-[var(--h-e1e0ff)]"
             />
             <span className="pointer-events-none absolute right-4 top-1/2 -translate-y-1/2 text-sm text-[var(--h-757684)]">
               h/wk
             </span>
+            <FieldError message={hoursError} />
           </div>
 
           <button
@@ -490,12 +504,14 @@ export default function CohortSettings() {
               max={100}
               step={1}
               value={threshold}
+              aria-invalid={!!thresholdError}
               onChange={(e) => setThreshold(e.target.value)}
               className="w-32 rounded-lg border border-[var(--h-c4c5d5)] px-4 py-2.5 pr-14 text-base font-semibold text-[var(--h-0b1c30)] outline-none focus:border-[var(--h-15157d)] focus:ring-2 focus:ring-[var(--h-e1e0ff)]"
             />
             <span className="pointer-events-none absolute right-4 top-1/2 -translate-y-1/2 text-sm text-[var(--h-757684)]">
               /100
             </span>
+            <FieldError message={thresholdError} />
           </div>
 
           <button
@@ -576,6 +592,7 @@ export default function CohortSettings() {
                   %
                 </span>
               </div>
+              <FieldError message={weightErrors[WEIGHT_FIELDS.indexOf(f)]} />
               <p className="mt-1 text-xs text-[var(--h-757684)]">{f.hint}</p>
             </div>
           ))}

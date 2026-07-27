@@ -1,4 +1,6 @@
 import { useState } from 'react';
+// Mirrors finalization.schema's `comment: max(2000)`.
+const ATTESTATION_COMMENT_MAX = 2000;
 import { useParams } from 'react-router-dom';
 import {
   Loader2, GraduationCap, CheckCircle2, AlertCircle, ShieldCheck, CalendarDays,
@@ -144,11 +146,15 @@ export default function Attestation() {
         Comment <span className="ml-2 text-xs font-normal text-[var(--h-64748b)]">Optional</span>
       </label>
       <textarea
+        maxLength={ATTESTATION_COMMENT_MAX}
         id="comment" rows={3} value={comment}
         onChange={(e) => setComment(e.target.value)}
         placeholder="Any remarks on the intern's performance…"
-        className="mb-4 w-full resize-none rounded-lg border border-[var(--h-d8dce6)] bg-[var(--h-ffffff)] px-3 py-2.5 text-sm text-[var(--h-0b1c30)] placeholder-[var(--h-94a3b8)] focus:border-[var(--h-8a4cfc)] focus:outline-none focus:ring-1 focus:ring-[var(--h-8a4cfc)]"
+        className="mb-1 w-full resize-none rounded-lg border border-[var(--h-d8dce6)] bg-[var(--h-ffffff)] px-3 py-2.5 text-sm text-[var(--h-0b1c30)] placeholder-[var(--h-94a3b8)] focus:border-[var(--h-8a4cfc)] focus:outline-none focus:ring-1 focus:ring-[var(--h-8a4cfc)]"
       />
+      <p className="mb-4 text-right text-[11px] text-[var(--h-94a3b8)]">
+        {comment.length}/{ATTESTATION_COMMENT_MAX}
+      </p>
 
       {formErr && (
         <div className="mb-3 flex items-start gap-2 text-xs text-[var(--h-b3261e)]">

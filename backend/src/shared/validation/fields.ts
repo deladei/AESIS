@@ -159,6 +159,14 @@ export const weekHours = z
   .min(0, 'Hours cannot be negative')
   .max(168, 'A week cannot exceed 168 hours');
 
+/** A whole number within an inclusive range — config fields, counts, weights. */
+export const boundedInt = (min: number, max: number, label = 'Value') =>
+  z
+    .number({ invalid_type_error: `${label} must be a number` })
+    .int(`${label} must be a whole number`)
+    .min(min, `${label} must be at least ${min}`)
+    .max(max, `${label} cannot exceed ${max}`);
+
 /** A score out of `max`, defaulting to a percentage. */
 export const score = (max = 100, label = 'Score') =>
   z
