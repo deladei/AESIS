@@ -9,7 +9,7 @@ import { MobileNav } from './MobileNav';
 import { ThemeToggle } from './ThemeToggle';
 import NotificationBell from './NotificationBell';
 import {
-  LayoutDashboard, BookOpen, CalendarDays, FileText, MessageSquare, MessageSquareText, Bell,
+  LayoutDashboard, BookOpen, FileText, MessageSquare, MessageSquareText, Bell,
   LogOut, Award, UserRound, GraduationCap,
 } from 'lucide-react';
 
@@ -22,7 +22,6 @@ interface NavItem {
 const navItems: NavItem[] = [
   { label: 'Dashboard',       href: '/student/dashboard',     icon: LayoutDashboard },
   { label: 'Logbook',         href: '/student/logbook',       icon: BookOpen },
-  { label: 'Daily logbook',   href: '/student/daily-logbook', icon: CalendarDays },
   { label: 'Submissions',     href: '/student/submissions',   icon: FileText },
   { label: 'AESIS Assistant', href: '/student/chatbot',       icon: MessageSquare },
   { label: 'Feedback',        href: '/feedback',              icon: MessageSquareText },

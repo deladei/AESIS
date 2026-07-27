@@ -1,23 +1,47 @@
-import { useState, useEffect, useMemo, useCallback } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import {
-  Loader2, Plus, X, Trash2, CheckCircle2, Clock, RotateCcw, Send,
-  Calendar, AlertCircle, BookOpen, Sparkles, ChevronRight, ChevronLeft, ShieldCheck,
+  Loader2, Plus, X, Trash2, CheckCircle2, Clock, RotateCcw, Send, Save,
+  Calendar, CalendarDays, AlertCircle, BookOpen, Sparkles, ShieldCheck, Lock,
+  Sun, Stethoscope, CircleSlash, ChevronDown, ChevronUp,
 } from 'lucide-react';
 import { useMyPlacements } from '@/hooks/usePlacements';
+import { useEntries, useEntry, useSaveDay, useSubmitDay, type EntryStatus } from '@/hooks/useEntries';
 import {
-  useEntries, useEntry, useSaveDay, useSubmitDay,
-  type EntryStatus, type DayStatus,
-} from '@/hooks/useEntries';
+  useSiwesCalendar, useSaveDailyEntry, useSaveWeeklySummary, useRecordAbsence,
+  type SiwesCalendarDay,
+} from '@/hooks/useSiwes';
 import { EntryAttachments } from '@/components/attachments/EntryAttachments';
-import {
-  type ScheduleWeek, buildSchedule, toYMD, ghanaYMD, ymd, fmtRange, fmtDate, addDaysYMD,
-} from '@/lib/schedule';
+import { FieldError } from '@/components/shared/FieldError';
+import { freeText } from '@/lib/validation';
+import { ghanaYMD, fmtDate, fmtRange } from '@/lib/schedule';
 
-// Grace window: a day logged within this many days of its date is on time.
-// Later days can still be logged, but are flagged late to the supervisor
-// (mirrors the backend DAY_GRACE_DAYS rule).
+/**
+ * The logbook — ONE screen.
+ *
+ * It used to be two: /student/logbook (weekly entries pipeline: activities,
+ * competency tags, attachments, per-day submit) and /student/daily-logbook
+ * (SIWES pipeline: work done, skills learnt, absences, holidays, weekly
+ * report). They logged the same days against two backends, so a student had to
+ * know which page a given field lived on.
+ *
+ * Now the WEEK is the container — its status, its days, its report — and a day
+ * is a row inside it. Every capability from both screens is still here; none of
+ * it is duplicated.
+ */
+
+// Mirrors the backend DAY_GRACE_DAYS rule: a day logged within this window of
+// its own date is on time. Later is still allowed, but flagged to the supervisor.
 const DAY_GRACE_DAYS = 2;
+
+const WORK_MAX = 10_000;
+const SKILLS_MAX = 10_000;
+const REPORT_MAX = 20_000;
+const ACTIVITY_MAX = 5_000;
+
+const workText = freeText(WORK_MAX, 'Description of work done');
+const skillsText = freeText(SKILLS_MAX, 'New skills learnt');
+const reportText = freeText(REPORT_MAX, 'Weekly report');
 
 const COMPETENCY_SUGGESTIONS = [
   'Problem Solving', 'Teamwork', 'Communication', 'Technical Writing',
@@ -43,36 +67,18 @@ function detectCompetencies(text: string, already: string[]): string[] {
     .map(([name]) => name);
 }
 
-const WEEKDAY_LONG = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+const WEEKDAY_SHORT = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+const weekdayShort = (ymd: string) => WEEKDAY_SHORT[new Date(`${ymd}T00:00:00Z`).getUTCDay()];
+const dayOfMonth = (ymd: string) => new Date(`${ymd}T00:00:00Z`).getUTCDate();
 
-interface DayCell { ymd: string; dow: number; dom: number; }
+const errMessage = (err: unknown): string =>
+  (err as { response?: { data?: { message?: string } } })?.response?.data?.message
+  ?? 'Something went wrong. Please try again.';
 
-// Mon–Fri working days of a schedule week (weekends excluded from the logbook).
-function buildDays(week: ScheduleWeek): DayCell[] {
-  const start = new Date(`${week.periodStart}T00:00:00Z`);
-  const cells: DayCell[] = [];
-  for (let i = 0; i < 7; i++) {
-    const d = addDaysYMD(start, i);
-    const dow = d.getUTCDay();
-    if (dow === 0 || dow === 6) continue;
-    cells.push({ ymd: toYMD(d), dow, dom: d.getUTCDate() });
-  }
-  return cells;
-}
+// ── Week status ─────────────────────────────────────────────────
+type WeekState = EntryStatus | 'not_started' | 'upcoming';
 
-// Client-side mirror of the backend window, anchored on Ghana time: only
-// future days are blocked. Past days are always loggable — beyond the grace
-// window they're flagged late.
-function dayWindow(dateYMD: string): { future: boolean; blocked: boolean; lateBy: number } {
-  const today = new Date(`${ghanaYMD()}T00:00:00Z`).getTime();
-  const date = new Date(`${dateYMD}T00:00:00Z`).getTime();
-  const lateBy = Math.round((today - date) / 86_400_000);
-  return { future: lateBy < 0, blocked: lateBy < 0, lateBy };
-}
-
-type LocalActivity = { description: string; competencyTags: string[] };
-
-const WEEK_STATUS_META: Record<EntryStatus | 'not_started' | 'upcoming', { label: string; cls: string; Icon: React.ElementType }> = {
+const WEEK_STATUS_META: Record<WeekState, { label: string; cls: string; Icon: React.ElementType }> = {
   not_started:  { label: 'Not started',  cls: 'bg-[var(--h-eef0f5)] text-[var(--h-64748b)]', Icon: Calendar },
   upcoming:     { label: 'Upcoming',     cls: 'bg-[var(--h-eef0f5)] text-[var(--h-94a3b8)]', Icon: Clock },
   draft:        { label: 'In progress',  cls: 'bg-[var(--h-fff4e0)] text-[var(--h-9a6700)]', Icon: Clock },
@@ -81,7 +87,7 @@ const WEEK_STATUS_META: Record<EntryStatus | 'not_started' | 'upcoming', { label
   acknowledged: { label: 'Acknowledged', cls: 'bg-[var(--h-dcf5e6)] text-[var(--h-1b7a45)]', Icon: CheckCircle2 },
 };
 
-function WeekStatusPill({ status }: { status: EntryStatus | 'not_started' | 'upcoming' }) {
+function WeekStatusPill({ status }: { status: WeekState }) {
   const { label, cls, Icon } = WEEK_STATUS_META[status] ?? WEEK_STATUS_META.not_started;
   return (
     <span className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-semibold ${cls}`}>
@@ -90,437 +96,723 @@ function WeekStatusPill({ status }: { status: EntryStatus | 'not_started' | 'upc
   );
 }
 
+// ── Day status ──────────────────────────────────────────────────
+function dayVisual(day: SiwesCalendarDay, today: string, submitted: boolean) {
+  if (submitted) {
+    return { label: 'Submitted', cls: 'bg-[var(--h-dcf5e6)] text-[var(--h-1b7a45)]', Icon: CheckCircle2 };
+  }
+  if (day.entry) {
+    return day.entry.loggedLate
+      ? { label: `Logged ${day.entry.lateByDays}d late`, cls: 'bg-[var(--h-fff4e0)] text-[var(--h-9a6700)]', Icon: Clock }
+      : { label: 'Logged', cls: 'bg-[var(--h-fff4e0)] text-[var(--h-9a6700)]', Icon: Clock };
+  }
+  if (day.absence) {
+    const kind = day.absence.kind === 'sick' ? 'Sick'
+      : day.absence.kind === 'permitted' ? 'Permitted absence' : 'Unexcused absence';
+    return { label: kind, cls: 'bg-[var(--h-eef0f5)] text-[var(--h-64748b)]', Icon: Stethoscope };
+  }
+  if (day.class === 'non_working') {
+    return { label: 'Public holiday', cls: 'bg-[var(--h-eef0f5)] text-[var(--h-94a3b8)]', Icon: Sun };
+  }
+  if (day.date > today) {
+    return { label: 'Upcoming', cls: 'bg-[var(--h-eef0f5)] text-[var(--h-94a3b8)]', Icon: Clock };
+  }
+  if (day.missing) {
+    return { label: 'Not logged', cls: 'bg-[var(--h-ffe2dc)] text-[var(--h-b3261e)]', Icon: AlertCircle };
+  }
+  return { label: 'Open', cls: 'bg-[var(--h-eef0f5)] text-[var(--h-64748b)]', Icon: CalendarDays };
+}
+
+type LocalActivity = { description: string; competencyTags: string[] };
+
 export default function LogbookEditor() {
+  const today = ghanaYMD();
   const { data: placements, isLoading: placementsLoading } = useMyPlacements();
-  const activePlacement = placements?.find((p) => p.placementStatus === 'active') ?? placements?.[0];
+  const placement = placements?.find((p) => p.placementStatus === 'active') ?? placements?.[0];
 
-  const { data: entries = [], isLoading: entriesLoading } = useEntries(activePlacement?.id);
-  const schedule = useMemo(() => buildSchedule(activePlacement?.startDate ?? null), [activePlacement?.startDate]);
+  const { data: calendar, isLoading: calendarLoading } = useSiwesCalendar(placement?.id);
+  const { data: entries = [], isLoading: entriesLoading } = useEntries(placement?.id);
 
+  const [searchParams] = useSearchParams();
+  const [selectedWeek, setSelectedWeek] = useState<number | null>(null);
+  const [selectedDate, setSelectedDate] = useState<string | null>(null);
+
+  // The week's status/activities/attachments come from the entries spine; its
+  // days, holidays and absences from the calendar. Same week number on both
+  // sides since the consolidation made week numbers student-relative.
   const entryByWeek = useMemo(() => {
     const m = new Map<number, (typeof entries)[number]>();
     entries.forEach((e) => m.set(e.weekNumber, e));
     return m;
   }, [entries]);
 
-  const [searchParams] = useSearchParams();
-  const [selectedWeek, setSelectedWeek] = useState<number | null>(null);
-  const [selectedDay, setSelectedDay] = useState<string | null>(null);
+  const weeks = useMemo(() => {
+    if (!calendar) return [];
+    const byWeek = new Map<number, SiwesCalendarDay[]>();
+    const boundsByWeek = new Map<number, { start: string; end: string }>();
+    for (const day of calendar.days) {
+      // Rest days carry no state worth a row, but they still belong to the
+      // week's date span (which the entries API needs on save).
+      const b = boundsByWeek.get(day.weekNumber);
+      boundsByWeek.set(day.weekNumber, {
+        start: b ? (day.date < b.start ? day.date : b.start) : day.date,
+        end:   b ? (day.date > b.end ? day.date : b.end) : day.date,
+      });
+      if (day.class === 'weekly_rest') continue;
+      const list = byWeek.get(day.weekNumber) ?? [];
+      list.push(day);
+      byWeek.set(day.weekNumber, list);
+    }
+    return [...byWeek.entries()]
+      .map(([weekNumber, days]) => ({
+        weekNumber,
+        days,
+        bounds: boundsByWeek.get(weekNumber) ?? { start: days[0].date, end: days[days.length - 1].date },
+      }))
+      .sort((a, b) => a.weekNumber - b.weekNumber);
+  }, [calendar]);
 
-  // Honour a ?week= deep-link once on load (from the dashboard table).
+  // ?week= deep link (from the dashboard table), else the current week.
   useEffect(() => {
-    if (selectedWeek !== null || schedule.length === 0) return;
+    if (selectedWeek !== null || weeks.length === 0) return;
     const want = Number(searchParams.get('week'));
-    if (schedule.some((w) => w.weekNumber === want)) setSelectedWeek(want);
-  }, [schedule, selectedWeek, searchParams]);
+    if (weeks.some((w) => w.weekNumber === want)) { setSelectedWeek(want); return; }
+    const current = [...weeks].reverse().find((w) => w.days.some((d) => d.date <= today));
+    setSelectedWeek((current ?? weeks[0]).weekNumber);
+  }, [weeks, selectedWeek, searchParams, today]);
 
-  const scheduleWeek = schedule.find((w) => w.weekNumber === selectedWeek);
+  const week = weeks.find((w) => w.weekNumber === selectedWeek);
   const weekEntry = selectedWeek != null ? entryByWeek.get(selectedWeek) : undefined;
   const { data: detail } = useEntry(weekEntry?.id);
+  const day = week?.days.find((d) => d.date === selectedDate) ?? null;
 
-  // ── Loading / empty states ──
-  if (placementsLoading || entriesLoading) {
-    return <div className="flex h-64 items-center justify-center"><Loader2 className="h-6 w-6 animate-spin text-[var(--h-8a4cfc)]" /></div>;
+  if (placementsLoading || calendarLoading || entriesLoading) {
+    return (
+      <div className="flex h-64 items-center justify-center">
+        <Loader2 className="h-6 w-6 animate-spin text-[var(--h-8a4cfc)]" />
+      </div>
+    );
   }
-  if (!activePlacement) {
+
+  if (!placement || !calendar) {
     return (
       <div className="mx-auto max-w-xl px-6 py-20 text-center">
         <BookOpen className="mx-auto mb-4 h-12 w-12 text-[var(--h-8a4cfc)]" />
         <h2 className="mb-1 text-lg font-bold text-[var(--h-0b1c30)]">No active placement</h2>
-        <p className="text-sm text-[var(--h-464652)]">Your logbook opens once your placement is approved.</p>
-      </div>
-    );
-  }
-  if (schedule.length === 0) {
-    return (
-      <div className="mx-auto max-w-xl px-6 py-20 text-center">
-        <Calendar className="mx-auto mb-4 h-12 w-12 text-[var(--h-8a4cfc)]" />
-        <h2 className="mb-1 text-lg font-bold text-[var(--h-0b1c30)]">Your placement hasn't started yet</h2>
         <p className="text-sm text-[var(--h-464652)]">
-          {activePlacement.startDate
-            ? <>The first logbook week opens on <span className="font-semibold">{fmtDate(activePlacement.startDate)}</span>.</>
-            : 'The first logbook week opens on the placement start date.'}
+          Your logbook opens once your placement is approved and started.
         </p>
       </div>
     );
   }
+
+  const loggedCount = calendar.days.filter((d) => d.entry).length;
+  const missingCount = calendar.days.filter((d) => d.missing).length;
+  const weekStatus: WeekState =
+    (weekEntry?.status as EntryStatus | undefined)
+    ?? (week?.days.every((d) => d.date > today) ? 'upcoming' : 'not_started');
 
   return (
     <div className="mx-auto max-w-5xl px-6 py-6">
-      <div className="mb-6">
+      <header className="mb-5">
         <h1 className="text-xl font-bold text-[var(--h-0b1c30)]">Logbook</h1>
-        <p className="mt-0.5 text-sm text-[var(--h-464652)]">
-          {activePlacement.company?.name ?? 'Your placement'} · log each working day
+        <p className="mt-1 text-sm text-[var(--h-464652)]">
+          {placement.company?.name ?? 'Your placement'} · {fmtDate(calendar.chainStart)} – {fmtDate(calendar.chainEnd)}
+          {' · '}{calendar.totalWeeks} weeks · {loggedCount} day{loggedCount === 1 ? '' : 's'} logged
+          {missingCount > 0 && <span className="text-[var(--h-b3261e)]"> · {missingCount} not logged</span>}
         </p>
-      </div>
+      </header>
 
-      {selectedWeek == null || !scheduleWeek ? (
-        <WeekTable schedule={schedule} entryByWeek={entryByWeek} onPick={(w) => { setSelectedWeek(w); setSelectedDay(null); }} />
-      ) : selectedDay == null ? (
-        <DayGrid
-          week={scheduleWeek}
-          weekStatus={(weekEntry?.status as EntryStatus) ?? 'not_started'}
-          detail={detail}
-          onBack={() => setSelectedWeek(null)}
-          onPick={setSelectedDay}
-        />
-      ) : (
-        <DayForm
-          key={selectedDay}
-          placementId={activePlacement.id}
-          week={scheduleWeek}
-          date={selectedDay}
-          weekEntry={weekEntry}
-          detail={detail}
-          onBack={() => setSelectedDay(null)}
-        />
-      )}
-    </div>
-  );
-}
-
-// ── Level 1 — weeks 1–6 ───────────────────────────────────────
-function WeekTable({
-  schedule, entryByWeek, onPick,
-}: {
-  schedule: ScheduleWeek[];
-  entryByWeek: Map<number, { id: string; status: EntryStatus; days?: { status: DayStatus }[] }>;
-  onPick: (week: number) => void;
-}) {
-  return (
-    <div className="overflow-hidden rounded-xl border border-[var(--h-e2e6ef)] bg-[var(--h-ffffff)]">
-      <table className="w-full text-sm">
-        <thead>
-          <tr className="border-b border-[var(--h-e2e6ef)] text-left text-xs font-semibold uppercase tracking-wide text-[var(--h-64748b)]">
-            <th className="px-5 py-3">Week</th>
-            <th className="px-5 py-3">Dates</th>
-            <th className="px-5 py-3 text-center">Days submitted</th>
-            <th className="px-5 py-3">Status</th>
-            <th className="px-5 py-3" />
-          </tr>
-        </thead>
-        <tbody>
-          {schedule.map((w) => {
-            const e = entryByWeek.get(w.weekNumber);
-            const submitted = (e?.days ?? []).filter((d) => d.status === 'submitted').length;
-            const status: EntryStatus | 'not_started' | 'upcoming' =
-              e?.status ?? (w.upcoming ? 'upcoming' : 'not_started');
-            return (
-              <tr
-                key={w.weekNumber}
-                onClick={() => onPick(w.weekNumber)}
-                className="cursor-pointer border-b border-[var(--h-f0f2f7)] transition-colors last:border-0 hover:bg-[var(--h-f8f9ff)]"
-              >
-                <td className="px-5 py-3.5 font-semibold text-[var(--h-0b1c30)]">Week {w.label}</td>
-                <td className="px-5 py-3.5 text-[var(--h-64748b)]">{fmtRange(w.periodStart, w.periodEnd)}</td>
-                <td className="px-5 py-3.5 text-center font-medium text-[var(--h-0b1c30)]">{submitted}/5</td>
-                <td className="px-5 py-3.5"><WeekStatusPill status={status} /></td>
-                <td className="px-5 py-3.5 text-right"><ChevronRight className="inline h-4 w-4 text-[var(--h-94a3b8)]" /></td>
-              </tr>
-            );
-          })}
-        </tbody>
-      </table>
-    </div>
-  );
-}
-
-// ── Level 2 — Mon–Fri of one week ─────────────────────────────
-function DayGrid({
-  week, weekStatus, detail, onBack, onPick,
-}: {
-  week: ScheduleWeek;
-  weekStatus: EntryStatus | 'not_started';
-  detail: { days?: { date: string; status: DayStatus; loggedLate: boolean }[]; activities?: { activityDate: string }[] } | undefined;
-  onBack: () => void;
-  onPick: (ymd: string) => void;
-}) {
-  const days = buildDays(week);
-  const dayByDate = new Map((detail?.days ?? []).map((d) => [ymd(d.date), d]));
-  const actCount = new Map<string, number>();
-  (detail?.activities ?? []).forEach((a) => {
-    const k = ymd(a.activityDate);
-    actCount.set(k, (actCount.get(k) ?? 0) + 1);
-  });
-
-  return (
-    <div className="space-y-4">
-      <button onClick={onBack} className="inline-flex items-center gap-1 text-sm font-medium text-[var(--h-15157d)] hover:underline">
-        <ChevronLeft className="h-4 w-4" /> All weeks
-      </button>
-      <div className="flex items-center justify-between">
-        <div>
-          <h2 className="text-lg font-bold text-[var(--h-0b1c30)]">Week {week.label}</h2>
-          <p className="text-sm text-[var(--h-464652)]">{fmtRange(week.periodStart, week.periodEnd)}</p>
-        </div>
-        <WeekStatusPill status={weekStatus} />
-      </div>
-
-      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-        {days.map((d) => {
-          const day = dayByDate.get(d.ymd);
-          const n = actCount.get(d.ymd) ?? 0;
-          const w = dayWindow(d.ymd);
-          const submitted = day?.status === 'submitted';
-          const missed = !submitted && !w.future && w.lateBy > DAY_GRACE_DAYS; // still loggable, flagged late
+      {/* Week rail — the container you are working inside */}
+      <div className="mb-4 flex flex-wrap gap-2">
+        {weeks.map((w) => {
+          const e = entryByWeek.get(w.weekNumber);
+          const attention = w.days.some((d) => d.missing);
+          const started = w.days.some((d) => d.date <= today);
+          const selected = w.weekNumber === selectedWeek;
           return (
             <button
-              key={d.ymd}
-              onClick={() => onPick(d.ymd)}
-              className={`rounded-xl border border-[var(--h-e2e6ef)] bg-[var(--h-ffffff)] p-4 text-left transition-colors ${w.future ? 'opacity-60 hover:border-[var(--h-d8dce6)]' : 'hover:border-[var(--h-8a4cfc)]'}`}
+              key={w.weekNumber}
+              onClick={() => { setSelectedWeek(w.weekNumber); setSelectedDate(null); }}
+              className={`rounded-lg px-3 py-1.5 text-sm font-semibold transition-colors ${
+                selected
+                  ? 'bg-[var(--h-15157d)] text-[var(--h-ffffff)]'
+                  : started
+                    ? 'bg-[var(--h-eef0f5)] text-[var(--h-0b1c30)] hover:bg-[var(--h-dce9ff)]'
+                    : 'bg-[var(--h-eef0f5)] text-[var(--h-94a3b8)]'
+              }`}
             >
-              <div className="mb-1 flex items-center justify-between">
-                <span className="text-sm font-bold text-[var(--h-0b1c30)]">{WEEKDAY_LONG[d.dow]}</span>
-                {submitted ? (
-                  <span className="inline-flex items-center gap-1 rounded-full bg-[var(--h-dcf5e6)] px-2 py-0.5 text-[10px] font-semibold text-[var(--h-1b7a45)]">
-                    <CheckCircle2 className="h-3 w-3" /> Submitted
-                  </span>
-                ) : w.future ? (
-                  <span className="rounded-full bg-[var(--h-eef0f5)] px-2 py-0.5 text-[10px] font-semibold text-[var(--h-94a3b8)]">Upcoming</span>
-                ) : missed ? (
-                  <span className="inline-flex items-center gap-1 rounded-full bg-[var(--h-fff4e0)] px-2 py-0.5 text-[10px] font-semibold text-[var(--h-9a6700)]"><AlertCircle className="h-3 w-3" /> Log late</span>
-                ) : n > 0 ? (
-                  <span className="rounded-full bg-[var(--h-fff4e0)] px-2 py-0.5 text-[10px] font-semibold text-[var(--h-9a6700)]">Draft</span>
-                ) : (
-                  <span className="rounded-full bg-[var(--h-eef0f5)] px-2 py-0.5 text-[10px] font-semibold text-[var(--h-94a3b8)]">Not logged</span>
-                )}
-              </div>
-              <p className="text-xs text-[var(--h-64748b)]">{fmtDate(d.ymd)}</p>
-              <p className="mt-2 text-xs text-[var(--h-94a3b8)]">
-                {n > 0 ? `${n} ${n === 1 ? 'activity' : 'activities'}` : w.future ? 'Locked until the day arrives' : 'Tap to log this day'}
-                {day?.loggedLate && <span className="ml-1 text-[var(--h-9a6700)]">· logged late</span>}
-              </p>
+              Week {w.weekNumber}
+              {e?.status === 'acknowledged' && !selected && (
+                <CheckCircle2 className="ml-1.5 inline h-3 w-3 align-middle text-[var(--h-1b7a45)]" />
+              )}
+              {attention && !selected && e?.status !== 'acknowledged' && (
+                <span className="ml-1.5 inline-block h-1.5 w-1.5 rounded-full bg-[var(--h-b3261e)] align-middle" />
+              )}
             </button>
           );
         })}
       </div>
+
+      {week && (
+        <>
+          <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+            <div>
+              <h2 className="text-lg font-bold text-[var(--h-0b1c30)]">Week {week.weekNumber}</h2>
+              <p className="text-sm text-[var(--h-464652)]">
+                {fmtRange(week.bounds.start, week.bounds.end)}
+                {' · '}
+                {(detail?.days ?? []).filter((rec) =>
+                  rec.status === 'submitted'
+                  && week.days.some((d) => d.date === rec.date.slice(0, 10)),
+                ).length}
+                /{week.days.filter((d) => d.class === 'working').length} days submitted
+              </p>
+            </div>
+            <WeekStatusPill status={weekStatus} />
+          </div>
+
+          {weekStatus === 'acknowledged' && (
+            <div className="mb-4 flex items-start gap-2 rounded-lg border border-[var(--h-aee3c2)] bg-[var(--h-e9f9ef)] px-4 py-3 text-sm text-[var(--h-1b7a45)]">
+              <ShieldCheck className="mt-0.5 h-4 w-4 shrink-0" />
+              Your supervisor has acknowledged this week. It is locked — days can no longer be edited.
+            </div>
+          )}
+          {weekStatus === 'returned' && (
+            <div className="mb-4 flex items-start gap-2 rounded-lg border border-[var(--h-f5b8ad)] bg-[var(--h-fff1ee)] px-4 py-3 text-sm text-[var(--h-b3261e)]">
+              <RotateCcw className="mt-0.5 h-4 w-4 shrink-0" />
+              This week was returned for revision — edit the days below and resubmit.
+            </div>
+          )}
+
+          <div className="grid gap-4 lg:grid-cols-[260px_1fr]">
+            {/* Days of this week */}
+            <div className="space-y-2">
+              {week.days.map((d) => {
+                const submitted = (detail?.days ?? []).some(
+                  (rec) => rec.date.slice(0, 10) === d.date && rec.status === 'submitted',
+                );
+                const v = dayVisual(d, today, submitted);
+                const selectable = d.class === 'working';
+                return (
+                  <button
+                    key={d.date}
+                    disabled={!selectable}
+                    onClick={() => setSelectedDate(d.date)}
+                    className={`flex w-full items-center gap-3 rounded-xl border px-3 py-2.5 text-left transition-colors ${
+                      d.date === selectedDate
+                        ? 'border-[var(--h-8a4cfc)] bg-[var(--h-f6f1ff)]'
+                        : 'border-[var(--h-c4c5d5-40)] bg-[var(--h-ffffff)]'
+                    } ${selectable ? 'hover:border-[var(--h-8a4cfc)]' : 'cursor-default opacity-70'}`}
+                  >
+                    <span className="w-10 shrink-0 text-center">
+                      <span className="block text-[11px] font-semibold text-[var(--h-757684)]">{weekdayShort(d.date)}</span>
+                      <span className="block text-base font-bold text-[var(--h-0b1c30)]">{dayOfMonth(d.date)}</span>
+                    </span>
+                    <span className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-semibold ${v.cls}`}>
+                      <v.Icon className="h-3 w-3" /> {v.label}
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+
+            {/* The selected day, then the week's own narrative */}
+            <div className="space-y-4">
+              {!day ? (
+                <div className="rounded-xl border border-[var(--h-c4c5d5-40)] bg-[var(--h-ffffff)] px-6 py-10 text-center">
+                  <CalendarDays className="mx-auto mb-3 h-8 w-8 text-[var(--h-8a4cfc)]" />
+                  <p className="text-sm text-[var(--h-464652)]">Select a day to log what you worked on.</p>
+                </div>
+              ) : (
+                <DayPanel
+                  key={day.date}
+                  placementId={placement.id}
+                  weekNumber={week.weekNumber}
+                  bounds={week.bounds}
+                  day={day}
+                  today={today}
+                  weekStatus={weekStatus}
+                  entryId={weekEntry?.id ?? detail?.id}
+                  daySubmitted={(detail?.days ?? []).some(
+                    (rec) => rec.date.slice(0, 10) === day.date && rec.status === 'submitted',
+                  )}
+                  activities={(detail?.activities ?? [])
+                    .filter((a) => a.activityDate.slice(0, 10) === day.date)
+                    .map((a) => ({ description: a.description, competencyTags: a.competencyTags ?? [] }))}
+                />
+              )}
+
+              <WeeklyReportCard
+                placementId={placement.id}
+                weekNumber={week.weekNumber}
+                locked={weekStatus === 'acknowledged'}
+                summary={calendar.weeklySummaries.find((s) => s.weekNumber === week.weekNumber)}
+              />
+            </div>
+          </div>
+        </>
+      )}
     </div>
   );
 }
 
-// ── Level 3 — log one day ─────────────────────────────────────
-function DayForm({
-  placementId, week, date, weekEntry, detail, onBack,
+// ── One day ─────────────────────────────────────────────────────
+function DayPanel({
+  placementId, weekNumber, bounds, day, today, weekStatus, entryId, daySubmitted, activities: seeded,
 }: {
   placementId: string;
-  week: ScheduleWeek;
-  date: string;
-  weekEntry: { id: string; status: EntryStatus } | undefined;
-  detail: { id?: string; status?: EntryStatus; days?: { date: string; status: DayStatus; loggedLate: boolean }[]; activities?: { activityDate: string; description: string; competencyTags: string[] }[] } | undefined;
-  onBack: () => void;
+  weekNumber: number;
+  bounds: { start: string; end: string };
+  day: SiwesCalendarDay;
+  today: string;
+  weekStatus: WeekState;
+  entryId: string | undefined;
+  daySubmitted: boolean;
+  activities: LocalActivity[];
 }) {
+  const saveDailyEntry = useSaveDailyEntry(placementId);
   const saveDay = useSaveDay();
   const submitDay = useSubmitDay();
+  const recordAbsence = useRecordAbsence(placementId);
 
-  const dow = new Date(`${date}T00:00:00Z`).getUTCDay();
-  const win = dayWindow(date);
-
-  const dayRecord = (detail?.days ?? []).find((d) => ymd(d.date) === date);
-  const weekStatus = (weekEntry?.status ?? detail?.status) as EntryStatus | undefined;
-  const daySubmitted = dayRecord?.status === 'submitted';
-  // Editable unless the day hasn't arrived yet (Ghana time), the week is
-  // acknowledged, or this day is already submitted (and the week wasn't
-  // returned for revision).
-  const editable = !win.future
-    && weekStatus !== 'acknowledged'
-    && (!daySubmitted || weekStatus === 'returned');
-
-  const seeded = useMemo<LocalActivity[]>(
-    () => (detail?.activities ?? [])
-      .filter((a) => ymd(a.activityDate) === date)
-      .map((a) => ({ description: a.description, competencyTags: a.competencyTags ?? [] })),
-    [detail?.activities, date],
-  );
-
+  const [description, setDescription] = useState(day.entry?.descriptionOfWork ?? '');
+  const [skills, setSkills] = useState(day.entry?.newSkillsLearnt ?? '');
   const [activities, setActivities] = useState<LocalActivity[]>(seeded);
   const [tagDrafts, setTagDrafts] = useState<Record<number, string>>({});
+  const [showActivities, setShowActivities] = useState(seeded.length > 0);
+  const [absenceOpen, setAbsenceOpen] = useState(false);
+  const [absenceKind, setAbsenceKind] = useState<'sick' | 'permitted'>('sick');
+  const [absenceReason, setAbsenceReason] = useState('');
   const [saved, setSaved] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [formErr, setFormErr] = useState<string | null>(null);
 
-  // Re-seed when the loaded day content arrives/changes.
-  useEffect(() => { setActivities(seeded); setSaved(false); setError(null); setTagDrafts({}); }, [seeded]);
+  useEffect(() => { setActivities(seeded); }, [seeded]);
+
+  const lateBy = Math.round(
+    (new Date(`${today}T00:00:00Z`).getTime() - new Date(`${day.date}T00:00:00Z`).getTime()) / 86_400_000,
+  );
+  const future = lateBy < 0;
+  const editWindowClosed = !!day.entry && new Date(day.entry.editableUntil).getTime() < Date.now();
+  const editable =
+    day.class === 'working'
+    && !day.absence
+    && !future
+    && !editWindowClosed
+    && weekStatus !== 'acknowledged'
+    && (!daySubmitted || weekStatus === 'returned');
+  const canReportAbsence = !day.entry && !day.absence && day.class === 'working' && !future && editable;
+
+  const descError = description.trim() ? (workText.safeParse(description).success ? undefined
+    : workText.safeParse(description).error?.issues[0]?.message) : undefined;
+  const skillsError = skills.trim() ? (skillsText.safeParse(skills).success ? undefined
+    : skillsText.safeParse(skills).error?.issues[0]?.message) : undefined;
+  const hasContent = description.trim().length > 0 && skills.trim().length > 0;
+  const activityPayload = activities
+    .filter((a) => a.description.trim())
+    .map((a) => ({ description: a.description.trim(), competencyTags: a.competencyTags }));
 
   const updateActivity = (i: number, patch: Partial<LocalActivity>) =>
     setActivities((p) => p.map((a, j) => (j === i ? { ...a, ...patch } : a)));
-  const addActivity = () => setActivities((p) => [...p, { description: '', competencyTags: [] }]);
-  const removeActivity = (i: number) => setActivities((p) => p.filter((_, j) => j !== i));
   const addTag = (i: number, raw: string) => {
     const tag = raw.trim();
     if (!tag) return;
-    setActivities((p) => p.map((a, j) => (j === i && !a.competencyTags.includes(tag) ? { ...a, competencyTags: [...a.competencyTags, tag] } : a)));
+    setActivities((p) => p.map((a, j) =>
+      (j === i && !a.competencyTags.includes(tag) ? { ...a, competencyTags: [...a.competencyTags, tag] } : a)));
     setTagDrafts((d) => ({ ...d, [i]: '' }));
   };
-  const removeTag = (i: number, tag: string) =>
-    updateActivity(i, { competencyTags: activities[i].competencyTags.filter((t) => t !== tag) });
 
-  const payload = useCallback(() => ({
-    placementId, weekNumber: week.weekNumber, periodStart: week.periodStart, periodEnd: week.periodEnd, date,
-    activities: activities.filter((a) => a.description.trim()).map((a) => ({ description: a.description.trim(), competencyTags: a.competencyTags })),
-  }), [placementId, week, date, activities]);
+  /**
+   * One save for the day. The narrative goes to the SIWES record and the
+   * itemised activities to the week entry — the student sees a single action,
+   * which is the point of the merge. Content first: if it fails there is
+   * nothing worth writing activities against.
+   */
+  async function persist(): Promise<string | undefined> {
+    setFormErr(null);
+    if (hasContent) {
+      await saveDailyEntry.mutateAsync({
+        placementId,
+        workDate: day.date,
+        descriptionOfWork: description.trim(),
+        newSkillsLearnt: skills.trim(),
+      });
+    }
+    if (activityPayload.length > 0 || entryId) {
+      const entry = await saveDay.mutateAsync({
+        placementId,
+        weekNumber,
+        periodStart: bounds.start,
+        periodEnd: bounds.end,
+        date: day.date,
+        activities: activityPayload,
+      });
+      return entry.id;
+    }
+    return entryId;
+  }
 
-  const apiErr = (e: unknown) =>
-    ((e as { response?: { data?: { message?: string } } })?.response?.data?.message) ?? 'Something went wrong. Please try again.';
-
-  // Save draft — only when the user clicks (no autosave).
-  const handleSave = async () => {
-    setError(null);
+  async function handleSave() {
+    if (!hasContent && activityPayload.length === 0) {
+      setFormErr('Add what you worked on before saving.');
+      return;
+    }
     try {
-      await saveDay.mutateAsync(payload());
+      await persist();
       setSaved(true);
       setTimeout(() => setSaved(false), 2500);
-    } catch (e) { setError(apiErr(e)); }
-  };
+    } catch (e) { setFormErr(errMessage(e)); }
+  }
 
-  // Submit this day — saves the current content first so nothing is lost, then
-  // submits. Stays on the page; the day flips to a read-only submitted view.
-  const handleSubmit = async () => {
-    setError(null);
+  async function handleSubmit() {
+    if (!hasContent) {
+      setFormErr('Both "Description of work done" and "New skills learnt" are required before submitting a day.');
+      return;
+    }
     try {
-      const entry = await saveDay.mutateAsync(payload());
-      await submitDay.mutateAsync({ entryId: entry.id, date });
-    } catch (e) { setError(apiErr(e)); }
-  };
+      const id = await persist();
+      if (!id) { setFormErr('Could not open this week for submission. Please try again.'); return; }
+      await submitDay.mutateAsync({ entryId: id, date: day.date });
+    } catch (e) { setFormErr(errMessage(e)); }
+  }
 
-  const busy = saveDay.isPending || submitDay.isPending;
-  const inputCls = 'w-full rounded-lg border border-[var(--h-d8dce6)] bg-[var(--h-ffffff)] px-3 py-2 text-sm text-[var(--h-0b1c30)] placeholder-[var(--h-94a3b8)] focus:border-[var(--h-8a4cfc)] focus:outline-none focus:ring-1 focus:ring-[var(--h-8a4cfc)]';
+  const busy = saveDailyEntry.isPending || saveDay.isPending || submitDay.isPending;
+  const inputCls = 'w-full rounded-lg border border-[var(--h-c4c5d5-60)] bg-[var(--h-ffffff)] px-3 py-2 text-sm text-[var(--h-0b1c30)] placeholder:text-[var(--h-94a3b8)] focus:border-[var(--h-8a4cfc)] focus:outline-none disabled:bg-[var(--h-eef0f5)]';
 
   return (
-    <div className="space-y-5">
-      <button onClick={onBack} className="inline-flex items-center gap-1 text-sm font-medium text-[var(--h-15157d)] hover:underline">
-        <ChevronLeft className="h-4 w-4" /> Week {week.label}
-      </button>
-
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <div>
-          <h2 className="text-lg font-bold text-[var(--h-0b1c30)]">{WEEKDAY_LONG[dow]}</h2>
-          <p className="text-sm text-[var(--h-464652)]">{fmtDate(date)}</p>
+    <div className="rounded-xl border border-[var(--h-c4c5d5-40)] bg-[var(--h-ffffff)] p-4">
+      <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+        <h2 className="text-sm font-bold text-[var(--h-0b1c30)]">{fmtDate(day.date)}</h2>
+        <div className="flex items-center gap-2">
+          {daySubmitted && (
+            <span className="inline-flex items-center gap-1 rounded-full bg-[var(--h-dcf5e6)] px-2 py-0.5 text-[11px] font-semibold text-[var(--h-1b7a45)]">
+              <CheckCircle2 className="h-3 w-3" /> Submitted{day.entry?.loggedLate ? ' · late' : ''}
+            </span>
+          )}
+          {editWindowClosed && (
+            <span className="inline-flex items-center gap-1 rounded-full bg-[var(--h-eef0f5)] px-2 py-0.5 text-[11px] font-semibold text-[var(--h-64748b)]">
+              <Lock className="h-3 w-3" /> Editing closed
+            </span>
+          )}
         </div>
-        {daySubmitted && (
-          <span className="inline-flex items-center gap-1 rounded-full bg-[var(--h-dcf5e6)] px-2.5 py-1 text-xs font-semibold text-[var(--h-1b7a45)]">
-            <CheckCircle2 className="h-3.5 w-3.5" /> Submitted{dayRecord?.loggedLate ? ' · late' : ''}
+      </div>
+
+      {day.absence ? (
+        <p className="text-sm text-[var(--h-464652)]">
+          Recorded as {day.absence.kind === 'sick' ? 'sick leave' : `a ${day.absence.kind} absence`}
+          {day.absence.reason && <> — {day.absence.reason}</>}.
+        </p>
+      ) : day.class === 'non_working' ? (
+        <p className="flex items-center gap-2 text-sm text-[var(--h-464652)]">
+          <Sun className="h-4 w-4 text-[var(--h-9a6700)]" /> Public holiday — nothing to log.
+        </p>
+      ) : (
+        <>
+          {future && (
+            <div className="mb-3 flex items-start gap-2 rounded-lg border border-[var(--h-bcc8ff)] bg-[var(--h-eef1ff)] px-3 py-2 text-xs text-[var(--h-15157d)]">
+              <Clock className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+              This day hasn't arrived yet (Ghana time) — logging opens on the day itself.
+            </div>
+          )}
+          {!future && !daySubmitted && lateBy > DAY_GRACE_DAYS && editable && (
+            <div className="mb-3 flex items-start gap-2 rounded-lg border border-[var(--h-f3d690)] bg-[var(--h-fff4e0)] px-3 py-2 text-xs text-[var(--h-9a6700)]">
+              <AlertCircle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+              You're logging this {lateBy} days late — you can still submit it, but it will be flagged as late.
+            </div>
+          )}
+
+          <fieldset disabled={!editable} className="space-y-3 disabled:opacity-70">
+            <div>
+              <label className="mb-1 block text-xs font-semibold text-[var(--h-464652)]" htmlFor="lb-work">
+                Description of work done
+              </label>
+              <textarea
+                id="lb-work" rows={4} value={description} maxLength={WORK_MAX}
+                onChange={(e) => setDescription(e.target.value)}
+                placeholder="What did you work on today?"
+                aria-invalid={!!descError}
+                className={inputCls}
+              />
+              <FieldError message={descError} />
+            </div>
+
+            <div>
+              <label className="mb-1 block text-xs font-semibold text-[var(--h-464652)]" htmlFor="lb-skills">
+                New skills learnt
+              </label>
+              <textarea
+                id="lb-skills" rows={2} value={skills} maxLength={SKILLS_MAX}
+                onChange={(e) => setSkills(e.target.value)}
+                placeholder="Skills, tools or procedures you picked up"
+                aria-invalid={!!skillsError}
+                className={inputCls}
+              />
+              <FieldError message={skillsError} />
+            </div>
+
+            {/* Itemised activities — optional detail on the same day, folded away
+                by default so the day reads as one form rather than two. */}
+            <div className="rounded-lg border border-[var(--h-e8ebf2)] bg-[var(--h-fbfcfe)] p-3">
+              <button
+                type="button"
+                onClick={() => setShowActivities((v) => !v)}
+                className="flex w-full items-center justify-between text-left"
+              >
+                <span className="text-xs font-semibold text-[var(--h-464652)]">
+                  Break the day into activities
+                  {activities.length > 0 && (
+                    <span className="ml-1.5 text-[var(--h-757684)]">({activities.length})</span>
+                  )}
+                </span>
+                {showActivities
+                  ? <ChevronUp className="h-4 w-4 text-[var(--h-757684)]" />
+                  : <ChevronDown className="h-4 w-4 text-[var(--h-757684)]" />}
+              </button>
+
+              {showActivities && (
+                <div className="mt-3 space-y-3">
+                  {activities.map((a, i) => {
+                    const detected = detectCompetencies(a.description, a.competencyTags);
+                    return (
+                      <div key={i} className="rounded-lg border border-[var(--h-e8ebf2)] bg-[var(--h-ffffff)] p-3">
+                        <div className="mb-2 flex justify-end">
+                          <button
+                            type="button"
+                            onClick={() => setActivities((p) => p.filter((_, j) => j !== i))}
+                            className="rounded-md p-1 text-[var(--h-94a3b8)] hover:bg-[var(--h-ffe2dc)] hover:text-[var(--h-b3261e)]"
+                            aria-label="Remove activity"
+                          >
+                            <Trash2 className="h-3.5 w-3.5" />
+                          </button>
+                        </div>
+                        <textarea
+                          rows={2} value={a.description} maxLength={ACTIVITY_MAX}
+                          onChange={(e) => updateActivity(i, { description: e.target.value })}
+                          placeholder="Describe one activity…"
+                          className={`${inputCls} resize-none`}
+                        />
+                        <div className="mt-2 flex flex-wrap items-center gap-1.5">
+                          {a.competencyTags.map((t) => (
+                            <span key={t} className="inline-flex items-center gap-1 rounded-full bg-[var(--h-e1e8ff)] px-2 py-0.5 text-xs font-medium text-[var(--h-15157d)]">
+                              {t}
+                              <button
+                                type="button"
+                                onClick={() => updateActivity(i, { competencyTags: a.competencyTags.filter((x) => x !== t) })}
+                                aria-label={`Remove ${t}`}
+                              >
+                                <X className="h-3 w-3" />
+                              </button>
+                            </span>
+                          ))}
+                          <input
+                            type="text" value={tagDrafts[i] ?? ''}
+                            onChange={(e) => setTagDrafts((d) => ({ ...d, [i]: e.target.value }))}
+                            onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); addTag(i, tagDrafts[i] ?? ''); } }}
+                            placeholder="+ competency"
+                            className="min-w-[120px] flex-1 rounded-md border border-transparent bg-transparent px-1.5 py-0.5 text-xs text-[var(--h-0b1c30)] placeholder-[var(--h-94a3b8)] focus:border-[var(--h-d8dce6)] focus:outline-none"
+                          />
+                        </div>
+                        {detected.length > 0 && (
+                          <div className="mt-2 flex flex-wrap items-center gap-1.5 rounded-md bg-[var(--h-f1ecff)] px-2 py-1.5">
+                            <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-[var(--h-712ae2)]">
+                              <Sparkles className="h-3 w-3" /> Detected
+                            </span>
+                            {detected.map((sug) => (
+                              <button
+                                key={sug} type="button" onClick={() => addTag(i, sug)}
+                                className="rounded-full border border-[var(--h-d3c4ff)] bg-[var(--h-ffffff)] px-2 py-0.5 text-[11px] font-medium text-[var(--h-712ae2)] hover:bg-[var(--h-e6dcff)]"
+                              >
+                                + {sug}
+                              </button>
+                            ))}
+                          </div>
+                        )}
+                        <div className="mt-1.5 flex flex-wrap gap-1">
+                          {COMPETENCY_SUGGESTIONS
+                            .filter((sug) => !a.competencyTags.includes(sug) && !detected.includes(sug))
+                            .slice(0, 5)
+                            .map((sug) => (
+                              <button
+                                key={sug} type="button" onClick={() => addTag(i, sug)}
+                                className="rounded px-1.5 py-0.5 text-[11px] text-[var(--h-64748b)] hover:text-[var(--h-712ae2)]"
+                              >
+                                + {sug}
+                              </button>
+                            ))}
+                        </div>
+                      </div>
+                    );
+                  })}
+                  <button
+                    type="button"
+                    onClick={() => setActivities((p) => [...p, { description: '', competencyTags: [] }])}
+                    className="inline-flex items-center gap-1 rounded-lg bg-[var(--h-f1ecff)] px-3 py-1.5 text-xs font-medium text-[var(--h-712ae2)] hover:bg-[var(--h-e6dcff)]"
+                  >
+                    <Plus className="h-3.5 w-3.5" /> Add activity
+                  </button>
+                </div>
+              )}
+            </div>
+
+            {/* Evidence for this day — the first upload opens the week draft. */}
+            <div className="rounded-lg border border-[var(--h-e8ebf2)] bg-[var(--h-fbfcfe)] p-3">
+              <EntryAttachments
+                entryId={entryId}
+                ensureEntryId={async () => {
+                  const id = await persist();
+                  if (!id) throw new Error('Could not open this week for attachments');
+                  return id;
+                }}
+                date={day.date}
+                editable={editable}
+              />
+            </div>
+          </fieldset>
+
+          {formErr && (
+            <div className="mt-3 flex items-start gap-2 rounded-lg border border-[var(--h-f5b8ad)] bg-[var(--h-fff1ee)] px-3 py-2 text-xs text-[var(--h-b3261e)]">
+              <AlertCircle className="mt-0.5 h-3.5 w-3.5 shrink-0" /> {formErr}
+            </div>
+          )}
+
+          {editable && (
+            <div className="mt-3 flex flex-wrap gap-2">
+              <button
+                type="button" onClick={handleSave} disabled={busy}
+                className="inline-flex flex-1 items-center justify-center gap-2 rounded-lg border border-[var(--h-d8dce6)] bg-[var(--h-ffffff)] px-4 py-2 text-sm font-medium text-[var(--h-464652)] hover:border-[var(--h-b9c0d0)] hover:text-[var(--h-0b1c30)] disabled:opacity-60"
+              >
+                {saved ? <><CheckCircle2 className="h-4 w-4 text-[var(--h-1b7a45)]" /> Saved</>
+                  : busy ? <><Loader2 className="h-4 w-4 animate-spin" /> Saving…</>
+                  : <><Save className="h-4 w-4" /> Save day</>}
+              </button>
+              <button
+                type="button" onClick={handleSubmit} disabled={busy || !hasContent}
+                title={!hasContent ? 'Fill in both fields to submit this day' : ''}
+                className="inline-flex flex-1 items-center justify-center gap-2 rounded-lg bg-[var(--h-15157d)] px-4 py-2 text-sm font-semibold text-white hover:bg-[var(--h-1f1fa0)] disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                <Send className="h-4 w-4" /> {daySubmitted ? 'Resubmit day' : 'Submit day'}
+              </button>
+            </div>
+          )}
+
+          {/* Absence self-report — same day, different answer to "what happened". */}
+          {canReportAbsence && !absenceOpen && (
+            <button
+              type="button" onClick={() => setAbsenceOpen(true)}
+              className="mt-3 inline-flex items-center gap-1.5 text-xs font-semibold text-[var(--h-757684)] hover:text-[var(--h-b3261e)]"
+            >
+              <CircleSlash className="h-3.5 w-3.5" /> I was absent this day
+            </button>
+          )}
+          {canReportAbsence && absenceOpen && (
+            <div className="mt-3 space-y-3 rounded-lg border border-[var(--h-c4c5d5-40)] bg-[var(--h-f8f9fc)] p-3">
+              <div className="flex items-center gap-3">
+                <label className="inline-flex items-center gap-1.5 text-sm text-[var(--h-0b1c30)]">
+                  <input type="radio" checked={absenceKind === 'sick'} onChange={() => setAbsenceKind('sick')} /> Sick
+                </label>
+                <label className="inline-flex items-center gap-1.5 text-sm text-[var(--h-0b1c30)]">
+                  <input type="radio" checked={absenceKind === 'permitted'} onChange={() => setAbsenceKind('permitted')} /> Permitted (with approval)
+                </label>
+              </div>
+              <input
+                value={absenceReason}
+                onChange={(e) => setAbsenceReason(e.target.value)}
+                maxLength={2000}
+                placeholder={absenceKind === 'permitted' ? 'Reason (required)' : 'Reason (optional)'}
+                className={inputCls}
+              />
+              {recordAbsence.isError && (
+                <p className="text-xs text-[var(--h-b3261e)]">{errMessage(recordAbsence.error)}</p>
+              )}
+              <div className="flex gap-2">
+                <button
+                  type="button"
+                  onClick={() => recordAbsence.mutate({
+                    placementId,
+                    absenceDate: day.date,
+                    kind: absenceKind,
+                    reason: absenceReason.trim() || undefined,
+                  })}
+                  disabled={recordAbsence.isPending || (absenceKind === 'permitted' && !absenceReason.trim())}
+                  className="rounded-lg bg-[var(--h-b3261e)] px-3 py-1.5 text-xs font-semibold text-[var(--h-ffffff)] disabled:opacity-50"
+                >
+                  {recordAbsence.isPending ? 'Recording…' : 'Record absence'}
+                </button>
+                <button
+                  type="button" onClick={() => setAbsenceOpen(false)}
+                  className="rounded-lg px-3 py-1.5 text-xs font-semibold text-[var(--h-757684)] hover:bg-[var(--h-eef0f5)]"
+                >
+                  Cancel
+                </button>
+              </div>
+            </div>
+          )}
+        </>
+      )}
+    </div>
+  );
+}
+
+// ── The week's own narrative ────────────────────────────────────
+function WeeklyReportCard({
+  placementId, weekNumber, locked, summary,
+}: {
+  placementId: string;
+  weekNumber: number;
+  locked: boolean;
+  summary: { id: string; weekEnding: string; reportText: string } | undefined;
+}) {
+  const saveSummary = useSaveWeeklySummary(placementId);
+  const [text, setText] = useState(summary?.reportText ?? '');
+  const [saved, setSaved] = useState(false);
+
+  useEffect(() => {
+    setText(summary?.reportText ?? '');
+    saveSummary.reset();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [weekNumber, summary?.id]);
+
+  const parsed = text.trim() ? reportText.safeParse(text) : null;
+  const error = parsed && !parsed.success ? parsed.error.issues[0]?.message : undefined;
+
+  return (
+    <div className="rounded-xl border border-[var(--h-c4c5d5-40)] bg-[var(--h-ffffff)] p-4">
+      <div className="mb-2 flex items-center justify-between">
+        <h2 className="text-sm font-bold text-[var(--h-0b1c30)]">Weekly report</h2>
+        {summary && (
+          <span className="text-[11px] text-[var(--h-757684)]">
+            Week ending {fmtDate(summary.weekEnding.slice(0, 10))}
           </span>
         )}
       </div>
-
-      {/* Anti-cheat / status banners */}
-      {!daySubmitted && win.future && (
-        <div className="flex items-start gap-2 rounded-lg border border-[var(--h-bcc8ff)] bg-[var(--h-eef1ff)] px-4 py-3 text-sm text-[var(--h-15157d)]">
-          <Clock className="mt-0.5 h-4 w-4 shrink-0" /> This day hasn't arrived yet (Ghana time) — logging opens on the day itself. It's locked until then.
-        </div>
+      <textarea
+        rows={3} value={text} maxLength={REPORT_MAX} disabled={locked}
+        onChange={(e) => setText(e.target.value)}
+        placeholder="Summarise the week's work in your own words"
+        aria-invalid={!!error}
+        className="w-full rounded-lg border border-[var(--h-c4c5d5-60)] bg-[var(--h-ffffff)] px-3 py-2 text-sm text-[var(--h-0b1c30)] placeholder:text-[var(--h-94a3b8)] focus:border-[var(--h-8a4cfc)] focus:outline-none disabled:bg-[var(--h-eef0f5)]"
+      />
+      <FieldError message={error} />
+      {saveSummary.isError && (
+        <p className="mt-1 text-xs text-[var(--h-b3261e)]">{errMessage(saveSummary.error)}</p>
       )}
-      {!daySubmitted && weekStatus === 'acknowledged' && (
-        <div className="flex items-start gap-2 rounded-lg border border-[var(--h-d8dce6)] bg-[var(--h-eef0f5)] px-4 py-3 text-sm text-[var(--h-464652)]">
-          <ShieldCheck className="mt-0.5 h-4 w-4 shrink-0" /> This week has been acknowledged by your supervisor and is locked — days can no longer be added or edited.
-        </div>
-      )}
-      {!daySubmitted && !win.future && weekStatus !== 'acknowledged' && win.lateBy > 0 && (
-        <div className="flex items-start gap-2 rounded-lg border border-[var(--h-f3d690)] bg-[var(--h-fff4e0)] px-4 py-3 text-sm text-[var(--h-9a6700)]">
-          <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" /> You're logging this {win.lateBy} day{win.lateBy === 1 ? '' : 's'} late — you can still submit it, but it will be flagged as late for your supervisor.
-        </div>
-      )}
-      {daySubmitted && (
-        <div className="flex items-start gap-2 rounded-lg border border-[var(--h-aee3c2)] bg-[var(--h-e9f9ef)] px-4 py-3 text-sm text-[var(--h-1b7a45)]">
-          <ShieldCheck className="mt-0.5 h-4 w-4 shrink-0" /> This day is submitted{weekStatus === 'returned' ? ', but the week was returned — you can edit and resubmit.' : ' and visible to your supervisor.'}
-        </div>
-      )}
-
-      <fieldset disabled={!editable} className="space-y-4 disabled:opacity-70">
-        {/* Activities for this day */}
-        <div className="rounded-xl border border-[var(--h-e2e6ef)] bg-[var(--h-ffffff)] p-5">
-          <div className="mb-3 flex items-center justify-between">
-            <div>
-              <h3 className="text-sm font-semibold text-[var(--h-0b1c30)]">What did you work on?</h3>
-              <p className="text-xs text-[var(--h-64748b)]">Log each activity for this day</p>
-            </div>
-            {editable && (
-              <button type="button" onClick={addActivity} className="inline-flex items-center gap-1 rounded-lg bg-[var(--h-f1ecff)] px-3 py-1.5 text-sm font-medium text-[var(--h-712ae2)] hover:bg-[var(--h-e6dcff)]">
-                <Plus className="h-4 w-4" /> Add activity
-              </button>
-            )}
-          </div>
-
-          <div className="space-y-4">
-            {activities.length === 0 && (
-              editable ? (
-                <button type="button" onClick={addActivity} className="w-full rounded-lg border border-dashed border-[var(--h-d8dce6)] py-7 text-center text-sm text-[var(--h-94a3b8)] hover:border-[var(--h-8a4cfc)] hover:text-[var(--h-712ae2)]">
-                  Nothing logged yet — tap to add an activity.
-                </button>
-              ) : (
-                <p className="w-full rounded-lg border border-dashed border-[var(--h-d8dce6)] py-7 text-center text-sm text-[var(--h-94a3b8)]">
-                  Nothing was logged for this day.
-                </p>
-              )
-            )}
-            {activities.map((a, i) => {
-              const detected = detectCompetencies(a.description, a.competencyTags);
-              return (
-                <div key={i} className="rounded-lg border border-[var(--h-e8ebf2)] bg-[var(--h-fbfcfe)] p-4">
-                  <div className="mb-2 flex justify-end">
-                    <button type="button" onClick={() => removeActivity(i)} className="rounded-md p-1.5 text-[var(--h-94a3b8)] hover:bg-[var(--h-ffe2dc)] hover:text-[var(--h-b3261e)]" aria-label="Remove activity">
-                      <Trash2 className="h-4 w-4" />
-                    </button>
-                  </div>
-                  <textarea rows={2} value={a.description} onChange={(e) => updateActivity(i, { description: e.target.value })} placeholder="Describe what you did…" className={`${inputCls} resize-none`} />
-                  <div className="mt-2 flex flex-wrap items-center gap-1.5">
-                    {a.competencyTags.map((t) => (
-                      <span key={t} className="inline-flex items-center gap-1 rounded-full bg-[var(--h-e1e8ff)] px-2 py-0.5 text-xs font-medium text-[var(--h-15157d)]">
-                        {t}
-                        <button type="button" onClick={() => removeTag(i, t)} aria-label={`Remove ${t}`}><X className="h-3 w-3" /></button>
-                      </span>
-                    ))}
-                    <input type="text" value={tagDrafts[i] ?? ''} onChange={(e) => setTagDrafts((d) => ({ ...d, [i]: e.target.value }))}
-                      onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); addTag(i, tagDrafts[i] ?? ''); } }}
-                      placeholder="+ competency" className="min-w-[120px] flex-1 rounded-md border border-transparent bg-transparent px-1.5 py-0.5 text-xs text-[var(--h-0b1c30)] placeholder-[var(--h-94a3b8)] focus:border-[var(--h-d8dce6)] focus:outline-none" />
-                  </div>
-                  {detected.length > 0 && (
-                    <div className="mt-2 flex flex-wrap items-center gap-1.5 rounded-md bg-[var(--h-f1ecff)] px-2 py-1.5">
-                      <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-[var(--h-712ae2)]"><Sparkles className="h-3 w-3" /> Detected</span>
-                      {detected.map((s) => (
-                        <button key={s} type="button" onClick={() => addTag(i, s)} className="rounded-full border border-[var(--h-d3c4ff)] bg-[var(--h-ffffff)] px-2 py-0.5 text-[11px] font-medium text-[var(--h-712ae2)] hover:bg-[var(--h-e6dcff)]">+ {s}</button>
-                      ))}
-                    </div>
-                  )}
-                  <div className="mt-1.5 flex flex-wrap gap-1">
-                    {COMPETENCY_SUGGESTIONS.filter((s) => !a.competencyTags.includes(s) && !detected.includes(s)).slice(0, 5).map((s) => (
-                      <button key={s} type="button" onClick={() => addTag(i, s)} className="rounded px-1.5 py-0.5 text-[11px] text-[var(--h-64748b)] hover:text-[var(--h-712ae2)]">+ {s}</button>
-                    ))}
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        </div>
-
-        {/* Evidence for THIS day — always shown; the first upload creates the
-            week draft on the fly. Files are optional; a day submits fine without any. */}
-        <div className="rounded-xl border border-[var(--h-e2e6ef)] bg-[var(--h-ffffff)] p-5">
-          <EntryAttachments
-            entryId={detail?.id}
-            ensureEntryId={async () => (await saveDay.mutateAsync(payload())).id}
-            date={date}
-            editable={editable}
-          />
-        </div>
-      </fieldset>
-
-      {error && (
-        <div className="flex items-start gap-2 rounded-lg border border-[var(--h-f5b8ad)] bg-[var(--h-fff1ee)] px-4 py-3 text-sm text-[var(--h-b3261e)]">
-          <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" /> {error}
-        </div>
-      )}
-
-      {editable && (
-        <div className="flex flex-wrap gap-3">
-          <button type="button" onClick={handleSave} disabled={busy}
-            className="inline-flex flex-1 items-center justify-center gap-2 rounded-lg border border-[var(--h-d8dce6)] bg-[var(--h-ffffff)] px-4 py-2.5 text-sm font-medium text-[var(--h-464652)] hover:border-[var(--h-b9c0d0)] hover:text-[var(--h-0b1c30)] disabled:opacity-60">
-            {saved ? <><CheckCircle2 className="h-4 w-4 text-[var(--h-1b7a45)]" /> Saved</> : saveDay.isPending ? <><Loader2 className="h-4 w-4 animate-spin" /> Saving…</> : 'Save draft'}
-          </button>
-          <button type="button" onClick={handleSubmit} disabled={busy || win.blocked}
-            title={win.blocked ? 'You can submit this day once it arrives' : ''}
-            className="inline-flex flex-1 items-center justify-center gap-2 rounded-lg bg-[var(--h-15157d)] px-4 py-2.5 text-sm font-semibold text-white hover:bg-[var(--h-1f1fa0)] disabled:cursor-not-allowed disabled:opacity-60">
-            {submitDay.isPending ? <><Loader2 className="h-4 w-4 animate-spin" /> Submitting…</> : <><Send className="h-4 w-4" /> {daySubmitted ? 'Resubmit day' : 'Submit day'}</>}
-          </button>
-        </div>
+      {!locked && (
+        <button
+          type="button"
+          onClick={async () => {
+            try {
+              await saveSummary.mutateAsync({ placementId, weekNumber, reportText: text.trim() });
+              setSaved(true);
+              setTimeout(() => setSaved(false), 2500);
+            } catch { /* surfaced above */ }
+          }}
+          disabled={!text.trim() || !!error || saveSummary.isPending}
+          className="mt-2 inline-flex items-center gap-1.5 rounded-lg bg-[var(--h-15157d)] px-4 py-2 text-sm font-semibold text-[var(--h-ffffff)] disabled:opacity-50"
+        >
+          {saveSummary.isPending ? <Loader2 className="h-4 w-4 animate-spin" />
+            : saved ? <CheckCircle2 className="h-4 w-4" /> : <Save className="h-4 w-4" />}
+          {saved ? 'Saved' : summary ? 'Update report' : 'Save report'}
+        </button>
       )}
     </div>
   );
