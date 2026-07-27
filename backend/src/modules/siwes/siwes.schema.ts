@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { weekNumberCeiling, freeText, optionalFreeText } from '../../shared/validation';
 
 const dateOnly = z
   .string()
@@ -11,8 +12,8 @@ const dateOnly = z
 export const saveDailyEntrySchema = z.object({
   placementId: z.string().uuid(),
   workDate: dateOnly,
-  descriptionOfWork: z.string().trim().min(1).max(10000),
-  newSkillsLearnt: z.string().trim().min(1).max(10000),
+  descriptionOfWork: freeText(10000, 'Description of work done'),
+  newSkillsLearnt: freeText(10000, 'New skills learnt'),
   sketchUrl: z.string().trim().url().max(2048).optional(),
   clientDraftedAt: z.string().datetime().optional(),
 });
@@ -22,8 +23,10 @@ export type SaveDailyEntryInput = z.infer<typeof saveDailyEntrySchema>;
 // weekEnding is derived server-side from the chain calendar, never supplied.
 export const saveWeeklySummarySchema = z.object({
   placementId: z.string().uuid(),
-  weekNumber: z.number().int().min(1).max(52),
-  reportText: z.string().trim().min(1).max(20000),
+  // Ceiling only — the attachment's real span is enforced in the service
+  // against the cohort calendar (see saveWeeklySummary).
+  weekNumber: weekNumberCeiling(),
+  reportText: freeText(20000, 'Weekly report'),
 });
 export type SaveWeeklySummaryInput = z.infer<typeof saveWeeklySummarySchema>;
 
@@ -35,7 +38,7 @@ export const recordAbsenceSchema = z
     placementId: z.string().uuid(),
     absenceDate: dateOnly,
     kind: z.enum(['sick', 'permitted', 'unexcused']),
-    reason: z.string().trim().min(1).max(2000).optional(),
+    reason: optionalFreeText(2000, 'Reason'),
   })
   .refine((v) => v.kind !== 'permitted' || v.reason !== undefined, {
     message: 'A permitted absence requires a reason',
@@ -47,7 +50,7 @@ export type RecordAbsenceInput = z.infer<typeof recordAbsenceSchema>;
 export const createNonWorkingDaySchema = z.object({
   academicYearId: z.string().uuid(),
   day: dateOnly,
-  label: z.string().trim().min(1).max(200),
+  label: freeText(200, 'Label'),
 });
 export type CreateNonWorkingDayInput = z.infer<typeof createNonWorkingDaySchema>;
 

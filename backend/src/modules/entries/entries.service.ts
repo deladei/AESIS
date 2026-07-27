@@ -11,6 +11,7 @@ import {
   type TransitionAction,
 } from './entry.stateMachine';
 import { parseDateOnly, isFuture, todayUtc, daysBetween } from './entry.dates';
+import { assertWeekWithinCohort } from './entries.week';
 import {
   authorizePlacement,
   entryScopeFilter,
@@ -141,6 +142,7 @@ async function chainRootId(
  */
 export async function saveDraft(actor: Actor, input: SaveDraftInput) {
   await authorizePlacement(actor, input.placementId, 'write');
+  await assertWeekWithinCohort(input.placementId, input.weekNumber);
   const { periodStart, periodEnd, activities } = validateDraftDates(input);
 
   return prisma.$transaction(async (tx) => {

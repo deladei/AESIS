@@ -3,6 +3,8 @@ import { Loader2, BadgeCheck, ShieldAlert, Mail, Phone, Hash, MapPin, Building2,
 import { useProfile, useUpdateProfile, useUploadAvatar, useRemoveAvatar, type Profile, type UpdateProfileInput } from '@/hooks/useProfile';
 import { useAuth } from '@/contexts/AuthContext';
 import { regionLabel } from '@/lib/regions';
+import { FieldError } from '@/components/shared/FieldError';
+import { useFieldErrors, updateProfileSchema, extractFieldErrors } from '@/lib/validation';
 
 const AVATAR_MAX_BYTES = 5 * 1024 * 1024;
 const AVATAR_MIME = ['image/png', 'image/jpeg', 'image/webp'];
@@ -132,6 +134,8 @@ function Field({ icon: Icon, label, value }: { icon: React.ElementType; label: s
 function EditProfileForm({ profile, onDone }: { profile: Profile; onDone: () => void }) {
   const isStudent = profile.role === 'student';
   const update = useUpdateProfile();
+  // Same schema the API parses this PATCH with.
+  const { errors, check, validate, clear, setServerErrors } = useFieldErrors(updateProfileSchema);
   const [firstName, setFirstName]   = useState(profile.firstName);
   const [lastName, setLastName]     = useState(profile.lastName);
   const [gender, setGender]         = useState<Profile['gender']>(profile.gender);
@@ -158,10 +162,15 @@ function EditProfileForm({ profile, onDone }: { profile: Profile; onDone: () => 
   async function handleSave() {
     const patch = buildPatch();
     if (Object.keys(patch).length === 0) { onDone(); return; }
+    if (!validate(patch)) return;
     try {
       await update.mutateAsync(patch);
       onDone();
-    } catch { /* error surfaced below */ }
+    } catch (err) {
+      // Field-level messages land under their own input; anything else falls
+      // through to the form-level notice below.
+      setServerErrors(extractFieldErrors(err));
+    }
   }
 
   const errMsg = update.isError
@@ -180,11 +189,13 @@ function EditProfileForm({ profile, onDone }: { profile: Profile; onDone: () => 
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
         <div>
           <label className={labelCls} htmlFor="pf-first">First name</label>
-          <input id="pf-first" className={inputCls} value={firstName} onChange={(e) => setFirstName(e.target.value)} />
+          <input id="pf-first" className={inputCls} value={firstName} onChange={(e) => { setFirstName(e.target.value); clear('firstName'); }} onBlur={() => check('firstName', firstName.trim() || undefined)} aria-invalid={!!errors.firstName} />
+          <FieldError message={errors.firstName} />
         </div>
         <div>
           <label className={labelCls} htmlFor="pf-last">Last name</label>
-          <input id="pf-last" className={inputCls} value={lastName} onChange={(e) => setLastName(e.target.value)} />
+          <input id="pf-last" className={inputCls} value={lastName} onChange={(e) => { setLastName(e.target.value); clear('lastName'); }} onBlur={() => check('lastName', lastName.trim() || undefined)} aria-invalid={!!errors.lastName} />
+          <FieldError message={errors.lastName} />
         </div>
         <div>
           <label className={labelCls} htmlFor="pf-gender">Gender</label>
@@ -197,12 +208,14 @@ function EditProfileForm({ profile, onDone }: { profile: Profile; onDone: () => 
         </div>
         <div>
           <label className={labelCls} htmlFor="pf-phone">Phone</label>
-          <input id="pf-phone" className={inputCls} value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="e.g. +233 20 123 4567" />
+          <input id="pf-phone" className={inputCls} value={phone} onChange={(e) => { setPhone(e.target.value); clear('phone'); }} onBlur={() => check('phone', phone.trim())} aria-invalid={!!errors.phone} placeholder="0XXXXXXXXX or +233XXXXXXXXX" />
+          <FieldError message={errors.phone} />
         </div>
         {isStudent && (
           <div>
             <label className={labelCls} htmlFor="pf-index">Index number</label>
-            <input id="pf-index" className={inputCls} value={indexNumber} onChange={(e) => setIndexNumber(e.target.value)} />
+            <input id="pf-index" className={inputCls} value={indexNumber} onChange={(e) => { setIndexNumber(e.target.value); clear('indexNumber'); }} onBlur={() => check('indexNumber', indexNumber.trim() || undefined)} aria-invalid={!!errors.indexNumber} />
+          <FieldError message={errors.indexNumber} />
           </div>
         )}
       </div>

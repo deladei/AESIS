@@ -1,4 +1,8 @@
 import { z } from 'zod';
+import {
+  ASSESSMENT_INDUSTRY_MAXIMA as M, personName, optionalFreeText,
+  organisationName, email as emailField, ghanaPhone, weekNumberCeiling, freeText,
+} from '../../shared/validation';
 
 // Industry supervisor RECORDS (no account). Contact details come from the
 // student, so nothing here may touch verification_status — verification has its
@@ -6,11 +10,11 @@ import { z } from 'zod';
 // additionally never forwards a status field from these inputs.
 
 export const createIndustrySupervisorSchema = z.object({
-  name: z.string().trim().min(2).max(120),
-  designation: z.string().trim().max(120).optional(),
-  departmentUnit: z.string().trim().max(120).optional(),
-  phone: z.string().trim().max(30).optional(),
-  email: z.string().trim().toLowerCase().email().max(254).optional(),
+  name: personName('Supervisor name', 120),
+  designation: optionalFreeText(120, 'Designation'),
+  departmentUnit: optionalFreeText(120, 'Department or unit'),
+  phone: ghanaPhone('Supervisor phone').optional(),
+  email: emailField('Supervisor email').optional(),
   periodStart: z.coerce.date().optional(),
   periodEnd: z.coerce.date().optional(),
 }).refine(
@@ -19,11 +23,11 @@ export const createIndustrySupervisorSchema = z.object({
 );
 
 export const updateIndustrySupervisorSchema = z.object({
-  name: z.string().trim().min(2).max(120).optional(),
-  designation: z.string().trim().max(120).nullish(),
-  departmentUnit: z.string().trim().max(120).nullish(),
-  phone: z.string().trim().max(30).nullish(),
-  email: z.string().trim().toLowerCase().email().max(254).nullish(),
+  name: personName('Supervisor name', 120).optional(),
+  designation: optionalFreeText(120, 'Designation').nullish(),
+  departmentUnit: optionalFreeText(120, 'Department or unit').nullish(),
+  phone: ghanaPhone('Supervisor phone').nullish(),
+  email: emailField('Supervisor email').nullish(),
   periodStart: z.coerce.date().nullish(),
   periodEnd: z.coerce.date().nullish(),
 });
@@ -42,18 +46,25 @@ export const visitConfirmSchema = z.object({
 // The Industrial Attachment Performance Evaluation Form — criteria maxima
 // verbatim from the instrument. Zod bounds mirror the DB CHECKs so a violation
 // fails fast with a readable message instead of a constraint error.
+const criterion = (max: number, label: string) =>
+  z
+    .number({ invalid_type_error: `${label} must be a number` })
+    .int(`${label} must be a whole number`)
+    .min(0, `${label} cannot be negative`)
+    .max(max, `${label} cannot exceed ${max}`);
+
 export const industryAssessmentScoresSchema = z.object({
-  attendance: z.number().int().min(0).max(20),
-  punctuality: z.number().int().min(0).max(15),
-  cooperation: z.number().int().min(0).max(10),
-  aptitude: z.number().int().min(0).max(15),
-  understanding: z.number().int().min(0).max(20),
-  safety: z.number().int().min(0).max(10),
-  autonomy: z.number().int().min(0).max(10),
-  additionalComments: z.string().trim().max(2000).optional(),
-  reportingOfficerName: z.string().trim().min(2).max(120),
-  reportingOfficerDesignation: z.string().trim().max(120).optional(),
-  companyHodName: z.string().trim().max(120).optional(),
+  attendance: criterion(M.attendance, 'Attendance'),
+  punctuality: criterion(M.punctuality, 'Punctuality'),
+  cooperation: criterion(M.cooperation, 'Cooperation'),
+  aptitude: criterion(M.aptitude, 'Aptitude'),
+  understanding: criterion(M.understanding, 'Understanding'),
+  safety: criterion(M.safety, 'Safety'),
+  autonomy: criterion(M.autonomy, 'Autonomy'),
+  additionalComments: optionalFreeText(2000, 'Additional comments'),
+  reportingOfficerName: personName('Reporting officer name', 120),
+  reportingOfficerDesignation: optionalFreeText(120, 'Designation'),
+  companyHodName: personName('Company HOD name', 120).optional(),
 });
 
 // Paper path: the coordinator keys in a scanned form. The scan is the evidence.
@@ -69,18 +80,18 @@ export type PaperAssessmentInput = z.infer<typeof paperAssessmentSchema>;
 // the comment: week, supervisor and date all come from the token/record, never
 // the body. Paper path mirrors the paper assessment: scan is the evidence.
 export const digitalWeeklyCommentSchema = z.object({
-  comment: z.string().trim().min(3).max(2000),
+  comment: freeText(2000, 'Comment').min(3, 'Comment is too short'),
 });
 
 export const paperWeeklyCommentSchema = digitalWeeklyCommentSchema.extend({
   industrySupervisorId: z.string().uuid(),
-  weekNumber: z.number().int().min(1).max(52),
+  weekNumber: weekNumberCeiling(),
   commentDate: z.coerce.date(),
   scanUrl: z.string().url().max(2000),
   // Snapshot overrides for when the paper form names someone other than the
   // current record (unit rotation); default to the supervisor record.
-  supervisorName: z.string().trim().min(2).max(120).optional(),
-  departmentUnit: z.string().trim().max(120).optional(),
+  supervisorName: personName('Supervisor name', 120).optional(),
+  departmentUnit: optionalFreeText(120, 'Department or unit'),
 });
 
 export type DigitalWeeklyCommentInput = z.infer<typeof digitalWeeklyCommentSchema>;

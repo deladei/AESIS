@@ -103,7 +103,7 @@ beforeAll(async () => {
   if (!dbAvailable) return;
 
   await prisma.$executeRawUnsafe(
-    `TRUNCATE entry_event, entry_activity, entry_reflection, ai_assessment, enrichment_queue,
+    `TRUNCATE cohort_configs, entry_event, entry_activity, entry_reflection, ai_assessment, enrichment_queue,
      logbook_entry, placement_assessment, company_attestation, placements, companies, notifications,
      users, academic_years, departments RESTART IDENTITY CASCADE`,
   );
@@ -114,6 +114,13 @@ beforeAll(async () => {
     data: { label: '2025/2026', startDate: new Date('2025-09-01'), endDate: new Date('2026-08-31') },
   });
   yearId = year.id;
+
+  // Week numbers are bounded by the cohort's configured attachment length, not
+  // by a literal in the schema. Without a config row the default (6) applies
+  // and this suite's higher week numbers are correctly rejected.
+  await prisma.cohortConfig.create({
+    data: { academicYearId: yearId, durationWeeks: 48 },
+  });
 
   studentA = await mkUser('student', 'studentA');
   studentB = await mkUser('student', 'studentB');

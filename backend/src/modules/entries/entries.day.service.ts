@@ -3,6 +3,7 @@ import { AppError } from '../../middleware/errorHandler';
 import { emitToUser } from '../../shared/utils/socketEmitter';
 import { parseDateOnly, isFuture, todayUtc, daysBetween } from './entry.dates';
 import { authorizePlacement, assertPlacementAccess, type Actor } from './entries.policy';
+import { assertWeekWithinCohort } from './entries.week';
 import type { SaveDayInput } from './entries.schema';
 
 // Anti-cheat transparency: a day submitted within this grace window of its own
@@ -41,6 +42,7 @@ const DAY_ENTRY_INCLUDE = {
  */
 export async function saveDayDraft(actor: Actor, input: SaveDayInput) {
   await authorizePlacement(actor, input.placementId, 'write');
+  await assertWeekWithinCohort(input.placementId, input.weekNumber);
 
   const date = parseDateOnly(input.date, 'date');
   const periodStart = parseDateOnly(input.periodStart, 'periodStart');

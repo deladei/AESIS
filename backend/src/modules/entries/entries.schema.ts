@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { weekNumberCeiling, weekHours, freeText } from '../../shared/validation';
 
 const dateOnly = z
   .string()
@@ -6,23 +7,26 @@ const dateOnly = z
 
 export const activitySchema = z.object({
   activityDate: dateOnly,
-  description: z.string().trim().min(1).max(5000),
+  description: freeText(5000, 'Description'),
   competencyTags: z.array(z.string().trim().min(1).max(64)).max(20).default([]),
 });
 
 export const reflectionSchema = z.object({
-  learning: z.string().trim().min(1).max(10000),
-  challenges: z.string().trim().min(1).max(10000),
+  learning: freeText(10000, 'What you learned'),
+  challenges: freeText(10000, 'Challenges'),
   supervisorVisible: z.boolean().default(true),
 });
 
 // Create-or-update a draft for a given week of a placement.
 export const saveDraftSchema = z.object({
   placementId: z.string().uuid(),
-  weekNumber: z.number().int().min(1).max(6),
+  // Sanity ceiling only — the real bound is the cohort's attachment span and is
+  // enforced in the service (assertWeekWithinAttachment). It used to be a hard
+  // max(6), which made week 7 unsaveable for a 24-week cohort.
+  weekNumber: weekNumberCeiling(),
   periodStart: dateOnly,
   periodEnd: dateOnly,
-  hoursLogged: z.number().min(0).max(168).optional(),
+  hoursLogged: weekHours.optional(),
   activities: z.array(activitySchema).max(50).default([]),
   reflection: reflectionSchema.optional(),
 });
@@ -33,7 +37,7 @@ export const submitSchema = z.object({}).optional();
 // One day's activities (the day is the submittable unit). The day's date is the
 // route/body `date`, so per-activity dates aren't needed here.
 export const dayActivitySchema = z.object({
-  description: z.string().trim().min(1).max(5000),
+  description: freeText(5000, 'Description'),
   competencyTags: z.array(z.string().trim().min(1).max(64)).max(20).default([]),
 });
 
@@ -41,7 +45,10 @@ export const dayActivitySchema = z.object({
 // this day's activities — other days are untouched.
 export const saveDaySchema = z.object({
   placementId: z.string().uuid(),
-  weekNumber: z.number().int().min(1).max(6),
+  // Sanity ceiling only — the real bound is the cohort's attachment span and is
+  // enforced in the service (assertWeekWithinAttachment). It used to be a hard
+  // max(6), which made week 7 unsaveable for a 24-week cohort.
+  weekNumber: weekNumberCeiling(),
   periodStart: dateOnly,
   periodEnd: dateOnly,
   date: dateOnly,
@@ -53,7 +60,7 @@ export const submitDaySchema = z.object({
 });
 
 export const returnSchema = z.object({
-  comment: z.string().trim().min(1).max(5000),
+  comment: freeText(5000, 'Comment'),
 });
 
 export const acknowledgeSchema = z.object({

@@ -3,6 +3,8 @@ import { Link } from 'react-router-dom';
 import { Eye, EyeOff, Loader2, CheckCircle2, GraduationCap, BookOpen, Briefcase, ChevronDown, Check } from 'lucide-react';
 import { useAuth, type SelfRegisterRole } from '@/contexts/AuthContext';
 import { REGION_VALUES, REGION_LABELS } from '@/lib/regions';
+import { registerSchema } from '@/lib/validation';
+import { extractFieldErrors, formLevelMessage } from '@/lib/validation';
 
 const PROGRAMMES_URL = `${import.meta.env.VITE_API_BASE_URL ?? ''}/api/v1/auth/programmes`;
 
@@ -41,6 +43,35 @@ interface FormState {
   companySupervisorEmail: string;
   startDate: string;
   endDate: string;
+}
+
+// The exact body the API receives — built once so the client validates the
+// same object it is about to send, rather than a lookalike.
+function payloadFor(form: FormState) {
+  return {
+    firstName: form.firstName,
+    lastName:  form.lastName,
+    email:     form.email,
+    password:  form.password,
+    role:      form.role,
+    gender:    form.gender as 'male' | 'female' | 'other',
+    ...(form.role === 'student'
+      ? {
+          indexNumber:            form.indexNumber.trim(),
+          programmeId:            form.programmeId,
+          region:                 form.region,
+          companyName:            form.companyName,
+          companyAddress:         form.companyAddress,
+          companySupervisorName:  form.companySupervisorName,
+          companySupervisorEmail: form.companySupervisorEmail,
+          startDate:              form.startDate,
+          endDate:                form.endDate,
+        }
+      : {}),
+    ...(form.role === 'academic_supervisor'
+      ? { staffId: form.staffId.trim(), title: form.title }
+      : {}),
+  };
 }
 
 export default function RegisterPage() {
@@ -127,33 +158,23 @@ export default function RegisterPage() {
     };
   }, [programmeOpen, computeProgrammePlacement]);
 
+  // One definition, both sides: this is the same object the API parses the
+  // request body with (backend/src/shared/validation/auth.ts). Client-side
+  // parsing exists to put the message next to the field — the server re-parses
+  // and remains the guarantee.
   const validate = () => {
-    const e: Partial<Record<keyof FormState, string>> = {};
-    if (!form.firstName.trim()) e.firstName = 'Required';
-    if (!form.lastName.trim()) e.lastName = 'Required';
-    if (!form.email.includes('@') || !form.email.includes('.')) e.email = 'Enter a valid email address';
-    if (form.password.length < 8) e.password = 'Minimum 8 characters';
-    if (!form.gender) e.gender = 'Select your gender';
-    if (form.role === 'academic_supervisor') {
-      if (!form.title) e.title = 'Select your title';
-      if (form.staffId.trim().length < 3) e.staffId = 'Enter your staff ID';
+    const result = registerSchema.safeParse(payloadFor(form));
+    if (result.success) {
+      setErrors({});
+      return true;
     }
-    if (form.role === 'student') {
-      if (!form.indexNumber.trim()) e.indexNumber = 'Required';
-      if (!form.programmeId) e.programmeId = 'Select a programme';
-      if (!form.region) e.region = 'Select your placement region';
-      if (!form.companyName.trim()) e.companyName = 'Required';
-      if (!form.companyAddress.trim()) e.companyAddress = 'Required';
-      if (!form.companySupervisorName.trim()) e.companySupervisorName = 'Required';
-      if (!form.companySupervisorEmail.includes('@')) e.companySupervisorEmail = 'Enter a valid email address';
-      if (!form.startDate) e.startDate = 'Required';
-      if (!form.endDate) e.endDate = 'Required';
-      if (form.startDate && form.endDate && new Date(form.endDate) <= new Date(form.startDate)) {
-        e.endDate = 'End date must be after start date';
-      }
+    const e: Partial<Record<keyof FormState, string>> = {};
+    for (const issue of result.error.issues) {
+      const key = issue.path[0] as keyof FormState | undefined;
+      if (key && !e[key]) e[key] = issue.message;
     }
     setErrors(e);
-    return Object.keys(e).length === 0;
+    return false;
   };
 
   const handleSubmit = async (ev: React.FormEvent) => {
@@ -161,36 +182,18 @@ export default function RegisterPage() {
     if (!validate()) return;
     setLoading(true);
     try {
-      const payload = {
-        firstName: form.firstName,
-        lastName:  form.lastName,
-        email:     form.email,
-        password:  form.password,
-        role:      form.role,
-        gender:    form.gender as 'male' | 'female' | 'other',
-        ...(form.role === 'student'
-          ? {
-              indexNumber:            form.indexNumber.trim(),
-              programmeId:            form.programmeId,
-              region:                 form.region,
-              companyName:            form.companyName,
-              companyAddress:         form.companyAddress,
-              companySupervisorName:  form.companySupervisorName,
-              companySupervisorEmail: form.companySupervisorEmail,
-              startDate:              form.startDate,
-              endDate:                form.endDate,
-            }
-          : {}),
-        ...(form.role === 'academic_supervisor'
-          ? { staffId: form.staffId.trim(), title: form.title }
-          : {}),
-      };
-      const result = await register(payload);
+      const result = await register(payloadFor(form));
       setRequiresVerification(result.requiresVerification);
       setSuccess(true);
     } catch (err: unknown) {
-      const msg = (err as { response?: { data?: { message?: string } } })?.response?.data?.message;
-      setErrors({ email: msg ?? 'Registration failed. Please try again.' });
+      // A 400 from Zod carries per-field messages: land them next to their own
+      // input. Anything else (duplicate email, server fault) is form-level.
+      const fieldErrors = extractFieldErrors(err);
+      if (Object.keys(fieldErrors).length > 0) {
+        setErrors(fieldErrors as Partial<Record<keyof FormState, string>>);
+      } else {
+        setErrors({ email: formLevelMessage(err, 'Registration failed. Please try again.') });
+      }
     } finally {
       setLoading(false);
     }
