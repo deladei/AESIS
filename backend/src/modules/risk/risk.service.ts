@@ -21,7 +21,9 @@ type PlacementForRisk = {
     weekNumber: number;
     status: 'draft' | 'submitted' | 'returned' | 'acknowledged';
     submittedAt: Date | null;
-    days: { status: 'draft' | 'submitted'; submittedAt: Date | null; loggedLate: boolean }[];
+    // Lateness is derived from createdAt vs workDate (S87) — the immutable
+    // server evidence — rather than a stored flag that a re-submit could reset.
+    days: { status: 'draft' | 'submitted'; submittedAt: Date | null; workDate: Date; createdAt: Date }[];
   }[];
 };
 
@@ -36,7 +38,7 @@ const placementSelect = {
       weekNumber: true,
       status: true,
       submittedAt: true,
-      days: { select: { status: true, submittedAt: true, loggedLate: true } },
+      days: { select: { status: true, submittedAt: true, workDate: true, createdAt: true } },
     },
   },
 } as const;
@@ -64,7 +66,11 @@ export function riskInputsOf(p: PlacementForRisk, now = new Date()): RiskInput |
         (e.status === 'submitted' || e.status === 'acknowledged'),
     ).length,
     returnedCount: p.logbookEntries.filter((e) => e.status === 'returned').length,
-    lateDays: dayLogs.filter((d) => d.loggedLate).length,
+    // Logged after the day it covers → late. Date-only comparison, matching
+    // siwes.calendar's lateness rule.
+    lateDays: dayLogs.filter(
+      (d) => d.createdAt.toISOString().slice(0, 10) > d.workDate.toISOString().slice(0, 10),
+    ).length,
     submittedDays: dayLogs.length,
     daysSinceLastActivity: lastActivityAt
       ? Math.max(0, Math.floor((now.getTime() - lastActivityAt.getTime()) / 86_400_000))

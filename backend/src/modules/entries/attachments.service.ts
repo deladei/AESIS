@@ -70,8 +70,8 @@ async function assertDayWritable(
     }
     return;
   }
-  const day = await prisma.entryDay.findUnique({
-    where: { entryId_date: { entryId: entry.id, date: dayDate } },
+  const day = await prisma.dailyEntry.findFirst({
+    where: { entryId: entry.id, workDate: dayDate },
     select: { status: true },
   });
   if (day?.status === 'submitted' && entry.status !== 'returned') {

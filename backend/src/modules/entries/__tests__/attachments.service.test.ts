@@ -3,7 +3,7 @@ import { AppError } from '../../../middleware/errorHandler';
 jest.mock('../../../config/prisma', () => ({
   prisma: {
     logbookEntry: { findUnique: jest.fn() },
-    entryDay: { findUnique: jest.fn() },
+    dailyEntry: { findFirst: jest.fn() },
     entryAttachment: {
       findMany: jest.fn(),
       findFirst: jest.fn(),
@@ -27,7 +27,7 @@ import type { Actor } from '../entries.policy';
 
 const mp = prisma as unknown as {
   logbookEntry: { findUnique: jest.Mock };
-  entryDay: { findUnique: jest.Mock };
+  dailyEntry: { findFirst: jest.Mock };
   entryAttachment: {
     findMany: jest.Mock;
     findFirst: jest.Mock;
@@ -113,7 +113,7 @@ describe('addAttachment', () => {
 
   it('allows a day-scoped upload while the week is in review but the day is still a draft', async () => {
     mp.logbookEntry.findUnique.mockResolvedValue(entry('submitted'));
-    mp.entryDay.findUnique.mockResolvedValue({ status: 'draft' });
+    mp.dailyEntry.findFirst.mockResolvedValue({ status: 'draft' });
     mp.entryAttachment.count.mockResolvedValue(0);
     mc.uploadBuffer.mockResolvedValue({ url: 'https://cdn/d.png', publicId: 'aesis/entries/d', bytes: 1 });
     mp.entryAttachment.create.mockImplementation(async ({ data }: any) => ({ id: 'att-d', ...data }));
@@ -129,14 +129,14 @@ describe('addAttachment', () => {
 
   it('409s a day-scoped upload when that day is already submitted (week not returned)', async () => {
     mp.logbookEntry.findUnique.mockResolvedValue(entry('submitted'));
-    mp.entryDay.findUnique.mockResolvedValue({ status: 'submitted' });
+    mp.dailyEntry.findFirst.mockResolvedValue({ status: 'submitted' });
     await expect(addAttachment(student, ENTRY_ID, pngFile, '2026-03-04')).rejects.toMatchObject({ statusCode: 409 });
     expect(mc.uploadBuffer).not.toHaveBeenCalled();
   });
 
   it('allows re-attaching to a submitted day when the week was returned', async () => {
     mp.logbookEntry.findUnique.mockResolvedValue(entry('returned'));
-    mp.entryDay.findUnique.mockResolvedValue({ status: 'submitted' });
+    mp.dailyEntry.findFirst.mockResolvedValue({ status: 'submitted' });
     mp.entryAttachment.count.mockResolvedValue(0);
     mc.uploadBuffer.mockResolvedValue({ url: 'https://cdn/r.png', publicId: 'aesis/entries/r2', bytes: 1 });
     mp.entryAttachment.create.mockImplementation(async ({ data }: any) => ({ id: 'att-r', ...data }));
@@ -249,7 +249,7 @@ describe('deleteAttachment', () => {
     mp.entryAttachment.findFirst.mockResolvedValue({
       id: 'att-1', publicId: 'aesis/entries/x', kind: 'image', dayDate: new Date('2026-03-04T00:00:00.000Z'),
     });
-    mp.entryDay.findUnique.mockResolvedValue({ status: 'submitted' });
+    mp.dailyEntry.findFirst.mockResolvedValue({ status: 'submitted' });
     await expect(deleteAttachment(student, ENTRY_ID, 'att-1')).rejects.toMatchObject({ statusCode: 409 });
     expect(mp.entryAttachment.delete).not.toHaveBeenCalled();
   });
@@ -259,7 +259,7 @@ describe('deleteAttachment', () => {
     mp.entryAttachment.findFirst.mockResolvedValue({
       id: 'att-2', publicId: 'aesis/entries/y', kind: 'document', dayDate: new Date('2026-03-05T00:00:00.000Z'),
     });
-    mp.entryDay.findUnique.mockResolvedValue({ status: 'draft' });
+    mp.dailyEntry.findFirst.mockResolvedValue({ status: 'draft' });
 
     await deleteAttachment(student, ENTRY_ID, 'att-2');
 

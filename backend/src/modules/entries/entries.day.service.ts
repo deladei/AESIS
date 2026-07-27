@@ -30,7 +30,7 @@ export function evaluateDayWindow(date: Date, today: Date): {
 const DAY_ENTRY_INCLUDE = {
   activities: { orderBy: { activityDate: 'asc' } },
   reflection: true,
-  days: { orderBy: { date: 'asc' } },
+  days: { orderBy: { workDate: 'asc' } },
   events: { orderBy: { createdAt: 'asc' } },
 } as const;
 
@@ -51,17 +51,29 @@ export async function saveDayDraft(actor: Actor, input: SaveDayInput) {
   if (isFuture(date)) throw new AppError(422, 'You cannot log a day in the future');
 
   return prisma.$transaction(async (tx) => {
+    const placement = await tx.placement.findUniqueOrThrow({
+      where: { id: input.placementId },
+      select: { studentId: true },
+    });
+
     const entry = await tx.logbookEntry.upsert({
-      where: { placementId_weekNumber: { placementId: input.placementId, weekNumber: input.weekNumber } },
-      create: { placementId: input.placementId, weekNumber: input.weekNumber, periodStart, periodEnd, status: 'draft' },
+      where: { studentId_weekNumber: { studentId: placement.studentId, weekNumber: input.weekNumber } },
+      create: {
+        placementId: input.placementId,
+        studentId: placement.studentId,
+        weekNumber: input.weekNumber,
+        periodStart,
+        periodEnd,
+        status: 'draft',
+      },
       update: {},
     });
     if (entry.status === 'acknowledged') {
       throw new AppError(409, 'This week has been acknowledged and is locked');
     }
 
-    const existingDay = await tx.entryDay.findUnique({
-      where: { entryId_date: { entryId: entry.id, date } },
+    const existingDay = await tx.dailyEntry.findUnique({
+      where: { studentId_workDate: { studentId: placement.studentId, workDate: date } },
     });
     if (existingDay?.status === 'submitted' && entry.status !== 'returned') {
       throw new AppError(409, 'This day is already submitted; it cannot be edited');
@@ -77,10 +89,17 @@ export async function saveDayDraft(actor: Actor, input: SaveDayInput) {
       });
     }
 
-    await tx.entryDay.upsert({
-      where: { entryId_date: { entryId: entry.id, date } },
-      create: { entryId: entry.id, date, status: 'draft' },
-      update: { status: 'draft', submittedAt: null, loggedLate: false },
+    await tx.dailyEntry.upsert({
+      where: { studentId_workDate: { studentId: placement.studentId, workDate: date } },
+      create: {
+        entryId: entry.id,
+        studentId: placement.studentId,
+        placementId: input.placementId,
+        weekNumber: input.weekNumber,
+        workDate: date,
+        status: 'draft',
+      },
+      update: { status: 'draft', submittedAt: null },
     });
 
     return tx.logbookEntry.findUniqueOrThrow({ where: { id: entry.id }, include: DAY_ENTRY_INCLUDE });
@@ -110,15 +129,25 @@ export async function submitDay(actor: Actor, entryId: string, dateStr: string) 
   const date = parseDateOnly(dateStr, 'date');
   const window = evaluateDayWindow(date, todayUtc());
   if (window.future) throw new AppError(422, 'You cannot submit a day in the future');
-  const loggedLate = window.loggedLate;
   const supervisorId = entry.placement.academicSupervisorId;
   const wasInReview = entry.status === 'submitted';
 
   const result = await prisma.$transaction(async (tx) => {
-    await tx.entryDay.upsert({
-      where: { entryId_date: { entryId, date } },
-      create: { entryId, date, status: 'submitted', submittedAt: new Date(), loggedLate },
-      update: { status: 'submitted', submittedAt: new Date(), loggedLate },
+    // `loggedLate` is no longer stamped here: lateness is derived from the
+    // immutable created_at (server evidence of when the day was first logged),
+    // so a late backfill can't be laundered by re-submitting.
+    await tx.dailyEntry.upsert({
+      where: { studentId_workDate: { studentId: entry.placement.studentId, workDate: date } },
+      create: {
+        entryId,
+        studentId: entry.placement.studentId,
+        placementId: entry.placement.id,
+        weekNumber: entry.weekNumber,
+        workDate: date,
+        status: 'submitted',
+        submittedAt: new Date(),
+      },
+      update: { status: 'submitted', submittedAt: new Date() },
     });
 
     let notification = null;

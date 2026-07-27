@@ -402,7 +402,8 @@ model User {
 
   // SIWES daily logbook (Batch 1)
   siwesDailyEntries     DailyEntry[]    @relation("SiwesDailyEntries")
-  siwesWeeklySummaries  WeeklySummary[] @relation("SiwesWeeklySummaries")
+  // Weeks keyed on the student (student-relative week numbers, S87).
+  logbookEntriesOwned   LogbookEntry[]  @relation("StudentLogbookEntries")
   siwesAbsences         Absence[]       @relation("SiwesAbsences")
   siwesAbsencesRecorded Absence[]       @relation("SiwesAbsenceRecorder")
 
@@ -522,7 +523,6 @@ model Placement {
 
   // SIWES daily logbook (Batch 1)
   siwesDailyEntries    DailyEntry[]
-  siwesWeeklySummaries WeeklySummary[]
   siwesAbsences        Absence[]
 
   @@map("placements")
@@ -790,6 +790,12 @@ model LogbookEntry {
   id          String      @id @default(uuid())
   placementId String      @map("placement_id")
   placement   Placement   @relation(fields: [placementId], references: [id])
+  // Denormalised from placement so the week can be keyed on the STUDENT.
+  // weekNumber is student-relative (anchored on the supersedes-chain start, see
+  // siwes.calendar.ts::weekNumberFor), so a transferred student's logbook stays
+  // continuous instead of restarting at 1 under the new placement.
+  studentId   String      @map("student_id")
+  student     User        @relation("StudentLogbookEntries", fields: [studentId], references: [id])
   weekNumber  Int         @map("week_number")
   periodStart DateTime    @map("period_start") @db.Date
   periodEnd   DateTime    @map("period_end") @db.Date
@@ -807,9 +813,9 @@ model LogbookEntry {
   enrichmentJobs EnrichmentQueue[]
   objectiveLinks EntryObjective[]
   attachments    EntryAttachment[]
-  days           EntryDay[]
+  days           DailyEntry[]
 
-  @@unique([placementId, weekNumber])
+  @@unique([studentId, weekNumber])
   @@index([placementId])
   @@index([status])
   @@map("logbook_entry")
@@ -830,28 +836,12 @@ model EntryActivity {
 
 // Per-day submission state within a week. The DAY is the unit the student
 // submits (Mon–Fri); the WEEK (LogbookEntry) stays the unit the supervisor
-// reviews/acknowledges and grades. A day's activities are the EntryActivity rows
-// whose activityDate == this date. `loggedLate` is stamped at submit time when
-// the day is submitted after its own date (anti-cheat transparency).
+// reviews/acknowledges and grades. Lives on DailyEntry since S87 — the old
+// `entry_days` table was absorbed there so a day has ONE row, not one for its
+// status and another for its content.
 enum DayStatus {
   draft
   submitted
-}
-
-model EntryDay {
-  id          String       @id @default(uuid())
-  entryId     String       @map("entry_id")
-  entry       LogbookEntry @relation(fields: [entryId], references: [id], onDelete: Cascade)
-  date        DateTime     @db.Date
-  status      DayStatus    @default(draft)
-  submittedAt DateTime?    @map("submitted_at")
-  loggedLate  Boolean      @default(false) @map("logged_late")
-  createdAt   DateTime     @default(now()) @map("created_at")
-  updatedAt   DateTime     @updatedAt @map("updated_at")
-
-  @@unique([entryId, date])
-  @@index([entryId])
-  @@map("entry_days")
 }
 
 model EntryReflection {
@@ -1267,42 +1257,42 @@ enum AbsenceKind {
 // created_at is server evidence (immutable via trigger); clientDraftedAt is the
 // student's offline-draft CLAIM (forgeable; a nudge, never a control). Lateness
 // is derived at read time from created_at — deliberately never stored.
+// Consolidated S87: this is now THE day record. It hangs off the week
+// (`entryId`), so the entries state machine, the append-only entry_event audit,
+// enrichment and grading all reach daily content — previously they could not.
+// `entry_days` was absorbed here: its `status`/`submitted_at` moved onto this
+// model, and its stored `logged_late` flag was DROPPED rather than migrated,
+// because lateness is derived from the immutable `created_at` (server evidence)
+// and a stored flag is a second, forgeable answer to the same question.
 model DailyEntry {
-  id                String    @id @default(uuid())
-  studentId         String    @map("student_id")
-  student           User      @relation("SiwesDailyEntries", fields: [studentId], references: [id], onDelete: Cascade)
-  placementId       String    @map("placement_id")
-  placement         Placement @relation(fields: [placementId], references: [id])
-  weekNumber        Int       @map("week_number") // student-relative: never resets on transfer
-  workDate          DateTime  @map("work_date") @db.Date
-  descriptionOfWork String    @map("description_of_work")
-  newSkillsLearnt   String    @map("new_skills_learnt")
-  sketchUrl         String?   @map("sketch_url")
-  clientDraftedAt   DateTime? @map("client_drafted_at")
-  createdAt         DateTime  @default(now()) @map("created_at")
-  updatedAt         DateTime  @updatedAt @map("updated_at")
+  id                String       @id @default(uuid())
+  entryId           String       @map("entry_id")
+  entry             LogbookEntry @relation(fields: [entryId], references: [id], onDelete: Cascade)
+  studentId         String       @map("student_id")
+  student           User         @relation("SiwesDailyEntries", fields: [studentId], references: [id], onDelete: Cascade)
+  placementId       String       @map("placement_id")
+  placement         Placement    @relation(fields: [placementId], references: [id])
+  weekNumber        Int          @map("week_number") // student-relative: never resets on transfer
+  workDate          DateTime     @map("work_date") @db.Date
+  // Nullable only for the transition: a day first touched through the weekly
+  // flow exists as a status row while its content still lives in EntryActivity.
+  // Phase 3 folds entry_activity in here and makes both required again. The
+  // SIWES route's Zod schema requires them today regardless.
+  descriptionOfWork String?      @map("description_of_work")
+  newSkillsLearnt   String?      @map("new_skills_learnt")
+  sketchUrl         String?      @map("sketch_url")
+  status            DayStatus    @default(draft)
+  submittedAt       DateTime?    @map("submitted_at")
+  clientDraftedAt   DateTime?    @map("client_drafted_at")
+  createdAt         DateTime     @default(now()) @map("created_at")
+  updatedAt         DateTime     @updatedAt @map("updated_at")
 
+  // A student works a given day once — this holds across a transfer chain,
+  // which is why the key is the student and not the placement.
   @@unique([studentId, workDate])
   @@index([placementId])
+  @@index([entryId])
   @@map("daily_entry")
-}
-
-// "Trainee's Weekly Report" — one free-text summary per week.
-model WeeklySummary {
-  id          String    @id @default(uuid())
-  studentId   String    @map("student_id")
-  student     User      @relation("SiwesWeeklySummaries", fields: [studentId], references: [id], onDelete: Cascade)
-  placementId String    @map("placement_id")
-  placement   Placement @relation(fields: [placementId], references: [id])
-  weekNumber  Int       @map("week_number")
-  weekEnding  DateTime  @map("week_ending") @db.Date
-  reportText  String    @map("report_text")
-  createdAt   DateTime  @default(now()) @map("created_at")
-  updatedAt   DateTime  @updatedAt @map("updated_at")
-
-  @@unique([studentId, weekNumber])
-  @@index([placementId])
-  @@map("weekly_summary")
 }
 
 // Cohort calendar: public holidays etc. A day with no entry is ambiguous

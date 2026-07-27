@@ -97,7 +97,10 @@ beforeAll(async () => {
   if (!dbAvailable) return;
 
   await prisma.$executeRawUnsafe(
-    `TRUNCATE daily_entry, weekly_summary, absence, non_working_day, cohort_configs,
+    // logbook_entry now owns the days; entry_reflection replaced weekly_summary
+    // (both folded in by 20260726000000_logbook_consolidation). CASCADE reaches
+    // the children, but naming the parents keeps the intent readable.
+    `TRUNCATE daily_entry, entry_reflection, logbook_entry, absence, non_working_day, cohort_configs,
      placements, users, academic_years, departments RESTART IDENTITY CASCADE`,
   );
 
@@ -207,11 +210,28 @@ describe('daily entries', () => {
     const day = recentWorkingDays(3)[2];
     // created_at is settable at INSERT (the trigger guards UPDATE) — plant an
     // old row to age the window without sleeping.
-    await prisma.dailyEntry.create({
-      data: {
+    const week = weekNumberFor(day, chainStart);
+    // Days hang off a week now (S87) — plant the owning entry first. Upsert,
+    // not create: earlier cases in this suite share the DB and may already have
+    // opened this student-week, and (studentId, weekNumber) is unique.
+    const owningWeek = await prisma.logbookEntry.upsert({
+      where: { studentId_weekNumber: { studentId: student.id, weekNumber: week } },
+      update: {},
+      create: {
         studentId: student.id,
         placementId,
-        weekNumber: weekNumberFor(day, chainStart),
+        weekNumber: week,
+        periodStart: addDays(chainStart, (week - 1) * 7),
+        periodEnd: addDays(chainStart, (week - 1) * 7 + 6),
+        status: 'draft',
+      },
+    });
+    await prisma.dailyEntry.create({
+      data: {
+        entryId: owningWeek.id,
+        studentId: student.id,
+        placementId,
+        weekNumber: week,
         workDate: day,
         descriptionOfWork: 'original',
         newSkillsLearnt: 'original',
@@ -253,19 +273,25 @@ describe('DB teeth', () => {
     );
   });
 
-  itDb('weekly summaries cannot be deleted — evidence', async () => {
-    const summary = await prisma.weeklySummary.create({
+  itDb('weekly reports cannot be deleted — evidence', async () => {
+    // The trainee's weekly report is the week's reflection since S87; it keeps
+    // the delete-denial guarantee the old weekly_summary table had.
+    const week = await prisma.logbookEntry.create({
       data: {
         studentId: studentB.id,
         placementId: placementBId,
         weekNumber: 1,
-        weekEnding: addDays(chainStart, 6),
-        reportText: 'Week one at the plant',
+        periodStart: chainStart,
+        periodEnd: addDays(chainStart, 6),
+        status: 'draft',
       },
     });
-    await expect(prisma.weeklySummary.delete({ where: { id: summary.id } })).rejects.toThrow(
-      /cannot be deleted/,
-    );
+    await prisma.entryReflection.create({
+      data: { entryId: week.id, learning: 'Week one at the plant', challenges: '' },
+    });
+    await expect(
+      prisma.entryReflection.delete({ where: { entryId: week.id } }),
+    ).rejects.toThrow(/cannot be deleted/);
   });
 });
 
@@ -329,7 +355,7 @@ describe('weekly summaries', () => {
       weekNumber: 1,
       reportText: 'Induction, safety training and first machining tasks.',
     });
-    expect(iso(summary.weekEnding)).toBe(iso(addDays(chainStart, 6)));
+    expect(summary.weekEnding).toBe(iso(addDays(chainStart, 6)));
   });
 
   itDb('rejects a week beyond the attachment span', async () => {

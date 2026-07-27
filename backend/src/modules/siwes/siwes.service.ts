@@ -169,6 +169,64 @@ function serializeDailyEntry(row: DailyEntryRow, rules: AdmissibilityRules) {
   };
 }
 
+/**
+ * Resolve the week (LogbookEntry) that owns a student-relative week number,
+ * creating it as a draft the first time the student logs into that week.
+ *
+ * Consolidated S87: every day and weekly report hangs off a week, because the
+ * week is the unit the supervisor acknowledges and the grade spine reads. The
+ * key is (student, week) — student-relative, so it survives a transfer.
+ */
+async function resolveWeekEntry(
+  tx: Prisma.TransactionClient,
+  ctx: AttachmentContext,
+  weekNumber: number,
+) {
+  const weekStart = addDays(ctx.cal.chainStart, (weekNumber - 1) * 7);
+  const entry = await tx.logbookEntry.upsert({
+    where: {
+      studentId_weekNumber: { studentId: ctx.placement.studentId, weekNumber },
+    },
+    create: {
+      studentId: ctx.placement.studentId,
+      placementId: ctx.placement.id,
+      weekNumber,
+      periodStart: weekStart,
+      periodEnd: addDays(weekStart, 6),
+      status: 'draft',
+    },
+    update: {},
+  });
+
+  // `acknowledged` is terminal and locks the week — mirrors the entries state
+  // machine (isEditable = draft | returned) rather than re-deriving the rule.
+  if (entry.status === 'acknowledged') {
+    throw new AppError(409, 'This week has been acknowledged and is locked');
+  }
+  return entry;
+}
+
+/**
+ * The trainee's weekly report, rebuilt from the week + its reflection. Keeps the
+ * pre-consolidation response shape (`weekNumber` / `weekEnding` / `reportText`)
+ * so the student UI keeps working while the two front-ends are merged.
+ */
+function serializeWeeklyReport(
+  entry: { id: string; placementId: string; weekNumber: number; createdAt: Date },
+  reflection: { learning: string; updatedAt: Date },
+  weekEnding: Date,
+) {
+  return {
+    id: entry.id,
+    placementId: entry.placementId,
+    weekNumber: entry.weekNumber,
+    weekEnding: iso(weekEnding),
+    reportText: reflection.learning,
+    createdAt: entry.createdAt,
+    updatedAt: reflection.updatedAt,
+  };
+}
+
 // ── Daily entries ─────────────────────────────────────────────
 
 export async function saveDailyEntry(actor: Actor, input: SaveDailyEntryInput) {
@@ -199,31 +257,39 @@ export async function saveDailyEntry(actor: Actor, input: SaveDailyEntryInput) {
     clientDraftedAt: input.clientDraftedAt ? new Date(input.clientDraftedAt) : null,
   };
 
-  const existing = await prisma.dailyEntry.findUnique({
-    where: {
-      studentId_workDate: { studentId: ctx.placement.studentId, workDate },
-    },
-  });
+  const saved = await prisma.$transaction(async (tx) => {
+    const entry = await resolveWeekEntry(tx, ctx, weekNumber);
 
-  if (existing) {
-    // created_at is immutable server evidence; the edit window counts from it.
-    if (!withinEditWindow(existing.createdAt, new Date(), ctx.rules)) {
-      throw new AppError(409, 'The edit window for this entry has closed');
+    const existing = await tx.dailyEntry.findUnique({
+      where: {
+        studentId_workDate: { studentId: ctx.placement.studentId, workDate },
+      },
+    });
+
+    if (existing) {
+      // created_at is immutable server evidence; the edit window counts from it.
+      if (!withinEditWindow(existing.createdAt, new Date(), ctx.rules)) {
+        throw new AppError(409, 'The edit window for this entry has closed');
+      }
+      if (existing.status === 'submitted' && entry.status !== 'returned') {
+        throw new AppError(409, 'This day is already submitted; it cannot be edited');
+      }
+      return tx.dailyEntry.update({ where: { id: existing.id }, data });
     }
-    const updated = await prisma.dailyEntry.update({ where: { id: existing.id }, data });
-    return serializeDailyEntry(updated, ctx.rules);
-  }
 
-  const created = await prisma.dailyEntry.create({
-    data: {
-      ...data,
-      studentId: ctx.placement.studentId,
-      placementId: ctx.placement.id,
-      weekNumber,
-      workDate,
-    },
+    return tx.dailyEntry.create({
+      data: {
+        ...data,
+        entryId: entry.id,
+        studentId: ctx.placement.studentId,
+        placementId: ctx.placement.id,
+        weekNumber,
+        workDate,
+      },
+    });
   });
-  return serializeDailyEntry(created, ctx.rules);
+
+  return serializeDailyEntry(saved, ctx.rules);
 }
 
 // ── Weekly summaries ──────────────────────────────────────────
@@ -248,33 +314,24 @@ export async function saveWeeklySummary(actor: Actor, input: SaveWeeklySummaryIn
   // weekEnding is derived from the chain calendar — the client never sets it.
   const weekEnding = addDays(weekStart, 6);
 
-  const existing = await prisma.weeklySummary.findUnique({
-    where: {
-      studentId_weekNumber: {
-        studentId: ctx.placement.studentId,
-        weekNumber: input.weekNumber,
-      },
-    },
-  });
+  // Consolidated S87: the trainee's weekly report IS the week's reflection —
+  // one narrative per week, stored once, so enrichment and the supervisor
+  // review see the same text the student wrote.
+  return prisma.$transaction(async (tx) => {
+    const entry = await resolveWeekEntry(tx, ctx, input.weekNumber);
 
-  if (existing) {
-    if (!withinEditWindow(existing.createdAt, new Date(), ctx.rules)) {
+    const existing = await tx.entryReflection.findUnique({ where: { entryId: entry.id } });
+    if (existing && !withinEditWindow(entry.createdAt, new Date(), ctx.rules)) {
       throw new AppError(409, 'The edit window for this weekly report has closed');
     }
-    return prisma.weeklySummary.update({
-      where: { id: existing.id },
-      data: { reportText: input.reportText },
-    });
-  }
 
-  return prisma.weeklySummary.create({
-    data: {
-      studentId: ctx.placement.studentId,
-      placementId: ctx.placement.id,
-      weekNumber: input.weekNumber,
-      weekEnding,
-      reportText: input.reportText,
-    },
+    const reflection = await tx.entryReflection.upsert({
+      where: { entryId: entry.id },
+      create: { entryId: entry.id, learning: input.reportText, challenges: '' },
+      update: { learning: input.reportText },
+    });
+
+    return serializeWeeklyReport(entry, reflection, weekEnding);
   });
 }
 
@@ -400,9 +457,13 @@ export async function getLogbookCalendar(
     prisma.absence.findMany({
       where: { studentId: ctx.placement.studentId, absenceDate: { gte: from, lte: to } },
     }),
-    prisma.weeklySummary.findMany({
-      where: { studentId: ctx.placement.studentId },
+    // Weekly reports now live as the week's reflection (S87). Only weeks that
+    // actually carry a narrative are returned, matching the old behaviour of
+    // returning only written summaries.
+    prisma.logbookEntry.findMany({
+      where: { studentId: ctx.placement.studentId, reflection: { isNot: null } },
       orderBy: { weekNumber: 'asc' },
+      include: { reflection: true },
     }),
   ]);
 
@@ -433,6 +494,8 @@ export async function getLogbookCalendar(
     chainEnd: iso(ctx.effectiveEnd),
     totalWeeks: weeksInAttachment(ctx.cal.chainStart, ctx.effectiveEnd),
     days,
-    weeklySummaries: summaries,
+    weeklySummaries: summaries.map((w) =>
+      serializeWeeklyReport(w, w.reflection!, addDays(ctx.cal.chainStart, (w.weekNumber - 1) * 7 + 6)),
+    ),
   };
 }

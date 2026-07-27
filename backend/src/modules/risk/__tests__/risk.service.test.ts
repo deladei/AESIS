@@ -58,10 +58,11 @@ describe('riskInputsOf', () => {
             weekNumber: 1,
             status: 'returned',
             submittedAt: daysAgo(10),
+            // Lateness is derived: created after the day it covers = late.
             days: [
-              { status: 'submitted', submittedAt: daysAgo(10), loggedLate: false },
-              { status: 'submitted', submittedAt: daysAgo(9), loggedLate: true },
-              { status: 'draft', submittedAt: null, loggedLate: false },
+              { status: 'submitted', submittedAt: daysAgo(10), workDate: daysAgo(10), createdAt: daysAgo(10) },
+              { status: 'submitted', submittedAt: daysAgo(9), workDate: daysAgo(11), createdAt: daysAgo(9) },
+              { status: 'draft', submittedAt: null, workDate: daysAgo(8), createdAt: daysAgo(8) },
             ],
           },
         ],
@@ -80,7 +81,7 @@ describe('riskInputsOf', () => {
             weekNumber: 1,
             status: 'submitted',
             submittedAt: daysAgo(10),
-            days: [{ status: 'submitted', submittedAt: daysAgo(2), loggedLate: false }],
+            days: [{ status: 'submitted', submittedAt: daysAgo(2), workDate: daysAgo(2), createdAt: daysAgo(2) }],
           },
         ],
       }),

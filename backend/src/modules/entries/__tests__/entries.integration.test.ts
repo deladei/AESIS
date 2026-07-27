@@ -224,6 +224,7 @@ describe('write path', () => {
     const planted = await prisma.logbookEntry.create({
       data: {
         placementId: placementA,
+        studentId: studentA.id,
         weekNumber: 32,
         periodStart: new Date(Date.now() + 14 * 86_400_000),
         periodEnd: new Date(Date.now() + 20 * 86_400_000),
@@ -621,25 +622,33 @@ describe('placement finalization', () => {
   };
 
   // Fresh placement under supervisorA so week states are fully controlled.
+  // It needs its OWN student: weeks are keyed on (studentId, weekNumber) since
+  // the consolidation, so reusing studentA here would collide with the weeks
+  // the earlier blocks wrote under placementA.
   let pid: string;
-  async function ackWeek(placementId: string, n: number): Promise<void> {
-    const draft = await saveDraft(studentA, { ...week(n), placementId });
-    await submitEntry(studentA, draft.id);
+  let studentF: Actor;
+  async function ackWeek(placementId: string, student: Actor, n: number): Promise<void> {
+    const draft = await saveDraft(student, { ...week(n), placementId });
+    await submitEntry(student, draft.id);
     await acknowledgeEntry(supervisorA, draft.id, {});
   }
-  async function freshPlacement(): Promise<string> {
-    // isCurrent: false — studentA's current slot is placementA; the partial
-    // unique index allows one current placement per student.
+  // Each case gets its own student: one current placement per student (partial
+  // unique index) AND one week N per student (the consolidated key), so cases
+  // cannot share a student without colliding on both.
+  async function freshCase(tag: string): Promise<{ pid: string; student: Actor }> {
+    const student = await mkUser('student', tag);
     const p = await prisma.placement.create({
-      data: { studentId: studentA.id, academicSupervisorId: supervisorA.id, academicYearId: yearId, isCurrent: false },
+      data: { studentId: student.id, academicSupervisorId: supervisorA.id, academicYearId: yearId },
     });
-    return p.id;
+    return { pid: p.id, student };
   }
 
   beforeAll(async () => {
     if (!dbAvailable) return;
-    pid = await freshPlacement();
-    await ackWeek(pid, 1);
+    const base = await freshCase('studentF');
+    pid = base.pid;
+    studentF = base.student;
+    await ackWeek(pid, studentF, 1);
   });
 
   itdb('finalize is blocked (409) until an assessment is recorded', async () => {
@@ -662,8 +671,8 @@ describe('placement finalization', () => {
   });
 
   itdb('finalize is blocked (409) naming any week that is neither acknowledged nor waived', async () => {
-    const draft = await saveDraft(studentA, { ...week(2), placementId: pid });
-    await submitEntry(studentA, draft.id); // submitted, not acknowledged
+    const draft = await saveDraft(studentF, { ...week(2), placementId: pid });
+    await submitEntry(studentF, draft.id); // submitted, not acknowledged
     await recordAssessment(supervisorA, pid, { grade: 'A' });
     await expect(finalizePlacement(supervisorA, pid, { waivers: [] }, okSummarize)).rejects.toMatchObject({
       statusCode: 409,
@@ -694,8 +703,8 @@ describe('placement finalization', () => {
   });
 
   itdb('finalize is fail-open on the AI summary — a down engine still finalizes (no summary)', async () => {
-    const p2 = await freshPlacement();
-    await ackWeek(p2, 1);
+    const { pid: p2, student } = await freshCase('studentAiDown');
+    await ackWeek(p2, student, 1);
     await recordAssessment(supervisorA, p2, { grade: 'B' });
     const result = await finalizePlacement(supervisorA, p2, { waivers: [] }, downSummarize);
     expect(result.finalizedAt).not.toBeNull();
@@ -703,17 +712,18 @@ describe('placement finalization', () => {
   });
 
   itdb('a student cannot finalize (403)', async () => {
-    const p3 = await freshPlacement();
-    await ackWeek(p3, 1);
+    const { pid: p3, student } = await freshCase('studentNoFinalize');
+    await ackWeek(p3, student, 1);
     await recordAssessment(supervisorA, p3, { grade: 'B' });
-    await expect(finalizePlacement(studentA, p3, { waivers: [] }, okSummarize)).rejects.toMatchObject({
+    // The owning student — role denial, not an ownership miss.
+    await expect(finalizePlacement(student, p3, { waivers: [] }, okSummarize)).rejects.toMatchObject({
       statusCode: 403,
     });
   });
 
   itdb('honours COMPANY_ATTESTATION_REQUIRED_FOR_FINALIZATION when enabled', async () => {
-    const p4 = await freshPlacement();
-    await ackWeek(p4, 1);
+    const { pid: p4, student } = await freshCase('studentAttest');
+    await ackWeek(p4, student, 1);
     await recordAssessment(supervisorA, p4, { grade: 'B' });
     const prev = env.COMPANY_ATTESTATION_REQUIRED_FOR_FINALIZATION;
     (env as { COMPANY_ATTESTATION_REQUIRED_FOR_FINALIZATION: boolean }).COMPANY_ATTESTATION_REQUIRED_FOR_FINALIZATION = true;

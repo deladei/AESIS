@@ -109,26 +109,79 @@ function validateDraftDates(input: SaveDraftInput) {
   return { periodStart, periodEnd, activities };
 }
 
+/**
+ * Walk a placement up its supersedes chain to the root. Two placements are in
+ * the same chain when they share a root — that is what makes a transferred
+ * student's week 7 the *same* week 7, rather than a collision.
+ */
+async function chainRootId(
+  tx: Prisma.TransactionClient,
+  placementId: string,
+): Promise<string> {
+  let current = placementId;
+  const seen = new Set<string>([current]);
+  for (;;) {
+    const p = await tx.placement.findUnique({
+      where: { id: current },
+      select: { supersedesPlacementId: true },
+    });
+    const parent = p?.supersedesPlacementId;
+    if (!parent || seen.has(parent)) return current;
+    seen.add(parent);
+    current = parent;
+  }
+}
+
 // ── WRITE PATH (Path 1 — must never fail; no AI, no company-sup dependency) ──
 
 /**
  * Create or update a weekly draft. Editing a `returned` entry performs the
  * returned -> draft reopen (version bump + event) atomically with the edit.
- * Rejects edits to submitted/acknowledged weeks. Idempotent by (placement, week).
+ * Rejects edits to submitted/acknowledged weeks. Idempotent by (student, week).
  */
 export async function saveDraft(actor: Actor, input: SaveDraftInput) {
   await authorizePlacement(actor, input.placementId, 'write');
   const { periodStart, periodEnd, activities } = validateDraftDates(input);
 
   return prisma.$transaction(async (tx) => {
+    // Weeks are keyed on the student, not the placement (S87): week numbers are
+    // student-relative so a transfer doesn't restart the logbook at week 1.
+    const placement = await tx.placement.findUniqueOrThrow({
+      where: { id: input.placementId },
+      select: { studentId: true },
+    });
+
     const existing = await tx.logbookEntry.findUnique({
       where: {
-        placementId_weekNumber: {
-          placementId: input.placementId,
+        studentId_weekNumber: {
+          studentId: placement.studentId,
           weekNumber: input.weekNumber,
         },
       },
     });
+
+    // The week is keyed on the student, so an existing row may belong to another
+    // placement. Same supersedes chain = the student transferred and is
+    // continuing the same logbook: the week moves to the placement it is now
+    // being worked under (which is what `placementId` on the entry records).
+    // Unrelated placement = a genuine collision; refuse rather than silently
+    // write into another placement's week.
+    if (existing && existing.placementId !== input.placementId) {
+      const [existingRoot, incomingRoot] = await Promise.all([
+        chainRootId(tx, existing.placementId),
+        chainRootId(tx, input.placementId),
+      ]);
+      if (existingRoot !== incomingRoot) {
+        throw new AppError(
+          409,
+          `Week ${input.weekNumber} already exists for this student under an unrelated placement`,
+        );
+      }
+      await tx.logbookEntry.update({
+        where: { id: existing.id },
+        data: { placementId: input.placementId },
+      });
+    }
 
     let entryId: string;
     // When a plain draft edit happens we capture the pre-edit snapshot here and
@@ -141,6 +194,7 @@ export async function saveDraft(actor: Actor, input: SaveDraftInput) {
       const created = await tx.logbookEntry.create({
         data: {
           placementId: input.placementId,
+          studentId: placement.studentId,
           weekNumber: input.weekNumber,
           periodStart,
           periodEnd,
@@ -437,7 +491,7 @@ export async function getEntry(actor: Actor, entryId: string) {
       reflection: true,
       events: { orderBy: { createdAt: 'asc' } },
       assessments: { orderBy: { createdAt: 'desc' } },
-      days: { orderBy: { date: 'asc' } },
+      days: { orderBy: { workDate: 'asc' } },
     },
   });
   if (!entry) throw new AppError(404, 'Logbook entry not found');
