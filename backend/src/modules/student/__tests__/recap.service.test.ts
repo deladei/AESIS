@@ -14,6 +14,7 @@ jest.mock('../../../config/prisma', () => ({
 
 import { prisma } from '../../../config/prisma';
 import { getInternshipRecap, assertOwnRecap } from '../recap.service';
+import { DAY_GRACE_DAYS } from '../../entries/entries.day.service';
 
 const m = prisma as unknown as {
   placement: { findFirst: jest.Mock };
@@ -78,13 +79,62 @@ describe('gating', () => {
   });
 });
 
+describe('the grace window', () => {
+  // DAY_GRACE_DAYS = 2: the logbook only warns "you're logging this N days
+  // late" past it, so the recap must not punish a student for lateness the app
+  // never flagged.
+  it('a day written inside the window still counts as on time', async () => {
+    seed({
+      days: [
+        day('2026-03-02', 1, null, '2026-03-02'), // same day
+        day('2026-03-03', 1, null, '2026-03-05'), // 2 days later — at the limit
+      ],
+      entries: [{ weekNumber: 1, status: 'acknowledged', submittedAt: new Date() }],
+    });
+    const { recap } = await getInternshipRecap('s1');
+    expect(recap!.daysOnTime).toBe(2);
+    expect(recap!.longestOnTimeStreak).toBe(1);
+  });
+
+  it('a day written past the window is late', async () => {
+    seed({
+      days: [day('2026-03-03', 1, null, '2026-03-06')], // 3 days later
+      entries: [{ weekNumber: 1, status: 'acknowledged', submittedAt: new Date() }],
+    });
+    const { recap } = await getInternshipRecap('s1');
+    expect(recap!.daysOnTime).toBe(0);
+    expect(recap!.longestOnTimeStreak).toBe(0);
+  });
+
+  it('reports the window it applied, so the UI never invents a number', async () => {
+    seed();
+    const { recap } = await getInternshipRecap('s1');
+    expect(recap!.graceDays).toBe(DAY_GRACE_DAYS);
+  });
+
+  it('one week inside the window keeps a streak that a zero-grace rule would break', async () => {
+    seed({
+      days: [
+        day('2026-03-02', 1, null),
+        day('2026-03-09', 2, null, '2026-03-10'), // 1 day late — inside the window
+        day('2026-03-16', 3, null),
+      ],
+      entries: [1, 2, 3].map((weekNumber) => ({
+        weekNumber, status: 'acknowledged', submittedAt: new Date(),
+      })),
+    });
+    const { recap } = await getInternshipRecap('s1');
+    expect(recap!.longestOnTimeStreak).toBe(3);
+  });
+});
+
 describe('aggregates', () => {
   it('counts entries, weeks and on-time days', async () => {
     seed({
       days: [
         day('2026-03-02', 1, 'Lathe setup'),
         day('2026-03-03', 1, 'Welding'),
-        day('2026-03-09', 2, 'Safety drill', '2026-03-12'), // written 3 days late
+        day('2026-03-09', 2, 'Safety drill', '2026-03-13'), // 4 days late — past the grace window
       ],
       entries: [
         { weekNumber: 1, status: 'acknowledged', submittedAt: new Date() },
@@ -106,7 +156,7 @@ describe('aggregates', () => {
       days: [
         day('2026-03-02', 1, null),
         day('2026-03-09', 2, null),
-        day('2026-03-16', 3, null, '2026-03-20'), // week 3 has a late day
+        day('2026-03-16', 3, null, '2026-03-24'), // week 3 has a day past the window
         day('2026-03-23', 4, null),
         day('2026-03-30', 5, null),
       ],

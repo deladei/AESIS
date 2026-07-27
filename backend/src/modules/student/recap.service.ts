@@ -1,5 +1,6 @@
 import { prisma } from '../../config/prisma';
 import { AppError } from '../../middleware/errorHandler';
+import { DAY_GRACE_DAYS } from '../entries/entries.day.service';
 
 /**
  * End-of-internship recap — the student's own record of their attachment,
@@ -23,6 +24,7 @@ export interface RecapCard {
   totalWeeksInAttachment: number;
   daysOnTime: number;
   longestOnTimeStreak: number;
+  graceDays: number;
   themes: { tag: string; count: number }[];
   skills: string[];
   challenges: string[];
@@ -96,10 +98,17 @@ export async function getInternshipRecap(studentId: string): Promise<{
     }),
   ]);
 
-  // A day is on time when it was written on or before its own work date.
-  // created_at is immutable at the DB (trigger), so this cannot be gamed.
-  const dayIsOnTime = (d: { workDate: Date; createdAt: Date }) =>
-    d.createdAt.toISOString().slice(0, 10) <= d.workDate.toISOString().slice(0, 10);
+  // On time means written within the same grace window the student was shown
+  // while logging: DAY_GRACE_DAYS is the point past which the logbook warns
+  // "you're logging this N days late". A stricter rule here would break a
+  // student's streak over lateness the app never flagged to them. created_at is
+  // immutable at the DB (trigger), so this cannot be gamed after the fact.
+  const daysLate = (d: { workDate: Date; createdAt: Date }) => {
+    const workDay = Date.parse(`${d.workDate.toISOString().slice(0, 10)}T00:00:00Z`);
+    const writtenDay = Date.parse(`${d.createdAt.toISOString().slice(0, 10)}T00:00:00Z`);
+    return Math.round((writtenDay - workDay) / 86_400_000);
+  };
+  const dayIsOnTime = (d: { workDate: Date; createdAt: Date }) => daysLate(d) <= DAY_GRACE_DAYS;
 
   const daysOnTime = days.filter(dayIsOnTime).length;
 
@@ -149,6 +158,7 @@ export async function getInternshipRecap(studentId: string): Promise<{
       weeksCovered,
       totalWeeksInAttachment: config?.durationWeeks ?? weeksCovered,
       daysOnTime,
+      graceDays: DAY_GRACE_DAYS,
       longestOnTimeStreak: longestStreak(submittedWeeks),
       themes,
       skills,

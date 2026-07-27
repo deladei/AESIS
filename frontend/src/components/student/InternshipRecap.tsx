@@ -31,6 +31,15 @@ const fmtDate = (iso: string | null) =>
     day: 'numeric', month: 'long', year: 'numeric', timeZone: 'UTC',
   }) : null;
 
+/**
+ * States the window the server actually applied — the recap must never claim a
+ * stricter rule than the one the logbook warned the student about.
+ */
+const onTimeWindow = (graceDays: number) =>
+  graceDays <= 0 ? 'the day itself'
+    : graceDays === 1 ? 'a day of the work'
+    : `${graceDays} days of the work`;
+
 function buildCards(r: Recap): Card[] {
   const cards: Card[] = [];
   const span = fmtDate(r.firstEntryDate) && fmtDate(r.lastEntryDate)
@@ -56,7 +65,7 @@ function buildCards(r: Recap): Card[] {
       eyebrow: 'Consistency',
       headline: <>Your longest run was <strong>{r.longestOnTimeStreak}</strong> weeks in a row, submitted on time.</>,
       body: r.daysOnTime > 0
-        ? `${r.daysOnTime} of your ${r.totalEntries} entries were written on the day itself.`
+        ? `${r.daysOnTime} of your ${r.totalEntries} entries were written within ${onTimeWindow(r.graceDays)}.`
         : undefined,
     });
   } else if (r.daysOnTime > 0) {
@@ -64,8 +73,8 @@ function buildCards(r: Recap): Card[] {
       key: 'streak',
       icon: Flame,
       eyebrow: 'Consistency',
-      headline: <><strong>{r.daysOnTime}</strong> of your {r.totalEntries} entr{r.totalEntries === 1 ? 'y was' : 'ies were'} written on the day itself.</>,
-      body: 'Writing it the same day is the hardest part of a logbook.',
+      headline: <><strong>{r.daysOnTime}</strong> of your {r.totalEntries} entr{r.totalEntries === 1 ? 'y was' : 'ies were'} written within {onTimeWindow(r.graceDays)}.</>,
+      body: 'Writing it up while the work is fresh is the hardest part of a logbook.',
     });
   }
 
@@ -154,6 +163,7 @@ export const SAMPLE_RECAP: Recap = {
   totalWeeksInAttachment: 8,
   daysOnTime: 35,
   longestOnTimeStreak: 5,
+  graceDays: 2,
   themes: [
     { tag: 'Teamwork', count: 14 },
     { tag: 'Problem Solving', count: 11 },

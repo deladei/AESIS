@@ -9,6 +9,8 @@ export interface InternshipRecap {
   totalWeeksInAttachment: number;
   daysOnTime: number;
   longestOnTimeStreak: number;
+  /** The lateness grace the server applied (DAY_GRACE_DAYS) — never hardcode it here. */
+  graceDays: number;
   themes: RecapTheme[];
   skills: string[];
   challenges: string[];
