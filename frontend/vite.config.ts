@@ -7,15 +7,12 @@ export default defineConfig(({ mode }) => ({
   resolve: {
     alias: {
       '@': path.resolve(__dirname, './src'),
-      // Validation schemas are defined ONCE and shared verbatim with the API.
-      // They live under backend/src because the backend compiles with
-      // rootDir: ./src and starts as `node dist/server.js` — a repo-root folder
-      // would shift the dist layout and break the Render start command. The
-      // bundler has no such constraint, so the SPA reaches in. The folder
-      // imports nothing but zod, so no server code follows it into the bundle.
-      // Points at the barrel file, not the directory — Rollup does not do
-      // directory-index resolution for an aliased bare specifier.
-      '@shared': path.resolve(__dirname, '../backend/src/shared/validation/index.ts'),
+      // Validation schemas are authored ONCE in backend/src/shared/validation
+      // and mirrored here by scripts/sync-shared.mjs. The mirror exists because
+      // Vercel's Root Directory is frontend/ — nothing above it is in the build
+      // context, so importing across the repo works locally and fails in
+      // production. `npm run sync:shared -- --check` guards against drift.
+      '@shared': path.resolve(__dirname, './src/shared/validation/index.ts'),
     },
   },
   server: {

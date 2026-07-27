@@ -5,8 +5,9 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "tsc -b && vite build",
-    "preview": "vite preview"
+    "build": "node scripts/sync-shared.mjs && tsc -b && vite build",
+    "preview": "vite preview",
+    "sync:shared": "node scripts/sync-shared.mjs"
   },
   "dependencies": {
     "@tanstack/react-query": "^5.40.0",

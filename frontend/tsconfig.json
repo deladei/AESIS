@@ -18,14 +18,11 @@
     "baseUrl": ".",
     "paths": {
       "@/*": ["./src/*"],
-      "@shared": ["../backend/src/shared/validation/index.ts"],
-      "@shared/*": ["../backend/src/shared/validation/*"]
+      "@shared": ["./src/shared/validation/index.ts"],
+      "@shared/*": ["./src/shared/validation/*"]
     },
     "types": ["vite/client"]
   },
-  "include": ["src", "../backend/src/shared/validation"],
-  // The shared schemas are type-checked here, but their Jest suite belongs to
-  // the backend and its runner types.
-  "exclude": ["../backend/src/shared/validation/__tests__"],
+  "include": ["src"],
   "references": [{ "path": "./tsconfig.node.json" }]
 }
