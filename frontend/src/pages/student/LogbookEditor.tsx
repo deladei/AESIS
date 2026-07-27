@@ -381,10 +381,12 @@ function DayPanel({
   const [activities, setActivities] = useState<LocalActivity[]>(seeded);
   const [tagDrafts, setTagDrafts] = useState<Record<number, string>>({});
   const [showActivities, setShowActivities] = useState(seeded.length > 0);
+  const [daysLeftInWeek, setDaysLeftInWeek] = useState<number | null>(null);
   const [absenceOpen, setAbsenceOpen] = useState(false);
   const [absenceKind, setAbsenceKind] = useState<'sick' | 'permitted'>('sick');
   const [absenceReason, setAbsenceReason] = useState('');
   const [saved, setSaved] = useState(false);
+  const [autoSubmitted, setAutoSubmitted] = useState(false);
   const [formErr, setFormErr] = useState<string | null>(null);
 
   useEffect(() => { setActivities(seeded); }, [seeded]);
@@ -431,12 +433,16 @@ function DayPanel({
   async function persist(): Promise<string | undefined> {
     setFormErr(null);
     if (hasContent) {
-      await saveDailyEntry.mutateAsync({
+      const result = await saveDailyEntry.mutateAsync({
         placementId,
         workDate: day.date,
         descriptionOfWork: description.trim(),
         newSkillsLearnt: skills.trim(),
       });
+      // The API submits the week itself once every working day is accounted
+      // for. Say so — a status changing on its own is otherwise alarming.
+      setAutoSubmitted(result.weekAutoSubmitted);
+      setDaysLeftInWeek(result.daysUntilWeekSubmits);
     }
     if (activityPayload.length > 0 || entryId) {
       const entry = await saveDay.mutateAsync({
@@ -668,6 +674,20 @@ function DayPanel({
               />
             </div>
           </fieldset>
+
+          {autoSubmitted && (
+            <div className="mt-3 flex items-start gap-2 rounded-lg border border-[var(--h-aee3c2)] bg-[var(--h-e9f9ef)] px-3 py-2 text-xs text-[var(--h-1b7a45)]">
+              <Send className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+              That was the last day of this week — it has been submitted to your supervisor automatically,
+              so it is not counted late.
+            </div>
+          )}
+          {!autoSubmitted && daysLeftInWeek !== null && daysLeftInWeek > 0 && weekStatus === 'draft' && (
+            <div className="mt-3 flex items-start gap-2 rounded-lg border border-[var(--h-bcc8ff)] bg-[var(--h-eef1ff)] px-3 py-2 text-xs text-[var(--h-15157d)]">
+              <CalendarDays className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+              {daysLeftInWeek} more day{daysLeftInWeek === 1 ? '' : 's'} to log and this week submits itself.
+            </div>
+          )}
 
           {formErr && (
             <div className="mt-3 flex items-start gap-2 rounded-lg border border-[var(--h-f5b8ad)] bg-[var(--h-fff1ee)] px-3 py-2 text-xs text-[var(--h-b3261e)]">

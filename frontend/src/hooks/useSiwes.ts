@@ -89,14 +89,28 @@ export interface SaveDailyEntryInput {
   sketchUrl?:        string;
 }
 
+/**
+ * The API auto-submits the week on the save that completes it, and reports what
+ * it decided so the UI can say so instead of the status silently changing.
+ */
+export interface SavedDailyEntry extends SiwesDailyEntry {
+  weekAutoSubmitted: boolean;
+  daysUntilWeekSubmits: number;
+  workingDaysInWeek: number;
+}
+
 export function useSaveDailyEntry(placementId: string | undefined) {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async (input: SaveDailyEntryInput) => {
-      const r = await api.put<{ data: SiwesDailyEntry }>('/siwes/days', input);
+      const r = await api.put<{ data: SavedDailyEntry }>('/siwes/days', input);
       return r.data.data;
     },
-    onSuccess: () => qc.invalidateQueries({ queryKey: calendarKey(placementId) }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: calendarKey(placementId) });
+      // The week's status may have just changed under the entries spine.
+      qc.invalidateQueries({ queryKey: ['entries'] });
+    },
   });
 }
 

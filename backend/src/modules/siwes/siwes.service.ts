@@ -3,6 +3,8 @@ import { prisma } from '../../config/prisma';
 import { AppError } from '../../middleware/errorHandler';
 import { parseDateOnly, todayUtc, daysBetween } from '../entries/entry.dates';
 import { authorizePlacement, type Actor } from '../entries/entries.policy';
+import { maybeAutoSubmitWeek } from '../entries/entries.autosubmit';
+import { submitEntry } from '../entries/entries.service';
 import {
   classifyDay,
   evaluateDayAdmissibility,
@@ -289,7 +291,17 @@ export async function saveDailyEntry(actor: Actor, input: SaveDailyEntryInput) {
     });
   });
 
-  return serializeDailyEntry(saved, ctx.rules);
+  // Once every working day of the week is written up (or excused), submit the
+  // week automatically — the student has nothing left to add, and leaving it in
+  // draft only earns them a late mark. A partial week is left alone.
+  const auto = await maybeAutoSubmitWeek(actor, saved.entryId, submitEntry);
+
+  return {
+    ...serializeDailyEntry(saved, ctx.rules),
+    weekAutoSubmitted: auto.submitted,
+    daysUntilWeekSubmits: auto.remaining,
+    workingDaysInWeek: auto.workingDays,
+  };
 }
 
 // ── Weekly summaries ──────────────────────────────────────────
