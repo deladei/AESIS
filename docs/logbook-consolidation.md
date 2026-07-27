@@ -57,10 +57,10 @@ continuous and matches the chain-aware calendar built in S84.
 
 | # | Phase | Status |
 |---|---|---|
-| 1 | Schema + migration | todo |
-| 2 | Backend: fold `siwes` service into the entries spine | todo |
-| 3 | Frontend: one logbook UI | todo |
-| 4 | Retire legacy `logbook/` | todo |
+| 1 | Schema + migration | **done** — S89, migration `20260726000000`, applied to prod 2026-07-27 |
+| 2 | Backend: fold `siwes` service into the entries spine | **done** — S89 (`d0fa556`) |
+| 3 | Frontend: one logbook UI | **done** — S89 (`e84665d`); `/student/daily-logbook` now redirects |
+| 4 | Retire legacy `logbook/` | todo — `logbook_submissions` is still the third source of truth |
 
 ### Phase 1 — Schema + migration
 

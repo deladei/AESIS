@@ -3050,3 +3050,80 @@ rotate after" to shorten the outage, so **prod is currently running on a comprom
 5. Prod smokes still open from S87: enrichment worker, weekly-link SendGrid email,
    `/student/daily-logbook` end-to-end, S81 in-browser list.
 6. Render dashboard nit: drop dead `CELERY_BROKER_URL`/`REDIS_URL` from `aesis-ai-engine`.
+
+---
+
+### Session 89 — 2026-07-26 — Logbook consolidation landed; shared validation; internship recap
+
+**Requested as three tasks** (discovery first, then validation, merge, recap). Four premises in the
+brief did not match this repo and were corrected before any code: it is **React + Vite + Express**, not
+Next.js; there is **no RLS anywhere** (0 `CREATE POLICY` across 30 migrations — authorization is
+app-layer via `authorize()` + `entries.policy.ts` + module `isStaff()`); there is **no `STATE.md`**
+(this file is the log); the sealed-envelope rule is real but lives in code (`AssessmentIndustry`,
+staff-only, `industry.service.ts:22`).
+
+**Pre-flight — consolidation Phases 1+2 shipped (`d0fa556`).** The S88 WIP was left mid-test-repair.
+Fixed the stale `weekly_summary` TRUNCATE, made the day fixture upsert its owning week, and gave the
+finalization block its own student (weeks are keyed `(studentId, weekNumber)` now, so cases cannot share
+one). Two real defects found and fixed while doing it:
+- **Silent data loss in the migration.** Days logged through the WEEKLY flow had an `entry_days` status
+  row but no `daily_entry` row, so the drop would have discarded their submitted state. The migration
+  now materialises them (content NULL, `created_at` carried so derived lateness stays truthful).
+- **Cross-placement week writes.** With weeks keyed on the student, `saveDraft` could find a week
+  belonging to a *different* placement and silently write into it. It now compares supersedes-chain
+  roots: same chain = transfer, the week moves to the placement it is worked under; unrelated = 409.
+
+**Verified against real prod data before pushing**, which is the S87 lesson made routine: restored the
+pre-flip dump into a scratch DB, replayed the whole chain, asserted 0 orphan days, 0 weeks without a
+student, both legacy tables gone, no duplicate `(student, week)`, all three triggers intact, and the 2
+`entry_days` rows landing as 2 `daily_entry` rows (one submitted). Prod applied it clean: 31 migrations,
+0 unfinished.
+
+**Task 2 — shared validation (`de30ab1`, `51ac438`).** The SPA had **no validation library at all**;
+~30 files with inputs carried 12 `required`, 7 `type="number"`, 4 `type="email"` and some maxLengths.
+One definition now lives in `backend/src/shared/validation`. Three defects fixed:
+- Week numbers were capped at **6** in entries and **52** in SIWES while cohorts configure **24** —
+  week 7 was unsaveable. The bound is now `CohortConfig.durationWeeks`, enforced in the service.
+- **Phone had no validation anywhere.** Now Ghanaian format, normalised to `+233XXXXXXXXX`.
+- Names are Unicode letters + space/hyphen/apostrophe — deliberately **not** `[A-Za-z]+`, which rejects
+  Owusu-Ansah, N'Guessan and Améyaw. (The server never had that bug; the client had no rule at all.)
+Industry assessment maxima now come from one table asserted against the DB CHECKs.
+
+**Task 1 — one logbook screen (`e84665d`).** `/student/logbook` and `/student/daily-logbook` were two
+pages logging the same days against two backends. The **week is now the container** — status, days,
+report — with the day form carrying both sides (work done + skills as the primary record, itemised
+activities behind a disclosure, attachments and absence in the same panel, one Save). Every capability
+from both screens survives. `DailyLogbook.tsx` deleted, old route redirects, both shells de-duplicated.
+
+**Task 3 — internship recap (`7d800b1`).** Card sequence on the assessment page, gated on
+`finalizationStatus === 'finalized'`. Reads **only** student-authored data; enforced by two tests, one
+of which greps the service body for forbidden model names and raw-query escapes so a future edit fails
+the suite rather than review. Sparse path designed first (coherent at three entries and at zero). CSS
+keyframe only, collapsing under `prefers-reduced-motion`.
+
+**Vercel production deploy failed mid-session — and the fix is a lesson (`01e4484`).** Vercel's Root
+Directory is `frontend/`, so nothing above it is in the build context: `@shared` pointing at
+`../backend/...` resolved locally and could not resolve there. **A passing local build was not evidence
+the deployed build would pass.** Schemas are still authored once in the backend and are now mirrored
+into `frontend/src/shared/validation` by `scripts/sync-shared.mjs` (runs in `npm run build`, exits
+quietly when the backend dir is absent — the Vercel case). Drift is a test, not a convention:
+`mirror.test.ts` diffs every copy and names the fix command; verified by breaking a constant and
+watching it fail. Re-verified by building from a `git archive` of `frontend/` alone with a clean
+`npm ci`.
+
+**State.** Backend **803 tests green**, typecheck clean, frontend builds. Prod verified after each push:
+`/health/db` 200, bogus login 401, `/api/v1/student/recap` 401 (route live), aesis.vercel.app 200.
+
+**Carried.**
+1. **ROTATE the Supabase DB password — still not done.** Verified again this session: the burned
+   password from S88 still opens a connection. Supabase → Settings → Database → Reset, then update
+   Render `DATABASE_URL`.
+2. **Neon project still not deleted** (quota-dead, password burned).
+3. **Consolidation Phase 4** — retire legacy `modules/logbook/`; `logbook_submissions` remains a third
+   source of truth. Phase 3's reviewer-side merge (`SiwesCalendarPanel` + `EntryReview`) was left out of
+   scope and is still two components.
+4. Validation sweep covered the write forms; search/filter/chat inputs (GlobalSearch, ChatThread,
+   ChatbotPanel, RowActionsMenu, InternStatusTable filters) were deliberately skipped — they persist
+   nothing.
+5. Prod smokes still open from S87: enrichment worker, weekly-link SendGrid email, S81 in-browser list.
+6. Render dashboard nit: drop dead `CELERY_BROKER_URL`/`REDIS_URL` from `aesis-ai-engine`.
