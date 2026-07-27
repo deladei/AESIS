@@ -11,5 +11,7 @@ router.use(authorize('student', 'admin'));
 
 // GET /api/v1/student/dashboard
 router.get('/dashboard', asyncHandler(ctrl.dashboard));
+// End-of-internship recap. Student-authored data only — see recap.service.
+router.get('/recap', asyncHandler(ctrl.internshipRecap));
 
 export default router;

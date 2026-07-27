@@ -379,3 +379,18 @@
     box-shadow: 0 0 20px rgba(239, 68, 68, 0.2);
   }
 }
+
+/* Internship recap card transition. CSS only — the recap runs on low-end
+   devices over unreliable connections, so no animation library. Respects a
+   reduced-motion preference by collapsing to a plain appearance. */
+@keyframes recapIn {
+  from { opacity: 0; transform: translateY(6px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  @keyframes recapIn {
+    from { opacity: 1; transform: none; }
+    to   { opacity: 1; transform: none; }
+  }
+}

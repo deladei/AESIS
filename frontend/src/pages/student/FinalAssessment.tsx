@@ -2,6 +2,7 @@ import { Loader2, Award, Lock, FileText, Building2, Star, CheckCircle2 } from 'l
 import { useMyPlacements } from '@/hooks/usePlacements';
 import { useFinalAssessment } from '@/hooks/useFinalization';
 import { GradePanel } from '@/components/grades/GradePanel';
+import { InternshipRecap } from '@/components/student/InternshipRecap';
 
 const RECOMMENDATION_LABEL: Record<string, string> = {
   pass: 'Pass', distinction: 'Distinction', resit: 'Resit', fail: 'Fail',
@@ -83,6 +84,10 @@ export default function FinalAssessment() {
       </section>
 
       {/* Released overall grade (/100), separate from the finalization sign-off above. */}
+      {/* Student-authored recap — renders only once the placement is finalized
+          (the endpoint gates it) and never reads assessment or grade data. */}
+      <InternshipRecap enabled={!!placement} />
+
       <GradePanel placementId={placement.id} />
 
       {/* Evaluation */}
