@@ -1,5 +1,5 @@
 import { prisma } from '../../config/prisma';
-import { meanQualityScore, weekProgress } from '../../shared/utils/quality';
+import { meanQualityScore, mergedQualityScores, weekProgress } from '../../shared/utils/quality';
 import { hoursSummary } from '../../shared/utils/hours';
 import { decryptPII } from '../../shared/utils/crypto';
 
@@ -104,6 +104,13 @@ export async function getStudentDashboard(studentId: string) {
           hoursLogged: true,
           submittedAt: true,
           days: { select: { status: true } },
+          // Latest v2 assessment per week — the quality signal the retired
+          // legacy writer no longer produces (see mergedQualityScores).
+          assessments: {
+            select: { quality: true },
+            orderBy: { createdAt: 'desc' },
+            take: 1,
+          },
         },
       },
       // Learning objectives — progress counts CONFIRMED links only (AI
@@ -143,10 +150,16 @@ export async function getStudentDashboard(studentId: string) {
     e => e.submittedAt != null || (e.days ?? []).some(d => d.status === 'submitted'),
   ).length;
 
-  // AI quality scores stay advisory and come from the legacy enrichment when
-  // present; with no scored log the mean is null and the UI renders "—".
+  // AI quality stays advisory. Both pipelines feed one mean: the frozen legacy
+  // analyses AND the v2 assessments the weekly entries carry. Reading only the
+  // legacy side meant every student on the consolidated logbook saw "—" no
+  // matter how many scored weeks they had. With no valid score anywhere the
+  // mean is null and the UI still renders "—".
   const avgQualityScore = meanQualityScore(
-    placement.logbookSubmissions.map(s => s.analysis?.qualityScore),
+    mergedQualityScores(
+      placement.logbookSubmissions.map(s => s.analysis?.qualityScore),
+      placement.logbookEntries,
+    ),
   );
 
   const week = weekProgress({

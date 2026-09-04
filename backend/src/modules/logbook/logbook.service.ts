@@ -253,7 +253,9 @@ export async function submitFeedback(
         type:   'feedback_received',
         title:  `Feedback received for Week ${submission.weekNumber}`,
         body:   `Your supervisor has ${input.outcome === 'approved' ? 'approved' : 'flagged'} your Week ${submission.weekNumber} logbook.`,
-        link:   `/logbook/${submissionId}`,
+        // Legacy pipeline: its feedback is read in the Feedback Centre, which
+        // is where this must land. `/logbook/:id` matches no route.
+        link:   '/feedback',
         metadata: { submissionId, weekNumber: submission.weekNumber, outcome: input.outcome },
       },
     }),

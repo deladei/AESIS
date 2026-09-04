@@ -13,6 +13,12 @@ export interface ScheduleWeek {
   upcoming:    boolean; // week hasn't started yet — visible but its days are locked
 }
 
+/**
+ * Fallback length only, for the moment before the calendar has loaded. The real
+ * number is the cohort's configured `durationWeeks`, which the calendar
+ * endpoint returns as `totalWeeks` — cohorts run 24 weeks, so hardcoding 6 made
+ * the dashboard table and the history page disagree with the logbook itself.
+ */
 export const SCHEDULE_WEEKS = 6;
 
 export function toYMD(d: Date): string {
@@ -35,18 +41,23 @@ export function addDaysYMD(start: Date, days: number): Date {
   return d;
 }
 
-// The internship is a fixed 6-week programme anchored at the placement start
-// (week 1). All 6 weeks are always visible so the student sees the full
-// programme; weeks whose start date hasn't arrived yet are marked `upcoming`
-// (their days stay locked until the date arrives).
-export function buildSchedule(startDate: string | null): ScheduleWeek[] {
+// The programme is `totalWeeks` long, anchored at the placement start (week 1).
+// Every week is visible so the student sees the whole programme; weeks whose
+// start date hasn't arrived yet are marked `upcoming` (their days stay locked
+// until the date arrives). Pass the cohort's real length — the default is only
+// for the render before the calendar has answered.
+export function buildSchedule(
+  startDate: string | null,
+  totalWeeks: number = SCHEDULE_WEEKS,
+): ScheduleWeek[] {
   if (!startDate) return [];
+  const span = Number.isFinite(totalWeeks) && totalWeeks > 0 ? totalWeeks : SCHEDULE_WEEKS;
   const start = new Date(`${ymd(startDate)}T00:00:00Z`);
   const today = new Date(`${ghanaYMD()}T00:00:00Z`);
   if (today.getTime() < start.getTime()) return []; // placement hasn't started yet
 
   const weeks: ScheduleWeek[] = [];
-  for (let off = 0; off < SCHEDULE_WEEKS; off++) {
+  for (let off = 0; off < span; off++) {
     const periodStart = addDaysYMD(start, off * 7);
     weeks.push({
       weekNumber:  off + 1,

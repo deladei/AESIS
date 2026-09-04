@@ -4,6 +4,7 @@ import {
   Calendar, Clock, Send, RotateCcw, CheckCircle2, ArrowRight,
 } from 'lucide-react';
 import { useEntries, type EntryStatus } from '@/hooks/useEntries';
+import { useSiwesCalendar } from '@/hooks/useSiwes';
 import { buildSchedule, fmtRange } from '@/lib/schedule';
 
 type WeekStatus = EntryStatus | 'not_started' | 'upcoming';
@@ -43,7 +44,13 @@ interface WeeklyLogbookTableProps {
 export function WeeklyLogbookTable({ placementId, startDate }: WeeklyLogbookTableProps) {
   const { data: entries = [] } = useEntries(placementId);
 
-  const schedule = useMemo(() => buildSchedule(startDate), [startDate]);
+  // The cohort's real length, not a literal: this table sits next to a logbook
+  // that renders every configured week, and the two must agree.
+  const { data: calendar } = useSiwesCalendar(placementId);
+  const schedule = useMemo(
+    () => buildSchedule(startDate, calendar?.totalWeeks),
+    [startDate, calendar?.totalWeeks],
+  );
   const entryByWeek = useMemo(() => {
     const m = new Map<number, (typeof entries)[number]>();
     entries.forEach((e) => m.set(e.weekNumber, e));

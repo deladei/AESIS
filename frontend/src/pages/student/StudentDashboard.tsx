@@ -1,13 +1,13 @@
 import { Link } from 'react-router-dom';
 import {
   NotebookPen, Gauge, ArrowRight, CalendarClock, CheckCircle2,
-  Star, GraduationCap, ExternalLink, Loader2, BookOpen,
+  GraduationCap, ExternalLink, Loader2, BookOpen,
   Building2, Mail, Phone, Clock, Target,
 } from 'lucide-react';
 import type { DashboardSupervisor } from '@/hooks/useStudentDashboard';
 import { useAuth } from '@/contexts/AuthContext';
 import { useMyPlacements } from '@/hooks/usePlacements';
-import { useSubmissions, useSubmission, type LogbookSubmission } from '@/hooks/useLogbook';
+import { useEntries, useEntry } from '@/hooks/useEntries';
 import { useStudentDashboard } from '@/hooks/useStudentDashboard';
 import { useNotifications, type Notification } from '@/hooks/useNotifications';
 import { WeeklyLogbookTable } from '@/components/student/WeeklyLogbookTable';
@@ -28,9 +28,6 @@ function timeAgo(iso: string): string {
   return `${Math.floor(days / 7)} weeks ago`;
 }
 
-const isPending = (s: LogbookSubmission) =>
-  s.submissionStatus === 'not_submitted' || s.submissionStatus === 'draft';
-const isSubmitted = (s: LogbookSubmission) => !isPending(s);
 
 function SupervisorRow({
   label, icon, supervisor,
@@ -84,22 +81,26 @@ export default function StudentDashboard() {
   const { user } = useAuth();
   const { data: placements, isLoading: placementsLoading } = useMyPlacements();
   const active = placements?.find((p) => p.placementStatus === 'active') ?? placements?.[0];
-  const { data: submissions = [], isLoading: subsLoading } = useSubmissions(active?.id);
+  // The weekly pipeline, not the retired `logbook_submissions` table: nothing
+  // writes that any more, so reading it showed every student an empty logbook
+  // and no supervisor feedback however much of either they actually had.
+  const { data: entries = [], isLoading: subsLoading } = useEntries(active?.id);
   // Stats (avg quality + week progress) are computed server-side — validated,
   // numeric, and derived from the placement dates — never on the raw list here.
   const { data: stats } = useStudentDashboard(!!active);
   const { data: notifications = [] } = useNotifications();
 
-  // Most recent submissions that carry supervisor feedback — fetched in full
-  // (the list endpoint only returns a feedback count, not the text/reviewer).
-  const feedbackIds = [...submissions]
-    .filter((s) => (s._count?.feedback ?? 0) > 0)
-    .sort((a, b) => (b.submittedAt ?? '').localeCompare(a.submittedAt ?? ''))
+  // Weeks the supervisor has decided on. The comment lives on the append-only
+  // event, which only the detail endpoint carries, so the three most recent are
+  // fetched in full — the same route SubmissionHistory takes.
+  const decidedIds = [...entries]
+    .filter((e) => e.status === 'acknowledged' || e.status === 'returned')
+    .sort((a, b) => b.weekNumber - a.weekNumber)
     .slice(0, 3)
-    .map((s) => s.id);
-  const fb0 = useSubmission(feedbackIds[0]);
-  const fb1 = useSubmission(feedbackIds[1]);
-  const fb2 = useSubmission(feedbackIds[2]);
+    .map((e) => e.id);
+  const fb0 = useEntry(decidedIds[0]);
+  const fb1 = useEntry(decidedIds[1]);
+  const fb2 = useEntry(decidedIds[2]);
 
   if (placementsLoading || subsLoading) {
     return (
@@ -130,7 +131,7 @@ export default function StudentDashboard() {
   // `total` is the expected week count derived from the placement dates; the
   // average is a validated numeric mean. Both fall back to the local list only
   // for the submitted/total tile while stats are still loading.
-  const submitted    = submissions.filter(isSubmitted);
+  const submitted    = entries.filter((e) => e.submittedAt != null);
   const weekTotal    = stats?.week?.total ?? null;
   const weekCurrent  = stats?.week?.current ?? submitted.length;
   const logsSubmitted = stats?.logsSubmitted ?? submitted.length;
@@ -143,12 +144,16 @@ export default function StudentDashboard() {
     ?? { logged: 0, expected: 0, perWeekMin: 0, shortfall: false };
   const objectives   = stats?.objectives ?? [];
 
-  // Flatten the latest supervisor feedback from each fetched submission
+  // The supervisor's own words for each decided week: the last acknowledge or
+  // return event that carried a comment. A decision with no note is not shown —
+  // an empty quote would say nothing.
   const feedbackCards = [fb0.data, fb1.data, fb2.data]
-    .filter((s): s is LogbookSubmission => !!s && !!s.feedback?.length)
-    .map((s) => {
-      const f = [...s.feedback!].sort((a, b) => b.createdAt.localeCompare(a.createdAt))[0];
-      return { sub: s, fb: f };
+    .flatMap((entry) => {
+      if (!entry) return [];
+      const decision = [...(entry.events ?? [])]
+        .reverse()
+        .find((e) => ['acknowledged', 'returned'].includes(e.toStatus) && !!e.comment);
+      return decision ? [{ entry, decision }] : [];
     });
 
   const recentNotifications = notifications.slice(0, 3);
@@ -408,14 +413,12 @@ export default function StudentDashboard() {
               </div>
             ) : (
               <div className="grid grid-cols-1 gap-6 md:grid-cols-3">
-                {feedbackCards.map(({ sub, fb }) => {
-                  const reviewer = fb.supervisor
-                    ? `${fb.supervisor.firstName} ${fb.supervisor.lastName}`
-                    : 'Academic Supervisor';
-                  const flagged = fb.outcome === 'flagged';
+                {feedbackCards.map(({ entry, decision }) => {
+                  const reviewer = stats?.supervisors?.academic?.name ?? 'Academic Supervisor';
+                  const flagged = decision.toStatus === 'returned';
                   return (
                     <div
-                      key={fb.id}
+                      key={decision.id}
                       className={`rounded-xl bg-[var(--h-ffffff)] p-6 ${flagged ? '' : 'border-l-4 border-[var(--h-15157d)]'}`}
                     >
                       <div className="mb-4 flex items-center gap-3">
@@ -425,24 +428,12 @@ export default function StudentDashboard() {
                         <div>
                           <p className="text-sm font-bold text-[var(--h-191c1e)]">{reviewer}</p>
                           <p className="text-xs font-medium text-[var(--h-424654)]">
-                            Week {sub.weekNumber} · {flagged ? 'Flagged' : 'Approved'}
+                            Week {entry.weekNumber} · {flagged ? 'Returned for revision' : 'Acknowledged'}
                           </p>
                         </div>
                       </div>
-                      <p className="mb-4 text-sm italic text-[var(--h-424654)]">"{fb.feedbackText}"</p>
-                      {fb.rating != null ? (
-                        <div className="flex gap-1 text-[var(--h-15157d)]">
-                          {[1, 2, 3, 4, 5].map((i) => (
-                            <Star
-                              key={i}
-                              className="h-4 w-4"
-                              fill={i <= fb.rating! ? 'currentColor' : 'none'}
-                            />
-                          ))}
-                        </div>
-                      ) : (
-                        <p className="text-[10px] text-[var(--h-737785)]">{timeAgo(fb.createdAt)}</p>
-                      )}
+                      <p className="mb-4 text-sm italic text-[var(--h-424654)]">"{decision.comment}"</p>
+                      <p className="text-[10px] text-[var(--h-737785)]">{timeAgo(decision.createdAt)}</p>
                     </div>
                   );
                 })}

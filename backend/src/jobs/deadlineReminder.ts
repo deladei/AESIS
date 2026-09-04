@@ -46,7 +46,7 @@ async function runDeadlineReminder(hoursUntilDeadline: 48 | 24) {
         type:   'submission_reminder',
         title:  `${urgency}Week ${submission.weekNumber} logbook due Friday`,
         body:   `Your Week ${submission.weekNumber} logbook is due in ${hoursUntilDeadline} hours. Submit before the deadline to avoid a late penalty.`,
-        link:   `/logbook/week/${submission.weekNumber}`,
+        link:   `/student/logbook?week=${submission.weekNumber}`,
         metadata: { weekNumber: submission.weekNumber, hoursUntilDeadline },
       });
 
