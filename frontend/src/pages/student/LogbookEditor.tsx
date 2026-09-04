@@ -6,7 +6,9 @@ import {
   Sun, Stethoscope, CircleSlash, ChevronDown, ChevronUp,
 } from 'lucide-react';
 import { useMyPlacements } from '@/hooks/usePlacements';
-import { useEntries, useEntry, useSaveDay, useSubmitDay, type EntryStatus } from '@/hooks/useEntries';
+import {
+  useEntries, useEntry, useSaveDay, useSubmitDay, useSubmitEntry, dayKey, type EntryStatus,
+} from '@/hooks/useEntries';
 import {
   useSiwesCalendar, useSaveDailyEntry, useSaveWeeklySummary, useRecordAbsence,
   type SiwesCalendarDay,
@@ -132,6 +134,7 @@ export default function LogbookEditor() {
 
   const { data: calendar, isLoading: calendarLoading } = useSiwesCalendar(placement?.id);
   const { data: entries = [], isLoading: entriesLoading } = useEntries(placement?.id);
+  const submitWeek = useSubmitEntry();
 
   const [searchParams] = useSearchParams();
   const [selectedWeek, setSelectedWeek] = useState<number | null>(null);
@@ -264,13 +267,44 @@ export default function LogbookEditor() {
                 {' · '}
                 {(detail?.days ?? []).filter((rec) =>
                   rec.status === 'submitted'
-                  && week.days.some((d) => d.date === rec.date.slice(0, 10)),
+                  && week.days.some((d) => d.date === dayKey(rec)),
                 ).length}
                 /{week.days.filter((d) => d.class === 'working').length} days submitted
               </p>
             </div>
-            <WeekStatusPill status={weekStatus} />
+            {/* The week is the student's to send. Completing it does not submit
+                it, so the offer has to live here — durable across a reload —
+                not only in the banner on the save that finished it. */}
+            <div className="flex items-center gap-3">
+              {weekStatus === 'draft' && detail?.completion && (
+                detail.completion.complete ? (
+                  <button
+                    type="button"
+                    disabled={submitWeek.isPending}
+                    onClick={async () => {
+                      try {
+                        await submitWeek.mutateAsync(detail.id);
+                      } catch { /* surfaced below */ }
+                    }}
+                    className="inline-flex items-center gap-1.5 rounded-lg bg-[var(--h-1b7a45)] px-3 py-1.5 text-sm font-semibold text-[var(--h-ffffff)] hover:opacity-90 disabled:opacity-50"
+                  >
+                    {submitWeek.isPending
+                      ? <Loader2 className="h-4 w-4 animate-spin" />
+                      : <Send className="h-4 w-4" />}
+                    Submit week
+                  </button>
+                ) : (
+                  <span className="text-sm text-[var(--h-464652)]">
+                    {detail.completion.remaining} of {detail.completion.workingDays} days left
+                  </span>
+                )
+              )}
+              <WeekStatusPill status={weekStatus} />
+            </div>
           </div>
+          {submitWeek.isError && (
+            <p className="mb-3 text-sm text-[var(--h-b3261e)]">{errMessage(submitWeek.error)}</p>
+          )}
 
           {weekStatus === 'acknowledged' && (
             <div className="mb-4 flex items-start gap-2 rounded-lg border border-[var(--h-aee3c2)] bg-[var(--h-e9f9ef)] px-4 py-3 text-sm text-[var(--h-1b7a45)]">
@@ -290,7 +324,7 @@ export default function LogbookEditor() {
             <div className="space-y-2">
               {week.days.map((d) => {
                 const submitted = (detail?.days ?? []).some(
-                  (rec) => rec.date.slice(0, 10) === d.date && rec.status === 'submitted',
+                  (rec) => dayKey(rec) === d.date && rec.status === 'submitted',
                 );
                 const v = dayVisual(d, today, submitted);
                 const selectable = d.class === 'working';
@@ -335,7 +369,7 @@ export default function LogbookEditor() {
                   weekStatus={weekStatus}
                   entryId={weekEntry?.id ?? detail?.id}
                   daySubmitted={(detail?.days ?? []).some(
-                    (rec) => rec.date.slice(0, 10) === day.date && rec.status === 'submitted',
+                    (rec) => dayKey(rec) === day.date && rec.status === 'submitted',
                   )}
                   activities={(detail?.activities ?? [])
                     .filter((a) => a.activityDate.slice(0, 10) === day.date)
@@ -346,7 +380,10 @@ export default function LogbookEditor() {
               <WeeklyReportCard
                 placementId={placement.id}
                 weekNumber={week.weekNumber}
-                locked={weekStatus === 'acknowledged'}
+                // A week that has not started cannot be reported on — the API
+                // rejects it (422), so do not offer the form and earn an error.
+                locked={weekStatus === 'acknowledged' || weekStatus === 'upcoming'}
+                lockReason={weekStatus === 'upcoming' ? 'This week has not started yet.' : undefined}
                 summary={calendar.weeklySummaries.find((s) => s.weekNumber === week.weekNumber)}
               />
             </div>
@@ -374,6 +411,7 @@ function DayPanel({
   const saveDailyEntry = useSaveDailyEntry(placementId);
   const saveDay = useSaveDay();
   const submitDay = useSubmitDay();
+  const submitWeek = useSubmitEntry();
   const recordAbsence = useRecordAbsence(placementId);
 
   const [description, setDescription] = useState(day.entry?.descriptionOfWork ?? '');
@@ -382,11 +420,18 @@ function DayPanel({
   const [tagDrafts, setTagDrafts] = useState<Record<number, string>>({});
   const [showActivities, setShowActivities] = useState(seeded.length > 0);
   const [daysLeftInWeek, setDaysLeftInWeek] = useState<number | null>(null);
+  const [workingDaysInWeek, setWorkingDaysInWeek] = useState(0);
+  // The save that completes a week may be the one that CREATED the week row,
+  // in which case the `entryId` prop is still undefined. The response carries
+  // the real id — without it the submit button below is dead exactly when it
+  // is shown.
+  const [savedWeekEntryId, setSavedWeekEntryId] = useState<string | null>(null);
   const [absenceOpen, setAbsenceOpen] = useState(false);
   const [absenceKind, setAbsenceKind] = useState<'sick' | 'permitted'>('sick');
   const [absenceReason, setAbsenceReason] = useState('');
   const [saved, setSaved] = useState(false);
-  const [autoSubmitted, setAutoSubmitted] = useState(false);
+  const [weekComplete, setWeekComplete] = useState(false);
+  const [weekSubmitted, setWeekSubmitted] = useState(false);
   const [formErr, setFormErr] = useState<string | null>(null);
 
   useEffect(() => { setActivities(seeded); }, [seeded]);
@@ -439,10 +484,12 @@ function DayPanel({
         descriptionOfWork: description.trim(),
         newSkillsLearnt: skills.trim(),
       });
-      // The API submits the week itself once every working day is accounted
-      // for. Say so — a status changing on its own is otherwise alarming.
-      setAutoSubmitted(result.weekAutoSubmitted);
-      setDaysLeftInWeek(result.daysUntilWeekSubmits);
+      // Completing the week does not submit it — the student is asked. Their
+      // status must never change under them without a decision.
+      setWeekComplete(result.weekComplete);
+      setDaysLeftInWeek(result.daysRemainingInWeek);
+      setWorkingDaysInWeek(result.workingDaysInWeek);
+      setSavedWeekEntryId(result.weekEntryId);
     }
     if (activityPayload.length > 0 || entryId) {
       const entry = await saveDay.mutateAsync({
@@ -675,17 +722,55 @@ function DayPanel({
             </div>
           </fieldset>
 
-          {autoSubmitted && (
-            <div className="mt-3 flex items-start gap-2 rounded-lg border border-[var(--h-aee3c2)] bg-[var(--h-e9f9ef)] px-3 py-2 text-xs text-[var(--h-1b7a45)]">
-              <Send className="mt-0.5 h-3.5 w-3.5 shrink-0" />
-              That was the last day of this week — it has been submitted to your supervisor automatically,
-              so it is not counted late.
+          {/* The week is finished. Ask — do not transition it under them. */}
+          {weekComplete && !weekSubmitted && (
+            <div className="mt-3 rounded-lg border border-[var(--h-aee3c2)] bg-[var(--h-e9f9ef)] px-3 py-3">
+              <p className="flex items-start gap-2 text-xs font-semibold text-[var(--h-1b7a45)]">
+                <CheckCircle2 className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+                That was the last day of this week — all {workingDaysInWeek || 5} days are logged.
+              </p>
+              <p className="mt-1 text-xs text-[var(--h-464652)]">
+                Send it to your supervisor now, or read it over first. Either way it will not be
+                counted late: a finished week you have not sent is submitted for you after the grace
+                window.
+              </p>
+              <div className="mt-2.5 flex flex-wrap gap-2">
+                <button
+                  type="button"
+                  disabled={!(savedWeekEntryId ?? entryId) || submitWeek.isPending}
+                  onClick={async () => {
+                    const id = savedWeekEntryId ?? entryId;
+                    if (!id) return;
+                    try {
+                      await submitWeek.mutateAsync(id);
+                      setWeekSubmitted(true);
+                    } catch (e) { setFormErr(errMessage(e)); }
+                  }}
+                  className="inline-flex items-center gap-1.5 rounded-lg bg-[var(--h-1b7a45)] px-3 py-1.5 text-xs font-semibold text-white hover:opacity-90 disabled:opacity-50"
+                >
+                  {submitWeek.isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Send className="h-3.5 w-3.5" />}
+                  Submit the week now
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setWeekComplete(false)}
+                  className="rounded-lg border border-[var(--h-d8dce6)] bg-[var(--h-ffffff)] px-3 py-1.5 text-xs font-semibold text-[var(--h-464652)] hover:border-[var(--h-b9c0d0)]"
+                >
+                  I'll review it first
+                </button>
+              </div>
             </div>
           )}
-          {!autoSubmitted && daysLeftInWeek !== null && daysLeftInWeek > 0 && weekStatus === 'draft' && (
+          {weekSubmitted && (
+            <div className="mt-3 flex items-start gap-2 rounded-lg border border-[var(--h-bcc8ff)] bg-[var(--h-eef1ff)] px-3 py-2 text-xs text-[var(--h-15157d)]">
+              <Send className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+              Week sent to your supervisor for review.
+            </div>
+          )}
+          {!weekComplete && !weekSubmitted && daysLeftInWeek !== null && daysLeftInWeek > 0 && weekStatus === 'draft' && (
             <div className="mt-3 flex items-start gap-2 rounded-lg border border-[var(--h-bcc8ff)] bg-[var(--h-eef1ff)] px-3 py-2 text-xs text-[var(--h-15157d)]">
               <CalendarDays className="mt-0.5 h-3.5 w-3.5 shrink-0" />
-              {daysLeftInWeek} more day{daysLeftInWeek === 1 ? '' : 's'} to log and this week submits itself.
+              {daysLeftInWeek} more day{daysLeftInWeek === 1 ? '' : 's'} to log and this week is ready to send.
             </div>
           )}
 
@@ -775,11 +860,12 @@ function DayPanel({
 
 // ── The week's own narrative ────────────────────────────────────
 function WeeklyReportCard({
-  placementId, weekNumber, locked, summary,
+  placementId, weekNumber, locked, lockReason, summary,
 }: {
   placementId: string;
   weekNumber: number;
   locked: boolean;
+  lockReason?: string;
   summary: { id: string; weekEnding: string; reportText: string } | undefined;
 }) {
   const saveSummary = useSaveWeeklySummary(placementId);
@@ -813,6 +899,7 @@ function WeeklyReportCard({
         className="w-full rounded-lg border border-[var(--h-c4c5d5-60)] bg-[var(--h-ffffff)] px-3 py-2 text-sm text-[var(--h-0b1c30)] placeholder:text-[var(--h-94a3b8)] focus:border-[var(--h-8a4cfc)] focus:outline-none disabled:bg-[var(--h-eef0f5)]"
       />
       <FieldError message={error} />
+      {lockReason && <p className="mt-1 text-xs text-[var(--h-757684)]">{lockReason}</p>}
       {saveSummary.isError && (
         <p className="mt-1 text-xs text-[var(--h-b3261e)]">{errMessage(saveSummary.error)}</p>
       )}

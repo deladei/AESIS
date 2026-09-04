@@ -90,12 +90,16 @@ export interface SaveDailyEntryInput {
 }
 
 /**
- * The API auto-submits the week on the save that completes it, and reports what
- * it decided so the UI can say so instead of the status silently changing.
+ * The API reports whether this save completed the week. It does not submit —
+ * the student is asked. A completed week they never send is picked up by the
+ * deadline job (backend jobs/weekAutoSubmit.ts), so choosing to review first
+ * cannot turn into a late mark.
  */
 export interface SavedDailyEntry extends SiwesDailyEntry {
-  weekAutoSubmitted: boolean;
-  daysUntilWeekSubmits: number;
+  /** Every working day of the week is now accounted for. */
+  weekComplete: boolean;
+  weekEntryId: string;
+  daysRemainingInWeek: number;
   workingDaysInWeek: number;
 }
 

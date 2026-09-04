@@ -5,7 +5,7 @@ import {
   CalendarDays, Tag, FileText,
 } from 'lucide-react';
 import {
-  useReviewQueue, useEntry, useAcknowledgeEntry, useReturnEntry,
+  useReviewQueue, useEntry, useAcknowledgeEntry, useReturnEntry, dayKey,
   type LogbookEntry, type EntryStatus, type QualityBreakdown, type PlagiarismReport,
   type FeedbackDraft,
 } from '@/hooks/useEntries';
@@ -116,7 +116,7 @@ export default function EntryReview() {
 
   // Days the student submitted after their own date (anti-cheat transparency).
   const lateDates = useMemo(
-    () => new Set((detail?.days ?? []).filter((d) => d.loggedLate).map((d) => d.date.slice(0, 10))),
+    () => new Set((detail?.days ?? []).filter((d) => d.loggedLate).map(dayKey)),
     [detail?.days],
   );
 

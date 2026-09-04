@@ -19,13 +19,25 @@ export interface EntryReflection {
 
 export type DayStatus = 'draft' | 'submitted';
 
+/**
+ * One day row as the API actually sends it — a `daily_entry`, not the dropped
+ * `entry_days`. The field is `workDate`; there is no stored `loggedLate`
+ * (lateness is derived from the immutable `createdAt`, server-side, and sent
+ * alongside). Getting this wrong is not a type error at build time, so it is
+ * worth stating: these names must match `DailyEntry` in schema.prisma.
+ */
 export interface EntryDay {
   id:          string;
-  date:        string;       // ISO; slice to YYYY-MM-DD
+  workDate:    string;       // ISO; slice to YYYY-MM-DD
   status:      DayStatus;
   submittedAt: string | null;
+  createdAt:   string;
+  /** Derived server-side in getEntry — first logged past the day's grace window. */
   loggedLate:  boolean;
 }
+
+/** The day's key for comparing against a calendar date. Never throws. */
+export const dayKey = (d: Pick<EntryDay, 'workDate'>): string => (d.workDate ?? '').slice(0, 10);
 
 export interface EntryEvent {
   id:         string;
@@ -100,6 +112,12 @@ export interface LogbookEntry {
   assessments?: EntryAssessment[];
   days?:       EntryDay[];
   _count?:     { activities: number };
+  /**
+   * Draft weeks only (the detail endpoint). Whether every working day of the
+   * week is accounted for, so the logbook can offer "submit week" on load
+   * rather than only on the save that completed it.
+   */
+  completion?: { complete: boolean; remaining: number; workingDays: number } | null;
   // Present on the list endpoint (used by the supervisor review queue).
   placement?: {
     id:      string;
