@@ -55,7 +55,7 @@ describe('auto-submit on a complete week', () => {
   it('submits once all five working days are written up', async () => {
     seed({ logged: MON_TO_FRI });
     const out = await evaluateWeekCompletion(student, 'e1', submit);
-    expect(out).toEqual({ submitted: true, complete: true, remaining: 0, workingDays: 5 });
+    expect(out).toEqual({ submitted: true, complete: true, remaining: 0, workingDays: 5, missingDates: [] });
     expect(submit).toHaveBeenCalledWith(student, 'e1');
   });
 
@@ -74,14 +74,18 @@ describe('report-only mode (what the save path and the week header use)', () => 
     // The student is asked, and their status never changes under them.
     seed({ logged: MON_TO_FRI });
     const out = await evaluateWeekCompletion(student, 'e1', null);
-    expect(out).toEqual({ submitted: false, complete: true, remaining: 0, workingDays: 5 });
+    expect(out).toEqual({ submitted: false, complete: true, remaining: 0, workingDays: 5, missingDates: [] });
     expect(submit).not.toHaveBeenCalled();
   });
 
   it('reports what is still outstanding on a partial week', async () => {
     seed({ logged: MON_TO_FRI.slice(0, 3) });
     const out = await evaluateWeekCompletion(student, 'e1', null);
-    expect(out).toEqual({ submitted: false, complete: false, remaining: 2, workingDays: 5 });
+    expect(out).toEqual({
+      submitted: false, complete: false, remaining: 2, workingDays: 5,
+      // Named, not just counted — the student is shown which days they owe.
+      missingDates: MON_TO_FRI.slice(3),
+    });
   });
 });
 
@@ -113,13 +117,13 @@ describe('days the student could not work', () => {
   it('a holiday is not a working day, so a four-day week submits on its fourth', async () => {
     seed({ logged: ['2026-03-02', '2026-03-03', '2026-03-04', '2026-03-05'], holidays: ['2026-03-06'] });
     const out = await evaluateWeekCompletion(student, 'e1', submit);
-    expect(out).toEqual({ submitted: true, complete: true, remaining: 0, workingDays: 4 });
+    expect(out).toEqual({ submitted: true, complete: true, remaining: 0, workingDays: 4, missingDates: [] });
   });
 
   it('honours a cohort working-day pattern that is not Mon–Fri', async () => {
     seed({ logged: ['2026-03-02', '2026-03-03', '2026-03-04'], workingDays: [1, 2, 3] });
     const out = await evaluateWeekCompletion(student, 'e1', submit);
-    expect(out).toEqual({ submitted: true, complete: true, remaining: 0, workingDays: 3 });
+    expect(out).toEqual({ submitted: true, complete: true, remaining: 0, workingDays: 3, missingDates: [] });
   });
 });
 
@@ -147,7 +151,7 @@ describe('week states it must not touch', () => {
   it('is a no-op when the entry has gone', async () => {
     seed({ missingEntry: true });
     const out = await evaluateWeekCompletion(student, 'e1', submit);
-    expect(out).toEqual({ submitted: false, complete: false, remaining: 0, workingDays: 0 });
+    expect(out).toEqual({ submitted: false, complete: false, remaining: 0, workingDays: 0, missingDates: [] });
     expect(submit).not.toHaveBeenCalled();
   });
 

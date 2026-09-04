@@ -15,6 +15,7 @@ import {
 } from '@/hooks/useSiwes';
 import { EntryAttachments } from '@/components/attachments/EntryAttachments';
 import { FieldError } from '@/components/shared/FieldError';
+import LatePill from '@/components/shared/LatePill';
 import { freeText } from '@/lib/validation';
 import { ghanaYMD, fmtDate, fmtRange } from '@/lib/schedule';
 
@@ -103,10 +104,10 @@ function dayVisual(day: SiwesCalendarDay, today: string, submitted: boolean) {
   if (submitted) {
     return { label: 'Submitted', cls: 'bg-[var(--h-dcf5e6)] text-[var(--h-1b7a45)]', Icon: CheckCircle2 };
   }
+  // Lateness is its own pill beside this one (one shared label app-wide), so
+  // this only says whether the day has been written up.
   if (day.entry) {
-    return day.entry.loggedLate
-      ? { label: `Logged ${day.entry.lateByDays}d late`, cls: 'bg-[var(--h-fff4e0)] text-[var(--h-9a6700)]', Icon: Clock }
-      : { label: 'Logged', cls: 'bg-[var(--h-fff4e0)] text-[var(--h-9a6700)]', Icon: Clock };
+    return { label: 'Logged', cls: 'bg-[var(--h-fff4e0)] text-[var(--h-9a6700)]', Icon: Clock };
   }
   if (day.absence) {
     const kind = day.absence.kind === 'sick' ? 'Sick'
@@ -139,6 +140,8 @@ export default function LogbookEditor() {
   const [searchParams] = useSearchParams();
   const [selectedWeek, setSelectedWeek] = useState<number | null>(null);
   const [selectedDate, setSelectedDate] = useState<string | null>(null);
+  const [showAllMissed, setShowAllMissed] = useState(false);
+  const [confirmGaps, setConfirmGaps] = useState(false);
 
   // The week's status/activities/attachments come from the entries spine; its
   // days, holidays and absences from the calendar. Same week number on both
@@ -211,6 +214,18 @@ export default function LogbookEditor() {
 
   const loggedCount = calendar.days.filter((d) => d.entry).length;
   const missingCount = calendar.days.filter((d) => d.missing).length;
+  // Days you owe. They were only reachable by walking the week rail and reading
+  // every day's pill; the backlog gathers them so a forgotten day is one click
+  // away for as long as the attachment is open. Most recent first — that is the
+  // one you can still remember.
+  const missedDays = calendar.days
+    .filter((d) => d.missing && d.class === 'working')
+    .sort((a, b) => (a.date < b.date ? 1 : -1));
+  const MISSED_PREVIEW = 6;
+  const missedShown = showAllMissed ? missedDays : missedDays.slice(0, MISSED_PREVIEW);
+  // "Over" means every day of it is behind us — only then is submitting with
+  // gaps a considered choice rather than a mistake.
+  const weekIsOver = !!week && week.bounds.end < today;
   const weekStatus: WeekState =
     (weekEntry?.status as EntryStatus | undefined)
     ?? (week?.days.every((d) => d.date > today) ? 'upcoming' : 'not_started');
@@ -226,6 +241,43 @@ export default function LogbookEditor() {
         </p>
       </header>
 
+      {/* Days you still owe. Silent when there are none. */}
+      {missedDays.length > 0 && (
+        <div className="mb-4 rounded-xl border border-[var(--h-f3d690)] bg-[var(--h-fffaf0)] px-4 py-3">
+          <p className="flex items-center gap-2 text-sm font-semibold text-[var(--h-9a6700)]">
+            <AlertCircle className="h-4 w-4" />
+            {missedDays.length} day{missedDays.length === 1 ? '' : 's'} not logged yet
+          </p>
+          <p className="mt-0.5 text-xs text-[var(--h-464652)]">
+            You can still log any of them. They will be marked late for your supervisor.
+          </p>
+          <div className="mt-2.5 flex flex-wrap gap-2">
+            {missedShown.map((d) => (
+              <button
+                key={d.date}
+                type="button"
+                onClick={() => { setSelectedWeek(d.weekNumber); setSelectedDate(d.date); }}
+                className="inline-flex items-center gap-1.5 rounded-lg border border-[var(--h-f3d690)] bg-[var(--h-ffffff)] px-2.5 py-1 text-xs font-semibold text-[var(--h-9a6700)] hover:border-[var(--h-9a6700)]"
+              >
+                <CalendarDays className="h-3 w-3" />
+                {weekdayShort(d.date)} {fmtDate(d.date)}
+              </button>
+            ))}
+            {missedDays.length > MISSED_PREVIEW && (
+              <button
+                type="button"
+                onClick={() => setShowAllMissed((v) => !v)}
+                className="inline-flex items-center gap-1 rounded-lg px-2.5 py-1 text-xs font-semibold text-[var(--h-464652)] hover:text-[var(--h-0b1c30)]"
+              >
+                {showAllMissed
+                  ? <>Show fewer <ChevronUp className="h-3 w-3" /></>
+                  : <>{missedDays.length - MISSED_PREVIEW} more <ChevronDown className="h-3 w-3" /></>}
+              </button>
+            )}
+          </div>
+        </div>
+      )}
+
       {/* Week rail — the container you are working inside */}
       <div className="mb-4 flex flex-wrap gap-2">
         {weeks.map((w) => {
@@ -236,7 +288,7 @@ export default function LogbookEditor() {
           return (
             <button
               key={w.weekNumber}
-              onClick={() => { setSelectedWeek(w.weekNumber); setSelectedDate(null); }}
+              onClick={() => { setSelectedWeek(w.weekNumber); setSelectedDate(null); setConfirmGaps(false); }}
               className={`rounded-lg px-3 py-1.5 text-sm font-semibold transition-colors ${
                 selected
                   ? 'bg-[var(--h-15157d)] text-[var(--h-ffffff)]'
@@ -293,6 +345,18 @@ export default function LogbookEditor() {
                       : <Send className="h-4 w-4" />}
                     Submit week
                   </button>
+                ) : weekIsOver ? (
+                  // A week that has ended with days missing used to be
+                  // unsubmittable forever — no button was ever rendered, so it
+                  // sat in draft for the rest of the attachment. The API always
+                  // accepted it; only this screen refused to ask.
+                  <button
+                    type="button"
+                    onClick={() => setConfirmGaps((v) => !v)}
+                    className="inline-flex items-center gap-1.5 rounded-lg border border-[var(--h-f3d690)] bg-[var(--h-fff4e0)] px-3 py-1.5 text-sm font-semibold text-[var(--h-9a6700)] hover:border-[var(--h-9a6700)]"
+                  >
+                    <Send className="h-4 w-4" /> Submit week anyway
+                  </button>
                 ) : (
                   <span className="text-sm text-[var(--h-464652)]">
                     {detail.completion.remaining} of {detail.completion.workingDays} days left
@@ -304,6 +368,49 @@ export default function LogbookEditor() {
           </div>
           {submitWeek.isError && (
             <p className="mb-3 text-sm text-[var(--h-b3261e)]">{errMessage(submitWeek.error)}</p>
+          )}
+
+          {confirmGaps && weekStatus === 'draft' && detail?.completion && !detail.completion.complete && (
+            <div className="mb-3 rounded-lg border border-[var(--h-f3d690)] bg-[var(--h-fffaf0)] px-4 py-3">
+              <p className="text-sm font-semibold text-[var(--h-9a6700)]">
+                Send week {week.weekNumber} with {detail.completion.remaining} day
+                {detail.completion.remaining === 1 ? '' : 's'} still unlogged?
+              </p>
+              <p className="mt-1 text-xs text-[var(--h-464652)]">
+                Your supervisor will see {detail.completion.missingDates.length === 1 ? 'this day' : 'these days'} as
+                not logged:{' '}
+                <span className="font-semibold">
+                  {detail.completion.missingDates.map((d) => fmtDate(d)).join(', ')}
+                </span>
+                . Once sent, the week is locked until your supervisor returns it — so log what you
+                can first if you still can.
+              </p>
+              <div className="mt-2.5 flex flex-wrap gap-2">
+                <button
+                  type="button"
+                  disabled={submitWeek.isPending}
+                  onClick={async () => {
+                    try {
+                      await submitWeek.mutateAsync(detail.id);
+                      setConfirmGaps(false);
+                    } catch { /* surfaced below */ }
+                  }}
+                  className="inline-flex items-center gap-1.5 rounded-lg bg-[var(--h-1b7a45)] px-3 py-1.5 text-xs font-semibold text-[var(--h-ffffff)] hover:opacity-90 disabled:opacity-50"
+                >
+                  {submitWeek.isPending
+                    ? <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                    : <Send className="h-3.5 w-3.5" />}
+                  Send it
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setConfirmGaps(false)}
+                  className="rounded-lg border border-[var(--h-d8dce6)] bg-[var(--h-ffffff)] px-3 py-1.5 text-xs font-semibold text-[var(--h-464652)] hover:border-[var(--h-b9c0d0)]"
+                >
+                  Not yet
+                </button>
+              </div>
+            </div>
           )}
 
           {weekStatus === 'acknowledged' && (
@@ -343,8 +450,11 @@ export default function LogbookEditor() {
                       <span className="block text-[11px] font-semibold text-[var(--h-757684)]">{weekdayShort(d.date)}</span>
                       <span className="block text-base font-bold text-[var(--h-0b1c30)]">{dayOfMonth(d.date)}</span>
                     </span>
-                    <span className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-semibold ${v.cls}`}>
-                      <v.Icon className="h-3 w-3" /> {v.label}
+                    <span className={`inline-flex flex-wrap items-center gap-1`}>
+                      <span className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-semibold ${v.cls}`}>
+                        <v.Icon className="h-3 w-3" /> {v.label}
+                      </span>
+                      <LatePill compact days={d.entry?.lateByDays ?? 0} />
                     </span>
                   </button>
                 );
@@ -440,7 +550,12 @@ function DayPanel({
     (new Date(`${today}T00:00:00Z`).getTime() - new Date(`${day.date}T00:00:00Z`).getTime()) / 86_400_000,
   );
   const future = lateBy < 0;
-  const editWindowClosed = !!day.entry && new Date(day.entry.editableUntil).getTime() < Date.now();
+  // `editableUntil` is anti-tamper for work already sent for review; the API no
+  // longer applies it while the week is the student's (draft/returned), so a
+  // missed day stays fillable for the whole attachment. Mirrors siwes.service.
+  const weekOpen = weekStatus === 'draft' || weekStatus === 'returned' || weekStatus === 'not_started';
+  const editWindowClosed =
+    !weekOpen && !!day.entry && new Date(day.entry.editableUntil).getTime() < Date.now();
   const editable =
     day.class === 'working'
     && !day.absence
@@ -570,7 +685,9 @@ function DayPanel({
           {!future && !daySubmitted && lateBy > DAY_GRACE_DAYS && editable && (
             <div className="mb-3 flex items-start gap-2 rounded-lg border border-[var(--h-f3d690)] bg-[var(--h-fff4e0)] px-3 py-2 text-xs text-[var(--h-9a6700)]">
               <AlertCircle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
-              You're logging this {lateBy} days late — you can still submit it, but it will be flagged as late.
+              You're logging this {lateBy} day{lateBy === 1 ? '' : 's'} after the day itself. You can
+              still submit it — your supervisor will see it marked
+              {' '}<span className="font-semibold">Late — {lateBy} day{lateBy === 1 ? '' : 's'}</span>.
             </div>
           )}
 

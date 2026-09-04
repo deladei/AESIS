@@ -34,6 +34,8 @@ export interface EntryDay {
   createdAt:   string;
   /** Derived server-side in getEntry — first logged past the day's grace window. */
   loggedLate:  boolean;
+  /** How many whole days after the work date it was first logged. 0 when on time. */
+  lateByDays:  number;
 }
 
 /** The day's key for comparing against a calendar date. Never throws. */
@@ -117,7 +119,20 @@ export interface LogbookEntry {
    * week is accounted for, so the logbook can offer "submit week" on load
    * rather than only on the save that completed it.
    */
-  completion?: { complete: boolean; remaining: number; workingDays: number } | null;
+  completion?: {
+    complete: boolean;
+    remaining: number;
+    workingDays: number;
+    /** The unaccounted-for working days, YYYY-MM-DD — named for the student
+     *  before they submit a week with gaps. */
+    missingDates: string[];
+  } | null;
+  /** Detail endpoint: the week's late headline, rolled up from `days`. */
+  lateSummary?: { lateDays: number; maxDaysLate: number };
+  /** List endpoint: the same headline, so the review queue can show lateness
+   *  without fetching every week. */
+  lateDays?:    number;
+  maxDaysLate?: number;
   // Present on the list endpoint (used by the supervisor review queue).
   placement?: {
     id:      string;

@@ -42,6 +42,9 @@ export interface AutoSubmitOutcome {
   /** Working days in the week that still have neither an entry nor an absence. */
   remaining: number;
   workingDays: number;
+  /** Those same unaccounted-for days, as YYYY-MM-DD — the student is shown them
+   *  by name before submitting a week with gaps. */
+  missingDates: string[];
 }
 
 /** Every working day in the week, per the cohort calendar. */
@@ -105,10 +108,12 @@ export async function evaluateWeekCompletion(
       periodStart: true, periodEnd: true,
     },
   });
-  if (!entry) return { submitted: false, complete: false, remaining: 0, workingDays: 0 };
+  if (!entry) return { submitted: false, complete: false, remaining: 0, workingDays: 0, missingDates: [] };
 
   const working = await workingDaysOfWeek(entry.placementId, entry.periodStart, entry.periodEnd);
-  if (working.length === 0) return { submitted: false, complete: false, remaining: 0, workingDays: 0 };
+  if (working.length === 0) {
+    return { submitted: false, complete: false, remaining: 0, workingDays: 0, missingDates: [] };
+  }
 
   const [logged, absences] = await Promise.all([
     prisma.dailyEntry.findMany({
@@ -131,13 +136,14 @@ export async function evaluateWeekCompletion(
     ...absences.map((a) => iso(a.absenceDate)),
   ]);
 
-  const remaining = working.filter((d) => !accounted.has(d)).length;
+  const missingDates = working.filter((d) => !accounted.has(d));
+  const remaining = missingDates.length;
   const complete = remaining === 0 && entry.status === 'draft';
 
   if (!complete || !submit) {
-    return { submitted: false, complete, remaining, workingDays: working.length };
+    return { submitted: false, complete, remaining, workingDays: working.length, missingDates };
   }
 
   await submit(actor, entry.id);
-  return { submitted: true, complete: true, remaining: 0, workingDays: working.length };
+  return { submitted: true, complete: true, remaining: 0, workingDays: working.length, missingDates: [] };
 }

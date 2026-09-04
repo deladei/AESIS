@@ -10,6 +10,7 @@ import {
   type FeedbackDraft,
 } from '@/hooks/useEntries';
 import { EntryAttachments } from '@/components/attachments/EntryAttachments';
+import LatePill from '@/components/shared/LatePill';
 
 function studentName(e: LogbookEntry): string {
   const s = e.placement?.student;
@@ -21,6 +22,14 @@ function fmtDate(iso: string, withTime = false): string {
   return d.toLocaleDateString('en-GB', {
     day: 'numeric', month: 'short', year: 'numeric',
     ...(withTime ? { hour: '2-digit', minute: '2-digit' } : {}),
+  });
+}
+
+/** A date-only value (YYYY-MM-DD) rendered as the calendar day it is, not as a
+ *  local-midnight instant that can slide a day either side of UTC. */
+function fmtDay(ymd: string): string {
+  return new Date(`${ymd.slice(0, 10)}T00:00:00Z`).toLocaleDateString('en-GB', {
+    weekday: 'short', day: 'numeric', month: 'short', timeZone: 'UTC',
   });
 }
 
@@ -114,11 +123,14 @@ export default function EntryReview() {
       ? latest.feedbackDraft
       : null;
 
-  // Days the student submitted after their own date (anti-cheat transparency).
-  const lateDates = useMemo(
-    () => new Set((detail?.days ?? []).filter((d) => d.loggedLate).map(dayKey)),
-    [detail?.days],
-  );
+  // Days the student wrote up after their own date, and by how much (anti-cheat
+  // transparency). A Map, not a Set: the count is the point — "logged late" told
+  // a supervisor nothing about whether it was a day or a month.
+  const lateByDate = useMemo(() => {
+    const m = new Map<string, number>();
+    for (const d of detail?.days ?? []) if (d.loggedLate) m.set(dayKey(d), d.lateByDays ?? 0);
+    return m;
+  }, [detail?.days]);
 
   const apiErr = (e: unknown) =>
     ((e as { response?: { data?: { message?: string } } })?.response?.data?.message) ??
@@ -220,6 +232,14 @@ export default function EntryReview() {
                             <Sparkles className="h-3 w-3" /> {rel}%
                           </span>
                         )}
+                        {!!e.lateDays && (
+                          <span
+                            title={`${e.lateDays} day(s) logged late; the latest by ${e.maxDaysLate} day(s)`}
+                            className="inline-flex items-center gap-1 rounded-full bg-[var(--h-fff4e0)] px-1.5 py-0.5 font-medium text-[var(--h-9a6700)]"
+                          >
+                            <Clock className="h-3 w-3" /> {e.lateDays} late
+                          </span>
+                        )}
                       </div>
                     </button>
                   );
@@ -258,13 +278,58 @@ export default function EntryReview() {
                         {detail.version > 1 && ` · Revision ${detail.version}`}
                       </p>
                     </div>
-                    {detail.hoursLogged != null && (
-                      <span className="rounded-lg bg-[var(--h-eff4ff)] px-3 py-1.5 text-sm font-semibold text-[var(--h-15157d)]">
-                        {Number(detail.hoursLogged)} hrs
-                      </span>
-                    )}
+                    <div className="flex items-center gap-2">
+                      {/* The week's late headline, before the reviewer reads a word
+                          of it. Silent when nothing was late. */}
+                      {!!detail.lateSummary?.lateDays && (
+                        <span
+                          title={`Latest entry was ${detail.lateSummary.maxDaysLate} day(s) late`}
+                          className="inline-flex items-center gap-1.5 rounded-lg bg-[var(--h-fff4e0)] px-3 py-1.5 text-sm font-semibold text-[var(--h-9a6700)]"
+                        >
+                          <Clock className="h-4 w-4" />
+                          {detail.lateSummary.lateDays} of {(detail.days ?? []).length} day
+                          {(detail.days ?? []).length === 1 ? '' : 's'} logged late
+                        </span>
+                      )}
+                      {detail.hoursLogged != null && (
+                        <span className="rounded-lg bg-[var(--h-eff4ff)] px-3 py-1.5 text-sm font-semibold text-[var(--h-15157d)]">
+                          {Number(detail.hoursLogged)} hrs
+                        </span>
+                      )}
+                    </div>
                   </div>
                 </div>
+
+                {/* Days. The screen used to render only activities, so a day the
+                    student wrote up without itemising activities was invisible
+                    here — and lateness lives on the day, not the activity. */}
+                {(detail.days ?? []).length > 0 && (
+                  <div className="rounded-xl border border-[var(--h-e2e6ef)] bg-[var(--h-ffffff)] p-5">
+                    <h3 className="mb-3 flex items-center gap-2 text-sm font-semibold text-[var(--h-0b1c30)]">
+                      <CalendarDays className="h-4 w-4 text-[var(--h-8a4cfc)]" /> Days
+                    </h3>
+                    <ul className="divide-y divide-[var(--h-f0f2f7)]">
+                      {(detail.days ?? []).map((d) => (
+                        <li key={d.id} className="flex flex-wrap items-center gap-2 py-2 first:pt-0 last:pb-0">
+                          <span className="min-w-[7.5rem] text-sm font-medium text-[var(--h-0b1c30)]">
+                            {fmtDay(dayKey(d))}
+                          </span>
+                          <span className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-semibold ${
+                            d.status === 'submitted'
+                              ? 'bg-[var(--h-dcf5e6)] text-[var(--h-1b7a45)]'
+                              : 'bg-[var(--h-eef0f5)] text-[var(--h-64748b)]'
+                          }`}>
+                            {d.status === 'submitted' ? 'Submitted' : 'Draft'}
+                          </span>
+                          <LatePill days={d.lateByDays ?? 0} />
+                          <span className="ml-auto text-xs text-[var(--h-94a3b8)]">
+                            Logged {fmtDate(d.createdAt)}
+                          </span>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
 
                 {/* Activities */}
                 <div className="rounded-xl border border-[var(--h-e2e6ef)] bg-[var(--h-ffffff)] p-5">
@@ -279,9 +344,7 @@ export default function EntryReview() {
                       <div key={i} className="rounded-lg border border-[var(--h-eef0f5)] bg-[var(--h-fbfcfe)] p-3">
                         <p className="mb-1 inline-flex items-center gap-1.5 text-xs font-medium text-[var(--h-64748b)]">
                           <span className="inline-flex items-center gap-1"><CalendarDays className="h-3 w-3" /> {fmtDate(a.activityDate)}</span>
-                          {lateDates.has(a.activityDate.slice(0, 10)) && (
-                            <span className="inline-flex items-center gap-1 rounded-full bg-[var(--h-fff4e0)] px-1.5 py-0.5 text-[10px] font-semibold text-[var(--h-9a6700)]">logged late</span>
-                          )}
+                          <LatePill compact days={lateByDate.get(a.activityDate.slice(0, 10)) ?? 0} />
                         </p>
                         <p className="whitespace-pre-wrap text-sm text-[var(--h-0b1c30)]">{a.description}</p>
                         {a.competencyTags.length > 0 && (

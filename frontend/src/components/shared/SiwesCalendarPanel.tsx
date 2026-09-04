@@ -4,6 +4,7 @@ import {
 } from 'lucide-react';
 import { useSiwesCalendar, type SiwesCalendarDay } from '@/hooks/useSiwes';
 import { ghanaYMD, fmtDate } from '@/lib/schedule';
+import LatePill from '@/components/shared/LatePill';
 
 // Read-only view of a student's SIWES daily logbook, for supervisors and
 // coordinators. Shows the chain-aware calendar (day classification, late
@@ -15,10 +16,10 @@ const weekdayShort = (ymd: string) => WEEKDAY_SHORT[new Date(`${ymd}T00:00:00Z`)
 const dayOfMonth = (ymd: string) => new Date(`${ymd}T00:00:00Z`).getUTCDate();
 
 function statusPill(day: SiwesCalendarDay, today: string) {
+  // Lateness rides alongside as its own pill (one shared label app-wide), so
+  // this only says whether the day was written up.
   if (day.entry) {
-    return day.entry.loggedLate
-      ? { label: `Logged ${day.entry.lateByDays} day${day.entry.lateByDays === 1 ? '' : 's'} late`, cls: 'bg-[var(--h-fff4e0)] text-[var(--h-9a6700)]', Icon: Clock }
-      : { label: 'Logged', cls: 'bg-[var(--h-dcf5e6)] text-[var(--h-1b7a45)]', Icon: CheckCircle2 };
+    return { label: 'Logged', cls: 'bg-[var(--h-dcf5e6)] text-[var(--h-1b7a45)]', Icon: CheckCircle2 };
   }
   if (day.absence) {
     const label =
@@ -142,6 +143,7 @@ export function SiwesCalendarPanel({ placementId }: { placementId: string }) {
                     <span className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-semibold ${pill.cls}`}>
                       <pill.Icon className="h-3 w-3" /> {pill.label}
                     </span>
+                    <LatePill days={d.entry?.lateByDays ?? 0} />
                   </div>
 
                   {d.entry && (

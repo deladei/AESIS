@@ -312,6 +312,8 @@ export async function saveDailyEntry(actor: Actor, input: SaveDailyEntryInput) {
   const saved = await prisma.$transaction(async (tx) => {
     const entry = await resolveWeekEntry(tx, ctx, weekNumber);
 
+    const weekOpen = entry.status === 'draft' || entry.status === 'returned';
+
     const existing = await tx.dailyEntry.findUnique({
       where: {
         studentId_workDate: { studentId: ctx.placement.studentId, workDate },
@@ -319,8 +321,12 @@ export async function saveDailyEntry(actor: Actor, input: SaveDailyEntryInput) {
     });
 
     if (existing) {
-      // created_at is immutable server evidence; the edit window counts from it.
-      if (!withinEditWindow(existing.createdAt, new Date(), ctx.rules)) {
+      // The edit window is anti-tamper for work already sent for review — it is
+      // not a deadline for finishing a draft. A student catching up on a day they
+      // missed is exactly the case it must not block, so while the owning week is
+      // still theirs (draft/returned) the clock does not run. created_at stays the
+      // immutable server evidence the window counts from once it does.
+      if (!weekOpen && !withinEditWindow(existing.createdAt, new Date(), ctx.rules)) {
         throw new AppError(409, 'The edit window for this entry has closed');
       }
       if (existing.status === 'submitted' && entry.status !== 'returned') {
@@ -384,8 +390,13 @@ export async function saveWeeklySummary(actor: Actor, input: SaveWeeklySummaryIn
   return prisma.$transaction(async (tx) => {
     const entry = await resolveWeekEntry(tx, ctx, input.weekNumber);
 
+    // Same rule as the day above: the window binds work already sent for review,
+    // not a draft the student is still writing. EntryReflection has no created_at
+    // of its own so it borrows the week's — which is precisely why the unguarded
+    // window made a week un-reportable two days after its first day was saved.
     const existing = await tx.entryReflection.findUnique({ where: { entryId: entry.id } });
-    if (existing && !withinEditWindow(entry.createdAt, new Date(), ctx.rules)) {
+    const weekOpen = entry.status === 'draft' || entry.status === 'returned';
+    if (existing && !weekOpen && !withinEditWindow(entry.createdAt, new Date(), ctx.rules)) {
       throw new AppError(409, 'The edit window for this weekly report has closed');
     }
 

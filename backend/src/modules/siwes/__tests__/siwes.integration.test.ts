@@ -207,7 +207,7 @@ describe('daily entries', () => {
     });
   });
 
-  itDb('locks an entry once the edit window has closed', async () => {
+  itDb('an aged day stays writable while its week is still a draft', async () => {
     const day = recentWorkingDays(3)[2];
     // created_at is settable at INSERT (the trigger guards UPDATE) — plant an
     // old row to age the window without sleeping.
@@ -239,8 +239,23 @@ describe('daily entries', () => {
         createdAt: new Date(Date.now() - 5 * DAY_MS),
       },
     });
+    // The edit window is anti-tamper for work already sent for review, not a
+    // deadline for finishing a draft — a student catching up on a day they
+    // missed is exactly the case it must not block.
+    const saved = await saveDailyEntry(student, entryInput(day));
+    expect(saved.descriptionOfWork).not.toBe('original');
+
+    // ...but once the week is with the supervisor, the window binds again.
+    await prisma.logbookEntry.update({
+      where: { id: owningWeek.id },
+      data: { status: 'submitted', submittedAt: new Date() },
+    });
     await expect(saveDailyEntry(student, entryInput(day))).rejects.toMatchObject({
       statusCode: 409,
+    });
+    await prisma.logbookEntry.update({
+      where: { id: owningWeek.id },
+      data: { status: 'draft', submittedAt: null },
     });
   });
 

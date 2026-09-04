@@ -317,6 +317,16 @@ describe('the day path and the week path are independent', () => {
   });
 });
 
+// Weeks in their own period: `week()` pins every case to 2–8 Mar, and
+// (studentId, workDate) is unique, so a lateness case needs days no earlier
+// test has already claimed.
+const lateWeek = (n: number) => ({
+  ...week(n),
+  periodStart: '2026-04-06',
+  periodEnd: '2026-04-12',
+  activities: [],
+});
+
 // ── What the logbook screen reads ─────────────────────────────
 describe('getEntry gives the logbook what it renders', () => {
   itdb('sends day rows under the name the schema uses, with lateness derived', async () => {
@@ -354,6 +364,63 @@ describe('getEntry gives the logbook what it renders', () => {
     await submitEntry(studentA, draft.id);
     const detail = await getEntry(studentA, draft.id);
     expect(detail.completion).toBeNull();
+  });
+
+  itdb('names the days a partial week still owes, not just how many', async () => {
+    // The student is asked to send a week with gaps; naming the days is what
+    // makes that a considered choice rather than a shrug.
+    const draft = await saveDraft(studentA, { ...lateWeek(11), placementId: placementA });
+    const detail = await getEntry(studentA, draft.id);
+
+    expect(detail.completion?.missingDates).toHaveLength(detail.completion!.remaining);
+    expect(detail.completion?.missingDates.every((d) => /^\d{4}-\d{2}-\d{2}$/.test(d))).toBe(true);
+  });
+
+  itdb('rolls the week up to one late headline the reviewer sees first', async () => {
+    const saved = await saveDayDraft(studentA, {
+      ...lateWeek(12), placementId: placementA, date: '2026-04-07', activities: [],
+    });
+    const detail = await getEntry(studentA, saved.id);
+
+    // The rollup is derived from the same day flags under it, so the badge can
+    // never disagree with the rows.
+    expect(detail.lateSummary.lateDays).toBe(detail.days.filter((d) => d.loggedLate).length);
+    expect(detail.lateSummary.maxDaysLate)
+      .toBe(Math.max(0, ...detail.days.map((d) => d.lateByDays)));
+    expect(detail.lateSummary.lateDays).toBeGreaterThan(0);
+  });
+});
+
+describe('the supervisor queue sees lateness before opening a week', () => {
+  itdb('listEntries carries a per-week late count', async () => {
+    // listEntries returned no day data at all, so the review queue and the
+    // finalization week list had nothing to show.
+    const saved = await saveDayDraft(studentA, {
+      ...lateWeek(13), placementId: placementA, date: '2026-04-08', activities: [],
+    });
+    const { entries } = await listEntries(supervisorA, { placementId: placementA, page: 1, limit: 50 });
+    const row = entries.find((e) => e.id === saved.id);
+
+    expect(row).toBeDefined();
+    expect(row!.lateDays).toBeGreaterThan(0);
+    expect(row!.maxDaysLate).toBeGreaterThan(0);
+    // The rows stay week-shaped — day rows are rolled up, never shipped.
+    expect(row).not.toHaveProperty('days');
+  });
+});
+
+describe('a week with gaps is still the student\'s to send', () => {
+  itdb('submits a week that has an unlogged working day', async () => {
+    // Missing a day used to strand the week in draft for the rest of the
+    // attachment: the API always accepted it, the screen just never asked.
+    const saved = await saveDayDraft(studentA, {
+      ...lateWeek(14), placementId: placementA, date: '2026-04-09', activities: [],
+    });
+    const before = await getEntry(studentA, saved.id);
+    expect(before.completion?.complete).toBe(false);
+
+    const submitted = await submitEntry(studentA, saved.id);
+    expect(submitted.status).toBe('submitted');
   });
 });
 

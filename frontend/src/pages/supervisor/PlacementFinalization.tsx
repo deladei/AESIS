@@ -1,7 +1,7 @@
 import { useState, useEffect, useMemo } from 'react';
 import {
   Loader2, CheckCircle2, AlertCircle, Inbox, Award, Lock, Link2, Copy, Check,
-  ClipboardCheck, CalendarDays, Plus, X,
+  ClipboardCheck, CalendarDays, Plus, X, Clock,
 } from 'lucide-react';
 import {
   useAssignedPlacements, type Placement, type FinalizationStatus,
@@ -292,8 +292,18 @@ function FinalizationDetail({ placement }: { placement: Placement }) {
                 <div key={e.id} className="rounded-lg border border-[var(--h-eef0f5)] bg-[var(--h-fbfcfe)] p-3">
                   <div className="flex items-center justify-between gap-2">
                     <span className="text-sm font-medium text-[var(--h-0b1c30)]">Week {e.weekNumber}</span>
-                    <span className={`rounded-full px-2 py-0.5 text-[11px] font-semibold ${WEEK_PILL[e.status]}`}>
-                      {WEEK_LABEL[e.status]}
+                    <span className="flex items-center gap-1.5">
+                      {!!e.lateDays && (
+                        <span
+                          title={`the latest by ${e.maxDaysLate} day(s)`}
+                          className="inline-flex items-center gap-1 rounded-full bg-[var(--h-fff4e0)] px-2 py-0.5 text-[11px] font-semibold text-[var(--h-9a6700)]"
+                        >
+                          <Clock className="h-3 w-3" /> {e.lateDays} logged late
+                        </span>
+                      )}
+                      <span className={`rounded-full px-2 py-0.5 text-[11px] font-semibold ${WEEK_PILL[e.status]}`}>
+                        {WEEK_LABEL[e.status]}
+                      </span>
                     </span>
                   </div>
                   {!resolved && !isFinalized && (

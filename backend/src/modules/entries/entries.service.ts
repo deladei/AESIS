@@ -541,10 +541,23 @@ export async function getEntry(actor: Actor, entryId: string) {
   // a week that is no longer a draft can't be submitted, so don't pay for it.
   // `null` rather than an absent key: the field is always part of the shape, so
   // a caller reading it never has to know which branch produced the row.
-  if (entry.status !== 'draft') return { ...entry, days, completion: null };
+  // The week's own late headline, rolled up from the same derived day flags so
+  // the reviewer's badge can never disagree with the rows under it.
+  const lateSummary = {
+    lateDays: days.filter((d) => d.loggedLate).length,
+    maxDaysLate: days.reduce((m, d) => Math.max(m, d.lateByDays), 0),
+  };
 
-  const { complete, remaining, workingDays } = await evaluateWeekCompletion(actor, entry.id, null);
-  return { ...entry, days, completion: { complete, remaining, workingDays } };
+  if (entry.status !== 'draft') return { ...entry, days, lateSummary, completion: null };
+
+  const { complete, remaining, workingDays, missingDates } =
+    await evaluateWeekCompletion(actor, entry.id, null);
+  return {
+    ...entry,
+    days,
+    lateSummary,
+    completion: { complete, remaining, workingDays, missingDates },
+  };
 }
 
 /**
@@ -607,6 +620,10 @@ export async function listEntries(actor: Actor, query: ListQuery) {
       include: {
         _count: { select: { activities: true } },
         assessments: { select: { relevance: true }, orderBy: { createdAt: 'desc' }, take: 1 },
+        // Two columns per day, only so the row can carry a late headline. The
+        // supervisor's queue has to show lateness BEFORE the week is opened,
+        // and without this the list had no day data at all.
+        days: { select: { workDate: true, createdAt: true } },
         placement: {
           select: {
             id: true,
@@ -619,5 +636,18 @@ export async function listEntries(actor: Actor, query: ListQuery) {
     prisma.logbookEntry.count({ where }),
   ]);
 
-  return { entries, meta: buildMeta(total, query.page, query.limit) };
+  // Same derivation as getEntry — one lateness rule, applied at both altitudes.
+  const dateOnly = (d: Date) => parseDateOnly(d.toISOString().slice(0, 10), 'date');
+  const rows = entries.map(({ days, ...entry }) => {
+    let lateDays = 0;
+    let maxDaysLate = 0;
+    for (const d of days) {
+      const { lateBy, loggedLate } = evaluateDayWindow(dateOnly(d.workDate), dateOnly(d.createdAt));
+      if (loggedLate) lateDays += 1;
+      maxDaysLate = Math.max(maxDaysLate, lateBy);
+    }
+    return { ...entry, lateDays, maxDaysLate: Math.max(0, maxDaysLate) };
+  });
+
+  return { entries: rows, meta: buildMeta(total, query.page, query.limit) };
 }
