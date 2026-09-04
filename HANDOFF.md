@@ -3214,3 +3214,74 @@ those; do not run the suite alongside a build. `--runInBand` remains mandatory h
 6. Prod smokes still open from S87: enrichment worker, weekly-link SendGrid email, S81
    in-browser list.
 7. Render dashboard nit: drop dead `CELERY_BROKER_URL`/`REDIS_URL` from `aesis-ai-engine`.
+
+---
+
+## S91 — 2026-09-04 · Late logs: submittable, and labelled for the supervisor
+
+**Shipped as `774f7d1`** (backend + frontend, one commit, pushed to main → Render + Vercel).
+
+**The catch-up was blocked by three things, none of them the API's late rules.**
+`submitEntry` had always accepted a late or incomplete week, `BACKFILL_CUTOFF_DAYS` is unset,
+and lateness was already derived from the immutable `created_at`. What stopped a student were:
+
+1. **The 2-day edit window closing on drafts.** `withinEditWindow` ran from `created_at`
+   regardless of the week's status, so a day saved on Monday 409'd on Thursday — and
+   `saveWeeklySummary` counted the window from the WEEK row (EntryReflection has no
+   `created_at` of its own), making a week un-reportable two days after its first day was
+   saved. The window now binds only when the owning week is `submitted`/`acknowledged`; while
+   the week is the student's (`draft`/`returned`) the clock does not run. **This is a policy
+   change, taken deliberately** — the window is anti-tamper for work already sent for review,
+   not a deadline for finishing a draft. The submitted-day 409 and the attachment freeze at
+   `chainEnd + syncGraceDays` are untouched, so nothing widened at the edges.
+2. **A week with any unlogged day was unsubmittable from the UI.** `LogbookEditor` only
+   rendered "Submit week" when `completion.complete`, so one forgotten Wednesday stranded the
+   week in draft for the rest of the attachment. A week that has ended now offers **"Submit
+   week anyway"** behind a confirmation naming the days it goes without
+   (`completion.missingDates`, new). `weekAutoSubmit` stays conservative: a partial week is
+   still never sent for the student.
+3. **No way to find a missed day.** The logbook now opens with a **backlog strip** of every
+   working day still not logged (from the calendar's own `missing` flag), each one click from
+   its form. Silent when there are none.
+
+**Lateness reaches the academic supervisor with a number on it.** One rule
+(`evaluateDayWindow`) applied at two altitudes: `getEntry` gains `lateSummary`
+(`lateDays` / `maxDaysLate`), and `listEntries` — which carried no day data at all — gains
+`lateDays` / `maxDaysLate` per week, so the review queue and `PlacementFinalization` show
+lateness before a week is opened. `EntryReview` grew the **day rows it never had** (it rendered
+only activities, so a day written up without itemised activities was invisible to the reviewer)
+and a week-level "N of M days logged late" badge. The frontend `EntryDay` type finally declares
+`lateByDays`, which the API had been sending to nobody since the consolidation.
+
+**One label, four screens.** New `frontend/src/components/shared/LatePill.tsx` replaces three
+drifting copies of the same pill ("logged late" with no count and no icon, "Logged 3d late",
+"Logged 3 days late").
+
+**Decisions taken with the user:** window = the whole attachment (no new backfill cutoff);
+labels on day rows + week badge + entries list; **no new notification**.
+
+**Deliberately excluded:** `SupervisorDashboard`'s `recentWeeks` strip. It is fed by
+`supervisor.service.ts:73-77` off the legacy `logbookSubmission` table — the one with no writer
+since the consolidation — so a late badge there would be permanently empty. It belongs to
+Phase 4.
+
+**State.** Backend **846 tests green, 60/60 suites**; `tsc --noEmit` clean; `npm run lint` has
+one pre-existing error in `industry.schema.ts` (untouched, unrelated). Frontend `tsc --noEmit`
+clean and `npm run build` green.
+
+**Found, not fixed — worth a decision.** `useEntries` requests `/entries?...&limit=12`
+(`frontend/src/hooks/useEntries.ts`), a hardcoded assumption of the 6-week programme. Cohorts
+configure 24, so weeks 13+ silently fall off the student's week rail, the supervisor's
+finalization list and now the late badges that ride on those rows. Same family as the
+`SYSTEM_MAX_WEEKS = 6` question below.
+
+**Carried.**
+1. **ROTATE the Supabase DB password — still not done** (burned since S88).
+2. **Neon project still not deleted** (quota-dead, password burned).
+3. **`SYSTEM_MAX_WEEKS = 6` in `shared/utils/quality.ts` contradicts the 24-week cohort
+   config.** Still a decision, not an oversight. Now joined by the `limit=12` above.
+4. **Consolidation Phase 4** — retire `modules/logbook/`.
+5. Validation sweep still excludes search/filter/chat inputs.
+6. Prod smokes still open from S87: enrichment worker, weekly-link SendGrid email, S81
+   in-browser list.
+7. Render dashboard nit: drop dead `CELERY_BROKER_URL`/`REDIS_URL` from `aesis-ai-engine`.
