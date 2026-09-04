@@ -3127,3 +3127,90 @@ watching it fail. Re-verified by building from a `git archive` of `frontend/` al
    nothing.
 5. Prod smokes still open from S87: enrichment worker, weekly-link SendGrid email, S81 in-browser list.
 6. Render dashboard nit: drop dead `CELERY_BROKER_URL`/`REDIS_URL` from `aesis-ai-engine`.
+
+### Session 90 — 2026-09-04 — Logbook white-screen fixed; day and week submit made independent; week auto-submit finished
+
+**The logbook was broken in prod, and it had been since S89.** The consolidation dropped
+`entry_days` and its stored `logged_late`; the SPA never stopped describing day rows by that
+shape. `useEntries.ts` declared `EntryDay { date; loggedLate }` while the API returns
+`DailyEntry` rows carrying `workDate` and no lateness column at all. TypeScript said nothing —
+the interface is hand-written, so it was a lie rather than an error. `LogbookEditor.tsx:327`
+then evaluated `rec.date.slice(0, 10)` **before** any guard, for every day row in the selected
+week, so the page threw `Cannot read properties of undefined (reading 'slice')` for any student
+who had ever logged a day. The fix renames the type to the schema's own names and routes every
+comparison through one `dayKey()` helper that cannot throw on a malformed row.
+
+The wire shape is now asserted in `entries.integration.test.ts` (`workDate` present, `date`
+absent), because that is the only place the client's assumption can be checked: **there is no
+frontend test runner in this repo.**
+
+**Day submit and week submit are now independent — the student picks how they work.** The
+brief was both, and both existed, but `submitDay` also flipped the whole week to `submitted` on
+the first submitted day. So the first "Submit day" silently spent the week-level submit, and the
+new "Submit week" button, the completed-week offer and the deadline job — all gated on `draft` —
+became unreachable for anyone who used it. `submitDay` now only stamps its day. `submitEntry`
+keeps sole ownership of the week transition, the append-only event, the enrichment enqueue and
+the supervisor notification, so nothing was lost and the supervisor is pinged once, for a whole
+week, instead of on a stray first day.
+
+**The WIP is finished.** Completing a week reports rather than transitions: the student is
+offered "submit now" or "I'll review it first", and `getEntry` carries `completion` on every
+draft week so the offer survives a reload. `jobs/weekAutoSubmit.ts` (nightly 20:00 Africa/Accra)
+is the safety net that makes "review first" free — it submits complete, unsent weeks past their
+grace window, through `submitEntry`, as the owning student. Two gaps closed: the scan is clamped
+to `BACKFILL_CUTOFF_DAYS` (submitEntry 422s past it, so the unclamped version would have logged
+an error per abandoned week every night forever), and an API-declined week now logs at `debug`,
+not `error` — a job whose errors are routine is a job nobody reads.
+
+**Lateness is derived, not lost.** `EntryReview` filtered day rows on `loggedLate`, which the
+API stopped sending when the column was dropped, so the reviewer's late markers were silently
+always empty. `getEntry` now derives it per day from the immutable `created_at` via the same
+`evaluateDayWindow` the write path enforces — one definition, normalised to whole UTC days so a
+day logged at 20:00 on its own date is not called late.
+
+**Three more places where the logbook read a table nothing writes.** `logbook_submissions` has
+had no writer since the consolidation, and the student dashboard's Supervisor Feedback cards and
+average-quality tile both read it — so both were empty or "—" for every real student regardless
+of how much feedback or how many scored weeks they had. Feedback now comes off the entries
+pipeline (the last acknowledge/return event carrying a comment, the same route
+`SubmissionHistory` takes); quality now merges both pipelines through the existing
+`mergedQualityScores`. Full retirement of `modules/logbook/` is still Phase 4.
+
+**Week counts and transfer chains.** `SCHEDULE_WEEKS = 6` was hardcoded in the dashboard table
+and history page while cohorts configure 24, so those two views disagreed with the logbook
+itself; both now read `totalWeeks` off the calendar. And `listEntries` filtered on a single
+`placementId` while weeks are keyed on the student and the week rail spans the chain — a
+transferred student's pre-transfer weeks came back as if never written. New exported
+`chainPlacementIds()` resolves the supersedes chain from either end; `entryScopeFilter` still
+applies on top, so nobody's visibility widened.
+
+Also fixed: three notification deep links (`/logbook/entries/:id`, `/logbook/week/:n`,
+`/logbook/:id`) matched no route and fell through the catch-all to `/` — a returned week's
+notification took the student nowhere near the week they had to fix.
+
+**State.** Backend **842 tests green, 60/60 suites**, `tsc --noEmit` clean; frontend
+`tsc --noEmit` clean and `npm run build` green (the shared-validation mirror drift test runs
+inside the backend suite). Pushed to prod as `7cb5507` (backend pipeline), `fc7cbec` (logbook
+screen), `41ebf1d` (dashboard + week counts + dead links).
+
+**Note on this box:** two suites "failed" on the run that overlapped the frontend build —
+`app.test.ts` `GET /health` blowing Jest's 5 s default. Both passed on a quiet run. Do not chase
+those; do not run the suite alongside a build. `--runInBand` remains mandatory here.
+
+**Carried.**
+1. **ROTATE the Supabase DB password — still not done** (burned since S88). Supabase → Settings
+   → Database → Reset, then update Render `DATABASE_URL`.
+2. **Neon project still not deleted** (quota-dead, password burned).
+3. **`SYSTEM_MAX_WEEKS = 6` in `shared/utils/quality.ts` contradicts the 24-week cohort config.**
+   Deliberately left alone: it is documented as the single source of truth for the programme
+   length and is baked into coordinator, admin, insights and risk analytics, so changing it
+   moves numbers on four dashboards at once. The student dashboard's "week X / 6" is capped by
+   it. **This is a decision, not an oversight — it needs one.**
+4. **Consolidation Phase 4** — retire `modules/logbook/`; `logbook_submissions` still backs
+   supervisor, coordinator, insights, `weeklyReport` and `deadlineReminder` reads, and
+   `FeedbackCenter` still writes/reads its feedback. Phase 3's reviewer-side merge
+   (`SiwesCalendarPanel` + `EntryReview`) is still two components.
+5. Validation sweep still excludes search/filter/chat inputs (they persist nothing).
+6. Prod smokes still open from S87: enrichment worker, weekly-link SendGrid email, S81
+   in-browser list.
+7. Render dashboard nit: drop dead `CELERY_BROKER_URL`/`REDIS_URL` from `aesis-ai-engine`.
