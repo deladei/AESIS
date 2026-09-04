@@ -3,8 +3,7 @@ import { prisma } from '../../config/prisma';
 import { AppError } from '../../middleware/errorHandler';
 import { parseDateOnly, todayUtc, daysBetween } from '../entries/entry.dates';
 import { authorizePlacement, type Actor } from '../entries/entries.policy';
-import { maybeAutoSubmitWeek } from '../entries/entries.autosubmit';
-import { submitEntry } from '../entries/entries.service';
+import { evaluateWeekCompletion } from '../entries/entries.autosubmit';
 import {
   classifyDay,
   evaluateDayAdmissibility,
@@ -23,8 +22,10 @@ import type {
   CalendarQuery,
 } from './siwes.schema';
 
-// SIWES daily logbook (Batch 1): daily_entry / weekly_summary / absence /
-// non_working_day. DB teeth (created_at immutability, delete denial) live in
+// SIWES daily logbook (Batch 1): daily_entry / absence / non_working_day. The
+// week's own narrative is an entry_reflection now — `weekly_summary` was
+// dropped in the consolidation. DB teeth (created_at immutability, delete
+// denial) live in
 // the migration; this service owns admissibility + day classification and the
 // chain-aware calendar. Authorization reuses entries.policy — the single
 // decision point for placement access.
@@ -76,6 +77,55 @@ async function resolveChainStart(placement: {
   }
   // Normalize to a UTC date-only anchor.
   return parseDateOnly(iso(current.startDate), 'startDate');
+}
+
+/**
+ * Every placement in the same supersedes chain as `placementId`, including it.
+ *
+ * The attachment is continuous across an approved transfer, and weeks are keyed
+ * on the STUDENT now — so a query scoped to one placement id returns only the
+ * part of the logbook worked under that employer. Reads that mean "this
+ * student's logbook" must span the chain, or a transferred student's earlier
+ * weeks come back as if they were never written.
+ *
+ * Walks to the root, then forward again, so any member of the chain resolves to
+ * the same set. `seen` guards a cycle in bad data rather than hanging.
+ */
+export async function chainPlacementIds(placementId: string): Promise<string[]> {
+  type Node = { id: string; supersedesPlacementId: string | null };
+
+  const start: Node | null = await prisma.placement.findUnique({
+    where: { id: placementId },
+    select: { id: true, supersedesPlacementId: true },
+  });
+  if (!start) return [placementId];
+
+  let root: Node = start;
+  const seen = new Set<string>([root.id]);
+  while (root.supersedesPlacementId) {
+    const parent: Node | null = await prisma.placement.findUnique({
+      where: { id: root.supersedesPlacementId },
+      select: { id: true, supersedesPlacementId: true },
+    });
+    if (!parent || seen.has(parent.id)) break;
+    seen.add(parent.id);
+    root = parent;
+  }
+
+  // Forward: successors of anything already in the chain, until it stops growing.
+  let frontier = [root.id];
+  const chain = new Set<string>([root.id]);
+  while (frontier.length > 0) {
+    const next = await prisma.placement.findMany({
+      where: { supersedesPlacementId: { in: frontier } },
+      select: { id: true },
+    });
+    frontier = next.map((p) => p.id).filter((id) => !chain.has(id));
+    frontier.forEach((id) => chain.add(id));
+  }
+
+  chain.add(placementId); // belt and braces if the row was unreadable above
+  return [...chain];
 }
 
 /** Load everything the calendar rules need for one placement, post-authorization. */
@@ -291,16 +341,18 @@ export async function saveDailyEntry(actor: Actor, input: SaveDailyEntryInput) {
     });
   });
 
-  // Once every working day of the week is written up (or excused), submit the
-  // week automatically — the student has nothing left to add, and leaving it in
-  // draft only earns them a late mark. A partial week is left alone.
-  const auto = await maybeAutoSubmitWeek(actor, saved.entryId, submitEntry);
+  // Report whether this save completed the week. It deliberately does NOT
+  // submit: the student is offered "submit now" or "review first" instead of
+  // having the status change under them. The deadline job is the safety net for
+  // whoever picks "review first" and then forgets.
+  const week = await evaluateWeekCompletion(actor, saved.entryId, null);
 
   return {
     ...serializeDailyEntry(saved, ctx.rules),
-    weekAutoSubmitted: auto.submitted,
-    daysUntilWeekSubmits: auto.remaining,
-    workingDaysInWeek: auto.workingDays,
+    weekComplete: week.complete,
+    weekEntryId: saved.entryId,
+    daysRemainingInWeek: week.remaining,
+    workingDaysInWeek: week.workingDays,
   };
 }
 
@@ -453,9 +505,14 @@ export async function getLogbookCalendar(
   const ctx = await loadAttachmentContext(actor, placementId, 'read');
   const today = todayUtc();
 
+  // The calendar spans the WHOLE attachment, not just the part already lived.
+  // The logbook builds its week rail by grouping these days, so clamping to
+  // today made a 6-week attachment render 5 weeks while the header — which
+  // reads `totalWeeks` below — correctly said 6. Weeks that have not started
+  // are rendered as upcoming; `missing` below is already gated on the past, so
+  // no future day can be flagged as unlogged.
   const from = query.from ? parseDateOnly(query.from, 'from') : ctx.cal.chainStart;
-  const defaultTo = today.getTime() < ctx.effectiveEnd.getTime() ? today : ctx.effectiveEnd;
-  const to = query.to ? parseDateOnly(query.to, 'to') : defaultTo;
+  const to = query.to ? parseDateOnly(query.to, 'to') : ctx.effectiveEnd;
   if (to.getTime() < from.getTime()) throw new AppError(422, "'to' is before 'from'");
   if (daysBetween(from, to) > 400) throw new AppError(422, 'Range too large');
 

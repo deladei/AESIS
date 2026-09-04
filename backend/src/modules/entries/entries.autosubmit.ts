@@ -3,13 +3,18 @@ import { classifyDay, type AttachmentCalendar } from '../siwes/siwes.calendar';
 import type { Actor } from './entries.policy';
 
 /**
- * Auto-submit a week once the student has accounted for every one of its
- * working days.
+ * Decide whether a week is COMPLETE — every one of its working days accounted
+ * for — and optionally submit it.
  *
- * The point is lateness: a student who has already written up all five days has
- * nothing left to add, and a week sitting in `draft` past its deadline is
- * counted late against them for no reason. So the last save of the week submits
- * it.
+ * The point is lateness: a student who has written up all five days has nothing
+ * left to add, and a week sitting in `draft` past its deadline is counted late
+ * for no reason. But submitting the instant the last day is saved takes away
+ * their chance to reread the week first, so the two callers differ:
+ *
+ * - The save path asks (`submit: null`) and the UI offers "submit now" or
+ *   "review first".
+ * - The deadline job (`jobs/weekAutoSubmit.ts`) submits, so a student who chose
+ *   to review and then forgot is still not marked late.
  *
  * Deliberately conservative:
  * - A partial week is never auto-submitted. Four of five days leaves the week in
@@ -30,7 +35,10 @@ import type { Actor } from './entries.policy';
 const iso = (d: Date): string => d.toISOString().slice(0, 10);
 
 export interface AutoSubmitOutcome {
+  /** True only when this call actually transitioned the week. */
   submitted: boolean;
+  /** Every working day accounted for — the week could be submitted right now. */
+  complete: boolean;
   /** Working days in the week that still have neither an entry nor an absence. */
   remaining: number;
   workingDays: number;
@@ -84,10 +92,11 @@ async function workingDaysOfWeek(
  * Called after any day write. Returns what it decided so the caller can tell
  * the student how many days are left before the week goes automatically.
  */
-export async function maybeAutoSubmitWeek(
+export async function evaluateWeekCompletion(
   actor: Actor,
   entryId: string,
-  submit: (actor: Actor, entryId: string) => Promise<unknown>,
+  /** Pass null to only report; pass the service to submit a complete week. */
+  submit: ((actor: Actor, entryId: string) => Promise<unknown>) | null,
 ): Promise<AutoSubmitOutcome> {
   const entry = await prisma.logbookEntry.findUnique({
     where: { id: entryId },
@@ -96,10 +105,10 @@ export async function maybeAutoSubmitWeek(
       periodStart: true, periodEnd: true,
     },
   });
-  if (!entry) return { submitted: false, remaining: 0, workingDays: 0 };
+  if (!entry) return { submitted: false, complete: false, remaining: 0, workingDays: 0 };
 
   const working = await workingDaysOfWeek(entry.placementId, entry.periodStart, entry.periodEnd);
-  if (working.length === 0) return { submitted: false, remaining: 0, workingDays: 0 };
+  if (working.length === 0) return { submitted: false, complete: false, remaining: 0, workingDays: 0 };
 
   const [logged, absences] = await Promise.all([
     prisma.dailyEntry.findMany({
@@ -123,10 +132,12 @@ export async function maybeAutoSubmitWeek(
   ]);
 
   const remaining = working.filter((d) => !accounted.has(d)).length;
-  if (remaining > 0 || entry.status !== 'draft') {
-    return { submitted: false, remaining, workingDays: working.length };
+  const complete = remaining === 0 && entry.status === 'draft';
+
+  if (!complete || !submit) {
+    return { submitted: false, complete, remaining, workingDays: working.length };
   }
 
   await submit(actor, entry.id);
-  return { submitted: true, remaining: 0, workingDays: working.length };
+  return { submitted: true, complete: true, remaining: 0, workingDays: working.length };
 }

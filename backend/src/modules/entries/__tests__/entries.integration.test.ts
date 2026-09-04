@@ -28,6 +28,7 @@ import {
   getEntryTrail,
   listEntries,
 } from '../entries.service';
+import { saveDayDraft, submitDay } from '../entries.day.service';
 import { processOne } from '../enrichment.worker';
 import type { EnrichFn, EnrichmentResult, EnrichmentPayload } from '../enrichment.client';
 import type { Actor } from '../entries.policy';
@@ -141,6 +142,8 @@ beforeAll(async () => {
 afterAll(async () => {
   if (dbAvailable) await prisma.$disconnect();
 });
+
+const iso = (d: Date) => d.toISOString().slice(0, 10);
 
 // helper: skip body if DB missing
 const itdb = (name: string, fn: () => Promise<void>) =>
@@ -269,6 +272,88 @@ describe('write path', () => {
     expect(ev.filter((e) => e.toStatus === 'submitted')).toHaveLength(1);
     const q = await prisma.enrichmentQueue.count({ where: { entryId: draft.id } });
     expect(q).toBe(1);
+  });
+});
+
+// ── Day submit vs week submit ─────────────────────────────────
+// Students work two ways and both are offered: day by day, or write the week
+// and send it whole. That choice is only real if neither path spends the other.
+describe('the day path and the week path are independent', () => {
+  const dayWeek = { ...week(44), placementId: '' };
+
+  itdb('submitting a day marks the day and leaves the week a draft', async () => {
+    const pingsBefore = await prisma.notification.count({ where: { userId: supervisorA.id } });
+    const saved = await saveDayDraft(studentA, {
+      ...dayWeek, placementId: placementA, date: '2026-03-03', activities: [],
+    });
+    const after = await submitDay(studentA, saved.id, '2026-03-03');
+
+    // The day is final...
+    const day = after.days.find((d) => iso(d.workDate) === '2026-03-03');
+    expect(day?.status).toBe('submitted');
+    expect(day?.submittedAt).not.toBeNull();
+
+    // ...but the week is still the student's to send. Before this, the first
+    // day submit flipped the week, which spent the week-level submit silently
+    // and left the "Submit week" offer and the deadline job unreachable.
+    expect(after.status).toBe('draft');
+    expect((await eventsFor(saved.id)).filter((e) => e.toStatus === 'submitted')).toHaveLength(0);
+    expect(await prisma.enrichmentQueue.count({ where: { entryId: saved.id } })).toBe(0);
+    // And the supervisor is not pinged for a stray day — they hear about a week.
+    expect(await prisma.notification.count({ where: { userId: supervisorA.id } }))
+      .toBe(pingsBefore);
+  });
+
+  itdb('the week still submits normally afterwards, exactly once', async () => {
+    const saved = await saveDayDraft(studentA, {
+      ...dayWeek, weekNumber: 45, placementId: placementA, date: '2026-03-04', activities: [],
+    });
+    await submitDay(studentA, saved.id, '2026-03-04');
+    const submitted = await submitEntry(studentA, saved.id);
+
+    expect(submitted.status).toBe('submitted');
+    expect((await eventsFor(saved.id)).filter((e) => e.toStatus === 'submitted')).toHaveLength(1);
+    expect(await prisma.enrichmentQueue.count({ where: { entryId: saved.id } })).toBe(1);
+  });
+});
+
+// ── What the logbook screen reads ─────────────────────────────
+describe('getEntry gives the logbook what it renders', () => {
+  itdb('sends day rows under the name the schema uses, with lateness derived', async () => {
+    // The consolidation dropped `entry_days` (and its stored `logged_late`).
+    // The SPA kept describing days by the OLD shape, so every day row read
+    // `undefined.slice(...)` and the logbook white-screened. Assert the wire
+    // shape, since TypeScript cannot: the client's interface is hand-written.
+    const saved = await saveDayDraft(studentA, {
+      ...week(46), placementId: placementA, date: '2026-03-05', activities: [],
+    });
+    const detail = await getEntry(studentA, saved.id);
+
+    expect(detail.days).toHaveLength(1);
+    const [day] = detail.days;
+    expect(day).toHaveProperty('workDate');
+    expect(day).not.toHaveProperty('date');
+    // Logged months after the day itself — the reviewer must see that.
+    expect(day.loggedLate).toBe(true);
+    expect(day.lateByDays).toBeGreaterThan(0);
+  });
+
+  itdb('tells a draft week whether it could be submitted right now', async () => {
+    const draft = await saveDraft(studentA, { ...week(47), placementId: placementA });
+    const detail = await getEntry(studentA, draft.id);
+
+    // The offer has to survive a reload, so it is on the read, not only on the
+    // save that completed the week.
+    expect(detail.completion).toBeDefined();
+    expect(detail.completion?.complete).toBe(false);
+    expect(detail.completion?.remaining).toBeGreaterThan(0);
+  });
+
+  itdb('does not offer a submitted week a submit button', async () => {
+    const draft = await saveDraft(studentA, { ...week(48), placementId: placementA });
+    await submitEntry(studentA, draft.id);
+    const detail = await getEntry(studentA, draft.id);
+    expect(detail.completion).toBeNull();
   });
 });
 

@@ -1,6 +1,5 @@
 import { prisma } from '../../config/prisma';
 import { AppError } from '../../middleware/errorHandler';
-import { emitToUser } from '../../shared/utils/socketEmitter';
 import { parseDateOnly, isFuture, todayUtc, daysBetween } from './entry.dates';
 import { authorizePlacement, assertPlacementAccess, type Actor } from './entries.policy';
 import { assertWeekWithinCohort } from './entries.week';
@@ -109,11 +108,23 @@ export async function saveDayDraft(actor: Actor, input: SaveDayInput) {
 }
 
 /**
- * Submit one day. Enforces the anti-cheat window, stamps the day submitted +
- * `loggedLate`, and rolls the WEEK into review on the first submitted day
- * (enqueues enrichment + pings the supervisor once). Subsequent day submits in an
- * already-submitted week just mark the day — the week stays in review until the
- * supervisor acknowledges it.
+ * Submit one day: enforce the anti-cheat window and stamp the day submitted.
+ * That is all it does.
+ *
+ * It deliberately does NOT transition the week. Students work two ways — day by
+ * day, or write the week and send it whole — and both are offered. When the day
+ * path also flipped the week to `submitted`, the first "Submit day" silently
+ * spent the student's one week-level submit: the "Submit week" button, the
+ * completed-week offer and the deadline safety net (`jobs/weekAutoSubmit.ts`)
+ * all gate on `draft`, so the choice was fake. Sending the week is now always
+ * the student's own act (or the deadline job's, on their behalf).
+ *
+ * `submitEntry` owns the week transition, the append-only event, the enrichment
+ * enqueue and the supervisor notification — so the supervisor is pinged once,
+ * when a whole week arrives, instead of on a stray first day.
+ *
+ * Lateness is not stamped here either: it is derived from the immutable
+ * `created_at`, so a late backfill can't be laundered by re-submitting.
  */
 export async function submitDay(actor: Actor, entryId: string, dateStr: string) {
   const entry = await prisma.logbookEntry.findUnique({
@@ -131,13 +142,8 @@ export async function submitDay(actor: Actor, entryId: string, dateStr: string) 
   const date = parseDateOnly(dateStr, 'date');
   const window = evaluateDayWindow(date, todayUtc());
   if (window.future) throw new AppError(422, 'You cannot submit a day in the future');
-  const supervisorId = entry.placement.academicSupervisorId;
-  const wasInReview = entry.status === 'submitted';
 
-  const result = await prisma.$transaction(async (tx) => {
-    // `loggedLate` is no longer stamped here: lateness is derived from the
-    // immutable created_at (server evidence of when the day was first logged),
-    // so a late backfill can't be laundered by re-submitting.
+  return prisma.$transaction(async (tx) => {
     await tx.dailyEntry.upsert({
       where: { studentId_workDate: { studentId: entry.placement.studentId, workDate: date } },
       create: {
@@ -152,48 +158,6 @@ export async function submitDay(actor: Actor, entryId: string, dateStr: string) 
       update: { status: 'submitted', submittedAt: new Date() },
     });
 
-    let notification = null;
-    // First submitted day in a not-yet-in-review week → move the week to review.
-    if (!wasInReview) {
-      await tx.logbookEntry.update({
-        where: { id: entryId },
-        data: { status: 'submitted', submittedAt: new Date() },
-      });
-      await tx.entryEvent.create({
-        data: {
-          entryId, actorId: actor.id, actorRole: actor.role,
-          eventType: 'transitioned', fromStatus: entry.status, toStatus: 'submitted',
-        },
-      });
-      await tx.enrichmentQueue.create({ data: { entryId, status: 'pending' } });
-      if (supervisorId) {
-        notification = await tx.notification.create({
-          data: {
-            userId: supervisorId,
-            type: 'submission_reminder',
-            title: `Week ${entry.weekNumber} ready for review`,
-            body: 'A logbook week now has submitted days ready for your review.',
-            link: '/supervisor/review',
-            metadata: { entryId, weekNumber: entry.weekNumber, placementId: entry.placement.id, studentId: entry.placement.studentId },
-          },
-        });
-      }
-    }
-
-    const e = await tx.logbookEntry.findUniqueOrThrow({ where: { id: entryId }, include: DAY_ENTRY_INCLUDE });
-    return { entry: e, notification };
+    return tx.logbookEntry.findUniqueOrThrow({ where: { id: entryId }, include: DAY_ENTRY_INCLUDE });
   });
-
-  if (result.notification && supervisorId) {
-    emitToUser(supervisorId, 'notification:new', {
-      id: result.notification.id,
-      type: result.notification.type,
-      title: result.notification.title,
-      body: result.notification.body,
-      link: result.notification.link,
-      createdAt: result.notification.createdAt,
-    });
-  }
-
-  return result.entry;
 }

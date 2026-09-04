@@ -27,6 +27,7 @@ import {
   recordAbsence,
   createNonWorkingDay,
   getLogbookCalendar,
+  chainPlacementIds,
 } from '../siwes.service';
 
 jest.setTimeout(60_000);
@@ -393,6 +394,25 @@ describe('chain-aware calendar', () => {
     expect(calendar.weeklySummaries.length).toBe(1);
   });
 
+  itDb('spans the whole attachment, not just the weeks already lived', async () => {
+    // The logbook builds its week rail by grouping these days, and prints
+    // `totalWeeks` in the header right above it. Clamping the range to today
+    // made an 8-week attachment render 4 weeks under a header saying 8. The
+    // two must agree, so assert the invariant rather than the symptom.
+    const calendar = await getLogbookCalendar(student, placementId, {});
+    const weeks = new Set(calendar.days.map((d) => d.weekNumber));
+
+    expect(weeks.size).toBe(calendar.totalWeeks);
+    expect([...weeks].sort((a, b) => a - b)).toEqual([1, 2, 3, 4, 5, 6, 7, 8]);
+    expect(calendar.chainEnd).toBe(iso(chainEnd));
+
+    // Weeks that have not started are carried as upcoming days, never as days
+    // the student has failed to log.
+    const future = calendar.days.filter((d) => d.date > iso(today));
+    expect(future.length).toBeGreaterThan(0);
+    expect(future.every((d) => d.missing === false)).toBe(true);
+  });
+
   itDb('coordinators read; students see only their own placement', async () => {
     await expect(getLogbookCalendar(coordinator, placementId, {})).resolves.toBeDefined();
     await expect(getLogbookCalendar(studentB, placementId, {})).rejects.toMatchObject({
@@ -424,5 +444,17 @@ describe('chain-aware calendar', () => {
     const todayRow = calendar.days.find((d) => d.date === iso(day));
     expect(todayRow?.weekNumber).toBe(weekNumberFor(day, chainStart));
     expect(calendar.chainStart).toBe(iso(chainStart));
+
+    // Reads that mean "this student's logbook" have to span the chain from
+    // EITHER end, or the transferred student's earlier weeks come back as if
+    // they were never written.
+    const fromSuccessor = await chainPlacementIds(successor.id);
+    const fromOriginal = await chainPlacementIds(placementId);
+    expect(new Set(fromSuccessor)).toEqual(new Set([placementId, successor.id]));
+    expect(new Set(fromOriginal)).toEqual(new Set(fromSuccessor));
+  });
+
+  itDb('a placement with no transfer is a chain of one', async () => {
+    expect(await chainPlacementIds(placementBId)).toEqual([placementBId]);
   });
 });

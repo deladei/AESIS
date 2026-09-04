@@ -12,6 +12,9 @@ import {
 } from './entry.stateMachine';
 import { parseDateOnly, isFuture, todayUtc, daysBetween } from './entry.dates';
 import { assertWeekWithinCohort } from './entries.week';
+import { evaluateWeekCompletion } from './entries.autosubmit';
+import { evaluateDayWindow } from './entries.day.service';
+import { chainPlacementIds } from '../siwes/siwes.service';
 import {
   authorizePlacement,
   entryScopeFilter,
@@ -451,7 +454,10 @@ async function applySupervisorTransition(
         type: 'feedback_received',
         title,
         body,
-        link: `/logbook/entries/${entryId}`,
+        // The SPA has no /logbook/* route — this used to fall through the
+        // catch-all to the dashboard, so a returned week's notification took
+        // the student nowhere near the week they had to fix.
+        link: `/student/logbook?week=${entry.weekNumber}`,
         metadata: { entryId, weekNumber: entry.weekNumber, action },
       },
     });
@@ -513,7 +519,32 @@ export async function getEntry(actor: Actor, entryId: string) {
       feedbackDraft: null,
     }));
   }
-  return entry;
+
+  // Lateness is DERIVED, never stored — the column was dropped precisely so
+  // there is one answer. `created_at` is immutable server evidence of when the
+  // day was first logged, so a late backfill stays flagged however often it is
+  // re-submitted. Same rule the day window enforces on write and the SIWES
+  // calendar shows the student, reused rather than restated.
+  // Both sides are normalised to whole UTC days first: `created_at` is a
+  // timestamp, and comparing it raw would call a day logged at 20:00 on its own
+  // date "one day late" (this is why the SIWES serializer normalises too).
+  const dateOnly = (d: Date) => parseDateOnly(d.toISOString().slice(0, 10), 'date');
+  const days = entry.days.map((d) => {
+    const { lateBy, loggedLate } = evaluateDayWindow(dateOnly(d.workDate), dateOnly(d.createdAt));
+    return { ...d, loggedLate, lateByDays: Math.max(0, lateBy) };
+  });
+
+  // Whether the week is finished — every working day written up or excused.
+  // The logbook needs this on load, not only on the save that completes the
+  // week: the student is ASKED to submit rather than having it done under
+  // them, so the offer has to survive a reload. Report-only (`null` submit);
+  // a week that is no longer a draft can't be submitted, so don't pay for it.
+  // `null` rather than an absent key: the field is always part of the shape, so
+  // a caller reading it never has to know which branch produced the row.
+  if (entry.status !== 'draft') return { ...entry, days, completion: null };
+
+  const { complete, remaining, workingDays } = await evaluateWeekCompletion(actor, entry.id, null);
+  return { ...entry, days, completion: { complete, remaining, workingDays } };
 }
 
 /**
@@ -552,9 +583,18 @@ export async function getEntryTrail(actor: Actor, entryId: string) {
 
 export async function listEntries(actor: Actor, query: ListQuery) {
   const { skip, take } = paginate(query.page, query.limit);
+
+  // A placement filter means "this student's logbook", and the attachment is
+  // continuous across a transfer — weeks are keyed on the student now. Scoping
+  // to the single placement id made every pre-transfer week vanish from the
+  // list while the week rail (built from the chain-aware calendar) still showed
+  // it, so those weeks rendered as never started. `entryScopeFilter` still
+  // applies on top, so nobody sees a chain they could not see before.
+  const placementIds = query.placementId ? await chainPlacementIds(query.placementId) : null;
+
   const where: Prisma.LogbookEntryWhereInput = {
     ...entryScopeFilter(actor),
-    ...(query.placementId && { placementId: query.placementId }),
+    ...(placementIds && { placementId: { in: placementIds } }),
     ...(query.status && { status: query.status }),
   };
 

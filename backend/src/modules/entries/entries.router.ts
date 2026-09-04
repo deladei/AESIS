@@ -25,7 +25,9 @@ router.get('/', asyncHandler(listEntriesHandler));
 router.post('/', asyncHandler(saveDraftHandler)); // create or update a draft
 router.post('/days', asyncHandler(saveDayHandler)); // per-day path: save one day's draft (upserts the week)
 router.get('/:id', asyncHandler(getEntryHandler));
-router.post('/:id/days/submit', asyncHandler(submitDayHandler)); // per-day path: submit one day (anti-cheat window)
+// Marks ONE day final. Does not send the week — that is `/:id/submit` below,
+// and the student chooses which way they work.
+router.post('/:id/days/submit', asyncHandler(submitDayHandler));
 router.get('/:id/trail', asyncHandler(getTrailHandler)); // append-only audit trail
 router.post('/:id/submit', asyncHandler(submitHandler));
 router.post('/:id/acknowledge', asyncHandler(acknowledgeHandler));
