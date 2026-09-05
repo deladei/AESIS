@@ -3369,3 +3369,72 @@ that work. Headlines:
 6. Prod smokes still open from S87: enrichment worker, weekly-link SendGrid email, S81
    in-browser list.
 7. Render dashboard nit: drop dead `CELERY_BROKER_URL`/`REDIS_URL` from `aesis-ai-engine`.
+
+---
+
+## S93 — 2026-09-05 · The three dashboards, rebuilt on a design system that now exists
+
+**Shipped as `45cd312`** (frontend only, pushed to main → Vercel). Same calendar
+session as S92, logged separately because it is a distinct shipped unit.
+
+**The mockups needed a foundation this app did not have.** `components/ui/` was an empty
+directory (no shadcn, despite `CLAUDE.md` claiming it), `tailwind.config.js` extended **no
+colours at all**, and Recharts had been a dependency since day one that **nothing imported** —
+every "chart" was a stack of divs with an inline pixel height.
+
+**Foundation.** A semantic token layer (surfaces / ink / lines / brand / status / charts) in
+`globals.css`, wired into the Tailwind theme so `bg-surface` and `text-ink-muted` are real
+classes. It replaces a block of shadcn-style HSL tokens that nothing mapped to and nothing used.
+The 271 `--h-*` vars are untouched, so unrestyled pages still work. Then primitives (`Card`,
+`StatCard`, `Badge`, `ProgressBar`, `EmptyState`, `ErrorState`, `SkeletonRows`, `NoValue`, …)
+and chart wrappers on Recharts (`DonutStat`, `LineTrend`, `MultiLineTrend`, `Sparkline`).
+
+**The chart palette was measured, not chosen.** The mockups' own donut colours put blue
+"Behind" next to violet "Completed" — **ΔE 1.3 under deuteranopia**, i.e. the same colour. Hue
+*order* is the colour-blind-safety mechanism, so candidate orderings were run through a
+validator and only one clearing every adjacent-pair gate in **both** light and dark was kept.
+Dark steps are selected against the dark surface, not flipped. Two light-mode hues sit below
+3:1 on white, so every chart using them carries visible labels and counts.
+
+**One shell.** `RoleShell` replaces `StudentShell` / `SupervisorShell` / `CoordinatorShell` /
+`AdminShell`, which shared no base — three were near-copies and the student's was a horizontal
+top-nav with no sidebar, so the app looked like two different products depending on who logged
+in. Global search, the account menu and the theme toggle had existed **only** in the
+coordinator's copy. The dead `AppShell` (nav pointing at five non-existent routes) is deleted.
+
+**Fixes carried in.**
+1. **`hod` could never land anywhere** — no entry in the frontend role→landing map, no shell, so
+   it fell through to `?? '/auth/login'` and a successful login bounced back to the login page.
+   Now has a shell, a landing route, and passes the coordinator route guards.
+2. **Deleted the coordinator's "AI Pulse Matching" panel** — it listed named students with match
+   percentages **hardcoded in the component**. No matching engine exists.
+3. **Three Tailwind classes were compiling to nothing.** `bg-brand-soft/40`,
+   `border-danger/25`, `border-ok/25` — opacity modifiers do not work against colours defined as
+   raw CSS vars, so those borders and tints were silently absent. Caught by grepping the built
+   CSS; replaced with solid tokens. **Worth remembering: with var-based colours, `/opacity` is a
+   silent no-op.**
+4. **Search is gated by role.** The only search endpoint is `/coordinator/search`; rendering the
+   box for a student would have fired a 403 on every keystroke.
+5. **Recharts split into its own chunk.** The main bundle is **770 kB, down from 927 kB** before
+   this work, despite the charts now being real.
+
+**⚠️ NOT VISUALLY VERIFIED.** `tsc --noEmit` is clean and `npm run build` is green, and the
+token classes were confirmed present in the built CSS — but **no browser has rendered these
+pages**. The frontend has no test runner at all (no vitest, no jest, no testing-library). Before
+trusting this in front of a user, log in as **each of student / academic supervisor /
+coordinator / admin**, and check **light and dark** plus a narrow viewport. Also confirm at
+least one dashboard against a placement whose data came through the **real submit flow** — the
+demo seeds write the dead legacy tables, so a seeded environment can look right while prod
+renders empty.
+
+**Deliberately absent, not forgotten** (each needs real schema + a real writer first): the
+student to-do list and "tasks completed" counter, scheduled reviews / "next review" / upcoming
+schedule (`visit_schedules` still has no writer), the documents library, the resources shelf, the
+supervisor's pending-approvals queue, and the whole coordinator applications/employers spine.
+The academic-year selector in the top bar is also absent: `RoleShell` exposes a `topbarSlot` for
+it, but only the coordinator has a real cohort endpoint, and a picker that cannot change
+anything is worse than none.
+
+**Carried.** Everything from S92 still stands — Supabase password rotation, Neon deletion,
+`durationWeeks`/`totalWeeks` not editable via API, consolidation Phase 4, the dead
+`deadlineReminder` cron, validation sweep, S87 prod smokes, Render env nits.
