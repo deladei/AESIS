@@ -42,3 +42,37 @@ export async function assertWeekWithinCohort(
     throw new AppError(422, `This attachment runs for ${durationWeeks} week(s)`);
   }
 }
+
+/**
+ * The same rule for a LIST of placements, in one query instead of N.
+ *
+ * The dashboards (coordinator, admin, insights, risk) all render "week X of Y"
+ * across cohorts, and every one of them used to print a hardcoded 6 — so a
+ * 24-week cohort was told it had finished four times over. They now look the
+ * length up per academic year, which is where a coordinator actually configures
+ * it.
+ *
+ * Keyed on academicYearId, not placementId: cohort config is per year, so one
+ * lookup serves every placement in it.
+ */
+export async function durationWeeksByAcademicYear(
+  academicYearIds: (string | null | undefined)[],
+): Promise<Map<string, number>> {
+  const ids = [...new Set(academicYearIds.filter((id): id is string => !!id))];
+  if (ids.length === 0) return new Map();
+
+  const configs = await prisma.cohortConfig.findMany({
+    where: { academicYearId: { in: ids } },
+    select: { academicYearId: true, durationWeeks: true },
+  });
+  return new Map(configs.map((c) => [c.academicYearId, c.durationWeeks]));
+}
+
+/** A cohort's attachment length, or the schema default when it has no config. */
+export function weeksForYear(
+  weeksByYear: Map<string, number>,
+  academicYearId: string | null | undefined,
+): number {
+  const n = academicYearId ? weeksByYear.get(academicYearId) : undefined;
+  return n && n > 0 ? n : DEFAULT_DURATION_WEEKS;
+}

@@ -219,13 +219,16 @@ export default function AIInsights() {
                             <div className="h-1.5 w-16 rounded-full bg-[var(--h-e5eeff)]">
                               <div
                                 className="h-full rounded-full"
-                                style={{ width: `${m.engagementPct}%`, backgroundColor: m.flagged ? '#ba1a1a' : '#4edea3' }}
+                                style={{ width: `${m.engagementPct ?? 0}%`, backgroundColor: m.flagged ? '#ba1a1a' : '#4edea3' }}
                               />
                             </div>
                             <span className="text-xs text-[var(--h-0b1c30)]">{m.engagementLabel}</span>
                           </div>
                         </td>
-                        <td className="px-6 py-4 text-sm text-[var(--h-464652)]">{m.submittedCount}/{m.expectedWeeks} weeks</td>
+                        <td className="px-6 py-4 text-sm text-[var(--h-464652)]">
+                          {m.submittedCount}/{m.weeksDue} due
+                          <span className="block text-xs text-[var(--h-757684)]">week {m.weeksDue} of {m.programmeWeeks}</span>
+                        </td>
                         <td className="px-6 py-4">
                           <span className="font-bold" style={{ color: m.flagged ? '#ba1a1a' : '#15157d' }}>
                             {m.relevanceScore != null ? `${m.relevanceScore}/100` : '—'}

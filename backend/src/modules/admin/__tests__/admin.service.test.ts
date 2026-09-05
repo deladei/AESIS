@@ -59,21 +59,29 @@ function queueCounts(totalSubmitted: number, pending: number, reviewed: number) 
 describe('getAdminDashboard', () => {
   beforeEach(() => jest.clearAllMocks());
 
-  it('builds overview counts and avgEngagement = submitted / (interns × 6)', async () => {
-    (mp.placement.count        as jest.Mock).mockResolvedValue(12); // 12 interns → 72 scheduled
-    queueCounts(54, 8, 24);                                          // 54/72 = 75%
-    (mp.placement.findMany     as jest.Mock).mockResolvedValue([]);
+  it('builds overview counts and avgEngagement = submitted / weeks actually due', async () => {
+    (mp.placement.count        as jest.Mock).mockResolvedValue(12);
+    queueCounts(54, 8, 24);
+    // The denominator now comes from the placements themselves, not from
+    // interns × a literal 6: each started in January, so all six of its
+    // programme weeks are due → 72 scheduled, 54 submitted → 75%.
+    (mp.placement.findMany     as jest.Mock).mockResolvedValue(
+      Array.from({ length: 12 }, (_, i) =>
+        makePlacement({ id: `p-${i}`, startDate: new Date('2026-01-05') })),
+    );
+    (mp.logbookEntry.groupBy   as jest.Mock).mockResolvedValue([]);
     (mp.logbookEntry.findMany  as jest.Mock).mockResolvedValue([]);
+    (mp.supervisorFeedback.findMany as jest.Mock).mockResolvedValue([]);
 
     const result = await getAdminDashboard();
 
     expect(result.overview.activeInterns).toBe(12);
     expect(result.overview.pendingReviews).toBe(8);
-    expect(result.overview.avgEngagement).toBe(75); // round(54/(12*6)*100)
+    expect(result.overview.avgEngagement).toBe(75); // round(54/72*100)
     expect(result.submissionCounts).toEqual({ pending: 8, reviewed: 24 });
   });
 
-  it('defaults avgEngagement to 100 when no interns are active', async () => {
+  it('reports avgEngagement as null — not 100 — when no interns are active', async () => {
     (mp.placement.count        as jest.Mock).mockResolvedValue(0);
     queueCounts(0, 0, 0);
     (mp.placement.findMany     as jest.Mock).mockResolvedValue([]);
@@ -81,16 +89,19 @@ describe('getAdminDashboard', () => {
 
     const result = await getAdminDashboard();
 
-    expect(result.overview.avgEngagement).toBe(100);
+    // Nothing is due, so there is no percentage to render. A literal 100 here
+    // claimed a perfect cohort where there was no cohort at all.
+    expect(result.overview.avgEngagement).toBeNull();
   });
 
   it('ranks the pulse board by engagement desc and attaches feedback counts', async () => {
     (mp.placement.count        as jest.Mock).mockResolvedValue(2);
     queueCounts(9, 1, 3);
     (mp.placement.findMany     as jest.Mock).mockResolvedValue([
-      makePlacement({ id: 'p-low' }),                                       // 3/6 = 50%
+      makePlacement({ id: 'p-low', startDate: new Date('2026-01-05') }),     // 3/6 = 50%
       makePlacement({
         id: 'p-high',
+        startDate: new Date('2026-01-05'),
         student: { firstName: 'Adwoa', lastName: 'Agyeman', programme: { name: 'B.Sc. IT' } },
         riskScores: [{ riskTier: 'medium' }],
       }),                                                                    // 6/6 = 100%
@@ -112,7 +123,8 @@ describe('getAdminDashboard', () => {
     expect(result.pulseBoard[0]).toMatchObject({
       engagementPct: 100,
       submittedWeeks: 6,
-      totalWeeks: 6,
+      weeksDue: 6,
+      programmeWeeks: 6,
       feedbackCount: 2,
       department: 'B.Sc. IT',
       riskTier: 'medium',

@@ -80,10 +80,13 @@ export default function InternDetail() {
         {/* Progress + quality */}
         <div className={card}>
           <p className="text-xs font-semibold tracking-wide text-[var(--h-757684)]">Logbook progress</p>
-          <p className="mt-2 text-3xl font-bold text-[var(--h-0b1c30)]">{progress.submittedWeeks}<span className="text-lg text-[var(--h-757684)]"> / {progress.totalWeeks} weeks</span></p>
+          {/* Against the weeks due so far — the programme length is context,
+              not the denominator. */}
+          <p className="mt-2 text-3xl font-bold text-[var(--h-0b1c30)]">{progress.submittedWeeks}<span className="text-lg text-[var(--h-757684)]"> / {progress.weeksDue} weeks due</span></p>
           <div className="mt-2 h-1.5 w-full overflow-hidden rounded-full bg-[var(--h-e5eeff)]">
-            <div className="h-full rounded-full bg-[var(--h-15157d)]" style={{ width: `${Math.min(100, Math.max(0, progress.progressPct))}%` }} />
+            <div className="h-full rounded-full bg-[var(--h-15157d)]" style={{ width: `${Math.min(100, Math.max(0, progress.progressPct ?? 0))}%` }} />
           </div>
+          <p className="mt-1 text-xs text-[var(--h-757684)]">Week {progress.weeksDue} of {progress.programmeWeeks}</p>
           <p className="mt-3 text-xs text-[var(--h-757684)]">Avg quality score: <span className="font-bold text-[var(--h-0b1c30)]">{avgQuality != null ? avgQuality.toFixed(1) : '—'}</span></p>
         </div>
 
@@ -151,7 +154,7 @@ export default function InternDetail() {
       {placementId && <div className="mt-4"><GradePanel placementId={placementId} /></div>}
 
       {/* Weekly comment link — issue/email the industry supervisor a formative-comment link */}
-      {placementId && <div className="mt-4"><WeeklyLinkPanel placementId={placementId} totalWeeks={progress.totalWeeks} /></div>}
+      {placementId && <div className="mt-4"><WeeklyLinkPanel placementId={placementId} totalWeeks={progress.programmeWeeks} /></div>}
 
       {/* SIWES daily logbook — read-only chain-aware calendar (coordinator oversight) */}
       {placementId && <div className="mt-4"><SiwesCalendarPanel placementId={placementId} /></div>}

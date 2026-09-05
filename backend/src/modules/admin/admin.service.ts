@@ -1,5 +1,6 @@
 import { prisma } from '../../config/prisma';
-import { SYSTEM_MAX_WEEKS } from '../../shared/utils/quality';
+import { weeksDue, engagementPercent } from '../../shared/utils/quality';
+import { durationWeeksByAcademicYear, weeksForYear } from '../entries/entries.week';
 import { AppError } from '../../middleware/errorHandler';
 import { createNotification } from '../notifications/notifications.service';
 import { sendEmail } from '../../shared/utils/email';
@@ -39,6 +40,8 @@ export async function getAdminDashboard() {
       where:  { placementStatus: 'active' },
       select: {
         id:      true,
+        academicYearId: true,
+        startDate: true,
         student: {
           select: {
             firstName: true, lastName: true,
@@ -63,12 +66,22 @@ export async function getAdminDashboard() {
     }),
   ]);
 
-  // Every active intern is on the fixed 6-week programme, so the scheduled total
-  // is interns × 6 — never a count of pre-seeded rows.
-  const totalScheduled = activeInterns * SYSTEM_MAX_WEEKS;
-  const avgEngagement = totalScheduled > 0
-    ? Math.round((totalSubmitted / totalScheduled) * 100)
-    : 100;
+  // Programme length is per cohort (CohortConfig.durationWeeks), not a literal:
+  // interns × 6 told a 24-week cohort it had finished four times over.
+  const weeksByYear = await durationWeeksByAcademicYear(
+    activePlacements.map((p) => p.academicYearId),
+  );
+  // And the scheduled total is what has come DUE so far, not the whole
+  // programme — otherwise every cohort reads badly until its final week.
+  const dueByPlacement = new Map(
+    activePlacements.map((p) => [
+      p.id,
+      weeksDue(p.startDate, weeksForYear(weeksByYear, p.academicYearId)),
+    ]),
+  );
+  const totalScheduled = [...dueByPlacement.values()].reduce((a, b) => a + b, 0);
+  // Nothing due yet across the cohort is not 100% engagement — it is no answer.
+  const avgEngagement = engagementPercent(totalSubmitted, totalScheduled);
 
   // Submitted-week counts per active placement, in one grouped query.
   const placementIds = activePlacements.map(p => p.id);
@@ -82,7 +95,8 @@ export async function getAdminDashboard() {
   const submittedMap = new Map(submittedByPlacement.map(r => [r.placementId, r._count._all]));
 
   const ranked = activePlacements.map(p => {
-    const totalWeeks     = SYSTEM_MAX_WEEKS;
+    const programmeWeeks = weeksForYear(weeksByYear, p.academicYearId);
+    const due            = dueByPlacement.get(p.id) ?? 0;
     const submittedWeeks = submittedMap.get(p.id) ?? 0;
     return {
       placementId:   p.id,
@@ -91,11 +105,12 @@ export async function getAdminDashboard() {
       riskTier:      p.riskScores[0]?.riskTier ?? null,
       riskFactors:   p.riskScores[0]?.topRiskFactors ?? [],
       submittedWeeks,
-      totalWeeks,
-      engagementPct: totalWeeks > 0 ? Math.round((submittedWeeks / totalWeeks) * 100) : 0,
+      weeksDue:      due,
+      programmeWeeks,
+      engagementPct: engagementPercent(submittedWeeks, due),
       feedbackCount: 0,
     };
-  }).sort((a, b) => b.engagementPct - a.engagementPct);
+  }).sort((a, b) => (b.engagementPct ?? -1) - (a.engagementPct ?? -1));
 
   const pulseBoard = ranked.slice(0, PULSE_LIMIT);
 
@@ -103,7 +118,8 @@ export async function getAdminDashboard() {
   // latest snapshot is high, worst engagement first.
   const riskAlerts = ranked
     .filter(p => p.riskTier === 'high')
-    .sort((a, b) => a.engagementPct - b.engagementPct)
+    // Nothing due yet sorts last: it is an absence of evidence, not a bad score.
+    .sort((a, b) => (a.engagementPct ?? 101) - (b.engagementPct ?? 101))
     .map(p => ({
       placementId: p.placementId,
       name:        p.name,

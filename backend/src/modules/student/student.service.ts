@@ -1,5 +1,7 @@
 import { prisma } from '../../config/prisma';
-import { meanQualityScore, mergedQualityScores, weekProgress } from '../../shared/utils/quality';
+import {
+  meanQualityScore, mergedQualityScores, weekProgress, weeksDue,
+} from '../../shared/utils/quality';
 import { hoursSummary } from '../../shared/utils/hours';
 import { decryptPII } from '../../shared/utils/crypto';
 
@@ -78,7 +80,12 @@ export async function getStudentDashboard(studentId: string) {
       placementStatus: true,
       academicYear: {
         select: {
-          cohortConfigs: { select: { totalWeeks: true, minWeeklyHours: true }, take: 1 },
+          // `durationWeeks` is the length the logbook itself enforces; the older
+          // `totalWeeks` is kept only as a fallback for cohorts predating it.
+          cohortConfigs: {
+            select: { durationWeeks: true, totalWeeks: true, minWeeklyHours: true },
+            take: 1,
+          },
         },
       },
       company: { select: { name: true } },
@@ -162,12 +169,17 @@ export async function getStudentDashboard(studentId: string) {
     ),
   );
 
+  const cohort = placement.academicYear?.cohortConfigs?.[0];
   const week = weekProgress({
     startDate:        placement.startDate,
     endDate:          placement.endDate,
-    totalWeeksConfig: placement.academicYear?.cohortConfigs?.[0]?.totalWeeks ?? null,
+    totalWeeksConfig: cohort?.durationWeeks ?? cohort?.totalWeeks ?? null,
     submittedCount,
   });
+  // What the student owes SO FAR. `week.total` is the whole programme — right
+  // for "week 3 of 24", wrong as the denominator of a target they are still
+  // working towards.
+  const due = weeksDue(placement.startDate, week.total);
 
   const completionPct = week.total > 0
     ? Math.min(100, Math.round((submittedCount / week.total) * 100))
@@ -181,13 +193,15 @@ export async function getStudentDashboard(studentId: string) {
   }));
 
   // Cumulative attendance: sum hoursLogged over submitted+ entries, against the
-  // cohort's per-week minimum × the date-derived week count.
+  // cohort's per-week minimum × the weeks that have come due. Billing it against
+  // the whole programme made every intern "below target" until their last week —
+  // harmless-looking at 6 weeks, absurd at 24 (960 h owed in week three).
   const hours = hoursSummary({
     rawLoggedHours: placement.logbookEntries
       .filter(e => HOURS_LOGGED_STATUSES.includes(e.status))
       .map(e => e.hoursLogged),
-    perWeekMin: placement.academicYear?.cohortConfigs?.[0]?.minWeeklyHours ?? 0,
-    weeks: week.total,
+    perWeekMin: cohort?.minWeeklyHours ?? 0,
+    weeks: due,
   });
 
   return {

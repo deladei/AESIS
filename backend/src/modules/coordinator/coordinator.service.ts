@@ -4,7 +4,10 @@ import { prisma } from '../../config/prisma';
 import { env } from '../../config/env';
 import { paginate, buildMeta } from '../../shared/utils/pagination';
 import { AppError } from '../../middleware/errorHandler';
-import { meanQualityScore, mergedQualityScores, SYSTEM_MAX_WEEKS } from '../../shared/utils/quality';
+import {
+  meanQualityScore, mergedQualityScores, weeksDue, engagementPercent,
+} from '../../shared/utils/quality';
+import { durationWeeksByAcademicYear, weeksForYear } from '../entries/entries.week';
 import { createNotification } from '../notifications/notifications.service';
 import { assignSupervisor } from '../placements/placements.service';
 import { emitToUser } from '../../shared/utils/socketEmitter';
@@ -181,6 +184,10 @@ const STATUS_ORDER: Record<StatusFilter, number> = {
 const STUDENT_SELECT = {
   id:        true,
   createdAt: true,
+  // Programme length is per cohort and progress is against what is due so far,
+  // so both the year and the start date have to come back with the row.
+  academicYearId: true,
+  startDate: true,
   flaggedAt: true,
   flagReason: true,
   student: {
@@ -298,8 +305,11 @@ export async function listStudents(filters: StudentListFilters) {
     : [];
   const submittedMap = new Map(submittedCounts.map(r => [r.placementId, r._count._all]));
 
+  const weeksByYear = await durationWeeksByAcademicYear(placements.map(p => p.academicYearId));
+
   let rows = placements.map(p => {
-    const totalWeeks     = SYSTEM_MAX_WEEKS;
+    const programmeWeeks = weeksForYear(weeksByYear, p.academicYearId);
+    const due            = weeksDue(p.startDate, programmeWeeks, now);
     const submittedWeeks = submittedMap.get(p.id) ?? 0;
     const sup            = p.academicSupervisor;
     const overdueLogs    = p.logbookEntries.filter(
@@ -331,9 +341,10 @@ export async function listStudents(filters: StudentListFilters) {
       flagReason:      p.flagReason ?? null,
       attention,                       // derived at-risk flag (item 13)
       attentionReasons: reasons,
-      totalWeeks,
+      programmeWeeks,
+      weeksDue:        due,
       submittedWeeks,
-      progressPct:     totalWeeks > 0 ? Math.round((submittedWeeks / totalWeeks) * 100) : 0,
+      progressPct:     engagementPercent(submittedWeeks, due),
     };
   });
 
@@ -490,10 +501,13 @@ export async function exportStudentsCsv(opts: { ids?: string[]; academicYearId?:
     ? await prisma.logbookEntry.groupBy({ by: ['placementId'], _count: { _all: true }, where: { placementId: { in: ids }, submittedAt: { not: null } } })
     : [];
   const submittedMap = new Map(submittedCounts.map(r => [r.placementId, r._count._all]));
+  const weeksByYear = await durationWeeksByAcademicYear(placements.map(p => p.academicYearId));
 
-  const header = ['Name', 'Email', 'Department', 'Supervisor', 'Last status', 'Risk tier', 'Risk score', 'Submitted weeks', 'Total weeks', 'Progress %', 'Needs attention'];
+  const header = ['Name', 'Email', 'Department', 'Supervisor', 'Last status', 'Risk tier', 'Risk score', 'Submitted weeks', 'Weeks due', 'Programme weeks', 'Progress %', 'Needs attention'];
   const lines = [header.join(',')];
   for (const p of placements) {
+    const programmeWeeks = weeksForYear(weeksByYear, p.academicYearId);
+    const due = weeksDue(p.startDate, programmeWeeks, now);
     const submittedWeeks = submittedMap.get(p.id) ?? 0;
     const sup = p.academicSupervisor;
     const overdueLogs = p.logbookEntries.filter(e => e.status === 'draft' && e.periodEnd != null && new Date(e.periodEnd) < now).length;
@@ -511,8 +525,10 @@ export async function exportStudentsCsv(opts: { ids?: string[]; academicYearId?:
       p.riskScores[0]?.riskTier ?? '',
       p.riskScores[0]?.riskScore != null ? Number(p.riskScores[0].riskScore).toFixed(3) : '',
       submittedWeeks,
-      SYSTEM_MAX_WEEKS,
-      SYSTEM_MAX_WEEKS > 0 ? Math.round((submittedWeeks / SYSTEM_MAX_WEEKS) * 100) : 0,
+      due,
+      programmeWeeks,
+      // Blank, not 0 — nothing is due yet, so there is no percentage.
+      engagementPercent(submittedWeeks, due) ?? '',
       attention ? 'yes' : 'no',
     ].map(csvCell).join(','));
   }
@@ -536,6 +552,7 @@ export async function getStudentDetail(placementId: string) {
     where:  { id: placementId },
     select: {
       id: true, placementStatus: true, startDate: true, endDate: true,
+      academicYearId: true,
       flaggedAt: true, flagReason: true,
       student: {
         select: { id: true, firstName: true, lastName: true, email: true, programme: { select: { name: true } } },
@@ -588,7 +605,9 @@ export async function getStudentDetail(placementId: string) {
   ]);
 
   const submittedWeeks = entries.filter(e => e.submittedAt != null).length;
-  const totalWeeks = SYSTEM_MAX_WEEKS;
+  const weeksByYear = await durationWeeksByAcademicYear([placement.academicYearId]);
+  const programmeWeeks = weeksForYear(weeksByYear, placement.academicYearId);
+  const due = weeksDue(placement.startDate, programmeWeeks);
 
   return {
     placement: {
@@ -608,8 +627,8 @@ export async function getStudentDetail(placementId: string) {
       company:  supShape(placement.companySupervisor),
     },
     progress: {
-      submittedWeeks, totalWeeks,
-      progressPct: totalWeeks > 0 ? Math.round((submittedWeeks / totalWeeks) * 100) : 0,
+      submittedWeeks, weeksDue: due, programmeWeeks,
+      progressPct: engagementPercent(submittedWeeks, due),
     },
     avgQuality: meanQualityScore(mergedQualityScores(analyses.map(a => a.qualityScore), entries)),
     entries: entries.map(e => ({

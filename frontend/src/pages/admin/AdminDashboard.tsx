@@ -29,7 +29,7 @@ function formatDate(iso: string | null) {
 type Pulse = AdminData['pulseBoard'][number];
 
 function pulseBadge(p: Pulse, isTop: boolean): { label: string; tone: string } {
-  if (isTop && p.riskTier !== 'high' && p.engagementPct >= 80) {
+  if (isTop && p.riskTier !== 'high' && (p.engagementPct ?? 0) >= 80) {
     return { label: 'Top Performer', tone: 'bg-[var(--h-6ffbbe)] text-[var(--h-002113)]' };
   }
   if (p.riskTier === 'high')   return { label: 'Needs Support', tone: 'bg-[var(--h-ffdad6)] text-[var(--h-93000a)]' };
@@ -51,7 +51,7 @@ export default function AdminDashboard() {
   const stats = [
     { label: 'Active Interns',  value: data ? String(data.overview.activeInterns)  : '—', tone: 'text-[var(--h-15157d)]' },
     { label: 'Pending Reviews', value: data ? String(data.overview.pendingReviews) : '—', tone: 'text-[var(--h-712ae2)]' },
-    { label: 'Avg. Pulse',      value: data ? `${data.overview.avgEngagement}%`    : '—', tone: 'text-[var(--h-22c087)]' },
+    { label: 'Avg. Pulse',      value: data?.overview.avgEngagement != null ? `${data.overview.avgEngagement}%` : '—', tone: 'text-[var(--h-22c087)]' },
   ];
 
   return (
@@ -129,13 +129,13 @@ export default function AdminDashboard() {
                     <div className="space-y-3">
                       <div className="flex items-center justify-between text-sm">
                         <span className="text-[var(--h-464652)]">Weekly engagement</span>
-                        <span className="font-semibold text-[var(--h-15157d)]">{p.engagementPct}%</span>
+                        <span className="font-semibold text-[var(--h-15157d)]">{p.engagementPct != null ? `${p.engagementPct}%` : '—'}</span>
                       </div>
                       <div className="h-2 w-full rounded-full bg-slate-200">
-                        <div className={`h-2 rounded-full ${isTop ? 'bg-[var(--h-4edea3)]' : 'bg-[var(--h-15157d)]'}`} style={{ width: `${p.engagementPct}%` }} />
+                        <div className={`h-2 rounded-full ${isTop ? 'bg-[var(--h-4edea3)]' : 'bg-[var(--h-15157d)]'}`} style={{ width: `${p.engagementPct ?? 0}%` }} />
                       </div>
                       <div className="flex items-center gap-4 text-xs text-[var(--h-464652)]">
-                        <span className="flex items-center gap-1"><CheckCircle2 className="h-3.5 w-3.5" /> {p.submittedWeeks}/{p.totalWeeks} weeks</span>
+                        <span className="flex items-center gap-1"><CheckCircle2 className="h-3.5 w-3.5" /> {p.submittedWeeks}/{p.weeksDue} weeks due</span>
                         <span className="flex items-center gap-1"><MessageCircle className="h-3.5 w-3.5" /> {p.feedbackCount} feedback</span>
                       </div>
                     </div>
@@ -196,7 +196,8 @@ export default function AdminDashboard() {
                 </div>
                 <p className="text-sm leading-tight text-[var(--h-0b1c30)]">
                   <span className="font-bold text-[var(--h-15157d)]">{data!.pulseBoard[0].name}</span> has the highest
-                  engagement at {data!.pulseBoard[0].engagementPct}% ({data!.pulseBoard[0].submittedWeeks}/{data!.pulseBoard[0].totalWeeks} weeks).
+                  engagement at {data!.pulseBoard[0].engagementPct}% ({data!.pulseBoard[0].submittedWeeks} of{' '}
+                  {data!.pulseBoard[0].weeksDue} weeks due).
                 </p>
                 <p className="text-sm text-[var(--h-464652)]">Send encouragement or a stretch task from the Feedback Center.</p>
                 <Link to="/feedback" className="flex w-full items-center justify-center gap-2 rounded-lg border border-[var(--h-712ae2)] py-2 text-sm font-medium text-[var(--h-712ae2)] transition-colors hover:bg-[var(--h-712ae2-5)]">

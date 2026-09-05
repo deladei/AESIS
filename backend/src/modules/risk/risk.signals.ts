@@ -1,4 +1,3 @@
-import { SYSTEM_MAX_WEEKS } from '../../shared/utils/quality';
 
 /**
  * Rule-based risk scoring over live entries-pipeline data. Deterministic and
@@ -10,6 +9,8 @@ import { SYSTEM_MAX_WEEKS } from '../../shared/utils/quality';
 export interface RiskInput {
   /** Whole weeks since the placement started, uncapped (scorer clamps). */
   weeksElapsed: number;
+  /** The cohort's configured attachment length — the cap on what can be due. */
+  programmeWeeks: number;
   /** Due weeks (1..weeksElapsed) whose entry is submitted or acknowledged. */
   weeksSubmitted: number;
   /** Entries currently sitting in `returned` — rework the student owes. */
@@ -70,7 +71,10 @@ const clamp01 = (n: number) => Math.min(1, Math.max(0, n));
  * flagged every fresh student as high risk).
  */
 export function scoreRisk(input: RiskInput): RiskScore | null {
-  const weeksDue = Math.min(Math.floor(input.weeksElapsed), SYSTEM_MAX_WEEKS);
+  // Capped at the COHORT's length, not a system-wide 6: a 24-week attachment
+  // used to stop accruing due weeks after week six, so a student who went quiet
+  // in week ten still scored against a six-week denominator.
+  const weeksDue = Math.min(Math.floor(input.weeksElapsed), input.programmeWeeks);
   if (weeksDue < 1) return null;
 
   const missingWeeks = Math.max(0, weeksDue - input.weeksSubmitted);

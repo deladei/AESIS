@@ -25,7 +25,7 @@ export default function AdminReport() {
   const metrics: { label: string; value: string }[] = [
     { label: 'Active interns', value: ov ? String(ov.activeInterns) : '—' },
     { label: 'Pending reviews', value: ov ? String(ov.pendingReviews) : '—' },
-    { label: 'Avg engagement', value: ov ? `${ov.avgEngagement}%` : '—' },
+    { label: 'Avg engagement', value: ov?.avgEngagement != null ? `${ov.avgEngagement}%` : '—' },
     { label: 'Submissions reviewed', value: dash ? String(dash.submissionCounts.reviewed) : '—' },
     { label: 'Submissions pending', value: dash ? String(dash.submissionCounts.pending) : '—' },
     { label: 'Tracked interns', value: dash ? String(dash.pulseBoard.length) : '—' },
@@ -143,7 +143,7 @@ export default function AdminReport() {
               <table className="w-full text-left text-sm">
                 <thead><tr className="border-b border-[var(--h-c4c5d5-60)] text-xs text-[var(--h-757684)]">
                   <th className="py-1">Intern</th><th className="py-1">Department</th><th className="py-1">Risk</th>
-                  <th className="py-1 text-right">Weeks</th><th className="py-1 text-right">Engagement</th>
+                  <th className="py-1 text-right">Weeks due</th><th className="py-1 text-right">Engagement</th>
                 </tr></thead>
                 <tbody>
                   {atRisk.map((p) => (
@@ -151,8 +151,8 @@ export default function AdminReport() {
                       <td className="py-1">{p.name}</td>
                       <td className="py-1">{p.department ?? '—'}</td>
                       <td className="py-1 capitalize">{p.riskTier}</td>
-                      <td className="py-1 text-right">{p.submittedWeeks}/{p.totalWeeks}</td>
-                      <td className="py-1 text-right">{p.engagementPct}%</td>
+                      <td className="py-1 text-right">{p.submittedWeeks}/{p.weeksDue}</td>
+                      <td className="py-1 text-right">{p.engagementPct != null ? `${p.engagementPct}%` : '—'}</td>
                     </tr>
                   ))}
                 </tbody>

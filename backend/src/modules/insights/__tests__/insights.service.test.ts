@@ -30,6 +30,9 @@ describe('getInsights', () => {
     (mp.placement.findMany as jest.Mock).mockResolvedValue([
       {
         id: 'p1',
+        // Started in January, so all six programme weeks have come due and
+        // engagement is submitted/due rather than "nothing owed yet".
+        startDate: new Date('2026-01-05'),
         student: { firstName: 'Akosua', lastName: 'Mensah' },
         company: { name: 'Sankofa Software Ltd.' },
         logbookEntries: [
@@ -43,6 +46,7 @@ describe('getInsights', () => {
       },
       {
         id: 'p2',
+        startDate: new Date('2026-01-05'),
         student: { firstName: 'Yaw', lastName: 'Asante' },
         company: { name: 'Ananse Technologies Ltd.' },
         logbookEntries: [

@@ -151,15 +151,18 @@ export interface SaveDraftPayload {
   reflection?: EntryReflection;
 }
 
-// List every week for a placement. The internship is a fixed 6-week programme,
-// so limit=12 comfortably covers every week with headroom.
+// List every week for a placement in one page. `limit=12` assumed the fixed
+// 6-week programme; cohorts configure 24, so weeks 13+ silently fell off the
+// student's week rail, the supervisor's finalization list and every badge that
+// rides those rows. 100 is the API's own maximum and covers any cohort length
+// the schema permits.
 export function useEntries(placementId: string | undefined) {
   return useQuery({
     queryKey: ['entries', 'list', placementId],
     enabled:  !!placementId,
     queryFn:  async () => {
       const r = await api.get<{ data: LogbookEntry[] }>(
-        `/entries?placementId=${placementId}&limit=12`,
+        `/entries?placementId=${placementId}&limit=100`,
       );
       return r.data.data;
     },

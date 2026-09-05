@@ -16,6 +16,7 @@ function placement(overrides: Record<string, unknown> = {}) {
   return {
     id: 'p1',
     startDate: daysAgo(21),
+    academicYearId: 'y1',
     studentId: 's1',
     academicSupervisorId: 'sup1',
     student: { id: 's1', firstName: 'Ama', lastName: 'Mensah' },

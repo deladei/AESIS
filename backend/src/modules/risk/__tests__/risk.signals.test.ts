@@ -2,6 +2,8 @@ import { scoreRisk, RISK_HIGH_THRESHOLD, RISK_MEDIUM_THRESHOLD, type RiskInput }
 
 const base: RiskInput = {
   weeksElapsed: 3,
+  // The cohort's configured length, not a system-wide literal (S91).
+  programmeWeeks: 24,
   weeksSubmitted: 3,
   returnedCount: 0,
   lateDays: 0,
@@ -26,6 +28,7 @@ describe('scoreRisk', () => {
   it('flags a fully silent student high', () => {
     const r = scoreRisk({
       weeksElapsed: 3,
+      programmeWeeks: 24,
       weeksSubmitted: 0,
       returnedCount: 0,
       lateDays: 0,
@@ -83,6 +86,7 @@ describe('scoreRisk', () => {
   it('worst case saturates every signal and stays within 0..1', () => {
     const r = scoreRisk({
       weeksElapsed: 6,
+      programmeWeeks: 6,
       weeksSubmitted: 0,
       returnedCount: 6,
       lateDays: 10,
@@ -94,9 +98,10 @@ describe('scoreRisk', () => {
     expect(r.factors).toHaveLength(4);
   });
 
-  it('caps due weeks at the 6-week programme even for stale placements', () => {
+  it("caps due weeks at the cohort's own length, even for stale placements", () => {
     const r = scoreRisk({
       weeksElapsed: 30,
+      programmeWeeks: 6,
       weeksSubmitted: 6,
       returnedCount: 0,
       lateDays: 0,

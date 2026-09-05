@@ -3,6 +3,7 @@ import { logger } from '../../config/logger';
 import { emitToUser } from '../../shared/utils/socketEmitter';
 import { todayUtc, daysBetween } from '../entries/entry.dates';
 import { scoreRisk, type RiskInput, type RiskScore } from './risk.signals';
+import { durationWeeksByAcademicYear, weeksForYear, DEFAULT_DURATION_WEEKS } from '../entries/entries.week';
 import type { Actor } from '../entries/entries.policy';
 import type { Prisma, RiskTier } from '@prisma/client';
 
@@ -14,6 +15,7 @@ export interface PlacementRisk extends RiskScore {
 type PlacementForRisk = {
   id: string;
   startDate: Date | null;
+  academicYearId: string | null;
   studentId: string;
   academicSupervisorId: string | null;
   student: { id: string; firstName: string; lastName: string };
@@ -30,6 +32,7 @@ type PlacementForRisk = {
 const placementSelect = {
   id: true,
   startDate: true,
+  academicYearId: true,
   studentId: true,
   academicSupervisorId: true,
   student: { select: { id: true, firstName: true, lastName: true } },
@@ -44,7 +47,11 @@ const placementSelect = {
 } as const;
 
 /** Derive the scorer's inputs from one placement's live entries data. */
-export function riskInputsOf(p: PlacementForRisk, now = new Date()): RiskInput | null {
+export function riskInputsOf(
+  p: PlacementForRisk,
+  now = new Date(),
+  programmeWeeks = DEFAULT_DURATION_WEEKS,
+): RiskInput | null {
   if (!p.startDate) return null;
 
   const startUtc = new Date(`${p.startDate.toISOString().slice(0, 10)}T00:00:00.000Z`);
@@ -60,6 +67,7 @@ export function riskInputsOf(p: PlacementForRisk, now = new Date()): RiskInput |
 
   return {
     weeksElapsed,
+    programmeWeeks,
     weeksSubmitted: p.logbookEntries.filter(
       (e) =>
         e.weekNumber <= weeksElapsed &&
@@ -138,9 +146,11 @@ async function computeActivePlacements(supervisorId?: string): Promise<Placement
     select: placementSelect,
   });
 
+  const weeksByYear = await durationWeeksByAcademicYear(placements.map((p) => p.academicYearId));
+
   const results: PlacementRisk[] = [];
   for (const p of placements) {
-    const input = riskInputsOf(p);
+    const input = riskInputsOf(p, new Date(), weeksForYear(weeksByYear, p.academicYearId));
     if (!input) continue;
     const risk = scoreRisk(input);
     if (!risk) continue;

@@ -30,6 +30,10 @@ jest.mock('../../../config/prisma', () => ({
     },
     cohortConfig: {
       findFirst: jest.fn(),
+      // Programme length is now looked up per cohort rather than assumed to be
+      // six weeks. Defaulted to "no config" so every test that doesn't care
+      // falls back to the schema default.
+      findMany:  jest.fn().mockResolvedValue([]),
       update:    jest.fn(),
     },
     academicProgramme: {
@@ -263,6 +267,10 @@ describe('listStudents', () => {
 
   const fakePlacement = {
     id:      'p-1',
+    // Long past, so every week of the programme has come due and the ratio
+    // under test is submitted/due rather than submitted/not-yet-started.
+    academicYearId: 'ay-1',
+    startDate:      new Date('2026-01-05'),
     student: {
       id: 'u-1', firstName: 'Ada', lastName: 'Lovelace', email: 'ada@uni.edu',
       programme: { name: 'Computer Science' },
@@ -304,9 +312,10 @@ describe('listStudents', () => {
 
     expect(student.department).toBe('Computer Science');
     expect(student.supervisor).toEqual({ id: 's-1', name: 'Kofi Adjei' });
-    expect(student.totalWeeks).toBe(6);      // fixed 6-week programme
+    expect(student.programmeWeeks).toBe(6);  // cohort has no config → schema default
+    expect(student.weeksDue).toBe(6);        // started in January, so all six are due
     expect(student.submittedWeeks).toBe(6);
-    expect(student.progressPct).toBe(100);   // 6 / 6
+    expect(student.progressPct).toBe(100);   // 6 submitted / 6 due
   });
 
   it('maps riskTier and riskScore from the latest riskScore entry', async () => {
@@ -501,7 +510,9 @@ describe('getStudentDetail', () => {
     expect(r.student.name).toBe('Ama Mensah');
     expect(r.supervisors.academic).toMatchObject({ name: 'Theo Walls' });
     expect(r.supervisors.company).toBeNull();
-    expect(r.progress).toMatchObject({ submittedWeeks: 1, totalWeeks: 6, progressPct: 17 });
+    expect(r.progress).toMatchObject({
+      submittedWeeks: 1, weeksDue: 6, programmeWeeks: 6, progressPct: 17,
+    });
     expect(r.avgQuality).toBe(82);            // corrupt 151565326582 excluded
     expect(r.entries).toHaveLength(2);
     expect(r.feedback[0]).toMatchObject({ week: 1, comment: 'Nice work', by: 'Theo Walls' });
@@ -571,6 +582,9 @@ describe('bulk actions + CSV export', () => {
   it('exportStudentsCsv builds a header + one row per intern', async () => {
     (mp.placement.findMany as jest.Mock).mockResolvedValue([{
       id: 'p-1', createdAt: new Date(),
+      // Started long enough ago that the whole programme is due, so the exported
+      // percentage is submitted/due rather than a blank "nothing owed yet".
+      academicYearId: 'ay-1', startDate: new Date('2026-01-05'),
       student: { id: 'u-1', firstName: 'Ama', lastName: 'Mensah', email: 'ama@x.edu', programme: { name: 'CS' } },
       academicSupervisor: { id: 's-1', firstName: 'Theo', lastName: 'Walls' },
       riskScores: [{ riskTier: 'low', riskScore: 0.2, computedAt: new Date() }],
@@ -583,7 +597,7 @@ describe('bulk actions + CSV export', () => {
     const csv = await exportStudentsCsv({});
     const lines = csv.split('\n');
 
-    expect(lines[0]).toBe('Name,Email,Department,Supervisor,Last status,Risk tier,Risk score,Submitted weeks,Total weeks,Progress %,Needs attention');
+    expect(lines[0]).toBe('Name,Email,Department,Supervisor,Last status,Risk tier,Risk score,Submitted weeks,Weeks due,Programme weeks,Progress %,Needs attention');
     expect(lines[1]).toContain('Ama Mensah');
     expect(lines[1]).toContain('ama@x.edu');
     expect(lines[1]).toContain('Theo Walls');

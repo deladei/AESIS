@@ -1,5 +1,8 @@
 import { prisma } from '../../config/prisma';
-import { SYSTEM_MAX_WEEKS, meanQualityScore, toQualityNumber } from '../../shared/utils/quality';
+import {
+  meanQualityScore, toQualityNumber, weeksDue, engagementPercent,
+} from '../../shared/utils/quality';
+import { durationWeeksByAcademicYear, weeksForYear } from '../entries/entries.week';
 
 /**
  * AI Insights & Analytics aggregation — derived from the ACTIVE weekly-entries
@@ -38,6 +41,8 @@ export async function getInsights({ supervisorId }: InsightsScope) {
     },
     select: {
       id:      true,
+      academicYearId: true,
+      startDate: true,
       student: { select: { firstName: true, lastName: true } },
       company: { select: { name: true } },
       logbookEntries: {
@@ -57,6 +62,10 @@ export async function getInsights({ supervisorId }: InsightsScope) {
     },
   });
 
+  // How long each intern's programme actually runs. One query for the whole
+  // page — the length is per cohort, not per placement.
+  const weeksByYear = await durationWeeksByAcademicYear(placements.map((p) => p.academicYearId));
+
   type Entry = (typeof placements)[number]['logbookEntries'][number];
 
   // Latest advisory AI relevance for an entry, scaled 0–1 → 0–100, or null.
@@ -69,13 +78,17 @@ export async function getInsights({ supervisorId }: InsightsScope) {
   const performanceMonitoring = placements.map(p => {
     const submitted      = p.logbookEntries.filter(e => e.submittedAt != null);
     const submittedCount = submitted.length;
-    const expectedWeeks  = SYSTEM_MAX_WEEKS;
-    const engagementPct  = Math.min(100, Math.round((submittedCount / expectedWeeks) * 100));
+    const programmeWeeks = weeksForYear(weeksByYear, p.academicYearId);
+    // What they owe SO FAR, not the whole programme — see weeksDue.
+    const due            = weeksDue(p.startDate, programmeWeeks);
+    const engagementPct  = engagementPercent(submittedCount, due);
     // meanQualityScore drops null/out-of-range and clamps to [0,100] → null when none.
     const relevanceScore = meanQualityScore(submitted.map(entryRelevance));
 
-    const flagged = engagementPct < ENGAGEMENT_AT_RISK;
-    const engagementLabel = flagged ? 'At Risk' : engagementPct >= 80 ? 'High' : 'On Track';
+    // Too early to judge is not the same as doing badly.
+    const flagged = engagementPct != null && engagementPct < ENGAGEMENT_AT_RISK;
+    const engagementLabel = engagementPct == null ? 'Too early'
+      : flagged ? 'At Risk' : engagementPct >= 80 ? 'High' : 'On Track';
 
     return {
       placementId:    p.id,
@@ -84,9 +97,10 @@ export async function getInsights({ supervisorId }: InsightsScope) {
       engagementPct,
       engagementLabel,
       submittedCount,
-      expectedWeeks,
+      weeksDue:       due,
+      programmeWeeks,
       relevanceScore,
-      status:         flagged ? 'At Risk' : 'On Track',
+      status:         engagementPct == null ? 'Too early' : flagged ? 'At Risk' : 'On Track',
       flagged,
     };
   });
@@ -149,13 +163,15 @@ export async function getInsights({ supervisorId }: InsightsScope) {
   const summaries: { title: string; body: string }[] = [];
 
   const lowest = [...performanceMonitoring]
-    .filter(r => r.flagged)
+    .filter((r): r is typeof r & { engagementPct: number } => r.flagged && r.engagementPct != null)
     .sort((a, b) => a.engagementPct - b.engagementPct)[0];
   if (lowest) {
     summaries.push({
       title: 'Re-engage At-Risk Intern',
-      body:  `${lowest.name} has submitted ${lowest.submittedCount} of ${lowest.expectedWeeks} weeks `
-           + `(${lowest.engagementPct}% engagement). Schedule a check-in.`,
+      body:  `${lowest.name} has submitted ${lowest.submittedCount} of the ${lowest.weeksDue} week`
+           + `${lowest.weeksDue === 1 ? '' : 's'} due so far `
+           + `(${lowest.engagementPct}% engagement, week ${lowest.weeksDue} of ${lowest.programmeWeeks}). `
+           + `Schedule a check-in.`,
     });
   }
 

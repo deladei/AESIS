@@ -135,13 +135,21 @@ function InternRow({ s, selected, onToggle }: { s: CoordinatorStudent; selected:
         ) : <span className="text-sm text-[var(--h-757684)]">—</span>}
       </td>
       <td className="px-4 py-3">
-        <Link to={`/coordinator/interns/${s.placementId}`} className="block w-40" title={`${s.submittedWeeks}/${s.totalWeeks} weeks · ${s.progressPct}% · last entry ${lastEntry}`}>
+        {/* Progress is against the weeks DUE so far, not the whole programme —
+            a 24-week cohort in its third week is not 12% behind. Null means
+            nothing is due yet, which renders "—", never 0%. */}
+        <Link
+          to={`/coordinator/interns/${s.placementId}`}
+          className="block w-40"
+          title={`${s.submittedWeeks} of ${s.weeksDue} week${s.weeksDue === 1 ? '' : 's'} due`
+            + `${s.progressPct != null ? ` · ${s.progressPct}%` : ''} · last entry ${lastEntry}`}
+        >
           <div className="mb-1 flex justify-between text-[10px]">
-            <span className="font-bold text-[var(--h-15157d)]">Week {s.lastWeek ?? 0} of {s.totalWeeks || 6}</span>
-            <span className="text-[var(--h-757684)]">{s.progressPct}%</span>
+            <span className="font-bold text-[var(--h-15157d)]">Week {s.lastWeek ?? 0} of {s.programmeWeeks}</span>
+            <span className="text-[var(--h-757684)]">{s.progressPct != null ? `${s.progressPct}%` : '—'}</span>
           </div>
           <div className="h-1.5 w-full overflow-hidden rounded-full bg-[var(--h-e5eeff)]">
-            <div className="h-full bg-[var(--h-15157d)]" style={{ width: `${Math.min(100, Math.max(0, s.progressPct))}%` }} />
+            <div className="h-full bg-[var(--h-15157d)]" style={{ width: `${Math.min(100, Math.max(0, s.progressPct ?? 0))}%` }} />
           </div>
         </Link>
       </td>

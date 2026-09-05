@@ -7,6 +7,8 @@ import {
   mergedQualityScores,
   weeksBetween,
   expectedWeeks,
+  weeksDue,
+  engagementPercent,
   weekProgress,
 } from '../quality';
 
@@ -137,35 +139,66 @@ describe('mergedQualityScores', () => {
 });
 
 describe('week/date invariant', () => {
-  it('caps the expected week count at the system-wide 6, even when dates span longer', () => {
-    // The raw span is 24 weeks, but the internship is a fixed 6-week programme,
-    // so nothing above six can ever surface.
+  it('reports the real span of a long attachment instead of flattening it to 6', () => {
+    // SYSTEM_MAX_WEEKS used to be 6 and was described as the programme length.
+    // It is not — cohorts configure 24 — so a 24-week span now reports 24.
     expect(weeksBetween(new Date('2026-01-12'), new Date('2026-06-29'))).toBe(24);
-    expect(expectedWeeks('2026-01-12', '2026-06-29')).toBe(6);
+    expect(expectedWeeks('2026-01-12', '2026-06-29')).toBe(24);
   });
 
-  it('returns the real (sub-6) week count for a short span', () => {
-    // Jan 12 – Feb 9 ≈ 4 weeks, under the cap → reported as-is.
+  it('returns the real week count for a short span', () => {
+    // Jan 12 – Feb 9 ≈ 4 weeks.
     expect(expectedWeeks('2026-01-12', '2026-02-09')).toBe(4);
   });
 
-  it('caps a contradictory config at 6 as well', () => {
-    expect(expectedWeeks(null, null, 12)).toBe(6);
-    expect(expectedWeeks('2026-06-29', '2026-01-12', 12)).toBe(6); // end before start
+  it('trusts the cohort config when the date span is unusable', () => {
+    expect(expectedWeeks(null, null, 12)).toBe(12);
+    expect(expectedWeeks('2026-06-29', '2026-01-12', 12)).toBe(12); // end before start
   });
 
-  it('falls back to the 6-week default when the date span is unusable', () => {
+  it('falls back to the schema default when there is no span and no config', () => {
     expect(expectedWeeks(null, null)).toBe(6);
   });
 
-  it('caps current week at the derived total so it can never exceed the internship length', () => {
+  it('still refuses an absurd span — the ceiling is a sanity bound, not a length', () => {
+    expect(expectedWeeks('2020-01-01', '2030-01-01')).toBe(52);
+  });
+
+  it('caps current week at the derived total so it can never exceed the attachment', () => {
     const p = weekProgress({
       startDate: '2026-01-12',
       endDate: '2026-06-29',
-      totalWeeksConfig: 6,
+      totalWeeksConfig: 24,
       submittedCount: 30,
     });
-    expect(p.total).toBe(6);
-    expect(p.current).toBe(6); // capped, not 30
+    expect(p.total).toBe(24);
+    expect(p.current).toBe(24); // capped, not 30
+  });
+});
+
+describe('weeksDue — engagement counts what is owed, not the whole programme', () => {
+  const start = '2026-01-05';
+  const threeWeeksIn = new Date('2026-01-26T00:00:00Z');
+
+  it('grows a week at a time', () => {
+    expect(weeksDue(start, 24, threeWeeksIn)).toBe(3);
+  });
+
+  it('stops at the cohort length once the attachment is over', () => {
+    expect(weeksDue(start, 6, new Date('2026-06-29T00:00:00Z'))).toBe(6);
+  });
+
+  it('is 0 before the first full week, and yields no percentage', () => {
+    expect(weeksDue(start, 24, new Date('2026-01-08T00:00:00Z'))).toBe(0);
+    expect(engagementPercent(0, 0)).toBeNull();
+  });
+
+  it('has no answer without a start date', () => {
+    expect(weeksDue(null, 24, threeWeeksIn)).toBe(0);
+  });
+
+  it('never reports over 100%, however many weeks were submitted', () => {
+    expect(engagementPercent(9, 3)).toBe(100);
+    expect(engagementPercent(2, 4)).toBe(50);
   });
 });

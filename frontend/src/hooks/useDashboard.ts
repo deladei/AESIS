@@ -87,9 +87,10 @@ export interface CoordinatorStudent {
   flagReason:      string | null;
   attention:       boolean;   // derived at-risk flag (item 13)
   attentionReasons: { overdueLog: boolean; zeroProgress: boolean; noSupervisor: boolean; lowScore: boolean };
-  totalWeeks:      number;
+  programmeWeeks:  number;
+  weeksDue:        number;
   submittedWeeks:  number;
-  progressPct:     number;
+  progressPct:     number | null;
 }
 
 export type StudentSortKey = 'name' | 'department' | 'supervisor' | 'progress' | 'score' | 'status';
@@ -156,7 +157,10 @@ export interface InternDetail {
   placement:   { id: string; status: string; startDate: string | null; endDate: string | null; company: string | null; cohort: string | null; flagged: boolean; flagReason: string | null };
   student:     { id: string; name: string; email: string; department: string | null };
   supervisors: { academic: { id: string; name: string; email: string } | null; company: { id: string; name: string; email: string } | null };
-  progress:    { submittedWeeks: number; totalWeeks: number; progressPct: number };
+  // `weeksDue` is what has come due so far (the engagement denominator);
+  // `programmeWeeks` is the cohort's configured length. progressPct is null
+  // before the first week is due — nothing is owed, so there is no percentage.
+  progress:    { submittedWeeks: number; weeksDue: number; programmeWeeks: number; progressPct: number | null };
   avgQuality:  number | null;
   entries:     { id: string; weekNumber: number; status: string; periodStart: string; periodEnd: string; submittedAt: string | null; hoursLogged: number | null }[];
   riskHistory: { tier: 'low' | 'medium' | 'high'; score: number; computedAt: string }[];
@@ -332,7 +336,7 @@ export interface AdminDashboard {
   overview: {
     activeInterns:  number;
     pendingReviews: number;
-    avgEngagement:  number;
+    avgEngagement:  number | null;
   };
   pulseBoard: {
     placementId:   string;
@@ -340,8 +344,9 @@ export interface AdminDashboard {
     department:    string | null;
     riskTier:      'low' | 'medium' | 'high' | null;
     submittedWeeks: number;
-    totalWeeks:    number;
-    engagementPct: number;
+    weeksDue:      number;
+    programmeWeeks: number;
+    engagementPct: number | null;
     feedbackCount: number;
   }[];
   riskAlerts: {
@@ -405,10 +410,11 @@ export interface InsightsData {
     placementId:     string;
     name:            string;
     department:      string;
-    engagementPct:   number;
+    engagementPct:   number | null;
     engagementLabel: string;
     submittedCount:  number;
-    expectedWeeks:   number;
+    weeksDue:        number;
+    programmeWeeks:  number;
     relevanceScore:  number | null;  // advisory AI relevance 0–100, or null
     status:          string;
     flagged:         boolean;

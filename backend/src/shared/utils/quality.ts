@@ -14,12 +14,21 @@ export const QUALITY_MAX = 100;
 const WEEK_MS = 7 * 24 * 60 * 60 * 1000;
 
 /**
- * System-wide internship length. The placement is a fixed 6-week programme;
- * no derived count may ever exceed this, regardless of dates or config. This is
- * the single source of truth for "6 weeks" on the backend.
+ * Absolute sanity ceiling on any derived week count — NOT the programme length.
+ *
+ * It used to be 6, described as "the internship is a fixed 6-week programme".
+ * It is not: `CohortConfig.durationWeeks` is coordinator-configured (schema
+ * default 6, cohorts run 24) and is what the logbook itself enforces. Capping
+ * every dashboard at 6 meant a 24-week cohort read "week 6 of 6" from its
+ * seventh week onward, and engagement percentages hit 100% four times over.
+ * The programme length now comes from the cohort (`durationWeeksByAcademicYear`
+ * in modules/entries/entries.week.ts); this only stops an absurd date span from
+ * rendering a nonsense figure.
  */
-export const SYSTEM_MAX_WEEKS = 6;
-const DEFAULT_TOTAL_WEEKS = SYSTEM_MAX_WEEKS;
+export const SYSTEM_MAX_WEEKS = 52;
+
+/** Mirrors `CohortConfig.durationWeeks`'s schema default, for the no-config case. */
+const DEFAULT_TOTAL_WEEKS = 6;
 
 /** Coerce a raw score (number | string | Prisma.Decimal | null) to a finite number, or null. */
 export function toQualityNumber(raw: unknown): number | null {
@@ -109,8 +118,8 @@ export function weeksBetween(start: Date, end: Date): number {
  * Derived from the actual start/end dates first, so the displayed period can
  * never contradict the dates shown next to it. Falls back to the cohort's
  * configured `totalWeeks`, then to the default, only when the date span is
- * unusable. The result is always capped at SYSTEM_MAX_WEEKS — the internship is
- * a fixed 6-week programme, so nothing above six can ever surface.
+ * unusable. The result is capped at SYSTEM_MAX_WEEKS only as a sanity bound —
+ * the cohort's configured length is the real answer, not a literal here.
  */
 export function expectedWeeks(
   startDate: Date | string | null | undefined,
@@ -146,4 +155,34 @@ export function weekProgress(opts: {
   const total = expectedWeeks(opts.startDate, opts.endDate, opts.totalWeeksConfig);
   const current = Math.max(0, Math.min(opts.submittedCount, total));
   return { current, total };
+}
+
+/**
+ * Weeks of a programme that have actually come DUE by `today`, capped at its
+ * configured length.
+ *
+ * Engagement is "how much of what you owe have you handed in", and what you owe
+ * grows a week at a time. Dividing submissions by the WHOLE programme instead
+ * made every intern look at risk until their final week — invisible while the
+ * programme was assumed to be 6 weeks long, glaring at 24. Returns 0 before the
+ * first full week has elapsed: nothing is owed yet, so there is no percentage
+ * to render (show "—", per the no-impossible-metrics rule).
+ */
+export function weeksDue(
+  startDate: Date | string | null | undefined,
+  programmeWeeks: number,
+  today: Date = new Date(),
+): number {
+  if (!startDate) return 0;
+  const s = new Date(startDate);
+  if (Number.isNaN(s.getTime())) return 0;
+  const elapsed = Math.floor((today.getTime() - s.getTime()) / WEEK_MS);
+  const cap = Math.min(Math.max(0, programmeWeeks), SYSTEM_MAX_WEEKS);
+  return Math.max(0, Math.min(elapsed, cap));
+}
+
+/** Engagement %, or null when nothing is due yet — never a misleading 0 or 100. */
+export function engagementPercent(submitted: number, due: number): number | null {
+  if (due <= 0) return null;
+  return Math.min(100, Math.round((Math.max(0, submitted) / due) * 100));
 }
