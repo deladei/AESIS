@@ -16,11 +16,12 @@ jest.mock('../../../config/prisma', () => ({
   },
 }));
 
+jest.mock('../../risk/risk.service', () => ({ refreshRiskSnapshots: jest.fn() }));
 jest.mock('../../notifications/notifications.service', () => ({ createNotification: jest.fn() }));
 jest.mock('../../../shared/utils/email', () => ({ sendEmail: jest.fn() }));
 
 import { prisma } from '../../../config/prisma';
-import { getAdminDashboard, messageIntern, scheduleCallWithIntern } from '../admin.service';
+import { getAdminDashboard, getInternStats, messageIntern, scheduleCallWithIntern } from '../admin.service';
 import { createNotification } from '../../notifications/notifications.service';
 import { sendEmail } from '../../../shared/utils/email';
 
@@ -196,5 +197,55 @@ describe('admin messaging', () => {
     (mp.placement.findUnique as jest.Mock).mockResolvedValue(null);
     await expect(messageIntern('nope', 'hi')).rejects.toMatchObject({ statusCode: 404 });
     expect(mockEmail).not.toHaveBeenCalled();
+  });
+});
+
+// ─────────────────────────────────────────────────────────────
+describe('getInternStats', () => {
+  const intern = (over: Record<string, unknown> = {}) => ({
+    id: 'p-x',
+    placementStatus: 'active',
+    finalizationStatus: 'active',
+    logbookEntries: [],
+    logbookSubmissions: [],
+    riskScores: [],
+    ...over,
+  });
+
+  it('buckets every intern exactly once and averages only real scores', async () => {
+    (mp.placement.findMany as jest.Mock).mockResolvedValue([
+      // Active but has never submitted a week → not started, whatever the
+      // status column says.
+      intern({ id: 'p-1' }),
+      intern({
+        id: 'p-2',
+        logbookEntries: [{ submittedAt: new Date(), assessments: [{ quality: { overall: 80 } }] }],
+        riskScores: [{ riskTier: 'high' }],
+      }),
+      intern({
+        id: 'p-3', placementStatus: 'completed',
+        logbookEntries: [{ submittedAt: new Date(), assessments: [{ quality: { overall: 60 } }] }],
+      }),
+      // Finalized while still "active" is still finished.
+      intern({ id: 'p-4', finalizationStatus: 'finalized' }),
+    ]);
+
+    const stats = await getInternStats();
+
+    expect(stats.total).toBe(4);
+    expect(stats.notStarted).toBe(1);
+    expect(stats.inProgress).toBe(1);
+    expect(stats.completed).toBe(2);
+    expect(stats.notStarted + stats.inProgress + stats.completed).toBe(stats.total);
+    expect(stats.atRisk).toBe(1);
+    expect(stats.avgScore).toBe(70);
+  });
+
+  it('reports no average at all when nothing has been scored', async () => {
+    (mp.placement.findMany as jest.Mock).mockResolvedValue([intern()]);
+
+    const stats = await getInternStats();
+    // Not 0 — an unassessed cohort is not a failing one.
+    expect(stats.avgScore).toBeNull();
   });
 });

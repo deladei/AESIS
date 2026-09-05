@@ -1,5 +1,7 @@
 import { prisma } from '../../config/prisma';
-import { weeksDue, engagementPercent } from '../../shared/utils/quality';
+import {
+  weeksDue, engagementPercent, meanQualityScore, mergedQualityScores,
+} from '../../shared/utils/quality';
 import { durationWeeksByAcademicYear, weeksForYear } from '../entries/entries.week';
 import { AppError } from '../../middleware/errorHandler';
 import { createNotification } from '../notifications/notifications.service';
@@ -13,6 +15,77 @@ const REVIEWED_ENTRY_STATUSES = ['acknowledged', 'returned'] as const;
 
 const PULSE_LIMIT  = 6;
 const RECENT_LIMIT = 6;
+
+/**
+ * Headline counts for the All Interns board.
+ *
+ * Every intern is counted once, in exactly one lifecycle bucket, off CURRENT
+ * placements — a superseded placement from a transfer is history, not a second
+ * intern. "Not started" and "in progress" are told apart by whether the student
+ * has actually submitted a week, not by a status column that can sit at
+ * `active` for someone who has never logged anything.
+ */
+export async function getInternStats() {
+  await refreshRiskSnapshots();
+
+  const placements = await prisma.placement.findMany({
+    where:  { isCurrent: true },
+    select: {
+      id: true,
+      placementStatus:    true,
+      finalizationStatus: true,
+      logbookEntries: {
+        select: {
+          submittedAt: true,
+          assessments: {
+            orderBy: { createdAt: 'desc' },
+            take:    1,
+            select:  { quality: true },
+          },
+        },
+      },
+      logbookSubmissions: { select: { analysis: { select: { qualityScore: true } } } },
+      riskScores: {
+        orderBy: { computedAt: 'desc' },
+        take:    1,
+        select:  { riskTier: true },
+      },
+    },
+  });
+
+  let notStarted = 0;
+  let inProgress = 0;
+  let completed  = 0;
+  let atRisk     = 0;
+  const scores: (number | null)[] = [];
+
+  for (const p of placements) {
+    const hasSubmitted = p.logbookEntries.some(e => e.submittedAt != null);
+    const isDone = p.placementStatus === 'completed' || p.finalizationStatus === 'finalized';
+
+    if (isDone) completed++;
+    else if (hasSubmitted) inProgress++;
+    else notStarted++;
+
+    if (p.riskScores[0]?.riskTier === 'high') atRisk++;
+
+    scores.push(...mergedQualityScores(
+      p.logbookSubmissions.map(s => s.analysis?.qualityScore),
+      p.logbookEntries,
+    ));
+  }
+
+  return {
+    total: placements.length,
+    notStarted,
+    inProgress,
+    completed,
+    atRisk,
+    // Null when nothing anywhere has been scored — never 0, which would read as
+    // a cohort of failures rather than a cohort nobody has assessed yet.
+    avgScore: meanQualityScore(scores),
+  };
+}
 
 /**
  * System-wide rollup for the Admin "Supervisor Overview" dashboard.

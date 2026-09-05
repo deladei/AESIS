@@ -12,6 +12,9 @@ router.use(authorize('admin'));
 // GET /api/v1/admin/dashboard
 router.get('/dashboard', asyncHandler(ctrl.dashboard));
 
+// GET /api/v1/admin/intern-stats — All Interns headline counts
+router.get('/intern-stats', asyncHandler(ctrl.internStats));
+
 // AI enrichment pipeline ops (queue health + revive stuck jobs)
 router.get('/ai/enrichment', asyncHandler(ctrl.enrichmentHealth));
 router.post('/ai/enrichment/revive', asyncHandler(ctrl.enrichmentRevive));

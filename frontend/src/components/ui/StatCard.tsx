@@ -23,7 +23,7 @@ export function DeltaChip({ value, period }: { value: number | null; period: str
   );
 }
 
-type Tone = 'brand' | 'ok' | 'warn' | 'danger' | 'info' | 'done';
+type Tone = 'brand' | 'ok' | 'warn' | 'danger' | 'info' | 'done' | 'neutral';
 
 const tile: Record<Tone, string> = {
   brand:  'bg-brand-soft text-brand-ink',
@@ -32,6 +32,9 @@ const tile: Record<Tone, string> = {
   danger: 'bg-danger-soft text-danger',
   info:   'bg-info-soft text-info',
   done:   'bg-done-soft text-done',
+  // For a count that is neither good nor bad — "not started" is a state, not a
+  // problem, and tinting it red or amber would editorialise the number.
+  neutral: 'bg-surface-sunken text-ink-secondary',
 };
 
 interface StatCardProps {

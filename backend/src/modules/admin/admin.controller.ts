@@ -17,6 +17,11 @@ export async function dashboard(_req: Request, res: Response) {
   ok(res, data);
 }
 
+export async function internStats(_req: Request, res: Response) {
+  const stats = await service.getInternStats();
+  return ok(res, stats);
+}
+
 // AI enrichment pipeline health (queue status counts).
 export async function enrichmentHealth(_req: Request, res: Response) {
   ok(res, await getEnrichmentHealth());

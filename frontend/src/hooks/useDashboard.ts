@@ -428,6 +428,27 @@ export function useAdminDashboard() {
   });
 }
 
+export interface InternStats {
+  total:      number;
+  notStarted: number;
+  inProgress: number;
+  completed:  number;
+  atRisk:     number;
+  /** Null when nothing has been scored anywhere — never 0. */
+  avgScore:   number | null;
+}
+
+/** All Interns headline counts (admin). Every intern in exactly one bucket. */
+export function useInternStats() {
+  return useQuery({
+    queryKey: ['admin', 'intern-stats'],
+    queryFn:  async () => {
+      const r = await api.get<{ data: InternStats }>('/admin/intern-stats');
+      return r.data.data;
+    },
+  });
+}
+
 // ── AI enrichment pipeline (admin) ────────────────────────────
 export interface EnrichmentHealth {
   pending: number; processing: number; succeeded: number;
