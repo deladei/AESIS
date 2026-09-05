@@ -3,7 +3,8 @@ import { AppError } from '../../../middleware/errorHandler';
 jest.mock('../../../config/prisma', () => ({
   prisma: {
     placement:          { findFirst: jest.fn(), findUnique: jest.fn(), findMany: jest.fn(), create: jest.fn(), update: jest.fn(), count: jest.fn(), groupBy: jest.fn() },
-    company:            { findFirst: jest.fn(), findUnique: jest.fn(), upsert: jest.fn(), create: jest.fn(), update: jest.fn() },
+    company:            { findFirst: jest.fn(), findUnique: jest.fn(), findMany: jest.fn(), count: jest.fn(), upsert: jest.fn(), create: jest.fn(), update: jest.fn() },
+    internshipOpportunity: { count: jest.fn() },
     user:               { findUnique: jest.fn(), findMany: jest.fn(), create: jest.fn() },
     academicYear:       { findFirst: jest.fn() },
     department:         { findUnique: jest.fn() },
@@ -331,7 +332,7 @@ describe('service.getCompanyAnalytics', () => {
   it('returns null avgQualityScore when no submissions have scores', async () => {
     (mp.company.findUnique as jest.Mock).mockResolvedValue({
       ...baseCompany,
-      placements: [{ logbookSubmissions: [{ analysis: null }], _count: { logbookSubmissions: 1 } }],
+      placements: [{ logbookSubmissions: [{ analysis: null }], logbookEntries: [] }],
     });
 
     const result = await service.getCompanyAnalytics('co-1');
@@ -346,12 +347,99 @@ describe('service.getCompanyAnalytics', () => {
           { analysis: { qualityScore: 80 } },
           { analysis: { qualityScore: 60 } },
         ],
-        _count: { logbookSubmissions: 2 },
+        logbookEntries: [],
       }],
     });
 
     const result = await service.getCompanyAnalytics('co-1');
     expect(result.avgQualityScore).toBe(70);
+  });
+
+  it('scores the consolidated logbook, not just the dead legacy table', async () => {
+    // The company's interns are all on `logbook_entry`. Reading only
+    // `logbook_submissions` reported "no submissions, no score" for them.
+    (mp.company.findUnique as jest.Mock).mockResolvedValue({
+      ...baseCompany,
+      placements: [{
+        logbookSubmissions: [],
+        logbookEntries: [
+          { submittedAt: new Date('2026-02-02'), assessments: [{ quality: { overall: 90 } }] },
+          { submittedAt: new Date('2026-02-09'), assessments: [{ quality: { overall: 70 } }] },
+          { submittedAt: null, assessments: [] },   // draft: not a submission
+        ],
+      }],
+    });
+
+    const result = await service.getCompanyAnalytics('co-1');
+    expect(result.totalSubmissions).toBe(2);
+    expect(result.avgQualityScore).toBe(80);
+  });
+});
+
+// ─────────────────────────────────────────────────────────────
+describe('service.listCompanies', () => {
+  it('counts distinct interns, live placements and open roles per company', async () => {
+    (mp.company.findMany as jest.Mock).mockResolvedValue([{
+      id: 'co-1', name: 'Ananse Technologies Ltd.', industry: 'Software',
+      address: 'enc:secret', contactPhone: 'enc:0244000000',
+      _count: { placements: 3 },
+      placements: [
+        { studentId: 'stu-1', placementStatus: 'active',    region: 'greater_accra' },
+        { studentId: 'stu-1', placementStatus: 'completed', region: 'greater_accra' },
+        { studentId: 'stu-2', placementStatus: 'active',    region: 'ashanti' },
+      ],
+      opportunities: [{ id: 'op-1' }, { id: 'op-2' }],
+    }]);
+    (mp.company.count as jest.Mock).mockResolvedValue(1);
+
+    const { companies } = await service.listCompanies();
+    const row = companies[0];
+
+    expect(row.internCount).toBe(2);          // stu-1 twice is one intern
+    expect(row.activePlacements).toBe(2);
+    expect(row.openOpportunities).toBe(2);
+    expect(row.region).toBe('greater_accra'); // the majority region
+    expect(row.status).toBe('active');
+    expect(row).not.toHaveProperty('placements');    // raw rows are not shipped
+    // Encrypted-at-rest columns must never reach a browser.
+    expect(row).not.toHaveProperty('address');
+    expect(row).not.toHaveProperty('contactPhone');
+  });
+
+  it('reads pending, with no region, for a partner hosting nobody', async () => {
+    (mp.company.findMany as jest.Mock).mockResolvedValue([{
+      id: 'co-2', name: 'Kofi Analytics', industry: 'Analytics',
+      _count: { placements: 0 }, placements: [], opportunities: [],
+    }]);
+    (mp.company.count as jest.Mock).mockResolvedValue(1);
+
+    const { companies } = await service.listCompanies();
+    expect(companies[0].status).toBe('pending');
+    expect(companies[0].region).toBeNull();
+    expect(companies[0].internCount).toBe(0);
+  });
+});
+
+// ─────────────────────────────────────────────────────────────
+describe('service.getCompaniesOverview', () => {
+  it('ranks the leaderboard by real placement count and drops empty companies', async () => {
+    (mp.company.count as jest.Mock).mockResolvedValue(24);
+    (mp.placement.count as jest.Mock).mockResolvedValue(156);
+    (mp.internshipOpportunity.count as jest.Mock).mockResolvedValue(48);
+    (mp.placement.findMany as jest.Mock).mockResolvedValue([{ studentId: 'a' }, { studentId: 'b' }]);
+    (mp.company.findMany as jest.Mock).mockResolvedValue([
+      { id: 'co-1', name: 'Ananse', industry: 'Software', logoUrl: null, _count: { placements: 4 } },
+      { id: 'co-2', name: 'Airport', industry: 'Aviation', logoUrl: null, _count: { placements: 1 } },
+      { id: 'co-3', name: 'Nobody', industry: null,       logoUrl: null, _count: { placements: 0 } },
+    ]);
+
+    const result = await service.getCompaniesOverview();
+
+    expect(result.totalCompanies).toBe(24);
+    expect(result.activePlacements).toBe(156);
+    expect(result.openOpportunities).toBe(48);
+    expect(result.placedInterns).toBe(2);
+    expect(result.topCompanies.map(c => c.name)).toEqual(['Ananse', 'Airport']);
   });
 });
 

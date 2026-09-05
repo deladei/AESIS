@@ -112,6 +112,11 @@ export async function listCompaniesHandler(req: Request, res: Response) {
   return ok(res, result.companies, result.meta);
 }
 
+export async function getCompaniesOverviewHandler(_req: Request, res: Response) {
+  const overview = await service.getCompaniesOverview();
+  return ok(res, overview);
+}
+
 export async function getCompanyAnalyticsHandler(req: Request, res: Response) {
   const { id } = uuidParam.parse(req.params);
   const analytics = await service.getCompanyAnalytics(id);

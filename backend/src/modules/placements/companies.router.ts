@@ -20,6 +20,13 @@ router.get(
   asyncHandler(ctrl.listCompaniesHandler),
 );
 
+// Declared before '/:id/*' so "overview" is never parsed as a company id.
+router.get(
+  '/overview',
+  authorize('coordinator', 'admin'),
+  asyncHandler(ctrl.getCompaniesOverviewHandler),
+);
+
 router.get(
   '/:id/analytics',
   authorize('coordinator', 'admin'),

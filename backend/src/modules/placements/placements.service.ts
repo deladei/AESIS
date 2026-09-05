@@ -1,8 +1,9 @@
-import { Prisma } from '@prisma/client';
+import { Prisma, type PlacementStatus, type Region } from '@prisma/client';
 import { prisma } from '../../config/prisma';
 import { AppError } from '../../middleware/errorHandler';
 import { paginate, buildMeta } from '../../shared/utils/pagination';
 import { encryptPII } from '../../shared/utils/crypto';
+import { meanQualityScore, mergedQualityScores } from '../../shared/utils/quality';
 import type {
   CreatePlacementInput,
   UpdatePlacementStatusInput,
@@ -391,6 +392,21 @@ export async function createCompany(input: CreateCompanyInput) {
   });
 }
 
+/** Placement states that mean the company is currently hosting someone. */
+const HOSTING_STATUSES: PlacementStatus[] = ['active'];
+
+/**
+ * Host companies roster. Each row carries what the coordinator's company board
+ * actually shows: how many interns the company has hosted in total, how many it
+ * is hosting right now, how many roles it has open, and where its placements
+ * are. Every figure is counted off real rows — a company with no placements
+ * reads zero rather than borrowing a number from anywhere else.
+ *
+ * `region` is the region MOST of this company's placements sit in. The company
+ * table has no location column (its address is encrypted at the app layer and
+ * is a postal address, not a region), so the placements are the only truthful
+ * source for "where is this company".
+ */
 export async function listCompanies(page = 1, limit = 20) {
   const { skip, take } = paginate(page, limit);
 
@@ -401,14 +417,107 @@ export async function listCompanies(page = 1, limit = 20) {
       orderBy: { name: 'asc' },
       include: {
         _count: { select: { placements: true } },
+        placements: {
+          select: { studentId: true, placementStatus: true, region: true },
+        },
+        opportunities: {
+          where:  { status: 'published' },
+          select: { id: true },
+        },
       },
     }),
     prisma.company.count(),
   ]);
 
-  return { companies, meta: buildMeta(total, page, limit) };
+  const rows = companies.map((c) => {
+    const active = c.placements.filter(p => HOSTING_STATUSES.includes(p.placementStatus));
+
+    // Most common region across this company's placements; null when none of
+    // them carry one, in which case the UI shows nothing rather than a guess.
+    const regionCounts = new Map<Region, number>();
+    for (const p of c.placements) {
+      if (p.region) regionCounts.set(p.region, (regionCounts.get(p.region) ?? 0) + 1);
+    }
+    const region = [...regionCounts.entries()].sort((a, b) => b[1] - a[1])[0]?.[0] ?? null;
+
+    return {
+      // An explicit field list, not a spread of the row: `address` and
+      // `contactPhone` are AES-256-GCM ciphertext at rest and have no business
+      // reaching a browser, and a spread would ship them the moment a column
+      // is added.
+      id:          c.id,
+      name:        c.name,
+      industry:    c.industry,
+      website:     c.website,
+      description: c.description,
+      logoUrl:     c.logoUrl,
+      isPartner:   c.isPartner,
+      createdAt:   c.createdAt,
+      _count:      c._count,
+      region,
+      // Distinct students, so a transferred student who returns is one intern.
+      internCount:        new Set(c.placements.map(p => p.studentId)).size,
+      activePlacements:   active.length,
+      openOpportunities:  c.opportunities.length,
+      // "Active" means it is hosting someone today. Everything else is
+      // "Pending" — a partner on the books with nobody placed yet.
+      status:             active.length > 0 ? ('active' as const) : ('pending' as const),
+    };
+  });
+
+  return { companies: rows, meta: buildMeta(total, page, limit) };
 }
 
+/**
+ * Cohort-wide company figures for the board's headline strip, plus the partner
+ * leaderboard. Ranking is by real placement count — never hand-ordered, and
+ * never by a rating, because nothing in this system rates a company.
+ */
+export async function getCompaniesOverview() {
+  const [totalCompanies, activePlacements, openOpportunities, internRows, top] = await Promise.all([
+    prisma.company.count(),
+    prisma.placement.count({ where: { placementStatus: 'active' } }),
+    prisma.internshipOpportunity.count({ where: { status: 'published' } }),
+    prisma.placement.findMany({
+      where:  { companyId: { not: null } },
+      select: { studentId: true },
+      distinct: ['studentId'],
+    }),
+    prisma.company.findMany({
+      orderBy: { placements: { _count: 'desc' } },
+      take:    3,
+      select:  {
+        id: true, name: true, industry: true, logoUrl: true,
+        _count: { select: { placements: true } },
+      },
+    }),
+  ]);
+
+  return {
+    totalCompanies,
+    activePlacements,
+    openOpportunities,
+    placedInterns: internRows.length,
+    // Only companies that have actually hosted someone can lead a leaderboard.
+    topCompanies:  top
+      .filter(c => c._count.placements > 0)
+      .map(c => ({
+        id: c.id, name: c.name, industry: c.industry, logoUrl: c.logoUrl,
+        placements: c._count.placements,
+      })),
+  };
+}
+
+/**
+ * One company's aggregate performance.
+ *
+ * Reads the CONSOLIDATED logbook (`logbook_entry` + its AI assessments). It used
+ * to read `logbook_submissions` alone — the legacy table the writer no longer
+ * fills — so every company on the current pipeline reported zero submissions and
+ * a null quality score no matter how many weeks its interns had submitted. The
+ * legacy analyses are still merged in, because for older cohorts they are the
+ * only scores that exist, but they are no longer the only source.
+ */
 export async function getCompanyAnalytics(companyId: string) {
   const company = await prisma.company.findUnique({
     where:   { id: companyId },
@@ -419,7 +528,16 @@ export async function getCompanyAnalytics(companyId: string) {
           logbookSubmissions: {
             include: { analysis: { select: { qualityScore: true } } },
           },
-          _count: { select: { logbookSubmissions: true } },
+          logbookEntries: {
+            select: {
+              submittedAt: true,
+              assessments: {
+                orderBy: { createdAt: 'desc' },
+                take:    1,
+                select:  { quality: true },
+              },
+            },
+          },
         },
       },
     },
@@ -427,28 +545,23 @@ export async function getCompanyAnalytics(companyId: string) {
 
   if (!company) throw new AppError(404, 'Company not found');
 
-  // Aggregate quality scores across all submissions for this company
-  const allScores: number[] = [];
-  for (const placement of company.placements) {
-    for (const submission of placement.logbookSubmissions) {
-      if (submission.analysis?.qualityScore) {
-        allScores.push(Number(submission.analysis.qualityScore));
-      }
-    }
-  }
+  const scores = company.placements.flatMap(p => mergedQualityScores(
+    p.logbookSubmissions.map(sub => sub.analysis?.qualityScore),
+    p.logbookEntries,
+  ));
 
-  const avgQuality = allScores.length
-    ? allScores.reduce((a, b) => a + b, 0) / allScores.length
-    : null;
+  // A submission is a week the student actually sent, on either pipeline.
+  const totalSubmissions = company.placements.reduce(
+    (sum, p) => sum + p.logbookSubmissions.length
+      + p.logbookEntries.filter(e => e.submittedAt != null).length,
+    0,
+  );
 
   return {
     company:      { id: company.id, name: company.name, industry: company.industry },
     totalStudents: company.placements.length,
-    avgQualityScore: avgQuality ? Math.round(avgQuality * 10) / 10 : null,
-    totalSubmissions: company.placements.reduce(
-      (sum, p) => sum + p._count.logbookSubmissions,
-      0,
-    ),
+    avgQualityScore: meanQualityScore(scores),
+    totalSubmissions,
   };
 }
 

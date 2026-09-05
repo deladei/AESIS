@@ -1,5 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { api } from '@/lib/api';
+import type { RegionValue } from '@/lib/regions';
 
 export interface PlacementSupervisor {
   id:        string;
@@ -101,11 +102,22 @@ export function useAllPlacements(page = 1, status?: string, q?: string) {
 }
 
 export interface Company {
-  id:       string;
-  name:     string;
-  industry: string | null;
-  website:  string | null;
-  _count?:  { placements: number };
+  id:          string;
+  name:        string;
+  industry:    string | null;
+  website:     string | null;
+  description: string | null;
+  logoUrl:     string | null;
+  isPartner:   boolean;
+  /** Where most of this company's placements sit. Null when none carry one. */
+  region:      RegionValue | null;
+  /** Distinct students ever placed here. */
+  internCount:       number;
+  activePlacements:  number;
+  openOpportunities: number;
+  /** Derived: hosting somebody today, or on the books with nobody placed. */
+  status:      'active' | 'pending';
+  _count?:     { placements: number };
 }
 
 /** Host companies list (coordinator/admin). Backed by GET /api/v1/companies. */
@@ -116,6 +128,47 @@ export function useCompanies(page = 1) {
       const r = await api.get<{ data: Company[]; meta?: unknown }>(`/companies?page=${page}&limit=50`);
       return { companies: r.data?.data ?? [], meta: r.data?.meta };
     },
+  });
+}
+
+export interface CompaniesOverview {
+  totalCompanies:    number;
+  activePlacements:  number;
+  openOpportunities: number;
+  placedInterns:     number;
+  topCompanies: {
+    id: string; name: string; industry: string | null;
+    logoUrl: string | null; placements: number;
+  }[];
+}
+
+/** Cohort-wide company figures + the partner leaderboard (by placement count). */
+export function useCompaniesOverview() {
+  return useQuery({
+    queryKey: ['companies', 'overview'],
+    queryFn:  async () => {
+      const r = await api.get<{ data: CompaniesOverview }>('/companies/overview');
+      return r.data.data;
+    },
+  });
+}
+
+export interface CreateCompanyInput {
+  name:     string;
+  industry?: string;
+  website?:  string;
+  address?:  string;
+}
+
+/** Register a host company (coordinator/admin). */
+export function useCreateCompany() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (input: CreateCompanyInput) => {
+      const r = await api.post<{ data: Company }>('/companies', input);
+      return r.data.data;
+    },
+    onSuccess: () => { void qc.invalidateQueries({ queryKey: ['companies'] }); },
   });
 }
 

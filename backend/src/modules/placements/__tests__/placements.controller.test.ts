@@ -14,6 +14,7 @@ jest.mock('../placements.service', () => ({
   getSupervisorPlacements:jest.fn(),
   createCompany:          jest.fn(),
   listCompanies:          jest.fn(),
+  getCompaniesOverview:   jest.fn(),
   getCompanyAnalytics:    jest.fn(),
   addPlacementDocument:   jest.fn(),
   getPlacementDocuments:  jest.fn(),
@@ -186,6 +187,31 @@ describe('GET /companies', () => {
     const res = await request(app)
       .get('/companies')
       .set('Authorization', `Bearer ${token()}`);
+    expect(res.status).toBe(403);
+  });
+});
+
+describe('GET /companies/overview', () => {
+  it('returns 200 with the cohort-wide company figures', async () => {
+    mockService.getCompaniesOverview.mockResolvedValue({
+      totalCompanies: 24, activePlacements: 156, openOpportunities: 48,
+      placedInterns: 312, topCompanies: [],
+    } as any);
+
+    const res = await request(app)
+      .get('/companies/overview')
+      .set('Authorization', `Bearer ${token('coordinator')}`);
+
+    expect(res.status).toBe(200);
+    expect(res.body.data.totalCompanies).toBe(24);
+    // "overview" must not be parsed as a company id by the /:id routes.
+    expect(mockService.getCompanyAnalytics).not.toHaveBeenCalled();
+  });
+
+  it('returns 403 for a student', async () => {
+    const res = await request(app)
+      .get('/companies/overview')
+      .set('Authorization', `Bearer ${token('student')}`);
     expect(res.status).toBe(403);
   });
 });
