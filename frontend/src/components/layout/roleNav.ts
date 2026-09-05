@@ -54,13 +54,17 @@ export const ROLE_NAV: Record<ShellRole, RoleNav> = {
     brandSubtitle: 'Supervision',
     roleLabel: 'Academic Supervisor',
     messagesHref: '/feedback',
+    // Labels follow the reference design where a real route backs them. Items
+    // it shows that have no page here (Calendar, Documents, standalone
+    // Messages) are omitted rather than pointed at a 404 — that is exactly what
+    // made the old AppShell dead weight.
     items: [
-      { label: 'Dashboard',       href: '/supervisor/dashboard', icon: LayoutDashboard },
-      { label: 'Review Logbooks', href: '/supervisor/review',    icon: ClipboardCheck },
-      { label: 'Finalize',        href: '/supervisor/finalize',  icon: Award },
-      { label: 'AI Insights',     href: '/ai-insights',          icon: Sparkles },
-      { label: 'Feedback Centre', href: '/feedback',             icon: MessageSquareText },
-      { label: 'My Profile',      href: '/profile',              icon: UserRound },
+      { label: 'Supervisor Dashboard', href: '/supervisor/dashboard', icon: LayoutDashboard },
+      { label: 'My Students',          href: '/supervisor/review',    icon: Users },
+      { label: 'Student Progress',     href: '/ai-insights',          icon: Sparkles },
+      { label: 'Assessments',          href: '/supervisor/finalize',  icon: Award },
+      { label: 'Reviews & Feedback',   href: '/feedback',             icon: MessageSquareText },
+      { label: 'My Profile',           href: '/profile',              icon: UserRound },
     ],
   },
 

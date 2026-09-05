@@ -1,6 +1,7 @@
 import { prisma } from '../../config/prisma';
 import { refreshRiskSnapshots } from '../risk/risk.service';
-import { meanQualityScore, mergedQualityScores } from '../../shared/utils/quality';
+import { meanQualityScore, mergedQualityScores, weeksDue, engagementPercent } from '../../shared/utils/quality';
+import { durationWeeksByAcademicYear, weeksForYear } from '../entries/entries.week';
 
 export async function getSupervisorDashboard(supervisorId: string) {
   // Bring risk tiers up to date before reading them (never throws).
@@ -14,30 +15,41 @@ export async function getSupervisorDashboard(supervisorId: string) {
       },
       select: {
         id:      true,
+        startDate:          true,
+        academicYearId:     true,
+        finalizationStatus: true,
+        company: { select: { name: true } },
         student: { select: { id: true, firstName: true, lastName: true, email: true } },
         riskScores: {
           orderBy: { computedAt: 'desc' },
           take:    1,
           select:  { riskTier: true, riskScore: true, topRiskFactors: true },
         },
-        logbookSubmissions: {
-          orderBy: { weekNumber: 'desc' },
-          take:    4,
-          select: {
-            weekNumber:       true,
-            submissionStatus: true,
-            submittedAt:      true,
-            analysis: { select: { qualityScore: true } },
-          },
-        },
-        // v2 pipeline: recent weekly entries' latest ai_assessment carries the
-        // quality signal now that the legacy analysis writer is retired (S82).
+        // The LIVE pipeline. `recentWeeks` and `lastSubmittedAt` used to be read
+        // off `logbook_submissions`, which has had no writer since the
+        // consolidation — so every student row said "no submissions yet"
+        // however many weeks they had actually sent in.
         logbookEntries: {
           orderBy: { weekNumber: 'desc' },
           take:    4,
           select: {
+            weekNumber:  true,
+            status:      true,
+            submittedAt: true,
             assessments: { select: { quality: true }, orderBy: { createdAt: 'desc' }, take: 1 },
           },
+        },
+        // Legacy analyses are frozen history — no writer since S82 — but they
+        // are still the ONLY quality figure older cohorts have, so they stay in
+        // the average. They are deliberately NOT used for recentWeeks or
+        // lastSubmittedAt any more: that is what made every row read empty.
+        logbookSubmissions: {
+          orderBy: { weekNumber: 'desc' },
+          take:    4,
+          select:  { analysis: { select: { qualityScore: true } } },
+        },
+        _count: {
+          select: { logbookEntries: { where: { submittedAt: { not: null } } } },
         },
       },
     }),
@@ -94,31 +106,47 @@ export async function getSupervisorDashboard(supervisorId: string) {
     }),
   ]);
 
-  const students = placements.map(p => {
-    // Reverse so oldest-first for sparkline (front-end Recharts)
-    const recent = [...p.logbookSubmissions].reverse();
+  // Programme length per cohort, one query for the whole page.
+  const weeksByYear = await durationWeeksByAcademicYear(placements.map(p => p.academicYearId));
 
-    // Validated mean over both sources: recent legacy submissions (frozen
-    // history) + recent v2 entry assessments.
+  const students = placements.map(p => {
+    // Oldest-first for the sparkline.
+    const recent = [...p.logbookEntries].reverse();
+
+    // Validated mean over both sources: frozen legacy analyses + the live
+    // entries' latest AI assessment. Clamped, with nulls excluded from both
+    // numerator and denominator.
     const avgQualityScore = meanQualityScore(mergedQualityScores(
-      recent.map(s => s.analysis?.qualityScore ?? null),
+      p.logbookSubmissions.map(sub => sub.analysis?.qualityScore ?? null),
       p.logbookEntries,
     ));
+
+    // Progress is submitted weeks over weeks actually DUE, not over the whole
+    // programme — otherwise everyone reads "behind" until their final week.
+    const programmeWeeks = weeksForYear(weeksByYear, p.academicYearId);
+    const due = weeksDue(p.startDate, programmeWeeks);
+    const submittedWeeks = p._count.logbookEntries;
 
     return {
       placementId: p.id,
       student:     p.student,
+      company:     p.company?.name ?? null,
+      finalizationStatus: p.finalizationStatus,
       riskTier:    p.riskScores[0]?.riskTier  ?? null,
       riskScore:   p.riskScores[0]?.riskScore != null
                      ? Number(p.riskScores[0].riskScore) : null,
       riskFactors: p.riskScores[0]?.topRiskFactors ?? [],
-      recentWeeks: recent.map(s => ({
-        week:   s.weekNumber,
-        status: s.submissionStatus,
-        score:  s.analysis?.qualityScore != null ? Number(s.analysis.qualityScore) : null,
+      recentWeeks: recent.map(e => ({
+        week:   e.weekNumber,
+        status: e.status,
+        score:  null as number | null,
       })),
       avgQualityScore,
-      lastSubmittedAt: p.logbookSubmissions[0]?.submittedAt ?? null,
+      submittedWeeks,
+      weeksDue: due,
+      programmeWeeks,
+      progressPct: engagementPercent(submittedWeeks, due),
+      lastSubmittedAt: p.logbookEntries.find(e => e.submittedAt != null)?.submittedAt ?? null,
     };
   });
 
@@ -128,6 +156,16 @@ export async function getSupervisorDashboard(supervisorId: string) {
 
   const avgQualityScore = allAvgScores.length
     ? Math.round(allAvgScores.reduce((a, b) => a + b, 0) / allAvgScores.length * 10) / 10
+    : null;
+
+  // The donut's centre figure: mean progress across students who actually have
+  // weeks due. Students with nothing due yet are excluded from BOTH halves
+  // rather than counted as 0%, which would drag the cohort down for no reason.
+  const progressValues = students
+    .map(s => s.progressPct)
+    .filter((v): v is number => v !== null);
+  const avgProgress = progressValues.length
+    ? Math.round(progressValues.reduce((a, b) => a + b, 0) / progressValues.length)
     : null;
 
   // The next scheduled review per placement, so the student list can carry a
@@ -147,6 +185,7 @@ export async function getSupervisorDashboard(supervisorId: string) {
       reportsThisMonth,
       completedInternships,
       pendingApprovals,
+      avgProgress,
     },
     upcomingReviews: upcomingReviews.map((v) => ({
       id: v.id,

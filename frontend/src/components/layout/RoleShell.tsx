@@ -1,5 +1,5 @@
 import { Link, useLocation } from 'react-router-dom';
-import { LogOut, Mail } from 'lucide-react';
+import { LogOut, Mail, Sparkles } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useAuth } from '@/contexts/AuthContext';
 import { useUnreadCount } from '@/hooks/useNotifications';
@@ -57,6 +57,72 @@ export function RoleShell({ role, user, children, topbarSlot }: RoleShellProps) 
    */
   const canSearch = role === 'coordinator' || role === 'hod' || role === 'admin';
   const canQuickAct = role === 'coordinator' || role === 'hod';
+  // The reference designs place the identity block differently per role: the
+  // supervisor's sits at the TOP of the rail under the brand, the student's and
+  // coordinator's at the bottom.
+  const identityOnTop = role === 'academic_supervisor';
+
+  const userCard = (
+    <div className="m-3 rounded-2xl bg-sidebar-hover p-3">
+      <div className="flex items-center gap-3">
+        <UserAvatar avatarUrl={user.avatarUrl} initials={user.initials} name={user.name} />
+        <span className="min-w-0 leading-tight">
+          <span className="block truncate text-sm font-semibold text-white">{user.name}</span>
+          <span className="block truncate text-[11px] text-sidebar-ink">
+            {nav.roleLabel}
+            {studentStats?.profile.academicLevel ? ` · Level ${studentStats.profile.academicLevel}` : ''}
+          </span>
+          <span className="mt-0.5 flex items-center gap-1 text-[11px] text-ok">
+            <span className="h-1.5 w-1.5 rounded-full bg-ok" /> Online
+          </span>
+        </span>
+      </div>
+
+      {role === 'student' && studentStats && (
+        <div className="mt-3">
+          <div className="flex items-center justify-between text-[11px]">
+            <span className="text-sidebar-ink">Profile completion</span>
+            <span className="font-semibold text-white">{studentStats.profile.completionPct}%</span>
+          </div>
+          <div className="mt-1.5 h-1.5 w-full overflow-hidden rounded-full bg-white/10">
+            <div
+              className="h-full rounded-full bg-ok transition-[width] duration-500"
+              style={{ width: `${studentStats.profile.completionPct}%` }}
+            />
+          </div>
+          {studentStats.profile.completionPct < 100 && (
+            <Link to="/profile" className="mt-2 block text-[11px] font-semibold text-brand-ink hover:underline">
+              Complete your profile →
+            </Link>
+          )}
+        </div>
+      )}
+
+      <button
+        type="button"
+        onClick={logout}
+        className="mt-3 flex w-full items-center justify-center gap-2 rounded-lg border border-white/10 px-3 py-2 text-xs font-semibold text-sidebar-ink transition-colors hover:bg-white/5 hover:text-white"
+      >
+        <LogOut className="h-3.5 w-3.5" />
+        Sign out
+      </button>
+    </div>
+  );
+
+  // The assistant card the supervisor and coordinator rails carry at the foot.
+  const assistantCard = (
+    <Link
+      to={role === 'student' ? '/student/chatbot' : '/ai-insights'}
+      className="m-3 block rounded-2xl bg-brand p-3 transition-opacity hover:opacity-90"
+    >
+      <span className="flex items-center gap-2 text-sm font-semibold text-white">
+        <Sparkles className="h-4 w-4" /> Insights
+      </span>
+      <span className="mt-1 block text-[11px] leading-snug text-white/80">
+        Cohort signals derived from submission behaviour — advisory, never a prediction.
+      </span>
+    </Link>
+  );
 
   // Exact match only. Several roles share hrefs (/feedback, /ai-insights, and
   // /profile), so a prefix test would light up two rows at once.
@@ -75,6 +141,8 @@ export function RoleShell({ role, user, children, topbarSlot }: RoleShellProps) 
             <span className="block text-[11px] text-sidebar-ink">{nav.brandSubtitle}</span>
           </span>
         </div>
+
+        {identityOnTop && userCard}
 
         {/* Nav */}
         <nav className="flex-1 space-y-1 overflow-y-auto px-3 py-2">
@@ -106,49 +174,9 @@ export function RoleShell({ role, user, children, topbarSlot }: RoleShellProps) 
           })}
         </nav>
 
-        {/* User card */}
-        <div className="m-3 rounded-2xl bg-sidebar-hover p-3">
-          <div className="flex items-center gap-3">
-            <UserAvatar avatarUrl={user.avatarUrl} initials={user.initials} name={user.name} />
-            <span className="min-w-0 leading-tight">
-              <span className="block truncate text-sm font-semibold text-white">{user.name}</span>
-              <span className="block truncate text-[11px] text-sidebar-ink">
-                {nav.roleLabel}
-                {studentStats?.profile.academicLevel
-                  ? ` · Level ${studentStats.profile.academicLevel}`
-                  : ''}
-              </span>
-            </span>
-          </div>
+        {!identityOnTop && userCard}
+        {role !== 'student' && assistantCard}
 
-          {role === 'student' && studentStats && (
-            <div className="mt-3">
-              <div className="flex items-center justify-between text-[11px]">
-                <span className="text-sidebar-ink">Profile completion</span>
-                <span className="font-semibold text-white">{studentStats.profile.completionPct}%</span>
-              </div>
-              <div className="mt-1.5 h-1.5 w-full overflow-hidden rounded-full bg-white/10">
-                <div
-                  className="h-full rounded-full bg-ok transition-[width] duration-500"
-                  style={{ width: `${studentStats.profile.completionPct}%` }}
-                />
-              </div>
-              {studentStats.profile.completionPct < 100 && (
-                <Link to="/profile" className="mt-2 block text-[11px] font-semibold text-brand-ink hover:underline">
-                  Complete your profile →
-                </Link>
-              )}
-            </div>
-          )}
-          <button
-            type="button"
-            onClick={logout}
-            className="mt-3 flex w-full items-center justify-center gap-2 rounded-lg border border-white/10 px-3 py-2 text-xs font-semibold text-sidebar-ink transition-colors hover:bg-white/5 hover:text-white"
-          >
-            <LogOut className="h-3.5 w-3.5" />
-            Sign out
-          </button>
-        </div>
       </aside>
 
       <div className="flex flex-1 flex-col overflow-hidden">

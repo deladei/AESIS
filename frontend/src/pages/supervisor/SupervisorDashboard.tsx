@@ -1,7 +1,7 @@
 import { Link } from 'react-router-dom';
 import {
-  AlertTriangle, Award, Briefcase, CalendarDays, Check, ClipboardCheck, FileText,
-  Gauge, Inbox, Loader2, MessageSquare, Sparkles, TrendingUp, Users, X,
+  AlertTriangle, Award, Briefcase, CalendarDays, Check, ChevronRight, ClipboardCheck,
+  FileText, Inbox, Loader2, Sparkles, TrendingUp, Users, X,
 } from 'lucide-react';
 import { useSupervisorDashboard, type SupervisorDashboard as Dash } from '@/hooks/useDashboard';
 import { useAuth } from '@/contexts/AuthContext';
@@ -9,7 +9,7 @@ import { useVisits } from '@/hooks/useVisits';
 import { usePendingApprovals, useDecideApproval } from '@/hooks/useApprovals';
 import { Card, CardHeader } from '@/components/ui/Card';
 import { StatCard } from '@/components/ui/StatCard';
-import { Badge } from '@/components/ui/Badge';
+import { Badge, LegendDot } from '@/components/ui/Badge';
 import { EmptyState } from '@/components/ui/Feedback';
 import { DateTile, InitialsAvatar, NoValue, ProgressBar } from '@/components/ui/Bits';
 import { DonutStat } from '@/components/ui/Charts';
@@ -23,54 +23,53 @@ function latestWeek(s: Student) {
   return [...s.recentWeeks].sort((a, b) => b.week - a.week)[0];
 }
 
-function formatWhen(iso: string | null) {
+function timeAgo(iso: string | null) {
   if (!iso) return 'No submissions yet';
-  const d = new Date(iso);
-  const diff = Date.now() - d.getTime();
-  const time = d.toLocaleTimeString('en-GB', { hour: 'numeric', minute: '2-digit' });
-  if (diff < 86_400_000) return `Today, ${time}`;
-  if (diff < 172_800_000) return `Yesterday, ${time}`;
-  return `${d.toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}, ${time}`;
+  const mins = Math.floor((Date.now() - new Date(iso).getTime()) / 60_000);
+  if (mins < 1) return 'Submitted just now';
+  if (mins < 60) return `Submitted ${mins}m ago`;
+  const hrs = Math.floor(mins / 60);
+  if (hrs < 24) return `Submitted ${hrs} hour${hrs === 1 ? '' : 's'} ago`;
+  const days = Math.floor(hrs / 24);
+  if (days === 1) return 'Submitted yesterday';
+  return `Submitted ${days} days ago`;
 }
 
+const shortDate = (iso: string) =>
+  new Date(iso).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' });
+
 const WEEK_STATUS: Record<string, { label: string; tone: 'ok' | 'warn' | 'info' | 'neutral' | 'danger' }> = {
-  approved:      { label: 'Approved',      tone: 'ok' },
-  acknowledged:  { label: 'Acknowledged',  tone: 'ok' },
-  submitted:     { label: 'Pending review', tone: 'warn' },
-  under_review:  { label: 'In review',     tone: 'info' },
-  returned:      { label: 'Returned',      tone: 'danger' },
-  flagged:       { label: 'Flagged',       tone: 'danger' },
-  late:          { label: 'Late',          tone: 'danger' },
-  draft:         { label: 'Draft',         tone: 'neutral' },
-  pending:       { label: 'Not submitted', tone: 'neutral' },
-  not_submitted: { label: 'Not submitted', tone: 'neutral' },
+  acknowledged: { label: 'Reviewed',    tone: 'ok' },
+  approved:     { label: 'Reviewed',    tone: 'ok' },
+  submitted:    { label: 'Submitted',   tone: 'info' },
+  returned:     { label: 'Returned',    tone: 'danger' },
+  draft:        { label: 'Draft',       tone: 'neutral' },
+  not_started:  { label: 'Not started', tone: 'neutral' },
 };
 
 const VISIT_LABEL: Record<string, string> = {
-  site_visit:     'Site visit',
-  review_meeting: 'Review',
-  midterm_review: 'Midterm',
-  final_review:   'Final',
+  site_visit:     'Site Visit',
+  review_meeting: 'Progress Review',
+  midterm_review: 'Midterm Review',
+  final_review:   'Final Review',
   check_in:       'Check-in',
 };
 
-const RISK: Record<string, { label: string; tone: 'ok' | 'warn' | 'danger' }> = {
-  low:    { label: 'On track', tone: 'ok' },
-  medium: { label: 'At risk',  tone: 'warn' },
-  high:   { label: 'Behind',   tone: 'danger' },
+const APPROVAL_LABEL: Record<string, string> = {
+  leave:             'Leave Request',
+  extension:         'Extension Request',
+  supervisor_change: 'Change of Supervisor',
+  training_plan:     'Training Plan',
+  company_transfer:  'Change of Attachment',
 };
 
 /**
- * Academic supervisor dashboard.
+ * Academic supervisor dashboard, laid out to the reference design: five
+ * headline figures, then students / progress / reviews, then submissions /
+ * approvals / signals.
  *
  * Scope is resolved server-side from the JWT — the student set comes from
- * `placement.academicSupervisorId`, never from a client-supplied parameter, so
- * there is nothing here a supervisor could widen by editing a request.
- *
- * The reference design's scheduled-review widgets (next review date, upcoming
- * reviews with times) are absent: `visit_schedules` exists as a table but has
- * no writer anywhere in the codebase, and a date rendered from nothing is worse
- * than no date. That is its own phase.
+ * `placement.academicSupervisorId`, never a client-supplied parameter.
  */
 export default function SupervisorDashboard() {
   const { user } = useAuth();
@@ -89,65 +88,70 @@ export default function SupervisorDashboard() {
 
   const overview = data?.overview ?? {
     assignedStudents: 0, pendingReview: 0, avgQualityScore: null,
-    reportsThisMonth: 0, completedInternships: 0, pendingApprovals: 0,
+    reportsThisMonth: 0, completedInternships: 0, pendingApprovals: 0, avgProgress: null,
   };
   const students = data?.students ?? [];
 
-  const byTier = (t: string) => students.filter((s) => s.riskTier === t).length;
-  const unscored = students.filter((s) => s.riskTier == null).length;
+  // "88% of total" — active against everything this supervisor has carried.
+  const totalEverSupervised = overview.assignedStudents + overview.completedInternships;
+  const activeShare = totalEverSupervised > 0
+    ? Math.round((overview.assignedStudents / totalEverSupervised) * 100)
+    : null;
 
-  // The donut reports the risk tiers the risk engine actually produced, rather
-  // than inventing an "on track / behind / completed" split the data cannot
-  // support. Unscored is shown, not hidden — a student with no signal yet is
-  // not a student doing well.
+  // The four states in the reference legend, each from a real signal: finalized
+  // placements are Completed, the rest split by the risk engine's tier.
+  const completed = students.filter((s) => s.finalizationStatus === 'finalized').length;
+  const live = students.filter((s) => s.finalizationStatus !== 'finalized');
+  const onTrack = live.filter((s) => s.riskTier === 'low' || s.riskTier == null).length;
+  const atRisk = live.filter((s) => s.riskTier === 'medium').length;
+  const behind = live.filter((s) => s.riskTier === 'high').length;
+
   const donut = [
-    { label: 'On track', value: byTier('low'),    color: 'var(--chart-1)' },
-    { label: 'At risk',  value: byTier('medium'), color: 'var(--chart-2)' },
-    { label: 'Behind',   value: byTier('high'),   color: 'var(--chart-4)' },
-    { label: 'No signal yet', value: unscored,    color: 'var(--chart-3)' },
-  ].filter((s) => s.value > 0);
+    { label: 'On Track',  value: onTrack,   color: 'var(--chart-1)' },
+    { label: 'At Risk',   value: atRisk,    color: 'var(--chart-2)' },
+    { label: 'Completed', value: completed, color: 'var(--chart-3)' },
+    { label: 'Behind',    value: behind,    color: 'var(--chart-4)' },
+  ].filter((d) => d.value > 0);
 
   const highRisk = students.filter((s) => s.riskTier === 'high');
-  const topPerformer = [...students]
-    .filter((s) => s.avgQualityScore != null)
-    .sort((a, b) => (b.avgQualityScore ?? 0) - (a.avgQualityScore ?? 0))[0];
-
-  // Each student's most recent week that is actually waiting on this supervisor.
-  const pendingRows = students
-    .map((s) => ({ s, w: latestWeek(s) }))
-    .filter(({ w }) => w && (w.status === 'submitted' || w.status === 'under_review'))
-    .slice(0, 6);
+  const topPerformers = students.filter((s) => (s.avgQualityScore ?? 0) >= 80);
+  const awaitingReview = students
+    .map((s) => latestWeek(s))
+    .filter((w) => w && w.status === 'submitted');
 
   const recentSubmissions = [...students]
     .filter((s) => s.lastSubmittedAt != null)
     .sort((a, b) => new Date(b.lastSubmittedAt!).getTime() - new Date(a.lastSubmittedAt!).getTime())
     .slice(0, 5);
 
+  const atRiskShare = students.length > 0
+    ? Math.round(((atRisk + behind) / students.length) * 100)
+    : 0;
+
   return (
     <div className="mx-auto max-w-[1400px] space-y-5 p-4 sm:p-6">
       <header>
         <h1 className="text-2xl font-bold text-ink">Welcome back, {user?.firstName}</h1>
         <p className="mt-1 text-sm text-ink-secondary">
-          An overview of the interns you supervise and what needs your attention.
+          Here's an overview of your supervised students and activities.
         </p>
       </header>
 
-      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+      {/* Five headline figures */}
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
         <StatCard
-          label="Supervised interns"
+          label="My supervised students"
           value={overview.assignedStudents}
           icon={Users}
           tone="brand"
-          footnote="Active placements assigned to you"
-          action={{ label: 'View all', to: '/supervisor/review' }}
+          action={{ label: 'View all students', to: '/supervisor/review' }}
         />
         <StatCard
-          label="Pending reviews"
-          value={overview.pendingReview}
-          icon={ClipboardCheck}
-          tone={overview.pendingReview > 0 ? 'warn' : 'ok'}
-          footnote={overview.pendingReview > 0 ? 'Waiting on you' : 'Nothing waiting'}
-          action={{ label: 'Open review queue', to: '/supervisor/review' }}
+          label="Internships active"
+          value={overview.assignedStudents}
+          icon={Briefcase}
+          tone="ok"
+          footnote={activeShare != null ? `${activeShare}% of total` : 'No completed placements yet'}
         />
         <StatCard
           label="Reports submitted"
@@ -157,89 +161,170 @@ export default function SupervisorDashboard() {
           footnote="This month"
         />
         <StatCard
+          label="Pending reviews"
+          value={overview.pendingReview}
+          icon={ClipboardCheck}
+          tone={overview.pendingReview > 0 ? 'warn' : 'ok'}
+          footnote={overview.pendingReview > 0 ? 'Action required' : 'Nothing waiting'}
+        />
+        <StatCard
           label="Completed internships"
           value={overview.completedInternships}
-          icon={Briefcase}
+          icon={Award}
           tone="done"
-          footnote="Finalized placements"
+          footnote="Finalized"
         />
       </div>
 
-      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
-        <StatCard
-          label="Average quality"
-          value={overview.avgQualityScore != null ? `${Math.round(overview.avgQualityScore)} / 100` : <NoValue title="No scored weeks yet" />}
-          icon={Gauge}
-          tone="done"
-          footnote="Across your interns' reviewed weeks"
-        />
-        <StatCard
-          label="Needing attention"
-          value={highRisk.length}
-          icon={AlertTriangle}
-          tone={highRisk.length > 0 ? 'danger' : 'ok'}
-          footnote={highRisk.length > 0 ? 'Flagged high risk' : 'No one flagged'}
-        />
-        <StatCard
-          label="Pending approvals"
-          value={approvals.length}
-          icon={ClipboardCheck}
-          tone={approvals.length > 0 ? 'warn' : 'ok'}
-          footnote={approvals.length > 0 ? 'Awaiting your decision' : 'Nothing waiting'}
-        />
-      </div>
-
+      {/* Students · progress · reviews */}
       <div className="grid gap-4 lg:grid-cols-3">
-        {/* Students */}
-        <Card className="lg:col-span-2">
-          <CardHeader
-            title="My interns"
-            subtitle="Quality score and where their latest week sits"
-            action={{ label: 'Review logbooks', to: '/supervisor/review' }}
-          />
+        <Card className="flex flex-col">
+          <CardHeader title="My students" action={{ label: 'View all', to: '/supervisor/review' }} />
+
           {students.length === 0 ? (
             <EmptyState
               icon={Users}
-              title="No interns assigned yet"
+              title="No students assigned yet"
               hint="Your coordinator assigns interns by region; they appear here once assigned."
             />
           ) : (
-            <ul className="divide-y divide-line">
-              {students.map((s) => {
-                const week = latestWeek(s);
-                const status = week ? WEEK_STATUS[week.status] ?? WEEK_STATUS.pending : null;
-                const risk = s.riskTier ? RISK[s.riskTier] : null;
-                const quality = s.avgQualityScore != null ? Math.round(s.avgQualityScore) : null;
+            <>
+              <div className="mb-2 flex items-center gap-3 pl-12 text-[11px] font-medium text-ink-muted">
+                <span className="flex-1">Progress</span>
+                <span className="w-16 text-right">Next review</span>
+              </div>
 
-                return (
-                  <li key={s.placementId} className="flex items-center gap-3 py-3 first:pt-0 last:pb-0">
-                    <InitialsAvatar name={fullName(s)} />
+              <ul className="flex-1 space-y-3">
+                {students.slice(0, 5).map((s) => (
+                  <li key={s.placementId} className="flex items-center gap-3">
+                    <InitialsAvatar name={fullName(s)} size={36} />
                     <div className="min-w-0 flex-1">
-                      <div className="flex items-center gap-2">
-                        <p className="truncate text-sm font-semibold text-ink">{fullName(s)}</p>
-                        {risk && <Badge tone={risk.tone}>{risk.label}</Badge>}
+                      <p className="truncate text-sm font-semibold text-ink">{fullName(s)}</p>
+                      <p className="truncate text-xs text-ink-muted">{s.company ?? 'No company'}</p>
+                      <div className="mt-1.5 flex items-center gap-2">
+                        <ProgressBar
+                          value={s.progressPct}
+                          tone={
+                            s.progressPct == null ? 'brand'
+                              : s.progressPct >= 70 ? 'ok'
+                              : s.progressPct >= 40 ? 'warn' : 'danger'
+                          }
+                          className="flex-1"
+                          label={`${fullName(s)} progress`}
+                        />
+                        <span className="w-9 text-right text-xs font-semibold text-ink">
+                          {s.progressPct != null
+                            ? `${s.progressPct}%`
+                            : <NoValue title="Nothing due yet" />}
+                        </span>
                       </div>
+                    </div>
+                    <span className="w-16 shrink-0 text-right text-xs font-medium text-ink-secondary">
+                      {s.nextReviewAt ? shortDate(s.nextReviewAt) : '—'}
+                    </span>
+                  </li>
+                ))}
+              </ul>
+
+              <Link
+                to="/supervisor/review"
+                className="mt-4 block rounded-xl border border-line py-2 text-center text-sm font-semibold text-ink-secondary transition-colors hover:bg-surface-sunken hover:text-ink"
+              >
+                View all students
+              </Link>
+            </>
+          )}
+        </Card>
+
+        <Card className="flex flex-col">
+          <CardHeader title="Overall progress overview" />
+          <DonutStat
+            data={donut}
+            centerValue={overview.avgProgress != null ? `${overview.avgProgress}%` : '—'}
+            centerCaption="Average progress"
+            emptyHint="Progress appears once your interns start submitting."
+          />
+
+          {students.length > 0 && (
+            <div className="mt-4 rounded-xl bg-brand-soft p-3">
+              {/* Derived from the rule-based risk engine — the wording says
+                  "flagged", never "will fail". It is a signal, not a forecast. */}
+              <p className="text-xs text-ink-secondary">
+                <span className="font-semibold text-brand-ink">Signal:</span>{' '}
+                {atRiskShare}% of your students are flagged at risk or behind.
+              </p>
+              <Link to="/ai-insights" className="mt-1 inline-block text-xs font-semibold text-brand-ink hover:underline">
+                View details →
+              </Link>
+            </div>
+          )}
+        </Card>
+
+        <Card className="flex flex-col">
+          <CardHeader title="Upcoming reviews" action={{ label: 'View calendar', to: '/supervisor/finalize' }} />
+          {visits.length === 0 ? (
+            <EmptyState
+              icon={CalendarDays}
+              title="Nothing scheduled"
+              hint="Reviews you schedule appear here — and on the student's dashboard."
+            />
+          ) : (
+            <>
+              <ul className="flex-1 space-y-3">
+                {visits.slice(0, 5).map((v) => (
+                  <li key={v.id} className="flex items-center gap-3">
+                    <DateTile date={new Date(v.scheduledAt)} tone="brand" />
+                    <div className="min-w-0 flex-1">
+                      <p className="truncate text-sm font-semibold text-ink">
+                        {v.placement.student.firstName} {v.placement.student.lastName}
+                      </p>
                       <p className="truncate text-xs text-ink-muted">
-                        {formatWhen(s.lastSubmittedAt)}
-                        {s.nextReviewAt && ` · Next review ${new Date(s.nextReviewAt).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}`}
+                        {v.placement.company?.name ?? 'No company'}
                       </p>
                     </div>
-
-                    <div className="hidden w-32 sm:block">
-                      {quality != null ? (
-                        <>
-                          <ProgressBar
-                            value={quality}
-                            tone={quality >= 70 ? 'ok' : quality >= 50 ? 'warn' : 'danger'}
-                            label={`${fullName(s)} average quality`}
-                          />
-                          <p className="mt-1 text-right text-xs text-ink-muted">{quality}/100</p>
-                        </>
-                      ) : (
-                        <p className="text-right text-xs text-ink-muted">Not scored yet</p>
-                      )}
+                    <div className="shrink-0 text-right">
+                      <Badge tone="brand">{VISIT_LABEL[v.visitType] ?? 'Review'}</Badge>
+                      <p className="mt-1 text-[11px] text-ink-muted">
+                        {new Date(v.scheduledAt).toLocaleTimeString('en-GB', { hour: 'numeric', minute: '2-digit' })}
+                      </p>
                     </div>
+                  </li>
+                ))}
+              </ul>
+              <Link
+                to="/supervisor/finalize"
+                className="mt-4 block rounded-xl border border-line py-2 text-center text-sm font-semibold text-ink-secondary transition-colors hover:bg-surface-sunken hover:text-ink"
+              >
+                View full schedule
+              </Link>
+            </>
+          )}
+        </Card>
+      </div>
 
+      {/* Submissions · approvals · signals */}
+      <div className="grid gap-4 lg:grid-cols-3">
+        <Card>
+          <CardHeader title="Recent report submissions" action={{ label: 'View all', to: '/supervisor/review' }} />
+          {recentSubmissions.length === 0 ? (
+            <EmptyState icon={FileText} title="No submissions yet" hint="Weeks appear here as your interns submit them." />
+          ) : (
+            <ul className="space-y-3">
+              {recentSubmissions.map((s) => {
+                const week = latestWeek(s);
+                const status = week ? WEEK_STATUS[week.status] ?? WEEK_STATUS.draft : null;
+                return (
+                  <li key={s.placementId} className="flex items-center gap-3">
+                    <span className="grid h-9 w-9 shrink-0 place-items-center rounded-lg bg-info-soft text-info">
+                      <FileText className="h-4 w-4" />
+                    </span>
+                    <div className="min-w-0 flex-1">
+                      <p className="truncate text-sm font-semibold text-ink">{fullName(s)}</p>
+                      <p className="truncate text-xs text-ink-muted">
+                        {week ? `Weekly Report — Week ${week.week}` : 'Logbook'}
+                      </p>
+                      <p className="text-[11px] text-ink-muted">{timeAgo(s.lastSubmittedAt)}</p>
+                    </div>
                     {status && <Badge tone={status.tone}>{status.label}</Badge>}
                   </li>
                 );
@@ -248,197 +333,57 @@ export default function SupervisorDashboard() {
           )}
         </Card>
 
-        {/* Risk mix */}
         <Card>
-          <CardHeader title="Cohort standing" subtitle="Rule-based risk tiers, advisory only" />
-          <DonutStat
-            data={donut}
-            centerValue={students.length}
-            centerCaption={students.length === 1 ? 'intern' : 'interns'}
-            emptyHint="Risk tiers appear once your interns start submitting."
-          />
-        </Card>
-      </div>
-
-      <div className="grid gap-4 lg:grid-cols-3">
-        {/* Awaiting review */}
-        <Card className="lg:col-span-2">
-          <CardHeader
-            title="Awaiting your review"
-            subtitle="Each intern's most recent submitted week"
-            action={{ label: 'Open queue', to: '/supervisor/review' }}
-          />
-          {pendingRows.length === 0 ? (
-            <EmptyState icon={ClipboardCheck} title="Nothing waiting" hint="Every submitted week has been reviewed." />
-          ) : (
-            <div className="overflow-x-auto">
-              <table className="w-full min-w-[480px] text-left text-sm">
-                <thead>
-                  <tr className="border-b border-line text-xs text-ink-muted">
-                    <th className="pb-2 font-medium">Intern</th>
-                    <th className="pb-2 font-medium">Week</th>
-                    <th className="pb-2 font-medium">Submitted</th>
-                    <th className="pb-2 font-medium">Status</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-line">
-                  {pendingRows.map(({ s, w }) => {
-                    const status = WEEK_STATUS[w!.status] ?? WEEK_STATUS.pending;
-                    return (
-                      <tr key={s.placementId} className="hover:bg-surface-sunken">
-                        <td className="py-2.5">
-                          <Link to="/supervisor/review" className="flex items-center gap-2 font-medium text-ink hover:text-brand-ink">
-                            <InitialsAvatar name={fullName(s)} size={28} />
-                            <span className="truncate">{fullName(s)}</span>
-                          </Link>
-                        </td>
-                        <td className="py-2.5 text-ink-secondary">Week {w!.week}</td>
-                        <td className="py-2.5 text-ink-secondary">{formatWhen(s.lastSubmittedAt)}</td>
-                        <td className="py-2.5"><Badge tone={status.tone}>{status.label}</Badge></td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </div>
-          )}
-        </Card>
-
-        {/* Signals */}
-        <Card>
-          <CardHeader
-            title={<span className="flex items-center gap-2"><Sparkles className="h-4 w-4 text-brand" /> Signals</span>}
-            subtitle="Derived from submission behaviour, not a prediction"
-          />
-          <div className="space-y-3">
-            {highRisk.length > 0 ? (
-              <div className="rounded-xl border border-danger bg-danger-soft p-3">
-                <p className="flex items-center gap-2 text-sm font-semibold text-danger">
-                  <AlertTriangle className="h-4 w-4" />
-                  {highRisk.length} intern{highRisk.length === 1 ? '' : 's'} need a check-in
-                </p>
-                <ul className="mt-2 space-y-1">
-                  {highRisk.slice(0, 3).map((s) => (
-                    <li key={s.placementId} className="text-xs text-ink-secondary">
-                      <span className="font-medium text-ink">{fullName(s)}</span>
-                      {s.riskFactors.length > 0 && ` — ${s.riskFactors.slice(0, 2).join(', ')}`}
-                    </li>
-                  ))}
-                </ul>
-                <Link to="/feedback" className="mt-3 inline-flex items-center gap-1.5 rounded-lg bg-danger px-3 py-1.5 text-xs font-semibold text-white">
-                  <MessageSquare className="h-3.5 w-3.5" /> Message them
-                </Link>
-              </div>
-            ) : (
-              <div className="rounded-xl border border-ok bg-ok-soft p-3">
-                <p className="text-sm font-semibold text-ok">No one is flagged</p>
-                <p className="mt-1 text-xs text-ink-secondary">
-                  Every intern is submitting within the configured thresholds.
-                </p>
-              </div>
-            )}
-
-            {topPerformer && (
-              <div className="rounded-xl border border-line bg-surface-sunken p-3">
-                <p className="flex items-center gap-2 text-sm font-semibold text-ink">
-                  <Award className="h-4 w-4 text-done" /> Leading the cohort
-                </p>
-                <p className="mt-1 text-xs text-ink-secondary">
-                  <span className="font-medium text-ink">{fullName(topPerformer)}</span>
-                  {' '}averages {Math.round(topPerformer.avgQualityScore ?? 0)}/100.
-                </p>
-              </div>
-            )}
-          </div>
-        </Card>
-      </div>
-
-      {/* Reviews + approvals */}
-      <div className="grid gap-4 lg:grid-cols-2">
-        <Card>
-          <CardHeader
-            title="Upcoming reviews"
-            subtitle="Reviews you have scheduled with your interns"
-          />
-          {visits.length === 0 ? (
-            <EmptyState
-              icon={CalendarDays}
-              title="Nothing scheduled"
-              hint="Schedule a review from an intern's page and it appears here — and on theirs."
-            />
-          ) : (
-            <ul className="space-y-3">
-              {visits.slice(0, 5).map((v) => (
-                <li key={v.id} className="flex items-center gap-3">
-                  <DateTile date={new Date(v.scheduledAt)} tone="warn" />
-                  <div className="min-w-0 flex-1">
-                    <p className="truncate text-sm font-medium text-ink">
-                      {v.placement.student.firstName} {v.placement.student.lastName}
-                    </p>
-                    <p className="truncate text-xs text-ink-muted">
-                      {v.placement.company?.name ?? 'No company'}
-                      {` · ${new Date(v.scheduledAt).toLocaleTimeString('en-GB', { hour: 'numeric', minute: '2-digit' })}`}
-                    </p>
-                  </div>
-                  <Badge tone="brand">{VISIT_LABEL[v.visitType] ?? 'Review'}</Badge>
-                </li>
-              ))}
-            </ul>
-          )}
-        </Card>
-
-        <Card>
-          <CardHeader
-            title="Pending approvals"
-            subtitle="Leave, extensions, supervisor changes and training plans"
-          />
+          <CardHeader title="Pending approvals" action={{ label: 'View all', to: '/supervisor/review' }} />
           {approvals.length === 0 ? (
             <EmptyState icon={Inbox} title="Nothing to decide" hint="Requests from your interns land here." />
           ) : (
             <ul className="space-y-3">
-              {approvals.slice(0, 5).map((a) => {
+              {approvals.slice(0, 4).map((a) => {
                 const busy = decide.isPending && decide.variables?.id === a.id;
                 return (
-                  <li key={a.id} className="rounded-xl border border-line p-3">
-                    <div className="flex items-start justify-between gap-3">
-                      <div className="min-w-0">
-                        <p className="truncate text-sm font-semibold text-ink">{a.student}</p>
-                        <p className="truncate text-xs text-ink-secondary">{a.title}</p>
-                        <p className="mt-0.5 text-xs text-ink-muted">
-                          {a.kind.replace(/_/g, ' ')}
-                          {a.effectiveFrom && ` · from ${new Date(a.effectiveFrom).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}`}
-                        </p>
-                      </div>
+                  <li key={a.id} className="flex items-start gap-3">
+                    <InitialsAvatar name={a.student} size={36} />
+                    <div className="min-w-0 flex-1">
+                      <p className="truncate text-sm font-semibold text-ink">{a.student}</p>
+                      <p className="truncate text-xs text-ink-secondary">
+                        {APPROVAL_LABEL[a.kind] ?? a.kind.replace(/_/g, ' ')}
+                      </p>
+                      <p className="truncate text-[11px] text-ink-muted">
+                        {a.effectiveFrom
+                          ? `${shortDate(a.effectiveFrom)}${a.effectiveTo ? ` – ${shortDate(a.effectiveTo)}` : ''}`
+                          : a.title}
+                      </p>
+                    </div>
 
-                      {/* A company transfer is decided on its own screen — its
-                          approval creates a successor placement, which this
-                          panel deliberately does not try to do inline. */}
+                    <div className="flex shrink-0 flex-col items-end gap-1.5">
+                      <Badge tone="warn">Pending</Badge>
+                      {/* A change of COMPANY is decided on its own screen: its
+                          approval builds a successor placement, which this
+                          panel deliberately does not attempt inline. */}
                       {a.source === 'transfer' ? (
-                        <Link
-                          to="/coordinator/placements"
-                          className="shrink-0 rounded-lg border border-line px-2.5 py-1 text-xs font-semibold text-ink-secondary hover:bg-surface-sunken"
-                        >
+                        <Link to="/coordinator/placements" className="text-[11px] font-semibold text-brand-ink hover:underline">
                           Review
                         </Link>
                       ) : (
-                        <div className="flex shrink-0 gap-1.5">
+                        <div className="flex gap-1">
                           <button
                             type="button"
                             disabled={busy}
                             onClick={() => decide.mutate({ id: a.id, decision: 'rejected' })}
                             aria-label={`Reject ${a.title}`}
-                            className="grid h-8 w-8 place-items-center rounded-lg border border-line text-danger hover:bg-danger-soft disabled:opacity-50"
+                            className="grid h-7 w-7 place-items-center rounded-lg border border-line text-danger hover:bg-danger-soft disabled:opacity-50"
                           >
-                            <X className="h-4 w-4" />
+                            <X className="h-3.5 w-3.5" />
                           </button>
                           <button
                             type="button"
                             disabled={busy}
                             onClick={() => decide.mutate({ id: a.id, decision: 'approved' })}
                             aria-label={`Approve ${a.title}`}
-                            className="grid h-8 w-8 place-items-center rounded-lg bg-ok text-white hover:opacity-90 disabled:opacity-50"
+                            className="grid h-7 w-7 place-items-center rounded-lg bg-ok text-white hover:opacity-90 disabled:opacity-50"
                           >
-                            {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Check className="h-4 w-4" />}
+                            {busy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Check className="h-3.5 w-3.5" />}
                           </button>
                         </div>
                       )}
@@ -449,38 +394,76 @@ export default function SupervisorDashboard() {
             </ul>
           )}
         </Card>
-      </div>
 
-      {/* Recent submissions */}
-      <Card>
-        <CardHeader
-          title="Recent submissions"
-          subtitle="Most recent logbook activity across your interns"
-          action={{ label: 'Finalize placements', to: '/supervisor/finalize' }}
-        />
-        {recentSubmissions.length === 0 ? (
-          <EmptyState icon={TrendingUp} title="No submissions yet" hint="Weeks appear here as your interns submit them." />
-        ) : (
-          <ul className="divide-y divide-line">
-            {recentSubmissions.map((s) => {
-              const week = latestWeek(s);
-              const status = week ? WEEK_STATUS[week.status] ?? WEEK_STATUS.pending : null;
-              return (
-                <li key={s.placementId} className="flex items-center gap-3 py-3 first:pt-0 last:pb-0">
-                  <InitialsAvatar name={fullName(s)} size={32} />
-                  <div className="min-w-0 flex-1">
-                    <p className="truncate text-sm font-medium text-ink">{fullName(s)}</p>
-                    <p className="text-xs text-ink-muted">
-                      {week ? `Week ${week.week}` : 'Logbook'} · {formatWhen(s.lastSubmittedAt)}
-                    </p>
-                  </div>
-                  {status && <Badge tone={status.tone}>{status.label}</Badge>}
-                </li>
-              );
-            })}
-          </ul>
-        )}
-      </Card>
+        <Card>
+          <CardHeader
+            title={<span className="flex items-center gap-2"><Sparkles className="h-4 w-4 text-brand" /> Insights &amp; recommendations</span>}
+            subtitle="Derived from submission behaviour — advisory, never a prediction"
+          />
+          <div className="space-y-2.5">
+            <Link
+              to="/ai-insights"
+              className="flex items-start gap-3 rounded-xl border border-line p-3 transition-colors hover:border-brand hover:bg-brand-soft"
+            >
+              <span className="grid h-9 w-9 shrink-0 place-items-center rounded-lg bg-ok-soft text-ok">
+                <TrendingUp className="h-4 w-4" />
+              </span>
+              <span className="min-w-0 flex-1">
+                <span className="block text-sm font-semibold text-ink">High performers</span>
+                <span className="block text-xs text-ink-secondary">
+                  {topPerformers.length === 0
+                    ? 'No intern is averaging 80 or above yet.'
+                    : `${topPerformers.length} intern${topPerformers.length === 1 ? '' : 's'} averaging 80 or above.`}
+                </span>
+              </span>
+              <ChevronRight className="h-4 w-4 shrink-0 text-ink-muted" />
+            </Link>
+
+            <Link
+              to="/feedback"
+              className="flex items-start gap-3 rounded-xl border border-line p-3 transition-colors hover:border-brand hover:bg-brand-soft"
+            >
+              <span className="grid h-9 w-9 shrink-0 place-items-center rounded-lg bg-warn-soft text-warn">
+                <AlertTriangle className="h-4 w-4" />
+              </span>
+              <span className="min-w-0 flex-1">
+                <span className="block text-sm font-semibold text-ink">At-risk students</span>
+                <span className="block text-xs text-ink-secondary">
+                  {highRisk.length === 0
+                    ? 'Nobody is currently flagged.'
+                    : `${highRisk.length} flagged. Consider scheduling a one-to-one.`}
+                </span>
+              </span>
+              <ChevronRight className="h-4 w-4 shrink-0 text-ink-muted" />
+            </Link>
+
+            <Link
+              to="/supervisor/review"
+              className="flex items-start gap-3 rounded-xl border border-line p-3 transition-colors hover:border-brand hover:bg-brand-soft"
+            >
+              <span className="grid h-9 w-9 shrink-0 place-items-center rounded-lg bg-info-soft text-info">
+                <ClipboardCheck className="h-4 w-4" />
+              </span>
+              <span className="min-w-0 flex-1">
+                <span className="block text-sm font-semibold text-ink">Review queue</span>
+                <span className="block text-xs text-ink-secondary">
+                  {awaitingReview.length === 0
+                    ? 'Every submitted week has been reviewed.'
+                    : `${awaitingReview.length} week${awaitingReview.length === 1 ? '' : 's'} waiting on you.`}
+                </span>
+              </span>
+              <ChevronRight className="h-4 w-4 shrink-0 text-ink-muted" />
+            </Link>
+          </div>
+
+          <div className="mt-3 flex flex-wrap gap-x-5 gap-y-1.5 border-t border-line pt-3">
+            <LegendDot color="var(--chart-1)" label="On Track" />
+            <LegendDot color="var(--chart-2)" label="At Risk" />
+            <LegendDot color="var(--chart-3)" label="Completed" />
+            <LegendDot color="var(--chart-4)" label="Behind" />
+          </div>
+        </Card>
+      </div>
     </div>
   );
 }

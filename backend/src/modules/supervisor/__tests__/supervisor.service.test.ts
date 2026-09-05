@@ -16,6 +16,11 @@ jest.mock('../../../config/prisma', () => ({
     approvalRequest: {
       count: jest.fn().mockResolvedValue(0),
     },
+    // Programme length is looked up per cohort; "no config" falls back to the
+    // schema default, which is what these cases care about.
+    cohortConfig: {
+      findMany: jest.fn().mockResolvedValue([]),
+    },
   },
 }));
 
@@ -28,13 +33,21 @@ const makePlacement = (overrides: Record<string, unknown> = {}) => ({
   id:      'p-1',
   student: { id: 'u-1', firstName: 'Ade', lastName: 'Babatunde', email: 'ade@uni.edu' },
   riskScores: [{ riskTier: 'medium', riskScore: 0.52 }],
-  logbookSubmissions: [
-    { weekNumber: 4, submissionStatus: 'approved', submittedAt: new Date(), analysis: { qualityScore: 80 } },
-    { weekNumber: 3, submissionStatus: 'approved', submittedAt: new Date(), analysis: { qualityScore: 74 } },
-    { weekNumber: 2, submissionStatus: 'approved', submittedAt: new Date(), analysis: { qualityScore: 70 } },
-    { weekNumber: 1, submissionStatus: 'approved', submittedAt: new Date(), analysis: { qualityScore: 60 } },
+  startDate: new Date('2026-01-05'),
+  academicYearId: 'ay-1',
+  finalizationStatus: 'active',
+  company: { name: 'Hubtel' },
+  // Quality and recent weeks come from the LIVE entries pipeline now. Reading
+  // them off `logbook_submissions` meant every student row said "no
+  // submissions yet" in production, because nothing writes that table.
+  logbookEntries: [
+    { weekNumber: 4, status: 'acknowledged', submittedAt: new Date(), assessments: [{ quality: { overall: 80 } }] },
+    { weekNumber: 3, status: 'acknowledged', submittedAt: new Date(), assessments: [{ quality: { overall: 74 } }] },
+    { weekNumber: 2, status: 'acknowledged', submittedAt: new Date(), assessments: [{ quality: { overall: 70 } }] },
+    { weekNumber: 1, status: 'acknowledged', submittedAt: new Date(), assessments: [{ quality: { overall: 60 } }] },
   ],
-  logbookEntries: [],
+  logbookSubmissions: [],
+  _count: { logbookEntries: 4 },
   ...overrides,
 });
 
@@ -62,34 +75,33 @@ describe('getSupervisorDashboard', () => {
     expect(result.students[0].avgQualityScore).toBe(71);
   });
 
-  it('merges v2 entry-assessment quality into avgQualityScore', async () => {
+  it('excludes an unassessed entry from avgQualityScore', async () => {
     const withV2 = makePlacement({
-      logbookSubmissions: [
-        { weekNumber: 1, submissionStatus: 'approved', submittedAt: new Date(), analysis: { qualityScore: 80 } },
-      ],
       logbookEntries: [
-        { assessments: [{ quality: { overall: 60 } }] },
-        { assessments: [] }, // unassessed entry contributes nothing
+        { weekNumber: 2, status: 'acknowledged', submittedAt: new Date(), assessments: [{ quality: { overall: 80 } }] },
+        { weekNumber: 1, status: 'acknowledged', submittedAt: new Date(), assessments: [{ quality: { overall: 60 } }] },
+        { weekNumber: 3, status: 'submitted', submittedAt: new Date(), assessments: [] },
       ],
+      logbookSubmissions: [],
+      _count: { logbookEntries: 3 },
     });
     (mp.placement.findMany      as jest.Mock).mockResolvedValue([withV2]);
     (mp.logbookEntry.count as jest.Mock).mockResolvedValue(0);
 
     const result = await getSupervisorDashboard('sup-1');
 
-    // Legacy 80 + v2 60 → mean 70; the empty assessment list is excluded.
+    // (80 + 60) / 2 = 70; the entry with no assessment is in neither half.
     expect(result.students[0].avgQualityScore).toBe(70);
   });
 
   it('uses v2 assessments alone once legacy analyses stop (post-S82 cohorts)', async () => {
     const v2Only = makePlacement({
-      logbookSubmissions: [
-        { weekNumber: 1, submissionStatus: 'submitted', submittedAt: new Date(), analysis: null },
-      ],
       logbookEntries: [
-        { assessments: [{ quality: { overall: 90 } }] },
-        { assessments: [{ quality: { overall: 70 } }] },
+        { weekNumber: 2, status: 'acknowledged', submittedAt: new Date(), assessments: [{ quality: { overall: 90 } }] },
+        { weekNumber: 1, status: 'acknowledged', submittedAt: new Date(), assessments: [{ quality: { overall: 70 } }] },
       ],
+      logbookSubmissions: [],
+      _count: { logbookEntries: 2 },
     });
     (mp.placement.findMany      as jest.Mock).mockResolvedValue([v2Only]);
     (mp.logbookEntry.count as jest.Mock).mockResolvedValue(0);
@@ -106,15 +118,17 @@ describe('getSupervisorDashboard', () => {
     const result = await getSupervisorDashboard('sup-1');
     const weeks = result.students[0].recentWeeks.map(w => w.week);
 
-    // Logbook submissions fetched week-desc (4,3,2,1) → reversed to oldest-first
+    // Entries are fetched week-desc (4,3,2,1) → reversed to oldest-first.
     expect(weeks).toEqual([1, 2, 3, 4]);
   });
 
   it('returns null avgQualityScore when no analysis data exists', async () => {
     const noAnalysis = makePlacement({
-      logbookSubmissions: [
-        { weekNumber: 1, submissionStatus: 'draft', submittedAt: null, analysis: null },
+      logbookEntries: [
+        { weekNumber: 1, status: 'draft', submittedAt: null, assessments: [] },
       ],
+      logbookSubmissions: [],
+      _count: { logbookEntries: 0 },
     });
     (mp.placement.findMany      as jest.Mock).mockResolvedValue([noAnalysis]);
     (mp.logbookEntry.count as jest.Mock).mockResolvedValue(0);

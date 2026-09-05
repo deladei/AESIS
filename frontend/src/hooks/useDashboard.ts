@@ -329,6 +329,7 @@ export interface SupervisorDashboard {
     reportsThisMonth:     number;
     completedInternships: number;
     pendingApprovals:     number;
+    avgProgress:          number | null;
   };
   upcomingReviews: {
     id:              string;
@@ -350,6 +351,12 @@ export interface SupervisorDashboard {
     avgQualityScore: number | null;
     lastSubmittedAt: string | null;
     nextReviewAt:    string | null;
+    company:         string | null;
+    finalizationStatus: 'active' | 'assessment_pending' | 'finalized';
+    submittedWeeks:  number;
+    weeksDue:        number;
+    programmeWeeks:  number;
+    progressPct:     number | null;
   }[];
 }
 
