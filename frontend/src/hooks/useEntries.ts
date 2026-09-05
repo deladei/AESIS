@@ -133,6 +133,10 @@ export interface LogbookEntry {
    *  without fetching every week. */
   lateDays?:    number;
   maxDaysLate?: number;
+  /** List endpoint: the advisory 0-100 rubric headline, null when unassessed. */
+  aiQuality?:   number | null;
+  /** List endpoint: named, checkable advisory flags — never a bare "flagged". */
+  aiFlags?:     string[];
   // Present on the list endpoint (used by the supervisor review queue).
   placement?: {
     id:      string;
@@ -256,6 +260,31 @@ export function useReviewQueue(status: EntryStatus = 'submitted') {
     queryKey: ['entries', 'queue', status],
     queryFn:  async () => {
       const r = await api.get<{ data: LogbookEntry[] }>(`/entries?status=${status}&limit=100`);
+      return r.data.data;
+    },
+  });
+}
+
+export interface ReviewStats {
+  pending:    number;
+  flagged:    number;
+  /** Mean advisory quality; null when nothing has been assessed. */
+  avgQuality: number | null;
+  /** Share of DUE weeks submitted; null when no week has come due yet. */
+  onTrackPct: number | null;
+  /** Eight ISO weeks of submission counts, oldest first. */
+  trend:      { week: string; count: number }[];
+}
+
+/**
+ * Review-board headline figures, scoped exactly like the queue — a supervisor's
+ * counts describe their own interns and nobody else's.
+ */
+export function useReviewStats() {
+  return useQuery({
+    queryKey: ['entries', 'review-stats'],
+    queryFn:  async () => {
+      const r = await api.get<{ data: ReviewStats }>('/entries/review-stats');
       return r.data.data;
     },
   });

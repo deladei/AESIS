@@ -17,6 +17,7 @@ import {
   getEntry,
   getEntryTrail,
   listEntries,
+  getReviewStats,
 } from './entries.service';
 import { saveDayDraft, submitDay } from './entries.day.service';
 import type { Actor } from './entries.policy';
@@ -80,6 +81,11 @@ export async function getTrailHandler(req: Request, res: Response) {
   const { id } = idParam.parse(req.params);
   const trail = await getEntryTrail(actorOf(req), id);
   return ok(res, trail);
+}
+
+export async function reviewStatsHandler(req: Request, res: Response) {
+  const stats = await getReviewStats(actorOf(req));
+  return ok(res, stats);
 }
 
 export async function listEntriesHandler(req: Request, res: Response) {

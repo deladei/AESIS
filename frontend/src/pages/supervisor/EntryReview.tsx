@@ -5,12 +5,19 @@ import {
   CalendarDays, Tag, FileText,
 } from 'lucide-react';
 import {
-  useReviewQueue, useEntry, useAcknowledgeEntry, useReturnEntry, dayKey,
+  useReviewQueue, useEntry, useAcknowledgeEntry, useReturnEntry, useReviewStats, dayKey,
   type LogbookEntry, type EntryStatus, type QualityBreakdown, type PlagiarismReport,
   type FeedbackDraft,
 } from '@/hooks/useEntries';
 import { EntryAttachments } from '@/components/attachments/EntryAttachments';
 import LatePill from '@/components/shared/LatePill';
+import { Card, CardHeader } from '@/components/ui/Card';
+import { StatCard } from '@/components/ui/StatCard';
+import { Badge } from '@/components/ui/Badge';
+import { InitialsAvatar, NoValue } from '@/components/ui/Bits';
+import { LineTrend } from '@/components/ui/Charts';
+import { EmptyState, SkeletonRows } from '@/components/ui/Feedback';
+import { FileCheck2, Flag, Star, TrendingUp } from 'lucide-react';
 
 function studentName(e: LogbookEntry): string {
   const s = e.placement?.student;
@@ -76,6 +83,8 @@ const STATUS_LABEL: Record<EntryStatus, string> = {
 
 export default function EntryReview() {
   const { data: queue = [], isLoading } = useReviewQueue('submitted');
+  const statsQuery = useReviewStats();
+  const stats = statsQuery.data;
 
   // Deep-link support (e.g. the admin dashboard's Recent Submissions rows pass
   // ?entryId=). The linked entry may already be reviewed, so it's honoured even
@@ -173,14 +182,150 @@ export default function EntryReview() {
     'w-full rounded-lg border border-[var(--h-d8dce6)] bg-[var(--h-ffffff)] px-3 py-2.5 text-sm text-[var(--h-0b1c30)] placeholder-[var(--h-94a3b8)] transition-colors focus:border-[var(--h-8a4cfc)] focus:outline-none focus:ring-1 focus:ring-[var(--h-8a4cfc)]';
 
   return (
-    <div className="mx-auto max-w-7xl px-6 py-6">
-      <div className="mb-6">
-        <h1 className="text-xl font-bold text-[var(--h-0b1c30)]">Review logbooks</h1>
-        <p className="mt-0.5 text-sm text-[var(--h-464652)]">
-          {queue.length === 0
-            ? 'No weeks awaiting your review.'
-            : `${queue.length} week${queue.length === 1 ? '' : 's'} awaiting your review`}
+    <div className="mx-auto max-w-[1500px] px-4 py-6 sm:px-6">
+      <header className="mb-5">
+        <h1 className="text-2xl font-bold tracking-tight text-ink">Review logbooks</h1>
+        <p className="mt-1 text-sm text-ink-secondary">
+          Manage and review intern weekly logbook submissions.
         </p>
+      </header>
+
+      {/* ── Headline figures ─────────────────────────────────── */}
+      <div className="mb-5 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+        <StatCard
+          label="Pending reviews" value={stats?.pending ?? queue.length}
+          icon={FileCheck2} tone="brand" loading={statsQuery.isLoading}
+          footnote="Weeks awaiting your decision"
+        />
+        <StatCard
+          label="Flagged by enrichment" value={stats?.flagged ?? 0}
+          icon={Flag} tone="warn" loading={statsQuery.isLoading}
+          footnote="Weeks carrying at least one advisory flag"
+        />
+        <StatCard
+          label="Average quality"
+          value={stats?.avgQuality != null
+            ? `${stats.avgQuality}/100`
+            : <NoValue title="No week has been assessed yet" />}
+          icon={Star} tone="info" loading={statsQuery.isLoading}
+          footnote="Advisory rubric mean — never a grade"
+        />
+        <StatCard
+          label="Submitted on time"
+          value={stats?.onTrackPct != null
+            ? `${stats.onTrackPct}%`
+            : <NoValue title="No week has come due yet" />}
+          icon={TrendingUp} tone="ok" loading={statsQuery.isLoading}
+          footnote="Share of weeks due that were submitted"
+        />
+      </div>
+
+      {/* ── Trend + queue table ──────────────────────────────── */}
+      <div className="mb-5 grid gap-5 xl:grid-cols-[minmax(0,1fr)_minmax(0,1.4fr)]">
+        <Card>
+          <CardHeader title="Weekly submission trend" subtitle="Last 8 weeks, counted on the date each week was submitted" />
+          {statsQuery.isLoading ? (
+            <SkeletonRows rows={3} />
+          ) : !stats?.trend.some(t => t.count > 0) ? (
+            <EmptyState
+              title="No submissions in the last eight weeks"
+              hint="The chart fills in as your interns submit their weeks."
+              className="py-8"
+            />
+          ) : (
+            <LineTrend
+              data={stats.trend.map(t => ({
+                week: new Date(`${t.week}T00:00:00Z`).toLocaleDateString('en-GB', {
+                  day: 'numeric', month: 'short', timeZone: 'UTC',
+                }),
+                submissions: t.count,
+              }))}
+              xKey="week" yKey="submissions" yLabel="Submissions" height={200}
+            />
+          )}
+        </Card>
+
+        <Card padded={false} className="overflow-hidden">
+          <div className="border-b border-line px-5 py-4">
+            <h2 className="text-[15px] font-semibold text-ink">
+              Review queue
+              <span className="ml-2 rounded-full bg-brand-soft px-2 py-0.5 text-xs font-bold text-brand-ink">
+                {queue.length}
+              </span>
+            </h2>
+            <p className="mt-0.5 text-xs text-ink-muted">
+              Pick a week to open it in the reviewer below.
+            </p>
+          </div>
+
+          {queue.length === 0 ? (
+            <EmptyState
+              icon={CheckCircle2}
+              title="You're all caught up"
+              hint="Submitted weeks from your interns appear here."
+              className="py-10"
+            />
+          ) : (
+            <div className="max-h-[22rem] overflow-auto">
+              <table className="w-full min-w-[36rem] text-sm">
+                <thead className="sticky top-0 bg-surface-sunken">
+                  <tr className="text-left text-xs font-semibold text-ink-secondary">
+                    <th scope="col" className="px-4 py-2.5">Intern</th>
+                    <th scope="col" className="px-4 py-2.5">Week</th>
+                    <th scope="col" className="px-4 py-2.5">Quality</th>
+                    <th scope="col" className="px-4 py-2.5">Flags</th>
+                    <th scope="col" className="px-4 py-2.5">Submitted</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {queue.map((e) => {
+                    const active = e.id === selectedId;
+                    const flags = e.aiFlags ?? [];
+                    return (
+                      <tr
+                        key={e.id}
+                        onClick={() => setSelectedId(e.id)}
+                        className={`cursor-pointer border-b border-line last:border-0 ${
+                          active ? 'bg-brand-soft/50' : 'hover:bg-surface-sunken/70'
+                        }`}
+                      >
+                        <td className="px-4 py-2.5">
+                          <span className="flex items-center gap-2.5">
+                            <InitialsAvatar name={studentName(e)} size={28} />
+                            <span className="min-w-0">
+                              <span className="block truncate font-semibold text-ink">{studentName(e)}</span>
+                              <span className="block truncate text-xs text-ink-muted">
+                                {e.placement?.company?.name ?? 'Placement'}
+                              </span>
+                            </span>
+                          </span>
+                        </td>
+                        <td className="px-4 py-2.5 text-ink-secondary">Wk {e.weekNumber}</td>
+                        <td className="px-4 py-2.5">
+                          {e.aiQuality != null
+                            ? <span className="font-semibold text-ink">{e.aiQuality}</span>
+                            : <NoValue title="Not assessed yet" />}
+                        </td>
+                        <td className="px-4 py-2.5">
+                          {flags.length === 0
+                            ? <span className="text-ink-muted">—</span>
+                            : (
+                              <span className="flex flex-wrap gap-1">
+                                {flags.map(f => <Badge key={f} tone="warn">{f}</Badge>)}
+                              </span>
+                            )}
+                        </td>
+                        <td className="px-4 py-2.5 text-ink-secondary">
+                          {e.submittedAt ? fmtDate(e.submittedAt) : <NoValue />}
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </Card>
       </div>
 
       <div className="grid gap-6 lg:grid-cols-[320px_1fr]">

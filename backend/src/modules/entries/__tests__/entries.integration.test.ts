@@ -27,6 +27,7 @@ import {
   getEntry,
   getEntryTrail,
   listEntries,
+  getReviewStats,
 } from '../entries.service';
 import { saveDayDraft, submitDay } from '../entries.day.service';
 import { processOne } from '../enrichment.worker';
@@ -388,6 +389,28 @@ describe('getEntry gives the logbook what it renders', () => {
     expect(detail.lateSummary.maxDaysLate)
       .toBe(Math.max(0, ...detail.days.map((d) => d.lateByDays)));
     expect(detail.lateSummary.lateDays).toBeGreaterThan(0);
+  });
+});
+
+describe('the review board counts only what the actor can see', () => {
+  itdb('scopes the queue stats to the supervisor\'s own interns', async () => {
+    const mine = await getReviewStats(supervisorA);
+
+    // A supervisor's counts describe their interns and nobody else's, so the
+    // pending count can never exceed what the same scope lists.
+    const { entries } = await listEntries(supervisorA, { status: 'submitted', page: 1, limit: 200 });
+    expect(mine.pending).toBe(entries.length);
+
+    // On-track is a submission rate, so it is either null (nothing due yet) or
+    // a share inside 0-100 — never 100 by default and never above it.
+    if (mine.onTrackPct != null) {
+      expect(mine.onTrackPct).toBeGreaterThanOrEqual(0);
+      expect(mine.onTrackPct).toBeLessThanOrEqual(100);
+    }
+
+    // Eight weekly buckets, oldest first, one per ISO week.
+    expect(mine.trend).toHaveLength(8);
+    expect([...mine.trend].sort((a, b) => a.week.localeCompare(b.week))).toEqual(mine.trend);
   });
 });
 

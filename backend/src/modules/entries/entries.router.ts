@@ -9,6 +9,7 @@ import {
   getEntryHandler,
   getTrailHandler,
   listEntriesHandler,
+  reviewStatsHandler,
   saveDayHandler,
   submitDayHandler,
 } from './entries.controller';
@@ -22,6 +23,8 @@ const router = Router();
 router.use(authenticate);
 
 router.get('/', asyncHandler(listEntriesHandler));
+// Before '/:id' so "review-stats" is never parsed as an entry id.
+router.get('/review-stats', asyncHandler(reviewStatsHandler));
 router.post('/', asyncHandler(saveDraftHandler)); // create or update a draft
 router.post('/days', asyncHandler(saveDayHandler)); // per-day path: save one day's draft (upserts the week)
 router.get('/:id', asyncHandler(getEntryHandler));

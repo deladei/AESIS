@@ -3,6 +3,7 @@ import { prisma } from '../../config/prisma';
 import { env } from '../../config/env';
 import { AppError } from '../../middleware/errorHandler';
 import { paginate, buildMeta } from '../../shared/utils/pagination';
+import { meanQualityScore, toQualityNumber, v2QualityOverall } from '../../shared/utils/quality';
 import { emitToUser } from '../../shared/utils/socketEmitter';
 import {
   resolveTransition,
@@ -15,6 +16,11 @@ import { assertWeekWithinCohort } from './entries.week';
 import { evaluateWeekCompletion } from './entries.autosubmit';
 import { evaluateDayWindow } from './entries.day.service';
 import { chainPlacementIds } from '../siwes/siwes.service';
+
+// A rubric dimension at or below this is worth telling the supervisor about.
+const LOW_DIMENSION_SCORE = 50;
+// How many weeks of submission history the review board charts.
+const TREND_WEEKS = 8;
 import {
   authorizePlacement,
   entryScopeFilter,
@@ -619,7 +625,15 @@ export async function listEntries(actor: Actor, query: ListQuery) {
       orderBy: [{ placementId: 'asc' }, { weekNumber: 'asc' }],
       include: {
         _count: { select: { activities: true } },
-        assessments: { select: { relevance: true }, orderBy: { createdAt: 'desc' }, take: 1 },
+        assessments: {
+          // `quality` and `plagiarism` back the review queue's score column and
+          // its flags. Redaction still happens on read for the roles that may
+          // not see them (see the entry serializer) — this is the supervisor
+          // and coordinator queue.
+          select:  { relevance: true, quality: true, plagiarism: true },
+          orderBy: { createdAt: 'desc' },
+          take:    1,
+        },
         // Two columns per day, only so the row can carry a late headline. The
         // supervisor's queue has to show lateness BEFORE the week is opened,
         // and without this the list had no day data at all.
@@ -646,8 +660,122 @@ export async function listEntries(actor: Actor, query: ListQuery) {
       if (loggedLate) lateDays += 1;
       maxDaysLate = Math.max(maxDaysLate, lateBy);
     }
-    return { ...entry, lateDays, maxDaysLate: Math.max(0, maxDaysLate) };
+    return {
+      ...entry,
+      lateDays,
+      maxDaysLate: Math.max(0, maxDaysLate),
+      // The advisory 0-100 headline of the 6-dimension rubric, null when the
+      // week has not been assessed. Never defaulted to 0 — an unassessed week
+      // is not a bad one.
+      aiQuality:   v2QualityOverall(entry.assessments?.[0]?.quality),
+      aiFlags:     assessmentFlags(entry.assessments?.[0], entry._count.activities),
+    };
   });
 
   return { entries: rows, meta: buildMeta(total, query.page, query.limit) };
+}
+
+/**
+ * Advisory flags for one assessed week, derived from what the enrichment
+ * actually reported. Every flag names a specific, checkable thing — there is no
+ * catch-all "AI flagged" bucket, because a supervisor cannot act on that.
+ */
+function assessmentFlags(
+  assessment: { quality?: unknown; plagiarism?: unknown } | undefined,
+  activityCount: number,
+): string[] {
+  const flags: string[] = [];
+  if (activityCount === 0) flags.push('No activities logged');
+
+  const q = assessment?.quality;
+  if (q && typeof q === 'object' && !Array.isArray(q)) {
+    const dims = q as Record<string, unknown>;
+    const reflection = toQualityNumber(dims['reflection']);
+    const detail     = toQualityNumber(dims['detail'] ?? dims['specificity']);
+    if (reflection != null && reflection < LOW_DIMENSION_SCORE) flags.push('Missing reflection');
+    if (detail != null && detail < LOW_DIMENSION_SCORE) flags.push('Low detail');
+  }
+
+  const p = assessment?.plagiarism;
+  if (p && typeof p === 'object' && !Array.isArray(p)) {
+    const matches = (p as { matches?: unknown[] }).matches;
+    if (Array.isArray(matches) && matches.length > 0) flags.push('Similarity match');
+  }
+
+  return flags;
+}
+
+/**
+ * The review queue's headline figures, scoped exactly like the queue itself so
+ * a supervisor's counts describe their own interns and nobody else's.
+ *
+ * "On track" is the share of weeks that have come due and were actually
+ * submitted — it is a submission rate, not a prediction, and it reads null
+ * rather than 100% when nothing has come due yet.
+ */
+export async function getReviewStats(actor: Actor) {
+  const scope = entryScopeFilter(actor);
+  const since = new Date();
+  since.setDate(since.getDate() - TREND_WEEKS * 7);
+
+  const [pending, assessed, submittedRecently, dueEntries] = await Promise.all([
+    prisma.logbookEntry.count({ where: { ...scope, status: 'submitted' } }),
+    prisma.logbookEntry.findMany({
+      where:  { ...scope, submittedAt: { not: null } },
+      select: {
+        _count:      { select: { activities: true } },
+        assessments: {
+          select: { quality: true, plagiarism: true },
+          orderBy: { createdAt: 'desc' },
+          take: 1,
+        },
+      },
+    }),
+    prisma.logbookEntry.findMany({
+      where:  { ...scope, submittedAt: { gte: since } },
+      select: { submittedAt: true },
+    }),
+    prisma.logbookEntry.count({ where: { ...scope, periodEnd: { lt: new Date() } } }),
+  ]);
+
+  const flagged = assessed.filter(
+    e => assessmentFlags(e.assessments?.[0], e._count.activities).length > 0,
+  ).length;
+
+  const scores = assessed.map(e => v2QualityOverall(e.assessments?.[0]?.quality));
+
+  // Weekly submission counts, oldest first, one bucket per ISO week.
+  const buckets = new Map<string, number>();
+  for (let i = TREND_WEEKS - 1; i >= 0; i--) {
+    const d = new Date();
+    d.setDate(d.getDate() - i * 7);
+    buckets.set(weekKey(d), 0);
+  }
+  for (const e of submittedRecently) {
+    if (!e.submittedAt) continue;
+    const key = weekKey(e.submittedAt);
+    if (buckets.has(key)) buckets.set(key, (buckets.get(key) ?? 0) + 1);
+  }
+
+  return {
+    pending,
+    flagged,
+    avgQuality: meanQualityScore(scores),
+    // Share of weeks past their period end that were submitted at all. Null,
+    // not 100, when no week has come due yet: a cohort in its first week has
+    // not earned a submission rate. Capped at 100 because a student who
+    // submits ahead of the deadline must not push the cohort past complete.
+    onTrackPct: dueEntries > 0
+      ? Math.min(100, Math.round((assessed.length / dueEntries) * 100))
+      : null,
+    trend: [...buckets.entries()].map(([week, count]) => ({ week, count })),
+  };
+}
+
+/** Monday-anchored ISO week key, e.g. "2026-05-18". */
+function weekKey(d: Date): string {
+  const copy = new Date(d);
+  const day  = (copy.getDay() + 6) % 7;   // 0 = Monday
+  copy.setDate(copy.getDate() - day);
+  return copy.toISOString().slice(0, 10);
 }
