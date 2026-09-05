@@ -3,6 +3,11 @@ jest.mock('../../../config/prisma', () => ({
     placement: {
       findMany: jest.fn(),
     },
+    // Programme length is per cohort, so the feedback picker resolves it the
+    // same way every other week-aware surface does.
+    cohortConfig: {
+      findMany: jest.fn().mockResolvedValue([{ academicYearId: 'ay-1', durationWeeks: 6 }]),
+    },
   },
 }));
 
@@ -141,30 +146,66 @@ describe('getInsights', () => {
 });
 
 describe('listInternsForFeedback', () => {
-  it('returns interns with their latest submission + feedback eligibility', async () => {
-    (mp.placement.findMany as jest.Mock).mockResolvedValue([
-      {
-        id: 'p1',
-        student: { id: 's1', firstName: 'Akosua', lastName: 'Mensah' },
-        company: { name: 'Sankofa Software Ltd.' },
-        logbookSubmissions: [
-          { id: 'sub-9', weekNumber: 6, submissionStatus: 'submitted',
-            analysis: { qualityScore: 88, sentimentClass: 'supportive', aiFeedbackSummary: 'Strong week.' } },
-        ],
-      },
-      {
-        id: 'p2',
-        student: { id: 's2', firstName: 'Yaa', lastName: 'Frimpong' },
-        company: null,
-        logbookSubmissions: [],
-      },
-    ]);
+  const feedbackPlacements = [
+    {
+      id: 'p1',
+      startDate: new Date('2026-01-05'),
+      endDate:   new Date('2026-02-16'),
+      academicYearId: 'ay-1',
+      student: { id: 's1', firstName: 'Akosua', lastName: 'Mensah' },
+      company: { name: 'Sankofa Software Ltd.' },
+      logbookEntries: [
+        // Newest first, as the query orders them. Week 6 is acknowledged and
+        // week 5 is still awaiting the supervisor — the actionable one wins.
+        { id: 'e-6', weekNumber: 6, status: 'acknowledged', submittedAt: new Date('2026-02-14'), assessments: [] },
+        { id: 'e-5', weekNumber: 5, status: 'submitted',    submittedAt: new Date('2026-02-07'),
+          assessments: [{
+            quality:       { overall: 88 },
+            summary:       { headline: 'Strong week.' },
+            feedbackDraft: { text: 'Nice work on the API integration.' },
+          }] },
+      ],
+    },
+    {
+      id: 'p2',
+      startDate: new Date('2026-01-05'),
+      endDate:   new Date('2026-02-16'),
+      academicYearId: 'ay-1',
+      student: { id: 's2', firstName: 'Yaa', lastName: 'Frimpong' },
+      company: null,
+      logbookEntries: [],
+    },
+  ];
+
+  it('reads the consolidated logbook, not the retired submissions table', async () => {
+    (mp.placement.findMany as jest.Mock).mockResolvedValue(feedbackPlacements);
 
     const r = await listInternsForFeedback({ supervisorId: 'sup-1' });
 
     expect(r[0].name).toBe('Akosua Mensah');
-    expect(r[0].latestSubmission?.canReceiveFeedback).toBe(true);
-    expect(r[0].latestSubmission?.aiFeedbackSummary).toBe('Strong week.');
-    expect(r[1].latestSubmission).toBeNull();
+    // The week awaiting the supervisor is the one offered, not merely the newest.
+    expect(r[0].latestEntry?.id).toBe('e-5');
+    expect(r[0].latestEntry?.canReceiveFeedback).toBe(true);
+    expect(r[0].latestEntry?.qualityScore).toBe(88);
+    expect(r[0].latestEntry?.aiDraft).toEqual({ text: 'Nice work on the API integration.' });
+    expect(r[0].progress.submittedWeeks).toBe(2);
+
+    // An intern who has logged nothing has no week to act on — and says so,
+    // rather than the whole cohort reading empty as it did off the dead table.
+    expect(r[1].latestEntry).toBeNull();
+  });
+
+  it('falls back to the newest week when none is awaiting review', async () => {
+    (mp.placement.findMany as jest.Mock).mockResolvedValue([{
+      ...feedbackPlacements[0],
+      logbookEntries: [
+        { id: 'e-6', weekNumber: 6, status: 'acknowledged', submittedAt: new Date('2026-02-14'), assessments: [] },
+      ],
+    }]);
+
+    const r = await listInternsForFeedback({ supervisorId: 'sup-1' });
+
+    expect(r[0].latestEntry?.id).toBe('e-6');
+    expect(r[0].latestEntry?.canReceiveFeedback).toBe(false);
   });
 });

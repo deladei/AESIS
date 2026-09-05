@@ -1,6 +1,6 @@
 import { prisma } from '../../config/prisma';
 import {
-  meanQualityScore, toQualityNumber, weeksDue, engagementPercent,
+  meanQualityScore, toQualityNumber, weeksDue, engagementPercent, v2QualityOverall,
 } from '../../shared/utils/quality';
 import { durationWeeksByAcademicYear, weeksForYear } from '../entries/entries.week';
 
@@ -206,12 +206,16 @@ export async function getInsights({ supervisorId }: InsightsScope) {
 }
 
 /**
- * Interns + their latest reviewable submission, for the Feedback Center
- * intern picker / AI feedback generator. Same scope rules as getInsights.
+ * Interns + their latest week, for the Feedback Centre's picker and evaluator.
  *
- * NOTE: this still reads the legacy `logbook_submissions` pipeline (the
- * Feedback Center has not been migrated to entries). Tracked as remaining
- * legacy coupling; out of scope for the insights-page rewire.
+ * Reads the CONSOLIDATED logbook (`logbook_entry`), not the retired
+ * `logbook_submissions` table it used to read — on the current pipeline that
+ * query returned nothing for every intern, so the Feedback Centre told every
+ * supervisor their whole cohort had never submitted anything. Same scope rules
+ * as getInsights.
+ *
+ * The AI fields are advisory and pass through untouched: the draft is a
+ * starting point for a human to edit, never something sent on its own.
  */
 export async function listInternsForFeedback({ supervisorId }: InsightsScope) {
   const placements = await prisma.placement.findMany({
@@ -220,22 +224,23 @@ export async function listInternsForFeedback({ supervisorId }: InsightsScope) {
       ...(supervisorId ? { academicSupervisorId: supervisorId } : {}),
     },
     select: {
-      id:      true,
+      id:        true,
+      startDate: true,
+      endDate:   true,
+      academicYearId: true,
       student: { select: { id: true, firstName: true, lastName: true } },
       company: { select: { name: true } },
-      logbookSubmissions: {
+      logbookEntries: {
         orderBy: { weekNumber: 'desc' },
-        take:    1,
         select: {
-          id:               true,
-          weekNumber:       true,
-          submissionStatus: true,
-          analysis: {
-            select: {
-              qualityScore:      true,
-              sentimentClass:    true,
-              aiFeedbackSummary: true,
-            },
+          id:          true,
+          weekNumber:  true,
+          status:      true,
+          submittedAt: true,
+          assessments: {
+            orderBy: { createdAt: 'desc' },
+            take:    1,
+            select:  { quality: true, summary: true, feedbackDraft: true },
           },
         },
       },
@@ -243,22 +248,44 @@ export async function listInternsForFeedback({ supervisorId }: InsightsScope) {
     orderBy: { createdAt: 'desc' },
   });
 
+  const weeksByYear = await durationWeeksByAcademicYear(placements.map(p => p.academicYearId));
+
   return placements.map(p => {
-    const s = p.logbookSubmissions[0];
+    // The latest week the supervisor could act on is the newest SUBMITTED one;
+    // if none is awaiting them, fall back to the newest week of any status so
+    // the panel still shows where the intern is.
+    const submitted = p.logbookEntries.filter(e => e.status === 'submitted');
+    const latest    = submitted[0] ?? p.logbookEntries[0] ?? null;
+    const assessment = latest?.assessments?.[0];
+
+    const programmeWeeks = weeksForYear(weeksByYear, p.academicYearId);
+    const due            = weeksDue(p.startDate, programmeWeeks);
+    const submittedCount = p.logbookEntries.filter(e => e.submittedAt != null).length;
+
     return {
       placementId: p.id,
       studentId:   p.student.id,
       name:        `${p.student.firstName} ${p.student.lastName}`,
       company:     p.company?.name ?? null,
-      latestSubmission: s
+      progress: {
+        submittedWeeks: submittedCount,
+        weeksDue:       due,
+        programmeWeeks,
+        // Against weeks DUE, so an intern in week 3 of 24 is not "12% done".
+        pct: engagementPercent(submittedCount, due),
+      },
+      latestEntry: latest
         ? {
-            id:                s.id,
-            weekNumber:        s.weekNumber,
-            status:            s.submissionStatus,
-            canReceiveFeedback: ['submitted', 'under_review'].includes(s.submissionStatus),
-            qualityScore:      num(s.analysis?.qualityScore),
-            sentimentClass:    s.analysis?.sentimentClass ?? null,
-            aiFeedbackSummary: s.analysis?.aiFeedbackSummary ?? null,
+            id:                 latest.id,
+            weekNumber:         latest.weekNumber,
+            status:             latest.status,
+            submittedAt:        latest.submittedAt,
+            // Only a submitted week can be acknowledged or returned.
+            canReceiveFeedback: latest.status === 'submitted',
+            qualityScore:       v2QualityOverall(assessment?.quality),
+            quality:            assessment?.quality ?? null,
+            aiSummary:          assessment?.summary ?? null,
+            aiDraft:            assessment?.feedbackDraft ?? null,
           }
         : null,
     };

@@ -515,20 +515,38 @@ export interface FeedbackIntern {
   studentId:   string;
   name:        string;
   company:     string | null;
-  latestSubmission: {
+  /** Weeks submitted against weeks DUE — never against the whole programme. */
+  progress: {
+    submittedWeeks: number;
+    weeksDue:       number;
+    programmeWeeks: number;
+    pct:            number | null;
+  };
+  /**
+   * The week the supervisor can act on — the newest SUBMITTED one, falling back
+   * to the newest week of any status so the panel still shows where the intern
+   * is. Null when they have logged nothing at all.
+   */
+  latestEntry: {
     id:                 string;
     weekNumber:         number;
     status:             string;
+    submittedAt:        string | null;
     canReceiveFeedback: boolean;
+    /** Advisory rubric headline, 0-100, null when unassessed. */
     qualityScore:       number | null;
-    sentimentClass:     string | null;
-    aiFeedbackSummary:  string | null;
+    /** The 6-dimension rubric, as the engine wrote it. */
+    quality:            Record<string, unknown> | null;
+    aiSummary:          Record<string, unknown> | null;
+    /** Groq draft for a human to EDIT — never sent as-is. */
+    aiDraft:            { text?: string } | null;
   } | null;
 }
 
+/** Interns + their latest actionable week, for the Feedback Centre. */
 export function useFeedbackInterns() {
   return useQuery({
-    queryKey: ['insights', 'interns'],
+    queryKey: ['insights', 'feedback-interns'],
     queryFn:  async () => {
       const r = await api.get<{ data: FeedbackIntern[] }>('/insights/interns');
       return r.data.data;

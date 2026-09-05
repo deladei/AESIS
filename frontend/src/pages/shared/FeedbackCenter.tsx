@@ -1,403 +1,591 @@
-import { useMemo, useState } from 'react';
-import { Sparkles, Loader2, CheckCircle2, Flag, Search } from 'lucide-react';
+import { useEffect, useMemo, useState } from 'react';
+import {
+  Sparkles, Loader2, CheckCircle2, RotateCcw, Search, MessageSquare,
+  ClipboardCheck, Video, Wand2, TrendingUp,
+} from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
-import { useFeedbackInterns } from '@/hooks/useDashboard';
+import { useFeedbackInterns, type FeedbackIntern } from '@/hooks/useDashboard';
 import { useMyPlacements } from '@/hooks/usePlacements';
-import { useSubmissions, useSubmitFeedback } from '@/hooks/useLogbook';
+import {
+  useEntries, useEntry, useAcknowledgeEntry, useReturnEntry,
+} from '@/hooks/useEntries';
 import { ChatThread } from '@/components/messaging/ChatThread';
 import ScheduleCallCard from '@/components/messaging/ScheduleCallCard';
+import { Card } from '@/components/ui/Card';
+import { Badge } from '@/components/ui/Badge';
+import { InitialsAvatar, ProgressBar, NoValue } from '@/components/ui/Bits';
+import { EmptyState, ErrorState, SkeletonRows } from '@/components/ui/Feedback';
 import { FieldError } from '@/components/shared/FieldError';
 import { freeText } from '@/lib/validation';
+import { cn } from '@/lib/utils';
 
-// Mirrors logbook.schema's `feedbackText: min(10).max(5000)`.
 const FEEDBACK_MAX = 5000;
 const FEEDBACK_TEXT = freeText(FEEDBACK_MAX, 'Feedback').min(10, 'Feedback must be at least 10 characters');
 
 /**
- * Feedback & Mentorship Center — wired to live data.
+ * Feedback & Mentorship Centre.
  *
- * Reviewer mode (supervisor / admin / coordinator): real intern picker, the
- * AI feedback summary produced by the engine for the latest submission, live
- * evaluation status, and a Formal Evaluation that posts real supervisor
- * feedback via /logbook/submissions/:id/feedback.
+ * Reviewer mode (supervisor / admin / coordinator): pick an intern, see where
+ * they are, talk to them, and record the formal decision on their latest week.
+ * That decision goes through the ENTRIES pipeline — acknowledge with a score,
+ * or return with a comment — which is the workflow the student's logbook
+ * actually reads. It used to post to `/logbook/submissions/:id/feedback`, the
+ * retired pipeline, so feedback written here could never reach the student.
  *
- * Student mode: the feedback they've received plus a live message thread.
- *
- * The Collaborative Chat panel is a real two-way thread (per placement) — see
- * ChatThread / useMessages. Both sides can reply; messages fan out as
- * notifications (+ email to the student).
+ * The AI Feedback Studio shows the engine's own draft for the reviewer to edit
+ * before sending. It is never submitted on its own: a human presses the button
+ * and owns every word that reaches the student.
  */
-
-function Spinner() {
-  return (
-    <div className="flex h-[60vh] items-center justify-center">
-      <Loader2 className="h-6 w-6 animate-spin text-[var(--h-712ae2)]" />
-    </div>
-  );
-}
-
 export default function FeedbackCenter() {
   const { user } = useAuth();
   const isReviewer = !!user && ['academic_supervisor', 'admin', 'coordinator'].includes(user.role);
   return isReviewer ? <ReviewerView /> : <StudentView />;
 }
 
-// ── Reviewer (supervisor / admin / coordinator) ────────────────
+/* ── Reviewer ────────────────────────────────────────────────── */
+
+function Step({
+  n, icon: Icon, title, hint, children, className,
+}: {
+  n: number; icon: React.ElementType; title: string; hint?: string;
+  children: React.ReactNode; className?: string;
+}) {
+  return (
+    <Card className={className}>
+      <div className="mb-4 flex items-start gap-3">
+        <span className="grid h-9 w-9 shrink-0 place-items-center rounded-lg bg-brand-soft text-brand-ink">
+          <Icon className="h-4.5 w-4.5" />
+        </span>
+        <div className="min-w-0">
+          <h2 className="text-[15px] font-semibold text-ink">{n}. {title}</h2>
+          {hint && <p className="mt-0.5 text-xs leading-relaxed text-ink-muted">{hint}</p>}
+        </div>
+      </div>
+      {children}
+    </Card>
+  );
+}
 
 function ReviewerView() {
   const { user } = useAuth();
   const isReadOnlyChat = user?.role === 'coordinator';
-  const { data: interns, isLoading, isError } = useFeedbackInterns();
-  const submitFeedback = useSubmitFeedback();
+  const { data: interns, isLoading, isError, refetch } = useFeedbackInterns();
 
-  const [selectedId, setSelectedId] = useState<string>('');
-  const [rating, setRating] = useState<number | null>(null);
-  const [feedbackText, setFeedbackText] = useState('');
-  const [feedbackErr, setFeedbackErr] = useState<string | undefined>();
-  const [chatSearch, setChatSearch] = useState('');
+  const acknowledge = useAcknowledgeEntry();
+  const returnEntry = useReturnEntry();
+
+  const [selectedId, setSelectedId]   = useState('');
+  const [search, setSearch]           = useState('');
+  const [rating, setRating]           = useState<number | null>(null);
+  const [feedbackText, setFeedback]   = useState('');
+  const [feedbackErr, setErr]         = useState<string | undefined>();
+  const [done, setDone]               = useState<'acknowledged' | 'returned' | null>(null);
 
   const selected = useMemo(
     () => interns?.find(i => i.placementId === (selectedId || interns[0]?.placementId)),
     [interns, selectedId],
   );
 
-  const chatMatches = useMemo(() => {
-    const q = chatSearch.trim().toLowerCase();
+  // Switching intern must not carry the previous one's draft or verdict across.
+  useEffect(() => { setFeedback(''); setRating(null); setErr(undefined); setDone(null); },
+    [selected?.placementId]);
+
+  const matches = useMemo(() => {
+    const q = search.trim().toLowerCase();
     const list = interns ?? [];
     if (!q) return list;
     return list.filter(i =>
-      i.name.toLowerCase().includes(q) || (i.company ?? '').toLowerCase().includes(q),
-    );
-  }, [interns, chatSearch]);
+      i.name.toLowerCase().includes(q) || (i.company ?? '').toLowerCase().includes(q));
+  }, [interns, search]);
 
-  const evalStatus = useMemo(() => {
-    const total = interns?.length ?? 0;
-    const pending = interns?.filter(i => i.latestSubmission?.canReceiveFeedback).length ?? 0;
-    const reviewedPct = total > 0 ? Math.round(((total - pending) / total) * 100) : 0;
-    return { total, pending, reviewedPct };
-  }, [interns]);
-
-  if (isLoading) return <Spinner />;
+  if (isLoading) return <div className="p-6"><SkeletonRows rows={6} /></div>;
   if (isError || !interns) {
     return (
-      <div className="mx-auto max-w-[1440px] p-6 md:p-8">
-        <p className="rounded-lg border border-[var(--h-ba1a1a-20)] bg-[var(--h-ffdad6-40)] p-4 text-sm text-[var(--h-ba1a1a)]">
-          Couldn't load interns. Please try again.
-        </p>
+      <div className="mx-auto max-w-[1500px] p-4 sm:p-6">
+        <Card><ErrorState message="Couldn't load interns." onRetry={() => void refetch()} /></Card>
       </div>
     );
   }
 
-  const sub = selected?.latestSubmission ?? null;
-  const canReview = !!sub?.canReceiveFeedback;
+  const entry = selected?.latestEntry ?? null;
+  // A coordinator is read-only on the entries pipeline by policy — they never
+  // transition a week — so the evaluation form is theirs to read, not to use.
+  // Without this the buttons rendered and the API answered 403.
+  const canDecide = user?.role === 'academic_supervisor' || user?.role === 'admin';
+  const canReview = canDecide && !!entry?.canReceiveFeedback;
+  const busy      = acknowledge.isPending || returnEntry.isPending;
 
-  const onSubmit = (outcome: 'approved' | 'flagged') => {
-    if (!sub) return;
+  // How many of this reviewer's interns are waiting on them right now.
+  const awaiting = interns.filter(i => i.latestEntry?.canReceiveFeedback).length;
+
+  async function decide(action: 'acknowledge' | 'return') {
+    if (!entry) return;
     const parsed = FEEDBACK_TEXT.safeParse(feedbackText);
-    if (!parsed.success) { setFeedbackErr(parsed.error.issues[0]?.message); return; }
-    setFeedbackErr(undefined);
-    submitFeedback.mutate(
-      { submissionId: sub.id, feedbackText: feedbackText.trim(), rating: rating ?? undefined, outcome },
-      { onSuccess: () => { setFeedbackText(''); setRating(null); } },
-    );
-  };
+    if (!parsed.success) { setErr(parsed.error.issues[0]?.message); return; }
+    if (action === 'acknowledge' && rating == null) {
+      setErr('Pick an overall rating before acknowledging the week.');
+      return;
+    }
+    setErr(undefined);
+
+    try {
+      if (action === 'acknowledge') {
+        // The entries pipeline scores 0-100; the 1-5 dial is the reviewer's
+        // scale, so it is converted once, here, rather than stored twice.
+        await acknowledge.mutateAsync({
+          entryId: entry.id,
+          comment: feedbackText.trim(),
+          score:   (rating ?? 0) * 20,
+        });
+        setDone('acknowledged');
+      } else {
+        await returnEntry.mutateAsync({ entryId: entry.id, comment: feedbackText.trim() });
+        setDone('returned');
+      }
+      setFeedback('');
+      setRating(null);
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : 'Could not record that decision.');
+    }
+  }
 
   return (
-    <div className="mx-auto max-w-[1440px] p-6 md:p-8">
-      <header className="mb-6">
-        <h1 className="text-2xl font-bold text-[var(--h-15157d)]">Feedback Center</h1>
-        <p className="text-sm text-[var(--h-464652)]">AI-assisted feedback summaries, mentorship, and formal evaluations.</p>
+    <div className="mx-auto max-w-[1500px] p-4 sm:p-6">
+      <header className="mb-5">
+        <h1 className="text-2xl font-bold tracking-tight text-ink">Feedback Centre</h1>
+        <p className="mt-1 text-sm text-ink-secondary">
+          Provide structured feedback, evaluate performance and support intern growth.
+          {awaiting > 0 && <> <strong className="font-semibold text-ink">{awaiting}</strong> awaiting your review.</>}
+        </p>
       </header>
 
-      <div className="grid grid-cols-12 gap-6">
-        {/* AI Feedback Summary */}
-        <section className="col-span-12 rounded-xl border border-[var(--h-712ae2-30)] bg-[var(--h-ffffff-70)] p-6 shadow-lg ring-1 ring-[var(--h-712ae2-10)] backdrop-blur lg:col-span-8">
-          <div className="mb-4 flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <Sparkles className="h-5 w-5 text-[var(--h-712ae2)]" fill="currentColor" />
-              <h3 className="text-xl font-semibold text-[var(--h-15157d)]">AI-Assisted Feedback Summary</h3>
-            </div>
-            {sub?.qualityScore != null && (
-              <span className="rounded-full bg-[var(--h-712ae2-10)] px-3 py-1 text-xs font-semibold text-[var(--h-712ae2)]">
-                Quality {sub.qualityScore}/100
-              </span>
-            )}
-          </div>
-          <div className="flex flex-col gap-4">
-            <div className="flex flex-col gap-2">
-              <label className="text-sm font-medium text-[var(--h-0b1c30)]">Select Intern</label>
-              <select
-                value={selected?.placementId ?? ''}
-                onChange={(e) => setSelectedId(e.target.value)}
-                className="rounded-lg border border-[var(--h-c7c5d4)] bg-[var(--h-ffffff)] px-3 py-2 text-sm text-[var(--h-0b1c30)] focus:border-[var(--h-15157d)] focus:outline-none focus:ring-2 focus:ring-[var(--h-15157d-20)]"
-              >
-                {interns.map((i) => (
-                  <option key={i.placementId} value={i.placementId}>
-                    {i.name}{i.company ? ` — ${i.company}` : ''}
-                  </option>
-                ))}
-              </select>
-            </div>
-            <div className="rounded-lg border border-[var(--h-15157d-10)] bg-[var(--h-dce9ff-50)] p-4 text-sm text-[var(--h-2e3192)]">
-              {sub?.aiFeedbackSummary
-                ? <span className="italic">"{sub.aiFeedbackSummary}"</span>
-                : sub
-                  ? <span>No AI summary for Week {sub.weekNumber} yet — it generates after the logbook is analysed.</span>
-                  : <span>This intern has no submissions yet.</span>}
-            </div>
-            {sub?.sentimentClass && (
-              <p className="text-xs text-[var(--h-464652)]">Detected tone: <span className="font-medium capitalize">{sub.sentimentClass}</span></p>
-            )}
-          </div>
-        </section>
-
-        {/* Evaluations Status */}
-        <section className="col-span-12 rounded-xl border border-[var(--h-c7c5d4-30)] bg-[var(--h-ffffff)] p-6 shadow-sm lg:col-span-4">
-          <h3 className="mb-4 text-xl font-semibold text-[var(--h-15157d)]">Evaluations Status</h3>
-          <div className="space-y-4">
-            <div className="flex flex-col gap-2">
-              <div className="flex justify-between text-sm font-medium">
-                <span className="text-[var(--h-0b1c30)]">Reviewed this cycle</span>
-                <span className="text-[var(--h-22c087)]">{evalStatus.reviewedPct}%</span>
-              </div>
-              <div className="h-2 w-full overflow-hidden rounded-full bg-[var(--h-e5eeff)]">
-                <div className="h-full bg-[var(--h-4edea3)]" style={{ width: `${evalStatus.reviewedPct}%` }} />
-              </div>
-            </div>
-            <div className="flex flex-col gap-2">
-              <div className="flex justify-between text-sm font-medium">
-                <span className="text-[var(--h-0b1c30)]">Awaiting your review</span>
-                <span className={evalStatus.pending > 0 ? 'text-[var(--h-ba1a1a)]' : 'text-[var(--h-22c087)]'}>{evalStatus.pending}</span>
-              </div>
-              <div className="h-2 w-full overflow-hidden rounded-full bg-[var(--h-e5eeff)]">
-                <div className="h-full bg-[var(--h-ba1a1a)]" style={{ width: evalStatus.total ? `${(evalStatus.pending / evalStatus.total) * 100}%` : '0%' }} />
-              </div>
-            </div>
-          </div>
-          <p className="mt-6 text-sm text-[var(--h-464652)]">
-            {evalStatus.total} intern{evalStatus.total === 1 ? '' : 's'} assigned to you.
-          </p>
-        </section>
-
-        {/* Collaborative Chat — search an intern, then chat in a live two-way thread */}
-        <section className="col-span-12 flex h-[600px] flex-col overflow-hidden rounded-xl border border-[var(--h-c7c5d4-30)] bg-[var(--h-ffffff)] shadow-sm lg:col-span-5">
-          {/* Recipient search + picker */}
-          <div className="shrink-0 border-b border-[var(--h-c7c5d4-30)] p-3">
-            <div className="relative">
-              <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[var(--h-757684)]" />
+      <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_minmax(0,420px)]">
+        <div className="min-w-0 space-y-5">
+          {/* 1 ── pick an intern */}
+          <Step n={1} icon={Search} title="Select intern"
+            hint="Search your cohort, then see where they are before you write anything.">
+            <label className="relative block">
+              <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-ink-muted" />
               <input
-                type="text"
-                value={chatSearch}
-                onChange={(e) => setChatSearch(e.target.value)}
+                value={search} onChange={(e) => setSearch(e.target.value)}
+                aria-label="Search interns"
                 placeholder="Search interns by name or company…"
-                className="w-full rounded-lg border border-[var(--h-c7c5d4)] bg-[var(--h-ffffff)] py-2 pl-9 pr-3 text-sm text-[var(--h-0b1c30)] focus:border-[var(--h-15157d)] focus:outline-none focus:ring-1 focus:ring-[var(--h-15157d)]"
+                className="w-full rounded-lg border border-line bg-surface py-2 pl-9 pr-3 text-sm text-ink placeholder:text-ink-muted focus:border-brand focus:outline-none"
               />
+            </label>
+
+            <div className="mt-3 max-h-56 space-y-1 overflow-y-auto">
+              {matches.length === 0 ? (
+                <p className="px-1 py-3 text-xs text-ink-muted">No interns match “{search}”.</p>
+              ) : matches.map(i => (
+                <InternRow
+                  key={i.placementId} intern={i}
+                  active={i.placementId === selected?.placementId}
+                  onSelect={() => setSelectedId(i.placementId)}
+                />
+              ))}
             </div>
-            <div className="mt-2 max-h-28 space-y-1 overflow-y-auto">
-              {chatMatches.length === 0 ? (
-                <p className="px-1 py-2 text-xs text-[var(--h-757684)]">No interns match "{chatSearch}".</p>
+
+            {selected && <ProgressGlance intern={selected} />}
+          </Step>
+
+          {/* 2 ── formal evaluation */}
+          <Step n={2} icon={ClipboardCheck} title="Formal evaluation"
+            hint={canDecide
+              ? 'Acknowledging closes the week and is final. Returning sends it back for revision — either way the intern is notified and sees exactly what you wrote.'
+              : 'Coordinators oversee but never decide a week — that belongs to the intern\'s own academic supervisor.'}>
+            <div className="mb-4 flex flex-wrap items-center gap-2">
+              {entry ? (
+                <>
+                  <Badge tone={canReview ? 'warn' : 'neutral'}>
+                    Week {entry.weekNumber} · {entry.status.replace(/^./, c => c.toUpperCase())}
+                  </Badge>
+                  {entry.qualityScore != null && (
+                    <Badge tone="info">AI quality {entry.qualityScore}/100 · advisory</Badge>
+                  )}
+                </>
               ) : (
-                chatMatches.map((i) => {
-                  const active = i.placementId === selected?.placementId;
-                  return (
-                    <button
-                      key={i.placementId}
-                      onClick={() => setSelectedId(i.placementId)}
-                      className={
-                        active
-                          ? 'flex w-full items-center gap-2 rounded-lg bg-[var(--h-15157d)] px-2.5 py-1.5 text-left text-sm text-white'
-                          : 'flex w-full items-center gap-2 rounded-lg px-2.5 py-1.5 text-left text-sm text-[var(--h-0b1c30)] hover:bg-[var(--h-eff4ff)]'
-                      }
-                    >
-                      <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-[var(--h-e1e0ff)] text-[10px] font-bold text-[var(--h-15157d)]">
-                        {i.name.split(' ').map(p => p[0]).slice(0, 2).join('')}
-                      </span>
-                      <span className="min-w-0 flex-1 truncate">
-                        {i.name}
-                        {i.company && <span className={active ? 'text-[var(--h-c7d0ff)]' : 'text-[var(--h-757684)]'}> · {i.company}</span>}
-                      </span>
-                    </button>
-                  );
-                })
+                <Badge tone="neutral">No weeks logged yet</Badge>
               )}
             </div>
-          </div>
 
-          {/* Thread */}
-          {selected ? (
-            <ChatThread
-              placementId={selected.placementId}
-              title={selected.name}
-              subtitle={selected.company ?? 'Mentorship chat'}
-              disabled={isReadOnlyChat}
-            />
-          ) : (
-            <div className="flex flex-1 items-center justify-center p-6 text-center text-sm text-[var(--h-757684)]">
-              Search and pick an intern to start a conversation.
-            </div>
+            {!entry ? (
+              <EmptyState
+                title="Nothing to evaluate yet"
+                hint="This intern has not logged a week. Their first submission will appear here."
+                className="py-8"
+              />
+            ) : (
+              <form className="space-y-5" onSubmit={(e) => e.preventDefault()}>
+                <fieldset disabled={!canReview || busy} className="space-y-5 disabled:opacity-60">
+                  <div>
+                    <span className="mb-2 block text-sm font-medium text-ink-secondary">Overall rating</span>
+                    <div className="grid grid-cols-5 gap-2" role="radiogroup" aria-label="Overall rating">
+                      {[1, 2, 3, 4, 5].map(n => (
+                        <button
+                          key={n} type="button" role="radio" aria-checked={n === rating}
+                          onClick={() => setRating(n)}
+                          className={cn(
+                            'rounded-lg border py-2 text-sm font-semibold transition-colors',
+                            n === rating
+                              ? 'border-brand bg-brand text-ink-inverse'
+                              : 'border-line text-ink hover:border-brand',
+                          )}
+                        >
+                          {n}
+                        </button>
+                      ))}
+                    </div>
+                    <p className="mt-1.5 text-xs text-ink-muted">
+                      Recorded on the week as a score out of 100 — {rating ? `${rating} of 5 is ${rating * 20}/100` : '1 of 5 is 20/100'}.
+                    </p>
+                  </div>
+
+                  <div>
+                    <label htmlFor="feedbackText" className="mb-2 block text-sm font-medium text-ink-secondary">
+                      Feedback to the intern
+                    </label>
+                    <textarea
+                      id="feedbackText" rows={6} value={feedbackText} maxLength={FEEDBACK_MAX}
+                      aria-invalid={!!feedbackErr}
+                      onChange={(e) => setFeedback(e.target.value)}
+                      placeholder={canReview
+                        ? 'What went well, what to change, and what to do next week…'
+                        : canDecide
+                        ? 'This intern has no week awaiting your review.'
+                        : 'Read-only: a week is decided by the intern\'s academic supervisor.'}
+                      className="w-full rounded-lg border border-line bg-surface p-3 text-sm text-ink placeholder:text-ink-muted focus:border-brand focus:outline-none"
+                    />
+                    <div className="flex items-start justify-between gap-3">
+                      <FieldError message={feedbackErr} />
+                      <span className="ml-auto shrink-0 text-[11px] text-ink-muted">
+                        {feedbackText.trim().length}/{FEEDBACK_MAX}
+                      </span>
+                    </div>
+                  </div>
+
+                  <div className="flex flex-wrap justify-end gap-3">
+                    <button
+                      type="button" onClick={() => decide('return')}
+                      disabled={!feedbackText.trim() || busy}
+                      className="inline-flex items-center gap-2 rounded-lg border border-warn/40 bg-warn-soft px-4 py-2.5 text-sm font-semibold text-warn transition-colors hover:opacity-90 disabled:opacity-50"
+                    >
+                      <RotateCcw className="h-4 w-4" /> Return for revision
+                    </button>
+                    <button
+                      type="button" onClick={() => decide('acknowledge')}
+                      disabled={!feedbackText.trim() || busy}
+                      className="inline-flex items-center gap-2 rounded-lg bg-brand px-5 py-2.5 text-sm font-semibold text-ink-inverse transition-colors hover:bg-brand-hover disabled:opacity-50"
+                    >
+                      {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <CheckCircle2 className="h-4 w-4" />}
+                      Acknowledge week
+                    </button>
+                  </div>
+                </fieldset>
+
+                {done && (
+                  <p className="flex items-center gap-2 text-sm font-medium text-ok">
+                    <CheckCircle2 className="h-4 w-4" />
+                    {done === 'acknowledged'
+                      ? 'Week acknowledged and scored. The intern has been notified.'
+                      : 'Week returned for revision. The intern has been notified.'}
+                  </p>
+                )}
+              </form>
+            )}
+          </Step>
+
+          {/* 3 ── AI studio */}
+          <Step n={3} icon={Wand2} title="AI feedback studio"
+            hint="The engine's own draft and rubric for this week. Advisory: edit it, then you press the button — nothing here is sent on its own.">
+            <AiStudio entry={entry} onUse={(text) => setFeedback(text)} />
+          </Step>
+
+          {/* 4 ── call */}
+          {user?.role === 'admin' && selected && (
+            <Step n={4} icon={Video} title="Schedule a video call"
+              hint="Optional — talk it through with the intern.">
+              <ScheduleCallCard placementId={selected.placementId} internName={selected.name} />
+            </Step>
           )}
-        </section>
+        </div>
 
-        {/* Formal Evaluation */}
-        <section className="col-span-12 rounded-xl border border-[var(--h-c7c5d4-30)] bg-[var(--h-ffffff)] p-6 shadow-sm lg:col-span-7">
-          <div className="mb-8 flex items-center justify-between">
-            <div>
-              <h3 className="text-xl font-semibold text-[var(--h-15157d)]">Formal Evaluation</h3>
-              <p className="text-sm text-[var(--h-464652)]">
-                {sub ? `Week ${sub.weekNumber} — ${selected?.name}` : 'Select an intern'}
-                {sub && !canReview && <span className="ml-2 text-[var(--h-ba1a1a)]">(latest submission not awaiting review)</span>}
+        {/* Conversation rail */}
+        <aside>
+          <Card padded={false} className="flex h-[calc(100vh-9rem)] min-h-[30rem] flex-col overflow-hidden xl:sticky xl:top-6">
+            <div className="shrink-0 border-b border-line px-5 py-4">
+              <h2 className="flex items-center gap-2 text-[15px] font-semibold text-ink">
+                <MessageSquare className="h-4 w-4 text-brand-ink" /> Feedback conversation
+              </h2>
+              <p className="mt-0.5 text-xs text-ink-muted">
+                {selected ? `${selected.name}${selected.company ? ` · ${selected.company}` : ''}` : 'Pick an intern to start'}
+                {isReadOnlyChat && ' · read-only for coordinators'}
               </p>
             </div>
-          </div>
-          <form className="space-y-8" onSubmit={(e) => e.preventDefault()}>
-            <div className="space-y-2">
-              <label className="text-sm font-medium text-[var(--h-0b1c30)]">Overall Rating</label>
-              <div className="grid grid-cols-5 gap-2">
-                {[1, 2, 3, 4, 5].map((n) => (
-                  <button
-                    key={n}
-                    type="button"
-                    disabled={!canReview}
-                    onClick={() => setRating(n)}
-                    className={
-                      n === rating
-                        ? 'rounded-lg border border-[var(--h-15157d)] bg-[var(--h-15157d)] py-2 text-sm text-white shadow-sm'
-                        : 'rounded-lg border border-[var(--h-c7c5d4)] py-2 text-sm text-[var(--h-0b1c30)] transition-all hover:border-[var(--h-15157d)] hover:bg-[var(--h-15157d-5)] disabled:opacity-50'
-                    }
-                  >
-                    {n}
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            <div className="space-y-2">
-              <label className="text-sm font-medium text-[var(--h-0b1c30)]">Feedback to the intern</label>
-              <textarea
-                rows={5}
-                value={feedbackText}
-                maxLength={FEEDBACK_MAX}
-                aria-invalid={!!feedbackErr}
-                disabled={!canReview}
-                onChange={(e) => setFeedbackText(e.target.value)}
-                placeholder={canReview ? 'Enter detailed observations about progress, strengths, and areas to improve…' : 'This intern has no submission awaiting review.'}
-                className="w-full rounded-xl border border-[var(--h-c7c5d4)] bg-[var(--h-eff4ff)] p-3 text-sm text-[var(--h-0b1c30)] focus:border-[var(--h-15157d)] focus:outline-none focus:ring-2 focus:ring-[var(--h-15157d-20)] disabled:opacity-60"
+            {selected ? (
+              <ChatThread
+                placementId={selected.placementId}
+                title={selected.name}
+                subtitle={selected.company ?? 'Mentorship chat'}
+                disabled={isReadOnlyChat}
               />
-              <div className="flex items-start justify-between gap-3">
-                <FieldError message={feedbackErr} />
-                <span className="ml-auto shrink-0 text-[11px] text-[var(--h-757684)]">
-                  {feedbackText.trim().length}/{FEEDBACK_MAX}
-                </span>
-              </div>
-            </div>
-
-            {submitFeedback.isError && (
-              <p className="text-sm text-[var(--h-ba1a1a)]">Couldn't submit feedback. Please try again.</p>
+            ) : (
+              <EmptyState
+                icon={MessageSquare}
+                title="No intern selected"
+                hint="Pick someone above to open the conversation."
+                className="flex-1"
+              />
             )}
-            {submitFeedback.isSuccess && (
-              <p className="flex items-center gap-2 text-sm text-[var(--h-22c087)]"><CheckCircle2 className="h-4 w-4" /> Feedback sent to the intern.</p>
-            )}
-
-            <div className="flex justify-end gap-3">
-              <button
-                type="button"
-                disabled={!canReview || !feedbackText.trim() || submitFeedback.isPending}
-                onClick={() => onSubmit('flagged')}
-                className="flex items-center gap-2 rounded-lg border border-[var(--h-ba1a1a)] px-4 py-2 text-sm font-medium text-[var(--h-ba1a1a)] transition-colors hover:bg-[var(--h-ba1a1a-5)] disabled:opacity-50"
-              >
-                <Flag className="h-4 w-4" /> Flag for follow-up
-              </button>
-              <button
-                type="button"
-                disabled={!canReview || !feedbackText.trim() || submitFeedback.isPending}
-                onClick={() => onSubmit('approved')}
-                className="flex items-center gap-2 rounded-lg bg-[var(--h-15157d)] px-6 py-2 text-sm font-medium text-white transition-all hover:shadow-md disabled:opacity-50"
-              >
-                {submitFeedback.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <CheckCircle2 className="h-4 w-4" />}
-                Approve &amp; Submit
-              </button>
-            </div>
-          </form>
-        </section>
-
-        {/* Call scheduling (admin-only endpoint) — folded in from /admin/messages */}
-        {user?.role === 'admin' && selected && (
-          <section className="col-span-12">
-            <ScheduleCallCard placementId={selected.placementId} internName={selected.name} />
-          </section>
-        )}
+          </Card>
+        </aside>
       </div>
     </div>
   );
 }
 
-// ── Student (read-only) ────────────────────────────────────────
+function InternRow({
+  intern, active, onSelect,
+}: { intern: FeedbackIntern; active: boolean; onSelect: () => void }) {
+  const waiting = intern.latestEntry?.canReceiveFeedback;
+  return (
+    <button
+      type="button" onClick={onSelect} aria-pressed={active}
+      className={cn(
+        'flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-left transition-colors',
+        active ? 'bg-brand-soft' : 'hover:bg-surface-sunken',
+      )}
+    >
+      <InitialsAvatar name={intern.name} size={30} />
+      <span className="min-w-0 flex-1">
+        <span className={cn('block truncate text-sm font-semibold', active ? 'text-brand-ink' : 'text-ink')}>
+          {intern.name}
+        </span>
+        <span className="block truncate text-xs text-ink-muted">
+          {intern.company ?? 'No company'}
+          {intern.latestEntry && ` · Week ${intern.latestEntry.weekNumber}`}
+        </span>
+      </span>
+      {waiting && <Badge tone="warn">Awaiting you</Badge>}
+    </button>
+  );
+}
 
+/** Where this intern is, before a word of feedback is written. */
+function ProgressGlance({ intern }: { intern: FeedbackIntern }) {
+  const p = intern.progress;
+  return (
+    <div className="mt-4 border-t border-line pt-4">
+      <div className="mb-1.5 flex items-center justify-between text-xs">
+        <span className="font-medium text-ink">Progress at a glance</span>
+        <span className="text-ink-muted">
+          {p.pct != null ? `${p.pct}%` : <NoValue title="No week has come due yet" />}
+        </span>
+      </div>
+      <ProgressBar value={p.pct} tone="ok" label={`${intern.name}: ${p.pct ?? 0}% of weeks due submitted`} />
+      <p className="mt-1.5 text-xs text-ink-muted">
+        {p.submittedWeeks} of {p.weeksDue} week{p.weeksDue === 1 ? '' : 's'} due submitted
+        {' · '}{p.programmeWeeks}-week programme
+      </p>
+    </div>
+  );
+}
+
+/**
+ * The engine's draft and rubric for the selected week. Everything here is
+ * advisory and labelled as such; the reviewer copies it into their own box and
+ * edits before anything is sent.
+ */
+function AiStudio({
+  entry, onUse,
+}: { entry: FeedbackIntern['latestEntry']; onUse: (text: string) => void }) {
+  if (!entry) {
+    return (
+      <EmptyState
+        icon={Sparkles}
+        title="No week to analyse"
+        hint="The studio fills in once this intern submits a week."
+        className="py-8"
+      />
+    );
+  }
+
+  const draft = typeof entry.aiDraft?.text === 'string' ? entry.aiDraft.text : null;
+  const summary = entry.aiSummary as { headline?: string; themes?: string[]; concerns?: string[] } | null;
+
+  // The rubric, split into what went well and what did not. Dimensions are
+  // whatever the engine wrote — never a fixed list this page invents.
+  const dims = Object.entries(entry.quality ?? {})
+    .filter(([k, v]) => k !== 'overall' && typeof v === 'number' && v >= 0 && v <= 100)
+    .map(([k, v]) => ({ label: k.replace(/_/g, ' '), value: v as number }))
+    .sort((a, b) => b.value - a.value);
+
+  const strengths = dims.filter(d => d.value >= 70).slice(0, 3);
+  const growth    = dims.filter(d => d.value < 70).slice(-3).reverse();
+
+  if (!draft && !summary && dims.length === 0) {
+    return (
+      <EmptyState
+        icon={Sparkles}
+        title="This week has not been assessed"
+        hint="Enrichment is advisory and fails open — a week can be reviewed without it."
+        className="py-8"
+      />
+    );
+  }
+
+  return (
+    <div className="space-y-4">
+      {summary?.headline && (
+        <p className="rounded-lg bg-surface-sunken px-4 py-3 text-sm italic text-ink-secondary">
+          “{summary.headline}”
+        </p>
+      )}
+
+      {(strengths.length > 0 || growth.length > 0) && (
+        <div className="grid gap-4 sm:grid-cols-2">
+          {strengths.length > 0 && (
+            <div>
+              <p className="mb-2 flex items-center gap-1.5 text-xs font-bold text-ok">
+                <TrendingUp className="h-3.5 w-3.5" /> Strongest dimensions
+              </p>
+              <ul className="space-y-2">
+                {strengths.map(d => <DimRow key={d.label} {...d} tone="ok" />)}
+              </ul>
+            </div>
+          )}
+          {growth.length > 0 && (
+            <div>
+              <p className="mb-2 text-xs font-bold text-warn">Where to push</p>
+              <ul className="space-y-2">
+                {growth.map(d => <DimRow key={d.label} {...d} tone="warn" />)}
+              </ul>
+            </div>
+          )}
+        </div>
+      )}
+
+      {draft && (
+        <div className="rounded-lg border border-line p-3">
+          <div className="mb-2 flex items-center justify-between gap-2">
+            <p className="flex items-center gap-1.5 text-xs font-bold text-brand-ink">
+              <Sparkles className="h-3.5 w-3.5" /> Suggested draft
+            </p>
+            <button
+              type="button" onClick={() => onUse(draft)}
+              className="rounded-lg border border-line px-3 py-1.5 text-xs font-semibold text-ink-secondary transition-colors hover:bg-surface-sunken"
+            >
+              Use as a starting point
+            </button>
+          </div>
+          <p className="whitespace-pre-wrap text-sm leading-relaxed text-ink-secondary">{draft}</p>
+        </div>
+      )}
+
+      <p className="text-xs text-ink-muted">
+        Generated suggestions can be wrong and are never sent on their own — edit anything you use.
+      </p>
+    </div>
+  );
+}
+
+function DimRow({ label, value, tone }: { label: string; value: number; tone: 'ok' | 'warn' }) {
+  return (
+    <li>
+      <div className="mb-1 flex items-center justify-between gap-2 text-xs">
+        <span className="truncate capitalize text-ink">{label}</span>
+        <span className="shrink-0 font-semibold text-ink-secondary">{value}</span>
+      </div>
+      <ProgressBar value={value} tone={tone} label={`${label}: ${value} of 100`} />
+    </li>
+  );
+}
+
+/* ── Student ─────────────────────────────────────────────────── */
+
+/**
+ * What the student actually received. Reads the same entries pipeline the
+ * supervisor writes to — the decision comment lives on the append-only event,
+ * which only the detail endpoint carries, so the three most recently decided
+ * weeks are fetched in full (the route the dashboard takes).
+ */
 function StudentView() {
   const { data: placements, isLoading: pLoading } = useMyPlacements();
   const placementId = placements?.[0]?.id;
-  const { data: submissions, isLoading: sLoading } = useSubmissions(placementId);
+  const { data: entries = [], isLoading: eLoading } = useEntries(placementId);
 
-  if (pLoading || (placementId && sLoading)) return <Spinner />;
+  const decidedIds = [...entries]
+    .filter(e => e.status === 'acknowledged' || e.status === 'returned')
+    .sort((a, b) => b.weekNumber - a.weekNumber)
+    .slice(0, 3)
+    .map(e => e.id);
 
-  const withFeedback = (submissions ?? [])
-    .filter(s => (s.feedback && s.feedback.length > 0) || s.analysis?.aiFeedbackSummary)
-    .sort((a, b) => b.weekNumber - a.weekNumber);
+  const fb0 = useEntry(decidedIds[0]);
+  const fb1 = useEntry(decidedIds[1]);
+  const fb2 = useEntry(decidedIds[2]);
+
+  if (pLoading || (placementId && eLoading)) {
+    return <div className="p-6"><SkeletonRows rows={5} /></div>;
+  }
+
+  const cards = [fb0.data, fb1.data, fb2.data].flatMap((entry) => {
+    if (!entry) return [];
+    const decision = [...(entry.events ?? [])]
+      .reverse()
+      .find(e => ['acknowledged', 'returned'].includes(e.toStatus) && !!e.comment);
+    return decision ? [{ entry, decision }] : [];
+  });
 
   return (
-    <div className="mx-auto max-w-[1440px] p-6 md:p-8">
-      <header className="mb-6">
-        <h1 className="text-2xl font-bold text-[var(--h-15157d)]">Your Feedback</h1>
-        <p className="text-sm text-[var(--h-464652)]">AI summaries, supervisor feedback, and messages from your mentors.</p>
+    <div className="mx-auto max-w-[1500px] p-4 sm:p-6">
+      <header className="mb-5">
+        <h1 className="text-2xl font-bold tracking-tight text-ink">Your feedback</h1>
+        <p className="mt-1 text-sm text-ink-secondary">
+          What your supervisor said about each week, and a direct line to your mentors.
+        </p>
       </header>
 
-      {/* Live chat with your supervisor / admin team — reply to any message here */}
-      <section className="mb-6 flex h-[480px] flex-col overflow-hidden rounded-xl border border-[var(--h-c7c5d4-30)] bg-[var(--h-ffffff)] shadow-sm">
-        <ChatThread
-          placementId={placementId}
-          title="Messages"
-          subtitle="Your supervisor & admin team"
-        />
-      </section>
-
-      {withFeedback.length === 0 ? (
-        <p className="rounded-xl border border-[var(--h-c7c5d4-30)] bg-[var(--h-ffffff)] p-8 text-center text-sm text-[var(--h-464652)]">
-          No feedback yet. It appears here once your submissions are reviewed.
-        </p>
-      ) : (
-        <div className="space-y-4">
-          {withFeedback.map((s) => (
-            <section key={s.id} className="rounded-xl border border-[var(--h-c7c5d4-30)] bg-[var(--h-ffffff)] p-6 shadow-sm">
-              <div className="mb-3 flex items-center justify-between">
-                <h3 className="text-lg font-semibold text-[var(--h-15157d)]">Week {s.weekNumber}</h3>
-                {s.analysis?.qualityScore != null && (
-                  <span className="rounded-full bg-[var(--h-712ae2-10)] px-3 py-1 text-xs font-semibold text-[var(--h-712ae2)]">
-                    Quality {s.analysis.qualityScore}/100
-                  </span>
-                )}
+      <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_minmax(0,420px)]">
+        <div className="min-w-0 space-y-4">
+          {cards.length === 0 ? (
+            <Card>
+              <EmptyState
+                icon={MessageSquare}
+                title="No feedback yet"
+                hint="It appears here once your supervisor has reviewed a week you submitted."
+              />
+            </Card>
+          ) : cards.map(({ entry, decision }) => (
+            <Card key={entry.id}>
+              <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+                <h2 className="text-[15px] font-semibold text-ink">Week {entry.weekNumber}</h2>
+                <Badge tone={decision.toStatus === 'acknowledged' ? 'ok' : 'warn'}>
+                  {decision.toStatus === 'acknowledged' ? 'Acknowledged' : 'Returned for revision'}
+                </Badge>
               </div>
-              {s.analysis?.aiFeedbackSummary && (
-                <div className="mb-3 flex gap-2 rounded-lg border border-[var(--h-712ae2-10)] bg-[var(--h-712ae2-5)] p-3">
-                  <Sparkles className="h-4 w-4 shrink-0 text-[var(--h-712ae2)]" fill="currentColor" />
-                  <p className="text-sm italic text-[var(--h-464652)]">"{s.analysis.aiFeedbackSummary}"</p>
-                </div>
-              )}
-              {s.feedback?.map((f) => (
-                <div key={f.id} className="rounded-lg border border-[var(--h-15157d-10)] bg-[var(--h-dce9ff-40)] p-3">
-                  <div className="mb-1 flex items-center justify-between">
-                    <span className="text-xs font-medium text-[var(--h-15157d)]">
-                      {f.supervisor ? `${f.supervisor.firstName} ${f.supervisor.lastName}` : 'Supervisor'}
-                      {f.rating != null && <span className="ml-2 text-[var(--h-464652)]">· {f.rating}/5</span>}
-                    </span>
-                    <span className={`text-[10px] font-bold uppercase ${f.outcome === 'flagged' ? 'text-[var(--h-ba1a1a)]' : 'text-[var(--h-22c087)]'}`}>{f.outcome}</span>
-                  </div>
-                  <p className="text-sm text-[var(--h-0b1c30)]">{f.feedbackText}</p>
-                </div>
-              ))}
-            </section>
+              <p className="whitespace-pre-wrap text-sm leading-relaxed text-ink-secondary">
+                {decision.comment}
+              </p>
+            </Card>
           ))}
         </div>
-      )}
+
+        <aside>
+          <Card padded={false} className="flex h-[calc(100vh-9rem)] min-h-[28rem] flex-col overflow-hidden xl:sticky xl:top-6">
+            <div className="shrink-0 border-b border-line px-5 py-4">
+              <h2 className="flex items-center gap-2 text-[15px] font-semibold text-ink">
+                <MessageSquare className="h-4 w-4 text-brand-ink" /> Messages
+              </h2>
+              <p className="mt-0.5 text-xs text-ink-muted">Your supervisor and the admin team</p>
+            </div>
+            <ChatThread
+              placementId={placementId}
+              title="Messages"
+              subtitle="Your supervisor & admin team"
+            />
+          </Card>
+        </aside>
+      </div>
     </div>
   );
 }
