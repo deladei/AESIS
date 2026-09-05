@@ -15,6 +15,19 @@ export default defineConfig(({ mode }) => ({
       '@shared': path.resolve(__dirname, './src/shared/validation/index.ts'),
     },
   },
+  build: {
+    rollupOptions: {
+      output: {
+        // Recharts is ~400 kB and, until the dashboards were rebuilt, it was a
+        // dependency nothing imported. Splitting it keeps it out of the main
+        // bundle's cache line, so a change to app code no longer forces every
+        // viewer to re-download the charting library.
+        manualChunks: {
+          recharts: ['recharts'],
+        },
+      },
+    },
+  },
   server: {
     port: 5173,
     ...(mode === 'development' && {

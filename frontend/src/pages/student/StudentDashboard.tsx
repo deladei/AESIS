@@ -1,20 +1,25 @@
 import { Link } from 'react-router-dom';
 import {
-  NotebookPen, Gauge, ArrowRight, CalendarClock, CheckCircle2,
-  GraduationCap, ExternalLink, Loader2, BookOpen,
-  Building2, Mail, Phone, Clock, Target,
+  Activity, Bell, Briefcase, Building2, CalendarDays, ClipboardCheck, Clock,
+  GraduationCap, Loader2, Mail, MessageSquare, Phone, Sparkles, Target, TrendingUp,
 } from 'lucide-react';
 import type { DashboardSupervisor } from '@/hooks/useStudentDashboard';
 import { useAuth } from '@/contexts/AuthContext';
 import { useMyPlacements } from '@/hooks/usePlacements';
 import { useEntries, useEntry } from '@/hooks/useEntries';
 import { useStudentDashboard } from '@/hooks/useStudentDashboard';
-import { useNotifications, type Notification } from '@/hooks/useNotifications';
+import { useNotifications } from '@/hooks/useNotifications';
 import { WeeklyLogbookTable } from '@/components/student/WeeklyLogbookTable';
+import { Card, CardHeader } from '@/components/ui/Card';
+import { StatCard } from '@/components/ui/StatCard';
+import { Badge, LegendDot } from '@/components/ui/Badge';
+import { EmptyState, SkeletonRows } from '@/components/ui/Feedback';
+import { NoValue, ProgressBar } from '@/components/ui/Bits';
+import { DonutStat, LineTrend } from '@/components/ui/Charts';
 
-function formatDate(iso: string | null): string {
+function formatDate(iso: string | null | undefined): string {
   if (!iso) return '—';
-  return new Date(iso).toLocaleDateString('en-US', { day: '2-digit', month: 'long', year: 'numeric' });
+  return new Date(iso).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
 }
 
 function timeAgo(iso: string): string {
@@ -28,54 +33,69 @@ function timeAgo(iso: string): string {
   return `${Math.floor(days / 7)} weeks ago`;
 }
 
+function greeting(): string {
+  const h = new Date().getHours();
+  if (h < 12) return 'Good morning';
+  if (h < 17) return 'Good afternoon';
+  return 'Good evening';
+}
+
+const STATUS_LABEL: Record<string, string> = {
+  active: 'In progress',
+  pending: 'Awaiting approval',
+  completed: 'Completed',
+  withdrawn: 'Withdrawn',
+  failed: 'Not passed',
+  transferred_out: 'Transferred',
+  cancelled: 'Cancelled',
+};
 
 function SupervisorRow({
-  label, icon, supervisor,
+  label, icon: Icon, supervisor,
 }: {
   label: string;
-  icon: React.ReactNode;
+  icon: React.ElementType;
   supervisor: DashboardSupervisor | null;
 }) {
   return (
-    <div>
-      <div className="mb-2 flex items-center gap-2">
-        <div className="flex h-8 w-8 items-center justify-center rounded-full bg-[var(--h-e1e0ff)] text-[var(--h-15157d)]">
-          {icon}
-        </div>
-        <p className="text-sm font-bold text-[var(--h-191c1e)]">{label}</p>
+    <div className="flex gap-3">
+      <span className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-brand-soft text-brand-ink">
+        <Icon className="h-4 w-4" />
+      </span>
+      <div className="min-w-0">
+        <p className="text-xs text-ink-muted">{label}</p>
+        {supervisor ? (
+          <>
+            <p className="truncate text-sm font-semibold text-ink">{supervisor.name}</p>
+            {supervisor.organization && (
+              <p className="truncate text-xs text-ink-secondary">{supervisor.organization}</p>
+            )}
+            <div className="mt-1 flex flex-wrap gap-x-3 gap-y-0.5">
+              <a href={`mailto:${supervisor.email}`} className="flex items-center gap-1 text-xs text-brand-ink hover:underline">
+                <Mail className="h-3 w-3" /> Email
+              </a>
+              {supervisor.phone && (
+                <a href={`tel:${supervisor.phone}`} className="flex items-center gap-1 text-xs text-brand-ink hover:underline">
+                  <Phone className="h-3 w-3" /> Call
+                </a>
+              )}
+            </div>
+          </>
+        ) : (
+          <p className="text-sm text-ink-muted">Not yet assigned</p>
+        )}
       </div>
-      {supervisor ? (
-        <div className="pl-10 text-sm">
-          <p className="font-semibold text-[var(--h-191c1e)]">{supervisor.name}</p>
-          {supervisor.organization && (
-            <p className="text-xs text-[var(--h-424654)]">{supervisor.organization}</p>
-          )}
-          <a
-            href={`mailto:${supervisor.email}`}
-            className="mt-1 flex items-center gap-1.5 text-xs text-[var(--h-15157d)] hover:underline"
-          >
-            <Mail className="h-3.5 w-3.5" /> {supervisor.email}
-          </a>
-          {supervisor.phone && (
-            <a
-              href={`tel:${supervisor.phone}`}
-              className="mt-0.5 flex items-center gap-1.5 text-xs text-[var(--h-15157d)] hover:underline"
-            >
-              <Phone className="h-3.5 w-3.5" /> {supervisor.phone}
-            </a>
-          )}
-        </div>
-      ) : (
-        <p className="pl-10 text-xs text-[var(--h-737785)]">Not yet assigned</p>
-      )}
     </div>
   );
 }
 
 /**
- * Student Dashboard — Stitch "Student Dashboard (Updated Profile)" layout,
- * wired to live placement / logbook / notification / feedback data.
- * Chrome (sidebar + topbar) is provided by StudentShell.
+ * Student dashboard.
+ *
+ * Every panel here traces to a live query. Widgets from the reference design
+ * whose data does not exist yet — a to-do list, a scheduled-review date, a
+ * documents library, a resources shelf — are absent rather than mocked; each is
+ * a named phase of its own with real schema behind it.
  */
 export default function StudentDashboard() {
   const { user } = useAuth();
@@ -84,7 +104,7 @@ export default function StudentDashboard() {
   // The weekly pipeline, not the retired `logbook_submissions` table: nothing
   // writes that any more, so reading it showed every student an empty logbook
   // and no supervisor feedback however much of either they actually had.
-  const { data: entries = [], isLoading: subsLoading } = useEntries(active?.id);
+  const { data: entries = [], isLoading: entriesLoading } = useEntries(active?.id);
   // Stats (avg quality + week progress) are computed server-side — validated,
   // numeric, and derived from the placement dates — never on the raw list here.
   const { data: stats } = useStudentDashboard(!!active);
@@ -102,345 +122,313 @@ export default function StudentDashboard() {
   const fb1 = useEntry(decidedIds[1]);
   const fb2 = useEntry(decidedIds[2]);
 
-  if (placementsLoading || subsLoading) {
+  if (placementsLoading || entriesLoading) {
     return (
       <div className="flex h-64 items-center justify-center">
-        <Loader2 className="h-6 w-6 animate-spin text-[var(--h-15157d)]" />
+        <Loader2 className="h-6 w-6 animate-spin text-brand" />
       </div>
     );
   }
 
   if (!active) {
     return (
-      <div className="p-8">
-        <h1 className="text-4xl font-extrabold tracking-tight text-[var(--h-191c1e)]">
-          Welcome back, {user?.firstName}
+      <div className="mx-auto max-w-[1400px] p-6">
+        <h1 className="text-2xl font-bold text-ink">
+          {greeting()}, {user?.firstName}
         </h1>
-        <div className="mt-8 rounded-xl bg-[var(--h-ffffff)] p-10 text-center">
-          <BookOpen className="mx-auto mb-3 h-8 w-8 text-[var(--h-15157d)]" />
-          <p className="text-base font-semibold text-[var(--h-191c1e)]">No active placement yet</p>
-          <p className="mt-1 text-sm text-[var(--h-424654)]">
-            Once your placement is approved, your internship progress and feedback will appear here.
-          </p>
-        </div>
+        <Card className="mt-6">
+          <EmptyState
+            icon={Briefcase}
+            title="No active placement yet"
+            hint="Once your placement is approved, your internship progress, logbook and feedback all appear here."
+          />
+        </Card>
       </div>
     );
   }
 
-  // ── Server-computed metrics (see useStudentDashboard) ───────────
-  // `total` is the expected week count derived from the placement dates; the
-  // average is a validated numeric mean. Both fall back to the local list only
-  // for the submitted/total tile while stats are still loading.
-  const submitted    = entries.filter((e) => e.submittedAt != null);
-  const weekTotal    = stats?.week?.total ?? null;
-  const weekCurrent  = stats?.week?.current ?? submitted.length;
-  const logsSubmitted = stats?.logsSubmitted ?? submitted.length;
-  const expectedLogs  = stats?.expectedLogs ?? weekTotal;
-  const pct          = stats?.completionPct ?? 0;
-  const avgQuality   = stats?.avgQualityScore ?? null;
-  const breakdown    = stats?.statusBreakdown
+  const weekTotal = stats?.week?.total ?? null;
+  const weekCurrent = stats?.week?.current ?? 0;
+  const pct = stats?.completionPct ?? 0;
+  const avgQuality = stats?.avgQualityScore ?? null;
+  const breakdown = stats?.statusBreakdown
     ?? { approved: 0, pendingReview: 0, revisionRequested: 0, inProgress: 0, total: 0 };
-  const hours        = stats?.hours
-    ?? { logged: 0, expected: 0, perWeekMin: 0, shortfall: false };
-  const objectives   = stats?.objectives ?? [];
+  const hours = stats?.hours ?? { logged: 0, expected: 0, perWeekMin: 0, shortfall: false };
+  const objectives = stats?.objectives ?? [];
 
-  // The supervisor's own words for each decided week: the last acknowledge or
-  // return event that carried a comment. A decision with no note is not shown —
-  // an empty quote would say nothing.
-  const feedbackCards = [fb0.data, fb1.data, fb2.data]
-    .flatMap((entry) => {
-      if (!entry) return [];
-      const decision = [...(entry.events ?? [])]
-        .reverse()
-        .find((e) => ['acknowledged', 'returned'].includes(e.toStatus) && !!e.comment);
-      return decision ? [{ entry, decision }] : [];
-    });
+  // Donut: where the weeks stand. "Completed" is the terminal acknowledged
+  // state; "In review" is with the supervisor; "Needs revision" came back.
+  const donut = [
+    { label: 'Completed',      value: breakdown.approved,          color: 'var(--chart-3)' },
+    { label: 'In review',      value: breakdown.pendingReview,     color: 'var(--chart-1)' },
+    { label: 'Needs revision', value: breakdown.revisionRequested, color: 'var(--chart-4)' },
+    { label: 'In progress',    value: breakdown.inProgress,        color: 'var(--chart-2)' },
+  ].filter((s) => s.value > 0);
 
-  const recentNotifications = notifications.slice(0, 3);
-  const hasUnread = notifications.some((n) => !n.isRead);
+  // Trend: cumulative submitted weeks against the programme, plotted on the
+  // week each entry actually closed. Derived from real submission timestamps,
+  // never from a row count that could contradict the week rail above it.
+  const trend = [...entries]
+    .filter((e) => e.submittedAt != null)
+    .sort((a, b) => a.weekNumber - b.weekNumber)
+    .map((e, i) => ({
+      week: `Wk ${e.weekNumber}`,
+      progress: weekTotal ? Math.round(((i + 1) / weekTotal) * 100) : 0,
+    }));
 
+  const feedbackCards = [fb0.data, fb1.data, fb2.data].flatMap((entry) => {
+    if (!entry) return [];
+    const decision = [...(entry.events ?? [])]
+      .reverse()
+      .find((e) => ['acknowledged', 'returned'].includes(e.toStatus) && !!e.comment);
+    return decision ? [{ entry, decision }] : [];
+  });
+
+  const recentNotifications = notifications.slice(0, 4);
   const companyName = active.company?.name;
 
   return (
-    <div className="p-8">
-      {/* Header */}
-      <header className="mb-12">
-        <h1 className="mb-2 text-4xl font-extrabold tracking-tight text-[var(--h-191c1e)]">
-          Welcome back, {user?.firstName}
+    <div className="mx-auto max-w-[1400px] space-y-5 p-4 sm:p-6">
+      <header>
+        <h1 className="text-2xl font-bold text-ink">
+          {greeting()}, {user?.firstName} 👋
         </h1>
-        <p className="text-[var(--h-424654)]">
-          {companyName ? `Intern @ ${companyName}` : 'Internship in progress'}
+        <p className="mt-1 text-sm text-ink-secondary">
+          {companyName ? `Here's how your internship at ${companyName} is going.` : "Here's how your internship is going."}
         </p>
       </header>
 
-      <div className="grid grid-cols-12 gap-8">
-        {/* ── Progress & Stats ─────────────────────────────────── */}
-        <div className="col-span-12 grid grid-cols-1 gap-8 md:grid-cols-2 lg:col-span-8">
-          {/* Internship Completion */}
-          <div className="col-span-1 flex flex-col justify-between rounded-xl bg-[var(--h-ffffff)] p-8 md:col-span-2">
-            <div className="mb-6 flex items-start justify-between">
-              <div>
-                <h3 className="mb-1 text-sm font-semibold text-[var(--h-424654)]">
-                  Internship completion
-                </h3>
-                <p className="text-3xl font-extrabold text-[var(--h-191c1e)]">
-                  {weekTotal != null ? `Week ${weekCurrent} of ${weekTotal}` : '—'}
-                </p>
-              </div>
-              <span className="rounded-full bg-[var(--h-e1e0ff)] px-3 py-1 text-xs font-semibold text-[var(--h-15157d)]">
-                {pct}% complete
-              </span>
-            </div>
-            <div className="mb-4 h-4 w-full overflow-hidden rounded-full bg-[var(--h-e7e8eb)]">
-              <div
-                className="h-full rounded-full transition-all"
-                style={{ width: `${pct}%`, background: 'linear-gradient(135deg,#15157d 0%,#2e3192 100%)' }}
-              />
-            </div>
-            <div className="flex justify-between text-xs font-medium text-[var(--h-424654)]">
-              <span>Started: {formatDate(active.startDate)}</span>
-              <span>Ends: {formatDate(active.endDate)}</span>
-            </div>
-          </div>
+      {/* KPIs */}
+      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+        <StatCard
+          label="Internship status"
+          value={STATUS_LABEL[active.placementStatus] ?? active.placementStatus}
+          icon={Briefcase}
+          tone="brand"
+          footnote={`Started ${formatDate(active.startDate)}`}
+        />
 
-          {/* Logbook status breakdown — driven by the entries state machine */}
-          <div className="col-span-1 rounded-xl bg-[var(--h-f3f3f7)] p-8 md:col-span-2">
-            <div className="mb-4 flex items-center gap-3">
-              <div className="flex h-10 w-10 items-center justify-center rounded-full bg-[var(--h-ffffff)] text-[var(--h-15157d)]">
-                <NotebookPen className="h-5 w-5" />
-              </div>
-              <p className="text-sm font-medium text-[var(--h-424654)]">
-                Logbook status
-                {expectedLogs != null && (
-                  <span className="ml-2 text-xs text-[var(--h-737785)]">
-                    {logsSubmitted} of {expectedLogs} weeks logged
-                  </span>
-                )}
-              </p>
-            </div>
-            <div className="grid grid-cols-2 gap-3 sm:grid-cols-2 lg:grid-cols-4">
-              {([
-                { label: 'Approved',  value: breakdown.approved,          cls: 'bg-[var(--h-e9f9ef)] text-[var(--h-1b7a45)]' },
-                { label: 'In review', value: breakdown.pendingReview,     cls: 'bg-[var(--h-eef1ff)] text-[var(--h-15157d)]' },
-                { label: 'Revision',  value: breakdown.revisionRequested, cls: 'bg-[var(--h-fff4e0)] text-[var(--h-9a6700)]' },
-                { label: 'In progress', value: breakdown.inProgress,      cls: 'bg-[var(--h-ffffff)] text-[var(--h-424654)]' },
-              ]).map((b) => (
-                <div key={b.label} className={`rounded-lg px-3 py-3 text-center ${b.cls}`}>
-                  <p className="text-2xl font-extrabold">{b.value}</p>
-                  <p className="mt-0.5 text-xs font-medium">{b.label}</p>
-                </div>
-              ))}
-            </div>
-          </div>
+        <StatCard
+          label="Overall progress"
+          value={weekTotal ? `${pct}%` : <NoValue title="No programme dates set yet" />}
+          icon={TrendingUp}
+          tone="ok"
+          footnote={weekTotal ? `Week ${weekCurrent} of ${weekTotal}` : 'Awaiting placement dates'}
+        >
+          <ProgressBar value={weekTotal ? pct : null} tone="ok" className="mt-2" label="Overall progress" />
+        </StatCard>
 
-          {/* Avg Quality (AI) */}
-          <div className="flex items-center gap-6 rounded-xl bg-[var(--h-f3f3f7)] p-8">
-            <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-[var(--h-ffffff)] text-[var(--h-15157d)]">
-              <Gauge className="h-6 w-6" />
-            </div>
+        <StatCard
+          label="Attendance hours"
+          value={hours.expected > 0 ? `${hours.logged} / ${hours.expected}` : String(hours.logged)}
+          icon={Clock}
+          tone={hours.shortfall ? 'warn' : 'info'}
+          footnote={
+            hours.perWeekMin > 0
+              ? `${hours.perWeekMin}h per week required`
+              : 'No weekly minimum configured'
+          }
+        />
+
+        <StatCard
+          label="Average quality score"
+          value={avgQuality != null ? `${avgQuality} / 100` : <NoValue title="No scored weeks yet" />}
+          icon={ClipboardCheck}
+          tone="done"
+          footnote={avgQuality != null ? 'Across your reviewed weeks' : 'Appears once a week is reviewed'}
+        />
+      </div>
+
+      {/* Progress + objectives */}
+      <div className="grid gap-4 lg:grid-cols-3">
+        <Card className="lg:col-span-2">
+          <CardHeader
+            title="Internship progress"
+            subtitle="Where each of your logbook weeks stands"
+          />
+          <div className="grid gap-6 xl:grid-cols-2">
+            <DonutStat
+              data={donut}
+              centerValue={weekTotal ? `${pct}%` : '—'}
+              centerCaption="complete"
+              emptyHint="Your first logbook week will appear here."
+            />
             <div>
-              <p className="text-sm font-medium text-[var(--h-424654)]">Avg Quality Score</p>
-              <p className="text-2xl font-extrabold text-[var(--h-191c1e)]">
-                {avgQuality != null ? `${avgQuality} / 100` : '—'}
-              </p>
+              <p className="mb-2 text-xs font-medium text-ink-secondary">Progress over time</p>
+              <LineTrend
+                data={trend}
+                xKey="week"
+                yKey="progress"
+                yLabel="Progress"
+                valueSuffix="%"
+                height={190}
+              />
             </div>
           </div>
+        </Card>
 
-          {/* Attendance Hours — cumulative logged vs the cohort's weekly minimum */}
-          <div className="flex items-center gap-6 rounded-xl bg-[var(--h-f3f3f7)] p-8">
-            <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-[var(--h-ffffff)] text-[var(--h-15157d)]">
-              <Clock className="h-6 w-6" />
-            </div>
-            <div className="min-w-0">
-              <p className="text-sm font-medium text-[var(--h-424654)]">Attendance Hours</p>
-              {hours.expected > 0 ? (
-                <>
-                  <p className="text-2xl font-extrabold text-[var(--h-191c1e)]">
-                    {hours.logged}
-                    <span className="text-base font-bold text-[var(--h-737785)]"> / {hours.expected} h</span>
-                  </p>
-                  {hours.shortfall ? (
-                    <span className="mt-1 inline-flex w-fit items-center rounded-full bg-[var(--h-fde7e7)] px-2 py-0.5 text-xs font-semibold text-[var(--h-8a1c1c)]">
-                      {Math.round((hours.expected - hours.logged) * 100) / 100} h below target
-                    </span>
-                  ) : (
-                    <p className="mt-0.5 text-xs font-medium text-[var(--h-1b7a45)]">
-                      On track · {hours.perWeekMin} h/week
+        <Card>
+          <CardHeader
+            title="Learning objectives"
+            subtitle="Set with your academic supervisor"
+            action={{ label: 'Logbook', to: '/student/logbook' }}
+          />
+          {objectives.length === 0 ? (
+            <EmptyState
+              icon={Target}
+              title="No objectives yet"
+              hint="Your supervisor defines these at the start of the placement."
+            />
+          ) : (
+            <ul className="space-y-3">
+              {objectives.map((o) => (
+                <li key={o.id} className="flex items-start gap-3">
+                  <span className="mt-0.5 grid h-7 w-7 shrink-0 place-items-center rounded-lg bg-brand-soft text-brand-ink">
+                    <Target className="h-3.5 w-3.5" />
+                  </span>
+                  <div className="min-w-0 flex-1">
+                    <p className="text-sm font-medium text-ink">{o.title}</p>
+                    <p className="mt-0.5 text-xs text-ink-muted">
+                      {o.confirmedEntryCount === 0
+                        ? 'Not yet evidenced'
+                        : `Evidenced in ${o.confirmedEntryCount} week${o.confirmedEntryCount === 1 ? '' : 's'}`}
                     </p>
-                  )}
-                </>
-              ) : (
-                <p className="text-2xl font-extrabold text-[var(--h-191c1e)]">
-                  {hours.logged} h
-                  <span className="ml-2 align-middle text-xs font-medium text-[var(--h-737785)]">logged</span>
-                </p>
-              )}
-            </div>
-          </div>
-        </div>
-
-        {/* ── Quick Actions + Notifications ────────────────────── */}
-        <div className="col-span-12 space-y-8 lg:col-span-4">
-          {/* Quick Actions */}
-          <div className="rounded-xl bg-[var(--h-e7e8eb)] p-6">
-            <h3 className="mb-4 font-bold text-[var(--h-191c1e)]">Quick Actions</h3>
-            <div className="space-y-3">
-              {[
-                { label: 'New Logbook Entry', to: '/student/logbook' },
-                { label: 'View Submissions',  to: '/student/submissions' },
-                { label: 'AESIS Assistant',   to: '/student/chatbot' },
-              ].map((action) => (
-                <Link
-                  key={action.to}
-                  to={action.to}
-                  className="group flex w-full items-center justify-between rounded-lg bg-[var(--h-ffffff)] px-4 py-3 text-left text-[var(--h-424654)] transition-all hover:text-[var(--h-15157d)]"
-                >
-                  <span className="text-sm font-medium">{action.label}</span>
-                  <ArrowRight className="h-4 w-4 opacity-50 transition-transform group-hover:translate-x-1" />
-                </Link>
-              ))}
-            </div>
-          </div>
-
-          {/* Your supervisors */}
-          <div className="rounded-xl bg-[var(--h-ffffff)] p-6">
-            <h3 className="mb-5 font-bold text-[var(--h-191c1e)]">Your Supervisors</h3>
-            <div className="space-y-5">
-              <SupervisorRow
-                label="Academic Supervisor"
-                icon={<GraduationCap className="h-4 w-4" />}
-                supervisor={stats?.supervisors?.academic ?? null}
-              />
-              <SupervisorRow
-                label="Company Supervisor"
-                icon={<Building2 className="h-4 w-4" />}
-                supervisor={stats?.supervisors?.company ?? null}
-              />
-            </div>
-          </div>
-
-          {/* Learning objectives — progress counts confirmed entry links only */}
-          {objectives.length > 0 && (
-            <div className="rounded-xl bg-[var(--h-ffffff)] p-6">
-              <div className="mb-5 flex items-center gap-2">
-                <Target className="h-5 w-5 text-[var(--h-15157d)]" />
-                <h3 className="font-bold text-[var(--h-191c1e)]">Learning Objectives</h3>
-              </div>
-              <div className="space-y-3">
-                {objectives.map((o) => (
-                  <div key={o.id} className="flex items-center justify-between gap-3">
-                    <p className="min-w-0 truncate text-sm text-[var(--h-424654)]">{o.title}</p>
-                    <span className="shrink-0 rounded-full bg-[var(--h-e1e0ff)] px-2 py-0.5 text-xs font-semibold text-[var(--h-15157d)]">
-                      {o.confirmedEntryCount} {o.confirmedEntryCount === 1 ? 'entry' : 'entries'}
-                    </span>
                   </div>
-                ))}
-              </div>
-            </div>
+                  {o.confirmedEntryCount > 0 && (
+                    <Badge tone="ok">{o.confirmedEntryCount}</Badge>
+                  )}
+                </li>
+              ))}
+            </ul>
           )}
+        </Card>
+      </div>
 
-          {/* Notifications */}
-          <div className="rounded-xl bg-[var(--h-ffffff)] p-6">
-            <div className="mb-6 flex items-center justify-between">
-              <h3 className="font-bold text-[var(--h-191c1e)]">Notifications</h3>
-              {hasUnread && <span className="h-2 w-2 rounded-full bg-[var(--h-ba1a1a)]" />}
-            </div>
-            {recentNotifications.length === 0 ? (
-              <p className="py-6 text-center text-sm text-[var(--h-737785)]">You're all caught up.</p>
-            ) : (
-              <div className="space-y-6">
-                {recentNotifications.map((n: Notification) => {
-                  const positive = n.type === 'feedback_received';
-                  return (
-                    <div key={n.id} className="flex gap-4">
-                      <div
-                        className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full ${
-                          positive ? 'bg-[var(--h-e1e0ff)]' : 'bg-[var(--h-ffdbcf)]'
-                        }`}
-                      >
-                        {positive ? (
-                          <CheckCircle2 className="h-4 w-4 text-[var(--h-15157d)]" />
-                        ) : (
-                          <CalendarClock className="h-4 w-4 text-[var(--h-812800)]" />
-                        )}
-                      </div>
-                      <div className="min-w-0">
-                        <p className="text-sm font-semibold text-[var(--h-191c1e)]">{n.title}</p>
-                        <p className="text-xs text-[var(--h-424654)]">{n.body}</p>
-                      </div>
-                    </div>
-                  );
-                })}
+      {/* Activity / details / assistant */}
+      <div className="grid gap-4 lg:grid-cols-3">
+        <Card>
+          <CardHeader
+            title="Recent activity"
+            action={{ label: 'View all', to: '/student/notifications' }}
+          />
+          {recentNotifications.length === 0 ? (
+            <EmptyState icon={Bell} title="Nothing yet" hint="Reminders and supervisor decisions land here." />
+          ) : (
+            <ul className="space-y-3">
+              {recentNotifications.map((n) => (
+                <li key={n.id} className="flex items-start gap-3">
+                  <span className="mt-0.5 grid h-8 w-8 shrink-0 place-items-center rounded-lg bg-surface-sunken text-ink-secondary">
+                    <Activity className="h-4 w-4" />
+                  </span>
+                  <div className="min-w-0 flex-1">
+                    <p className="truncate text-sm font-medium text-ink">{n.title}</p>
+                    <p className="text-xs text-ink-muted">{timeAgo(n.createdAt)}</p>
+                  </div>
+                  {!n.isRead && <span className="mt-2 h-2 w-2 shrink-0 rounded-full bg-brand" aria-label="Unread" />}
+                </li>
+              ))}
+            </ul>
+          )}
+        </Card>
+
+        <Card>
+          <CardHeader title="Internship details" />
+          <div className="space-y-4">
+            <div className="flex gap-3">
+              <span className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-brand-soft text-brand-ink">
+                <Building2 className="h-4 w-4" />
+              </span>
+              <div className="min-w-0">
+                <p className="text-xs text-ink-muted">Company</p>
+                <p className="truncate text-sm font-semibold text-ink">{companyName ?? 'Not recorded'}</p>
               </div>
-            )}
-            <Link
-              to="/student/notifications"
-              className="mt-6 block w-full rounded py-2 text-center text-xs font-bold text-[var(--h-15157d)] transition-colors hover:bg-[var(--h-f3f3f7)]"
-            >
-              View All Notifications
-            </Link>
-          </div>
-        </div>
-
-        {/* ── Weekly Logbook table ─────────────────────────────── */}
-        <div className="col-span-12">
-          <WeeklyLogbookTable placementId={active.id} startDate={active.startDate} />
-        </div>
-
-        {/* ── Supervisor Feedback ──────────────────────────────── */}
-        <div className="col-span-12">
-          <div className="rounded-xl bg-[var(--h-f3f3f7)] p-8">
-            <div className="mb-8 flex flex-col justify-between gap-4 md:flex-row md:items-center">
-              <div>
-                <h3 className="text-2xl font-extrabold text-[var(--h-191c1e)]">Supervisor Feedback</h3>
-                <p className="text-sm text-[var(--h-424654)]">Latest performance review and comments</p>
-              </div>
-              <Link
-                to="/student/submissions"
-                className="flex items-center gap-2 text-sm font-bold text-[var(--h-15157d)]"
-              >
-                Full History <ExternalLink className="h-4 w-4" />
-              </Link>
             </div>
 
-            {feedbackCards.length === 0 ? (
-              <div className="rounded-xl bg-[var(--h-ffffff)] p-10 text-center">
-                <GraduationCap className="mx-auto mb-3 h-8 w-8 text-[var(--h-15157d)]" />
-                <p className="text-sm font-semibold text-[var(--h-191c1e)]">No supervisor feedback yet</p>
-                <p className="mt-1 text-sm text-[var(--h-424654)]">
-                  Once your supervisor reviews a submitted logbook, their comments will show here.
-                </p>
+            <SupervisorRow label="Academic supervisor" icon={GraduationCap} supervisor={stats?.supervisors.academic ?? null} />
+            <SupervisorRow label="Industry supervisor" icon={Briefcase} supervisor={stats?.supervisors.company ?? null} />
+
+            <div className="flex gap-3 border-t border-line pt-4">
+              <span className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-brand-soft text-brand-ink">
+                <CalendarDays className="h-4 w-4" />
+              </span>
+              <div className="grid flex-1 grid-cols-2 gap-3">
+                <div>
+                  <p className="text-xs text-ink-muted">Start date</p>
+                  <p className="text-sm font-semibold text-ink">{formatDate(active.startDate)}</p>
+                </div>
+                <div>
+                  <p className="text-xs text-ink-muted">End date</p>
+                  <p className="text-sm font-semibold text-ink">{formatDate(active.endDate)}</p>
+                </div>
               </div>
-            ) : (
-              <div className="grid grid-cols-1 gap-6 md:grid-cols-3">
-                {feedbackCards.map(({ entry, decision }) => {
-                  const reviewer = stats?.supervisors?.academic?.name ?? 'Academic Supervisor';
-                  const flagged = decision.toStatus === 'returned';
-                  return (
-                    <div
-                      key={decision.id}
-                      className={`rounded-xl bg-[var(--h-ffffff)] p-6 ${flagged ? '' : 'border-l-4 border-[var(--h-15157d)]'}`}
-                    >
-                      <div className="mb-4 flex items-center gap-3">
-                        <div className="flex h-10 w-10 items-center justify-center rounded-full bg-[var(--h-e7e8eb)]">
-                          <GraduationCap className="h-5 w-5 text-[var(--h-424654)]" />
-                        </div>
-                        <div>
-                          <p className="text-sm font-bold text-[var(--h-191c1e)]">{reviewer}</p>
-                          <p className="text-xs font-medium text-[var(--h-424654)]">
-                            Week {entry.weekNumber} · {flagged ? 'Returned for revision' : 'Acknowledged'}
-                          </p>
-                        </div>
-                      </div>
-                      <p className="mb-4 text-sm italic text-[var(--h-424654)]">"{decision.comment}"</p>
-                      <p className="text-[10px] text-[var(--h-737785)]">{timeAgo(decision.createdAt)}</p>
-                    </div>
-                  );
-                })}
-              </div>
-            )}
+            </div>
           </div>
-        </div>
+        </Card>
+
+        <Card className="border-brand bg-brand-soft">
+          <CardHeader title={<span className="flex items-center gap-2"><Sparkles className="h-4 w-4 text-brand" /> AESIS Assistant</span>} />
+          <p className="text-sm text-ink-secondary">
+            Ask about logbook rules, deadlines, attendance requirements or how your
+            week is assessed.
+          </p>
+          <ul className="mt-3 space-y-2 text-sm text-ink-secondary">
+            <li>• How is my logbook scored?</li>
+            <li>• When is this week due?</li>
+            <li>• What counts as attendance?</li>
+          </ul>
+          <Link
+            to="/student/chatbot"
+            className="mt-4 inline-flex w-full items-center justify-center gap-2 rounded-xl bg-brand px-4 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-brand-hover"
+          >
+            <MessageSquare className="h-4 w-4" />
+            Open the assistant
+          </Link>
+        </Card>
+      </div>
+
+      {/* Week rail */}
+      <WeeklyLogbookTable placementId={active.id} startDate={active.startDate} />
+
+      {/* Supervisor feedback */}
+      <Card>
+        <CardHeader
+          title="Supervisor feedback"
+          subtitle="The most recent weeks your supervisor commented on"
+          action={{ label: 'All submissions', to: '/student/submissions' }}
+        />
+        {fb0.isLoading ? (
+          <SkeletonRows rows={2} />
+        ) : feedbackCards.length === 0 ? (
+          <EmptyState
+            icon={MessageSquare}
+            title="No written feedback yet"
+            hint="When your supervisor acknowledges or returns a week with a note, it appears here."
+          />
+        ) : (
+          <div className="grid gap-4 md:grid-cols-3">
+            {feedbackCards.map(({ entry, decision }) => (
+              <div key={entry.id} className="rounded-xl border border-line bg-surface-sunken p-4">
+                <div className="mb-2 flex items-center justify-between gap-2">
+                  <span className="text-sm font-semibold text-ink">Week {entry.weekNumber}</span>
+                  <Badge tone={decision.toStatus === 'acknowledged' ? 'ok' : 'warn'}>
+                    {decision.toStatus === 'acknowledged' ? 'Acknowledged' : 'Returned'}
+                  </Badge>
+                </div>
+                <p className="text-sm text-ink-secondary">“{decision.comment}”</p>
+                <p className="mt-2 text-xs text-ink-muted">{timeAgo(decision.createdAt)}</p>
+              </div>
+            ))}
+          </div>
+        )}
+      </Card>
+
+      {/* Status legend — the donut's hues are semantic, so they are named once
+          here for anyone reading the page in greyscale. */}
+      <div className="flex flex-wrap gap-x-6 gap-y-2 px-1 pb-2">
+        <LegendDot color="var(--chart-3)" label="Completed" />
+        <LegendDot color="var(--chart-1)" label="In review" />
+        <LegendDot color="var(--chart-4)" label="Needs revision" />
+        <LegendDot color="var(--chart-2)" label="In progress" />
       </div>
     </div>
   );

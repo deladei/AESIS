@@ -283,33 +283,126 @@
   }
 }
 
+/* ─────────────────────────────────────────────────────────────────────────────
+   UNICONNECT DESIGN TOKENS
+   The semantic layer the dashboards are built on. These replace a previous
+   block of shadcn-style HSL tokens that nothing mapped to and nothing used —
+   `tailwind.config.js` extended no colors, so `bg-background` was never a real
+   class. These are wired into the Tailwind theme, so `bg-surface`,
+   `text-ink-muted`, `border-line` etc. all resolve.
+
+   Values are raw hex, not HSL triplets: the existing `--h-*` layer is hex and
+   mixing the two notations in one stylesheet is how you end up with
+   `hsl(var(--x))` wrappers scattered through the markup.
+
+   The `--h-*` vars above stay exactly as they are. Pages that have not been
+   restyled keep working; new work uses the tokens below.
+   ───────────────────────────────────────────────────────────────────────── */
 @layer base {
   :root {
-    --background: 222 47% 4%;
-    --foreground: 210 40% 96%;
-    --card: 222 47% 7%;
-    --card-foreground: 210 40% 96%;
-    --popover: 222 47% 7%;
-    --popover-foreground: 210 40% 96%;
-    --primary: 226 71% 40%;
-    --primary-foreground: 0 0% 100%;
-    --secondary: 217 91% 60%;
-    --secondary-foreground: 0 0% 100%;
-    --muted: 217 33% 17%;
-    --muted-foreground: 215 20% 65%;
-    --accent: 217 33% 17%;
-    --accent-foreground: 210 40% 96%;
-    --destructive: 0 84% 60%;
-    --destructive-foreground: 0 0% 100%;
-    --border: 217 33% 17%;
-    --input: 217 33% 17%;
-    --ring: 226 71% 40%;
-    --radius: 0.5rem;
+    /* Surfaces */
+    --app-bg:        #f6f7fb;  /* the page ground the cards sit on */
+    --surface:       #ffffff;  /* card / panel */
+    --surface-sunken: #f2f4f9; /* wells, table headers, inactive tiles */
+    --sidebar:       #0f1729;  /* the dark rail */
+    --sidebar-hover: #1b2540;
+    --sidebar-ink:   #94a3c4;  /* inactive nav label */
 
-    /* Risk tier tokens */
-    --risk-low: 142 71% 45%;
-    --risk-medium: 38 92% 50%;
-    --risk-high: 0 84% 60%;
+    /* Ink */
+    --ink:           #101828;
+    --ink-secondary: #475467;
+    --ink-muted:     #8a94a6;
+    --ink-inverse:   #ffffff;
+
+    /* Lines */
+    --line:          #e7eaf1;
+    --line-strong:   #d4d9e4;
+
+    /* Brand */
+    --brand:         #5b58eb;
+    --brand-hover:   #4b47e0;
+    --brand-soft:    #eeedfe;  /* tinted icon tile / active nav pill */
+    --brand-ink:     #3b38c4;  /* brand text on a light ground */
+
+    /* Status — semantic, reserved, never reused as "series 4". Each ships
+       with a label in the UI, never colour alone. */
+    --ok:            #1baf7a;
+    --ok-soft:       #e3f7ef;
+    --warn:          #eda100;
+    --warn-soft:     #fdf3dd;
+    --danger:        #e34948;
+    --danger-soft:   #fdeaea;
+    --info:          #2a78d6;
+    --info-soft:     #e6f0fc;
+    --done:          #4a3aa7;
+    --done-soft:     #eceafa;
+
+    /* Charts. Hue ORDER is the colour-blind-safety mechanism here, not a
+       preference: it was chosen by running the palette validator over
+       candidate orderings and keeping only those clearing every adjacent-pair
+       gate in BOTH modes. Slots are bound to meaning, so a filter that drops a
+       series never repaints the survivors.
+         1 on track · 2 at risk · 3 completed · 4 behind
+       The mockup's own donut colours (blue "Behind" beside violet "Completed")
+       were measured at ΔE 1.3 for deuteranopia — indistinguishable — so
+       "Behind" is red here, which also reads as worse than amber "At Risk".
+       Light-mode slots 1 and 2 sit below 3:1 on white: every chart using them
+       carries visible labels + counts (the relief rule), never colour alone. */
+    --chart-1: #1baf7a;
+    --chart-2: #eda100;
+    --chart-3: #4a3aa7;
+    --chart-4: #e34948;
+    --chart-line: #2a78d6;  /* single-series trend — no legend needed */
+    --chart-grid: #eef0f5;
+    --chart-surface: #ffffff;
+
+    --ring-focus: #5b58eb;
+    --radius: 0.875rem;
+  }
+
+  .dark {
+    --app-bg:        #0b1120;
+    --surface:       #151d30;
+    --surface-sunken: #1a2337;
+    --sidebar:       #0a0f1c;
+    --sidebar-hover: #1b2540;
+    --sidebar-ink:   #8b98b5;
+
+    --ink:           #e8ecf5;
+    --ink-secondary: #a8b3c8;
+    --ink-muted:     #78859e;
+    --ink-inverse:   #0b1120;
+
+    --line:          #24304a;
+    --line-strong:   #33415f;
+
+    --brand:         #7c79f5;
+    --brand-hover:   #918ff7;
+    --brand-soft:    #1e1f45;
+    --brand-ink:     #a9a7f9;
+
+    --ok:            #199e70;
+    --ok-soft:       #10281f;
+    --warn:          #c98500;
+    --warn-soft:     #2a2110;
+    --danger:        #e66767;
+    --danger-soft:   #2e1717;
+    --info:          #3987e5;
+    --info-soft:     #12203a;
+    --done:          #9085e9;
+    --done-soft:     #1d1b3a;
+
+    /* Re-stepped for the dark surface and validated as a set against it —
+       not an automatic flip of the light values. */
+    --chart-1: #199e70;
+    --chart-2: #c98500;
+    --chart-3: #9085e9;
+    --chart-4: #e66767;
+    --chart-line: #3987e5;
+    --chart-grid: #222d45;
+    --chart-surface: #151d30;
+
+    --ring-focus: #7c79f5;
   }
 }
 

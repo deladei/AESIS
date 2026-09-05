@@ -1,31 +1,38 @@
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import {
-  Users, Clock, BarChart3, Briefcase, TrendingUp,
-  Landmark, Eye, Check, Sparkles, RefreshCw, Loader2, AlertCircle, Inbox, AlertTriangle, FileDown, X,
+  AlertTriangle, BarChart3, Briefcase, Check, Clock, Eye, FileDown, Inbox,
+  Landmark, Loader2, RefreshCw, Users, X,
 } from 'lucide-react';
 import { useCoordinatorDashboard, useCoordinatorActivity, useCoordinatorCohorts, type CoordinatorActivity } from '@/hooks/useDashboard';
 import { useAllPlacements, useUpdatePlacementStatus } from '@/hooks/usePlacements';
+import { useCohortConfig } from '@/hooks/useCohortConfig';
 import InternStatusTable from '@/components/coordinator/InternStatusTable';
 import SupervisorWorkloadPanel from '@/components/coordinator/SupervisorWorkloadPanel';
 import PerformanceDistributionModal from '@/components/coordinator/PerformanceDistributionModal';
 import GradeDistributionPanel from '@/components/coordinator/GradeDistributionPanel';
 import RegionRollupPanel from '@/components/coordinator/RegionRollupPanel';
-import { useCohortConfig } from '@/hooks/useCohortConfig';
+import { Card, CardHeader } from '@/components/ui/Card';
+import { StatCard } from '@/components/ui/StatCard';
+import { Badge } from '@/components/ui/Badge';
+import { EmptyState, ErrorState } from '@/components/ui/Feedback';
+import { NoValue, ProgressBar } from '@/components/ui/Bits';
+import { DonutStat, MultiLineTrend } from '@/components/ui/Charts';
 
 /**
- * Coordinator Dashboard — "Nexus Oversight" Stitch design, wired to live data.
- * Chrome (sidebar + topbar) comes from CoordinatorShell.
+ * Coordinator dashboard.
  *
- * Backed by: /coordinator/dashboard (metrics, risk, trends),
- * /coordinator/students (intern table), /coordinator/activity (audit feed),
- * and pending placements via /placements?status=pending (Placement Requests).
- * The "AI Pulse Matching" panel has no backing feature and is marked Sample.
+ * Backed by /coordinator/dashboard (metrics, risk mix, submission trend),
+ * /coordinator/students (intern table), /coordinator/activity (audit feed) and
+ * /placements?status=pending (approval queue).
+ *
+ * The previous version carried an "AI Pulse Matching" panel listing named
+ * students with match percentages — those names and numbers were hardcoded in
+ * the component. It has been removed rather than restyled: there is no matching
+ * engine behind it, and a panel that invents student names is worse than an
+ * absent one. Matching arrives with the opportunities/applications work, which
+ * has real schema behind it.
  */
-
-function initials(name: string) {
-  return name.split(' ').map((n) => n[0]).join('').slice(0, 2).toUpperCase();
-}
 
 function relativeTime(iso: string): string {
   const mins = Math.floor((Date.now() - new Date(iso).getTime()) / 60_000);
@@ -40,29 +47,20 @@ function relativeTime(iso: string): string {
 }
 
 // Recent-activity rows deep-link to their source entity when we have a route
-// for it (item 25). Placement audit rows open the intern profile.
+// for it. Placement audit rows open the intern profile.
 function activityLink(a: CoordinatorActivity): string | null {
   if (a.entityType === 'placement' && a.entityId) return `/coordinator/interns/${a.entityId}`;
   return null;
 }
 
-function RoadmapBadge() {
-  return (
-    <span className="rounded-full bg-amber-400/20 px-2 py-0.5 text-[10px] font-bold tracking-wide text-amber-300">
-      Roadmap
-    </span>
-  );
-}
-
-
 export default function CoordinatorDashboard() {
-  // Cohort scope (item 17) — '' means the whole active population.
+  // Cohort scope — '' means the whole active population. Scopes every metric,
+  // the workload panel, the distribution, the intern table and the exports.
   const [yearId, setYearId] = useState('');
   const scopeYearId = yearId || undefined;
-  // Performance distribution modal (item 15), opened from the Avg Performance card.
   const [showDistribution, setShowDistribution] = useState(false);
 
-  // Inline placement approve/reject (item 26). Reject expands a reason field.
+  // Inline placement approve/reject. Reject expands a reason field.
   const updateStatus = useUpdatePlacementStatus();
   const [rejectingId, setRejectingId] = useState<string | null>(null);
   const [rejectReason, setRejectReason] = useState('');
@@ -78,266 +76,309 @@ export default function CoordinatorDashboard() {
   const { data: pending } = useAllPlacements(1, 'pending');
   const { data: activity, isLoading: activityLoading, refetch: refetchActivity } = useCoordinatorActivity(8);
   const { data: cohorts = [] } = useCoordinatorCohorts();
-  // Grade stats need a concrete year — the picked scope, else the active year.
   const { data: cohortConfig } = useCohortConfig();
   const statsYearId = scopeYearId ?? cohortConfig?.academicYearId;
 
   const pendingList = pending?.placements ?? [];
-
   const ov = dash?.overview;
-  // AI Pulse Matching is a roadmap feature gated by a backend flag (off in prod).
-  const aiMatchingEnabled = dash?.featureFlags?.aiPulseMatching ?? false;
-  const metrics = [
-    { label: 'Active Interns',    value: ov ? ov.activePlacements.toLocaleString() : '—', icon: Users,     sub: 'Currently on placement', tone: 'text-[var(--h-757684)]', to: '/coordinator/interns' },
-    { label: 'Pending Placements', value: ov ? String(ov.pendingApprovals) : '—',         icon: Clock,     sub: ov?.pendingApprovals ? 'Awaiting your review' : 'All caught up', tone: 'text-amber-600', to: '/coordinator/placements' },
-    { label: 'Avg Performance',   value: ov?.avgPerformance != null ? ov.avgPerformance.toFixed(1) : '—', icon: BarChart3, bar: ov?.avgPerformance ?? 0, onClick: () => setShowDistribution(true) },
-    { label: 'Needs Attention',   value: ov ? String(ov.needsAttention) : '—',            icon: AlertTriangle, sub: ov?.needsAttention ? 'Review flagged interns' : 'All on track', tone: ov?.needsAttention ? 'text-[var(--h-b3261e)]' : 'text-[var(--h-1b7a45)]', to: '/coordinator/interns?attention=1' },
-    { label: 'Host Companies',    value: ov ? String(ov.hostCompanies) : '—',             icon: Briefcase, sub: 'Currently hosting interns', tone: 'text-[var(--h-757684)]', to: '/coordinator/companies' },
-  ];
 
   if (dashError) {
     return (
-      <div className="flex min-h-[60vh] flex-col items-center justify-center gap-3 p-6 text-center">
-        <AlertCircle className="h-8 w-8 text-red-500" />
-        <p className="text-sm text-[var(--h-444653)]">Couldn't load the coordinator dashboard.</p>
-        <button onClick={() => refetchDash()} className="rounded-lg bg-[var(--h-15157d)] px-4 py-2 text-sm font-semibold text-white hover:opacity-90">
-          Try again
-        </button>
+      <div className="p-6">
+        <Card>
+          <ErrorState message="Couldn't load the coordinator dashboard." onRetry={() => refetchDash()} />
+        </Card>
       </div>
     );
   }
 
+  const risk = dash?.riskDistribution ?? { low: 0, medium: 0, high: 0 };
+  const riskDonut = [
+    { label: 'On track', value: risk.low,    color: 'var(--chart-1)' },
+    { label: 'At risk',  value: risk.medium, color: 'var(--chart-2)' },
+    { label: 'Behind',   value: risk.high,   color: 'var(--chart-4)' },
+  ].filter((s) => s.value > 0);
+  const riskTotal = risk.low + risk.medium + risk.high;
+
+  const trend = dash?.submissionTrends ?? [];
+
   return (
-    <div className="p-6">
-      {/* Header */}
-      <div className="mb-8 flex items-end justify-between">
+    <div className="mx-auto max-w-[1400px] space-y-5 p-4 sm:p-6">
+      <header className="flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
         <div>
-          <p className="mb-1 text-xs font-semibold tracking-wide text-[var(--h-15157d)]">Dashboard</p>
-          <h2 className="text-4xl font-bold tracking-tight text-[var(--h-0b1c30)]">Nexus Oversight</h2>
+          <h1 className="text-2xl font-bold text-ink">Cohort oversight</h1>
+          <p className="mt-1 text-sm text-ink-secondary">
+            Placement approvals, intern progress and supervisor load across the cohort.
+          </p>
         </div>
-        <div className="flex flex-wrap items-center gap-3">
-          {/* Cohort scope (item 17) — scopes every metric, the workload panel,
-              the distribution, the intern table, and exports below. */}
+
+        <div className="flex flex-wrap items-center gap-2">
           <select
             value={yearId}
             onChange={(e) => setYearId(e.target.value)}
             aria-label="Scope dashboard to a cohort"
-            className="rounded-lg border border-[var(--h-c4c5d5)] bg-[var(--h-ffffff)] px-3 py-2 text-sm font-medium text-[var(--h-0b1c30)] focus:border-[var(--h-15157d)] focus:outline-none"
+            className="rounded-xl border border-line bg-surface px-3 py-2 text-sm font-medium text-ink focus:border-brand focus:outline-none"
           >
             <option value="">All cohorts</option>
-            {cohorts.map((c) => <option key={c.id} value={c.id}>{c.label}{c.isActive ? ' (active)' : ''}</option>)}
+            {cohorts.map((c) => (
+              <option key={c.id} value={c.id}>{c.label}{c.isActive ? ' (active)' : ''}</option>
+            ))}
           </select>
+
           <a
             href={`/coordinator/report${scopeYearId ? `?academicYearId=${scopeYearId}` : ''}`}
             target="_blank" rel="noopener noreferrer"
-            className="inline-flex items-center gap-1.5 rounded-lg border border-[var(--h-c4c5d5)] px-4 py-2 text-sm font-semibold text-[var(--h-0b1c30)] transition-colors hover:bg-[var(--h-e5eeff)]"
+            className="inline-flex items-center gap-1.5 rounded-xl border border-line px-3 py-2 text-sm font-semibold text-ink transition-colors hover:bg-surface-sunken"
           >
             <FileDown className="h-4 w-4" /> Export PDF
           </a>
-          <Link to="/coordinator/placements" className="hidden rounded-lg border border-[var(--h-c4c5d5)] px-4 py-2 text-sm font-semibold text-[var(--h-0b1c30)] transition-colors hover:bg-[var(--h-e5eeff)] sm:inline-block">
-            Review placements
-          </Link>
-          <Link to="/coordinator/assignments" className="hidden rounded-lg bg-[var(--h-15157d)] px-4 py-2 text-sm font-semibold text-white shadow-sm transition-opacity hover:opacity-90 sm:inline-block">
+
+          <Link
+            to="/coordinator/assignments"
+            className="rounded-xl bg-brand px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-brand-hover"
+          >
             Manage assignments
           </Link>
         </div>
+      </header>
+
+      {/* KPIs */}
+      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+        <StatCard
+          label="Active interns"
+          value={ov ? ov.activePlacements.toLocaleString() : <NoValue />}
+          icon={Users}
+          tone="brand"
+          loading={dashLoading}
+          footnote="Currently on placement"
+          action={{ label: 'View all interns', to: '/coordinator/interns' }}
+        />
+        <StatCard
+          label="Pending placements"
+          value={ov ? ov.pendingApprovals : <NoValue />}
+          icon={Clock}
+          tone={ov?.pendingApprovals ? 'warn' : 'ok'}
+          loading={dashLoading}
+          footnote={ov?.pendingApprovals ? 'Awaiting your review' : 'All caught up'}
+          action={{ label: 'Review placements', to: '/coordinator/placements' }}
+        />
+        <StatCard
+          label="Needs attention"
+          value={ov ? ov.needsAttention : <NoValue />}
+          icon={AlertTriangle}
+          tone={ov?.needsAttention ? 'danger' : 'ok'}
+          loading={dashLoading}
+          footnote={ov?.needsAttention ? 'Flagged for review' : 'None flagged'}
+          action={{ label: 'See flagged interns', to: '/coordinator/interns?attention=1' }}
+        />
+        <StatCard
+          label="Host companies"
+          value={ov ? ov.hostCompanies : <NoValue />}
+          icon={Briefcase}
+          tone="info"
+          loading={dashLoading}
+          footnote="Currently hosting interns"
+          action={{ label: 'View companies', to: '/coordinator/companies' }}
+        />
       </div>
 
-      {/* Metrics */}
-      <section className="mb-8 grid grid-cols-2 gap-4 lg:grid-cols-3 xl:grid-cols-5">
-        {metrics.map((m) => {
-          const Icon = m.icon;
-          const interactive = 'onClick' in m || 'to' in m;
-          const inner = (
-            <>
-              <div className="flex items-start justify-between">
-                <span className="text-xs font-semibold tracking-wide text-[var(--h-757684)]">{m.label}</span>
-                <Icon className="h-5 w-5 text-[var(--h-15157d)]" />
+      {/* Trend + risk mix */}
+      <div className="grid gap-4 lg:grid-cols-3">
+        <Card className="lg:col-span-2">
+          <CardHeader
+            title="Submissions against schedule"
+            subtitle="Weeks scheduled versus weeks actually submitted, cohort-wide"
+          />
+          <MultiLineTrend
+            data={trend as unknown as Record<string, unknown>[]}
+            xKey="week"
+            series={[
+              { key: 'scheduled', label: 'Scheduled', color: 'var(--chart-line)' },
+              { key: 'submitted', label: 'Submitted', color: 'var(--chart-1)' },
+            ]}
+          />
+        </Card>
+
+        <Card>
+          <CardHeader
+            title="Risk mix"
+            subtitle="Rule-based tiers — advisory, never a grade"
+            control={
+              <button
+                type="button"
+                onClick={() => setShowDistribution(true)}
+                className="rounded-lg border border-line px-2.5 py-1 text-xs font-semibold text-ink-secondary hover:bg-surface-sunken"
+              >
+                <BarChart3 className="mr-1 inline h-3.5 w-3.5" />
+                Performance
+              </button>
+            }
+          />
+          <DonutStat
+            data={riskDonut}
+            centerValue={riskTotal}
+            centerCaption={riskTotal === 1 ? 'intern' : 'interns'}
+            emptyHint="Risk tiers appear once interns begin submitting."
+          />
+          {ov?.avgPerformance != null && (
+            <div className="mt-4 border-t border-line pt-3">
+              <div className="flex items-center justify-between text-xs">
+                <span className="text-ink-secondary">Average performance</span>
+                <span className="font-semibold text-ink">{ov.avgPerformance.toFixed(1)}</span>
               </div>
-              <div className="mt-4">
-                <p className="text-4xl font-bold text-[var(--h-0b1c30)]">{dashLoading ? '—' : m.value}</p>
-                {'bar' in m ? (
-                  <div className="mt-2 h-1.5 w-full overflow-hidden rounded-full bg-[var(--h-e5eeff)]">
-                    <div className="h-full rounded-full bg-[var(--h-15157d)]" style={{ width: `${Math.min(100, Math.max(0, m.bar ?? 0))}%` }} />
-                  </div>
-                ) : (
-                  <p className={`mt-1 flex items-center gap-1 text-xs font-medium ${'tone' in m ? m.tone : 'text-[var(--h-757684)]'}`}>
-                    {m.label === 'Active Interns' && <TrendingUp className="h-4 w-4" />}{'sub' in m ? m.sub : null}
-                  </p>
-                )}
-              </div>
-            </>
-          );
-          const cls = `flex w-full flex-col justify-between rounded-xl border border-[var(--h-c4c5d5-60)] bg-[var(--h-ffffff)] p-6 text-left ${interactive ? 'cursor-pointer transition-colors hover:border-[var(--h-15157d-50)] hover:bg-[var(--h-f8f9ff)]' : ''}`;
-          if ('to' in m && m.to) return <Link key={m.label} to={m.to} className={cls}>{inner}</Link>;
-          if ('onClick' in m && m.onClick) return <button key={m.label} type="button" onClick={m.onClick} className={cls}>{inner}</button>;
-          return <div key={m.label} className={cls}>{inner}</div>;
-        })}
-      </section>
+              <ProgressBar value={ov.avgPerformance} className="mt-2" label="Average cohort performance" />
+            </div>
+          )}
+        </Card>
+      </div>
 
       <div className="grid grid-cols-12 gap-4">
-        {/* Left column */}
         <div className="col-span-12 space-y-4 lg:col-span-8">
-          {/* Intern Status Monitor — sortable, filterable; "View all" → full list */}
           <InternStatusTable pageSize={8} viewAllHref="/coordinator/interns" scopeYearId={scopeYearId} />
-
-          {/* Supervisor workload (item 14) */}
           <SupervisorWorkloadPanel scopeYearId={scopeYearId} />
-
-          {/* Released-grade distribution analytics */}
           <GradeDistributionPanel academicYearId={statsYearId} />
-
-          {/* Released grades rolled up by region */}
           <RegionRollupPanel academicYearId={statsYearId} />
 
-          {/* Requests + AI matching */}
-          <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-            <div className="rounded-xl border border-[var(--h-c4c5d5-60)] bg-[var(--h-ffffff)] p-6">
-              <div className="mb-4 flex items-start justify-between">
-                <div>
-                  <h3 className="text-lg font-semibold text-[var(--h-15157d)]">Placement Requests</h3>
-                  <p className="text-xs text-[var(--h-757684)]">Awaiting approval</p>
-                </div>
-                {pendingList.length > 0 && (
-                  <span className="rounded-full bg-[var(--h-15157d)] px-2 py-0.5 text-[10px] font-bold text-white">{pendingList.length} new</span>
-                )}
-              </div>
-              <div className="space-y-4">
-                {pendingList.length === 0 ? (
-                  <div className="flex flex-col items-center gap-2 py-6 text-center">
-                    <Inbox className="h-6 w-6 text-[var(--h-c4c5d5)]" />
-                    <p className="text-sm text-[var(--h-757684)]">No pending requests.</p>
-                  </div>
-                ) : pendingList.slice(0, 4).map((p) => {
+          {/* Placement approvals */}
+          <Card>
+            <CardHeader
+              title="Placement requests"
+              subtitle="Awaiting your approval"
+              control={pendingList.length > 0 ? <Badge tone="brand">{pendingList.length} new</Badge> : undefined}
+            />
+            {pendingList.length === 0 ? (
+              <EmptyState icon={Inbox} title="No pending requests" hint="New placement submissions land here for approval." />
+            ) : (
+              <div className="space-y-3">
+                {pendingList.slice(0, 4).map((p) => {
                   const studentName = p.student ? `${p.student.firstName} ${p.student.lastName}` : 'Unknown student';
                   const busy = updateStatus.isPending && updateStatus.variables?.id === p.id;
                   return (
-                    <div key={p.id} className="rounded-lg border border-[var(--h-c4c5d5-60)] p-3 transition-colors hover:border-[var(--h-15157d-40)]">
-                      <div className="flex items-center justify-between">
-                        <div className="flex items-center gap-3">
-                          <div className="flex h-10 w-10 items-center justify-center rounded bg-[var(--h-e5eeff)]"><Landmark className="h-5 w-5 text-[var(--h-15157d)]" /></div>
-                          <div>
-                            <p className="text-sm font-bold text-[var(--h-0b1c30)]">{p.company?.name ?? 'Unassigned company'}</p>
-                            <p className="text-xs text-[var(--h-757684)]">{studentName}</p>
+                    <div key={p.id} className="rounded-xl border border-line p-3 transition-colors hover:border-line-strong">
+                      <div className="flex items-center justify-between gap-3">
+                        <div className="flex min-w-0 items-center gap-3">
+                          <span className="grid h-10 w-10 shrink-0 place-items-center rounded-lg bg-brand-soft text-brand-ink">
+                            <Landmark className="h-5 w-5" />
+                          </span>
+                          <div className="min-w-0">
+                            <p className="truncate text-sm font-semibold text-ink">{p.company?.name ?? 'Unassigned company'}</p>
+                            <p className="truncate text-xs text-ink-muted">{studentName}</p>
                           </div>
                         </div>
+
                         {rejectingId !== p.id && (
-                          <div className="flex gap-2">
-                            <Link to="/coordinator/placements" aria-label={`Review ${studentName}'s placement`} className="flex h-8 w-8 items-center justify-center rounded border border-[var(--h-c4c5d5-60)] transition-colors hover:bg-[var(--h-dce9ff)]"><Eye className="h-[18px] w-[18px] text-[var(--h-444653)]" /></Link>
-                            <button onClick={() => { setRejectingId(p.id); setRejectReason(''); }} disabled={busy} aria-label={`Reject ${studentName}'s placement`} className="flex h-8 w-8 items-center justify-center rounded border border-[var(--h-c4c5d5-60)] text-[var(--h-b3261e)] transition-colors hover:bg-[var(--h-fde7e7)] disabled:opacity-50"><X className="h-[18px] w-[18px]" /></button>
-                            <button onClick={() => approve(p.id)} disabled={busy} aria-label={`Approve ${studentName}'s placement`} className="flex h-8 w-8 items-center justify-center rounded bg-[var(--h-15157d)] text-white transition-opacity hover:opacity-90 disabled:opacity-50">{busy ? <Loader2 className="h-[18px] w-[18px] animate-spin" /> : <Check className="h-[18px] w-[18px]" />}</button>
+                          <div className="flex shrink-0 gap-2">
+                            <Link
+                              to="/coordinator/placements"
+                              aria-label={`Review ${studentName}'s placement`}
+                              className="grid h-8 w-8 place-items-center rounded-lg border border-line text-ink-secondary transition-colors hover:bg-surface-sunken"
+                            >
+                              <Eye className="h-4 w-4" />
+                            </Link>
+                            <button
+                              onClick={() => { setRejectingId(p.id); setRejectReason(''); }}
+                              disabled={busy}
+                              aria-label={`Reject ${studentName}'s placement`}
+                              className="grid h-8 w-8 place-items-center rounded-lg border border-line text-danger transition-colors hover:bg-danger-soft disabled:opacity-50"
+                            >
+                              <X className="h-4 w-4" />
+                            </button>
+                            <button
+                              onClick={() => approve(p.id)}
+                              disabled={busy}
+                              aria-label={`Approve ${studentName}'s placement`}
+                              className="grid h-8 w-8 place-items-center rounded-lg bg-brand text-white transition-opacity hover:opacity-90 disabled:opacity-50"
+                            >
+                              {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Check className="h-4 w-4" />}
+                            </button>
                           </div>
                         )}
                       </div>
+
                       {rejectingId === p.id && (
                         <div className="mt-3 flex items-center gap-2">
                           <input
-                            autoFocus value={rejectReason} onChange={(e) => setRejectReason(e.target.value)}
+                            autoFocus
+                            value={rejectReason}
+                            onChange={(e) => setRejectReason(e.target.value)}
                             placeholder="Reason for rejection…"
-                            className="flex-1 rounded-lg border border-[var(--h-c4c5d5)] px-3 py-1.5 text-sm focus:border-[var(--h-15157d)] focus:outline-none"
+                            className="flex-1 rounded-lg border border-line bg-surface px-3 py-1.5 text-sm text-ink focus:border-brand focus:outline-none"
                             onKeyDown={(e) => { if (e.key === 'Enter') confirmReject(p.id); }}
                           />
-                          <button onClick={() => confirmReject(p.id)} disabled={!rejectReason.trim() || busy} className="inline-flex items-center gap-1 rounded-lg bg-[var(--h-b3261e)] px-3 py-1.5 text-xs font-semibold text-white hover:opacity-90 disabled:opacity-50">{busy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : 'Reject'}</button>
-                          <button onClick={() => { setRejectingId(null); setRejectReason(''); }} className="rounded-lg px-2 py-1.5 text-xs font-medium text-[var(--h-757684)] hover:text-[var(--h-0b1c30)]">Cancel</button>
+                          <button
+                            onClick={() => confirmReject(p.id)}
+                            disabled={!rejectReason.trim() || busy}
+                            className="inline-flex items-center gap-1 rounded-lg bg-danger px-3 py-1.5 text-xs font-semibold text-white hover:opacity-90 disabled:opacity-50"
+                          >
+                            {busy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : 'Reject'}
+                          </button>
+                          <button
+                            onClick={() => { setRejectingId(null); setRejectReason(''); }}
+                            className="rounded-lg px-2 py-1.5 text-xs font-medium text-ink-muted hover:text-ink"
+                          >
+                            Cancel
+                          </button>
                         </div>
                       )}
                     </div>
                   );
                 })}
               </div>
-            </div>
-
-            {/* AI matching — roadmap feature behind a flag (off in prod). When
-                disabled, the panel and its Invite buttons are inert with a
-                tooltip; no live-looking dead controls. */}
-            <div className={`relative overflow-hidden rounded-xl bg-[var(--h-15157d)] p-6 text-white ${aiMatchingEnabled ? '' : 'opacity-95'}`}>
-              <div className="absolute -right-4 -top-4 h-32 w-32 rounded-full bg-[var(--h-645efb)] opacity-20 blur-3xl" />
-              <div className="relative">
-                <div className="mb-4 flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    <Sparkles className="h-5 w-5 text-[var(--h-89ceff)]" />
-                    <h3 className="text-lg font-semibold">AI Pulse Matching</h3>
-                  </div>
-                  {!aiMatchingEnabled && <RoadmapBadge />}
-                </div>
-                <p className="mb-4 text-xs text-[var(--h-e1e0ff)]">
-                  {aiMatchingEnabled
-                    ? 'Candidate–role matching ranked by fit.'
-                    : 'Candidate–role matching is on the roadmap. The figures below are illustrative only.'}
-                </p>
-                <div className={`space-y-2 ${aiMatchingEnabled ? '' : 'select-none'}`}>
-                  {[{ name: 'Kojo Antwi', pct: 98 }, { name: 'Efua Adjei', pct: 94 }].map((m) => (
-                    <div key={m.name} className="flex items-center justify-between rounded-lg border border-[var(--h-ffffff-10)] bg-[var(--h-ffffff-10)] p-3">
-                      <div className="flex items-center gap-3">
-                        <div className="flex h-8 w-8 items-center justify-center rounded-full bg-[var(--h-ffffff-20)] text-[11px] font-bold">{initials(m.name)}</div>
-                        <div>
-                          <p className="text-sm font-bold">{m.name}</p>
-                          <div className="flex items-center gap-1">
-                            <div className="h-1 w-12 overflow-hidden rounded-full bg-[var(--h-ffffff-20)]">
-                              <div className="h-full bg-emerald-400" style={{ width: `${m.pct}%` }} />
-                            </div>
-                            <span className="text-[10px] font-bold text-emerald-400">{m.pct}% Match</span>
-                          </div>
-                        </div>
-                      </div>
-                      {/* Wrap the disabled button so the tooltip still shows (browsers
-                          suppress title on disabled elements). */}
-                      <span title={aiMatchingEnabled ? 'Invite candidate' : 'On the roadmap — not yet available'} className="inline-flex">
-                        <button
-                          disabled={!aiMatchingEnabled}
-                          aria-disabled={!aiMatchingEnabled}
-                          className={`rounded px-2 py-1 text-[10px] font-bold text-[var(--h-15157d)] ${
-                            aiMatchingEnabled ? 'cursor-pointer bg-[var(--h-ffffff)] hover:bg-[var(--h-ffffff-90)]' : 'cursor-not-allowed bg-[var(--h-ffffff-60)]'
-                          }`}
-                        >
-                          Invite
-                        </button>
-                      </span>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            </div>
-          </div>
+            )}
+          </Card>
         </div>
 
-        {/* Right column — Activity */}
+        {/* Activity */}
         <div className="col-span-12 lg:col-span-4">
-          <div className="flex h-full flex-col rounded-xl border border-[var(--h-c4c5d5-60)] bg-[var(--h-ffffff)]">
-            <div className="flex items-center justify-between border-b border-[var(--h-c4c5d5-60)] bg-[var(--h-f8f9ff)] px-6 py-4">
-              <h3 className="text-lg font-semibold text-[var(--h-15157d)]">Recent Activity</h3>
-              <button onClick={() => refetchActivity()} aria-label="Refresh activity" className="text-[var(--h-757684)] hover:text-[var(--h-15157d)]"><RefreshCw className="h-[18px] w-[18px]" /></button>
+          <Card className="flex h-full flex-col" padded={false}>
+            <div className="flex items-center justify-between border-b border-line px-5 py-4">
+              <h2 className="text-[15px] font-semibold text-ink">Recent activity</h2>
+              <button
+                onClick={() => refetchActivity()}
+                aria-label="Refresh activity"
+                className="text-ink-muted transition-colors hover:text-ink"
+              >
+                <RefreshCw className="h-4 w-4" />
+              </button>
             </div>
-            <div className="flex-1 space-y-6 overflow-y-auto p-6">
+
+            <div className="flex-1 space-y-5 overflow-y-auto p-5">
               {activityLoading ? (
-                <div className="flex justify-center py-6"><Loader2 className="h-5 w-5 animate-spin text-[var(--h-15157d)]" /></div>
+                <div className="flex justify-center py-6"><Loader2 className="h-5 w-5 animate-spin text-brand" /></div>
               ) : !activity || activity.length === 0 ? (
-                <div className="flex flex-col items-center gap-2 py-6 text-center">
-                  <Inbox className="h-6 w-6 text-[var(--h-c4c5d5)]" />
-                  <p className="text-sm text-[var(--h-757684)]">No recent activity.</p>
-                </div>
+                <EmptyState icon={Inbox} title="No recent activity" hint="Approvals and assignments show up here." />
               ) : activity.map((a) => {
                 const link = activityLink(a);
-                const body = <p className="text-sm text-[var(--h-0b1c30)]"><strong>{a.actor}</strong> · {a.summary}</p>;
+                const body = (
+                  <p className="text-sm text-ink">
+                    <strong className="font-semibold">{a.actor}</strong> · {a.summary}
+                  </p>
+                );
                 return (
-                  <div key={a.id} className="relative border-l border-[var(--h-c4c5d5-60)] pl-6">
-                    <div className="absolute -left-[5px] top-1 h-2.5 w-2.5 rounded-full bg-[var(--h-15157d)] ring-4 ring-white" />
-                    <p className="mb-1 text-xs font-semibold tracking-wide text-[var(--h-757684)]">{relativeTime(a.createdAt)}</p>
+                  <div key={a.id} className="relative border-l border-line pl-5">
+                    <span className="absolute -left-[5px] top-1 h-2.5 w-2.5 rounded-full bg-brand ring-4 ring-surface" />
+                    <p className="mb-1 text-xs font-medium text-ink-muted">{relativeTime(a.createdAt)}</p>
                     {link ? (
-                      <Link to={link} className="block rounded-lg bg-[var(--h-eff4ff)] p-3 transition-colors hover:bg-[var(--h-dce9ff)]">{body}</Link>
+                      <Link to={link} className="block rounded-lg bg-surface-sunken p-3 transition-colors hover:bg-brand-soft">
+                        {body}
+                      </Link>
                     ) : (
-                      <div className="rounded-lg bg-[var(--h-eff4ff)] p-3">{body}</div>
+                      <div className="rounded-lg bg-surface-sunken p-3">{body}</div>
                     )}
                   </div>
                 );
               })}
             </div>
-            <div className="border-t border-[var(--h-c4c5d5-60)] p-4">
-              <Link to="/coordinator/placements" className="block w-full rounded-lg border border-[var(--h-c4c5d5-60)] py-2 text-center text-sm font-semibold text-[var(--h-444653)] transition-colors hover:text-[var(--h-15157d)]">
+
+            <div className="border-t border-line p-4">
+              <Link
+                to="/coordinator/placements"
+                className="block w-full rounded-xl border border-line py-2 text-center text-sm font-semibold text-ink-secondary transition-colors hover:bg-surface-sunken hover:text-ink"
+              >
                 View placements
               </Link>
             </div>
-          </div>
+          </Card>
         </div>
       </div>
 

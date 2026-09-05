@@ -1,11 +1,8 @@
 import { Navigate, createBrowserRouter, Outlet, useLocation } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 import { RouteErrorBoundary } from '@/components/shared/RouteErrorBoundary';
-import { AppShell } from '@/components/layout/AppShell';
-import { StudentShell } from '@/components/layout/StudentShell';
-import { SupervisorShell } from '@/components/layout/SupervisorShell';
-import { CoordinatorShell } from '@/components/layout/CoordinatorShell';
-import { AdminShell } from '@/components/layout/AdminShell';
+import { RoleShell } from '@/components/layout/RoleShell';
+import type { ShellRole } from '@/components/layout/roleNav';
 
 import LoginPage         from '@/pages/auth/LoginPage';
 import RegisterPage      from '@/pages/auth/RegisterPage';
@@ -40,7 +37,7 @@ import Attestation          from '@/pages/public/Attestation';
 import IndustryScore        from '@/pages/public/IndustryScore';
 import WeeklyComment        from '@/pages/public/WeeklyComment';
 
-type UserRole = 'student' | 'academic_supervisor' | 'coordinator' | 'admin';
+type UserRole = 'student' | 'academic_supervisor' | 'coordinator' | 'admin' | 'hod';
 
 function RequireAuth({ roles, bare }: { roles?: UserRole[]; bare?: boolean }) {
   const { isAuthenticated, isLoading, user } = useAuth();
@@ -64,26 +61,10 @@ function RequireAuth({ roles, bare }: { roles?: UserRole[]; bare?: boolean }) {
   // Bare mode: authed but no role shell (e.g. the printable cohort report).
   if (bare) return content;
 
-  if (user.role === 'student') {
-    return <StudentShell user={shellUser}>{content}</StudentShell>;
-  }
-
-  if (user.role === 'academic_supervisor') {
-    return <SupervisorShell user={shellUser}>{content}</SupervisorShell>;
-  }
-
-  if (user.role === 'coordinator') {
-    return <CoordinatorShell user={shellUser}>{content}</CoordinatorShell>;
-  }
-
-  if (user.role === 'admin') {
-    return <AdminShell user={shellUser}>{content}</AdminShell>;
-  }
-
   return (
-    <AppShell role={user.role as UserRole} user={shellUser}>
+    <RoleShell role={user.role as ShellRole} user={shellUser}>
       {content}
-    </AppShell>
+    </RoleShell>
   );
 }
 
@@ -95,6 +76,7 @@ function RootRedirect() {
     student:             '/student/dashboard',
     academic_supervisor: '/supervisor/dashboard',
     coordinator:         '/coordinator/dashboard',
+    hod:                 '/coordinator/dashboard',
     admin:               '/admin/dashboard',
   };
   return <Navigate to={redirects[user.role] ?? '/auth/login'} replace />;
@@ -144,7 +126,7 @@ export const router = createBrowserRouter([
 
   // Coordinator
   {
-    element: <RequireAuth roles={['coordinator', 'admin']} />,
+    element: <RequireAuth roles={['coordinator', 'admin', 'hod']} />,
     children: [
       { path: '/coordinator/dashboard',  element: <CoordinatorDashboard /> },
       { path: '/coordinator/interns',    element: <InternsList /> },
@@ -162,7 +144,7 @@ export const router = createBrowserRouter([
   // Coordinator printable cohort report (PDF export, item 16) — authed but
   // shell-less so the browser print/Save-as-PDF captures only the report.
   {
-    element: <RequireAuth roles={['coordinator', 'admin']} bare />,
+    element: <RequireAuth roles={['coordinator', 'admin', 'hod']} bare />,
     children: [
       { path: '/coordinator/report', element: <CohortReport /> },
     ],
