@@ -3438,3 +3438,101 @@ anything is worse than none.
 **Carried.** Everything from S92 still stands — Supabase password rotation, Neon deletion,
 `durationWeeks`/`totalWeeks` not editable via API, consolidation Phase 4, the dead
 `deadlineReminder` cron, validation sweep, S87 prod smokes, Render env nits.
+
+---
+
+## S94 — 2026-09-05 · Every widget in the three designs, built on real data
+
+**Shipped as `adb03ed`** (backend + frontend, pushed to main → Render + Vercel). Same calendar
+session as S92/S93.
+
+**Why this session existed.** S93 restyled the dashboards but shipped only the panels that
+already had data and deferred the rest to phases. The user's instruction was to replicate the
+designs, so deferring was the wrong call. This builds the missing domains for real.
+
+**Migration `20260905102136_dashboard_domains` — additive only.** 6 tables, 9 enum types, no
+`DROP`, no `SET NOT NULL`. **Every new enum is a `CREATE TYPE`, never `ALTER TYPE ADD VALUE`** —
+the latter cannot be referenced in the transaction that creates it and is the classic
+boot-loop trap. A sibling `down.sql` ships in the folder (Prisma ignores it; it exists so the
+change can be reversed by hand). A `NOT VALID` CHECK and a partial unique index are appended.
+
+New, each with a named producer and a real endpoint:
+| Table | Producer |
+|---|---|
+| `task` | student adds own; supervisor/coordinator assign |
+| `approval_request` | student requests leave/extension/training plan/supervisor change |
+| `resource` | coordinator curates guidelines, templates, rubrics |
+| `internship_opportunity` | coordinator posts |
+| `opportunity_application` | student applies |
+| `application_event` | append-only, written inside the status transaction |
+
+Plus `visit_schedules` **finally given a module** — it had existed since `0_init` with zero code
+references anywhere. Columns added: `users.academic_level`, company partner/logo fields,
+`placement_documents` ownership + soft delete, `placements.source_application_id`.
+
+**⚠️ The local DBs were not baselined**, so `migrate deploy` refused with P3005 here. The SQL was
+applied directly with `psql` to **both** `aisystem_db` and **`aesis_logbook_test`** (the
+integration suites use that second database — six suites failed until it was migrated too).
+Prod IS baselined, so `migrate deploy` will apply the folder normally on Render.
+
+**Late submission — the report was right, the cause was not where it looked.** Late days were
+never blocked: `evaluateDayAdmissibility` always admitted an overdue day and returned
+`loggedLate`/`lateByDays`, and `BACKFILL_CUTOFF_DAYS` is unset. What blocked everything was a
+**separate** rule — `chainEnd + syncGraceDays` (grace = 3) — which shut the logbook three days
+after the attachment's end date. Every write returned *"The logbook is closed for this
+attachment"* and the lateness machinery never ran. **The logbook now closes only when the
+placement is `finalized`.** `AdmissibilityRules.syncGraceDays` is replaced by `logbookClosed`.
+Proven end to end: weeks dated **January 2025, 400+ days late**, now save, submit, and reach the
+supervisor flagged. `CohortConfig.syncGraceDays` is consequently unused — column left in place,
+not dropped.
+
+**Submit behaved as save.** `LogbookEditor`'s `persist()` returned the stale `entryId` prop, so
+on the first day of a week that did not exist yet the day was SAVED, `persist()` returned
+`undefined`, and submit died with *"Could not open this week for submission."* It now threads
+the `weekEntryId` the save returns. This hit **late backfills hardest** — a forgotten week is
+exactly the case with no week row yet, which is why the two reports were the same bug.
+
+**Third instance of the dead-table class of bug.** The supervisor's `pendingReview` counted
+`logbook_submissions` — no writer since the consolidation — so **"Pending Reviews" read 0 in
+production** however many weeks were waiting. Now counts `logbook_entry` where status =
+submitted. *Worth grepping for more of these.*
+
+**`hod` is the coordinator.** Confirmed by grep: no route anywhere is hod-only; every appearance
+is `authorize('coordinator','hod',…)` and `isStaff()` treats them identically. The comment in
+`middleware/authorize.ts` about hod-only grade-release sign-off **describes a route that does not
+exist** — worth deleting or implementing. `roleNav.ts` now shares the coordinator's item list by
+reference.
+
+**Local dev fixes (not committed — `.env` is gitignored).** `DATABASE_URL` said
+`localhost:5432`; `localhost` resolves to `::1` on this box with no listener, so Prisma died
+P1001 while `psql` worked. Changed to `127.0.0.1` (backup at `.env.bak-*`). Note the **Docker
+Postgres on 5433 is empty** — real local data is in the host Postgres on 5432.
+
+**Seeded through the real API** (not the demo seeds, which write the dead tables): 30 days across
+6 weeks saved+submitted, 3 weeks acknowledged, 4 tasks, 1 scheduled midterm review, 3 resources,
+1 leave request. Verified payloads: student `week 6/24, 25%, tasks 1/4`; supervisor
+`4 interns, 3 pending, 6 reports this month, 1 approval`; coordinator
+`8 students, 6 active, 5 placed, 2 host companies`.
+
+**State.** Backend **854 tests green, 60/60 suites**; `tsc --noEmit` clean both sides; frontend
+build green. Bundle: main 787 kB with Recharts split into its own 564 kB chunk.
+
+**Still not replicated from the designs, deliberately.**
+1. **Placement Prediction 87% — cut.** No labelled outcome data, no training set; Prompt 5
+   forbids exactly this claim. Ship the real risk tier instead.
+2. **Applications trend renders empty** until students actually apply. Correct under the
+   no-mocked-data rule, but say so to whoever reviews it or it reads as a bug.
+3. **Academic-year selector in the top bar** — `RoleShell` exposes a `topbarSlot` for it, but
+   only the coordinator has a real cohort endpoint. A picker that cannot change anything is
+   worse than none.
+4. **"Ask UniBot" inline chat on supervisor/coordinator** — `/ai/chat` hardcodes
+   `student_id: userId` (`ai.controller.ts:113`), so pointing a coordinator at it would send
+   their id as a student id. Needs the Prompt 1 scoped AI boundary first.
+5. **Employer self-service** — coordinator is the producer for opportunities in v1.
+
+**⚠️ STILL NOT VISUALLY VERIFIED.** No browser has rendered these pages; there is still no
+frontend test runner. App runs locally on **5174** (5173 was held) against backend 3002.
+
+**Carried.** Supabase password rotation; Neon deletion; `durationWeeks`/`totalWeeks` still not
+editable via any API; consolidation Phase 4; `jobs/deadlineReminder.ts` still queries the dead
+table and matches zero rows; validation sweep; S87 prod smokes; Render env nits.
