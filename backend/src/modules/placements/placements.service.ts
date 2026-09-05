@@ -183,13 +183,22 @@ export async function updatePlacementStatus(
     throw new AppError(409, 'Placement is already active');
   }
 
+  // The API has always accepted "rejected", but `PlacementStatus` has no such
+  // member — writing it threw, so the coordinator's Reject button answered 500
+  // for every placement it was ever pressed on. A coordinator refusing a
+  // placement is exactly what `cancelled` means here ("any attachment not
+  // properly authorized will be cancelled": its weeks do not count), and the
+  // reason is already recorded in `rejectionReason`, which is what marks a
+  // cancellation as a rejection rather than an administrative close.
+  const persistedStatus = input.status === 'rejected' ? 'cancelled' : input.status;
+
   const updateData: Record<string, unknown> = {
-    placementStatus: input.status,
+    placementStatus: persistedStatus,
     approvedBy:      coordinatorId,
     // Only a live (pending/active) placement is "current" — the partial unique
     // index allows one per student. Closing statuses clear the flag; re-approval
     // restores it (a second live placement then fails the index → 409 below).
-    isCurrent:       input.status === 'active',
+    isCurrent:       persistedStatus === 'active',
   };
 
   if (input.status === 'active') {
@@ -351,16 +360,95 @@ export async function listPlacements(filters: {
       take,
       orderBy: { createdAt: 'desc' },
       include: {
-        student:           { select: { id: true, firstName: true, lastName: true, email: true } },
-        company:           { select: { id: true, name: true } },
+        student: {
+          select: {
+            id: true, firstName: true, lastName: true, email: true, indexNumber: true,
+            department: { select: { name: true } },
+            programme:  { select: { name: true } },
+          },
+        },
+        company:           { select: { id: true, name: true, industry: true } },
         academicSupervisor:{ select: { id: true, firstName: true, lastName: true } },
         academicYear:      { select: { label: true } },
+        // The role the student actually applied for, when the placement came
+        // out of an opportunity. Placements created by hand have no role title
+        // and the column reads "—" rather than inventing one.
+        sourceApplication: { select: { opportunity: { select: { title: true } } } },
       },
     }),
     prisma.placement.count({ where }),
   ]);
 
-  return { placements, meta: buildMeta(total, page, limit) };
+  // `approvedBy` is a bare user id with no FK relation, so the reviewer's name
+  // needs one extra lookup. Resolved here rather than in the client, which
+  // would otherwise render a raw uuid in the "Reviewed by" column.
+  const reviewerIds = [...new Set(placements.map(p => p.approvedBy).filter((id): id is string => !!id))];
+  const reviewers = reviewerIds.length
+    ? await prisma.user.findMany({
+        where:  { id: { in: reviewerIds } },
+        select: { id: true, firstName: true, lastName: true },
+      })
+    : [];
+  const reviewerById = new Map(reviewers.map(r => [r.id, `${r.firstName} ${r.lastName}`]));
+
+  const rows = placements.map(p => ({
+    ...p,
+    role:       p.sourceApplication?.opportunity.title ?? null,
+    department: p.student?.department?.name ?? null,
+    reviewedBy: p.approvedBy ? reviewerById.get(p.approvedBy) ?? null : null,
+    // A cancellation carrying a reason is a coordinator rejection; one without
+    // is an administrative close. The two must not read the same on the board.
+    isRejected: p.placementStatus === 'cancelled' && !!p.rejectionReason,
+  }));
+
+  return { placements: rows, meta: buildMeta(total, page, limit) };
+}
+
+/**
+ * The placement board's headline figures and pipeline.
+ *
+ * Every number is a count of real rows. The reference design also shows an "AI
+ * Placement Match Quality" donut scoring how well each intern fits their role —
+ * nothing in this system models a match, so it is absent rather than guessed.
+ */
+export async function getPlacementStats() {
+  const [byStatus, rejected, byApplication] = await Promise.all([
+    prisma.placement.groupBy({ by: ['placementStatus'], _count: { _all: true } }),
+    prisma.placement.count({
+      where: { placementStatus: 'cancelled', rejectionReason: { not: null } },
+    }),
+    prisma.opportunityApplication.groupBy({ by: ['status'], _count: { _all: true } }),
+  ]);
+
+  const placementCount = (s: string) =>
+    byStatus.find(r => r.placementStatus === s)?._count._all ?? 0;
+  const applicationCount = (s: string) =>
+    byApplication.find(r => r.status === s)?._count._all ?? 0;
+
+  const total    = byStatus.reduce((sum, r) => sum + r._count._all, 0);
+  const approved = placementCount('active') + placementCount('completed');
+  const decided  = approved + rejected;
+
+  return {
+    pending:  placementCount('pending'),
+    approved,
+    rejected,
+    total,
+    // Share of DECIDED placements that were approved. Undecided placements are
+    // in neither half — counting them as failures would punish a coordinator
+    // for having a queue.
+    placementRate: decided > 0 ? Math.round((approved / decided) * 100) : null,
+    // The funnel, left to right. Applications feed placements, so the first
+    // two stages are application states and the last three placement states.
+    pipeline: [
+      { key: 'applied',     label: 'Applied',     count: applicationCount('pending') },
+      { key: 'under_review',label: 'Under review',count: applicationCount('under_review') },
+      { key: 'shortlisted', label: 'Shortlisted', count: applicationCount('shortlisted') + applicationCount('offered') },
+      { key: 'pending',    label: 'Awaiting approval', count: placementCount('pending') },
+      { key: 'active',     label: 'Active',       count: placementCount('active') },
+      { key: 'completed',  label: 'Completed',    count: placementCount('completed') },
+    ],
+  };
 }
 
 // ── Supervisor: list assigned placements ──────────────────────

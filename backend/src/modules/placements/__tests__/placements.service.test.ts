@@ -5,6 +5,7 @@ jest.mock('../../../config/prisma', () => ({
     placement:          { findFirst: jest.fn(), findUnique: jest.fn(), findMany: jest.fn(), create: jest.fn(), update: jest.fn(), count: jest.fn(), groupBy: jest.fn() },
     company:            { findFirst: jest.fn(), findUnique: jest.fn(), findMany: jest.fn(), count: jest.fn(), upsert: jest.fn(), create: jest.fn(), update: jest.fn() },
     internshipOpportunity: { count: jest.fn() },
+    opportunityApplication: { groupBy: jest.fn() },
     user:               { findUnique: jest.fn(), findMany: jest.fn(), create: jest.fn() },
     academicYear:       { findFirst: jest.fn() },
     department:         { findUnique: jest.fn() },
@@ -217,6 +218,39 @@ describe('service.updatePlacementStatus', () => {
     expect(mp.auditLog.create).toHaveBeenCalledTimes(1);
   });
 
+  it('persists a rejection as cancelled — the enum has no "rejected" member', async () => {
+    // The API has always accepted status "rejected" and PlacementStatus has
+    // never had it, so this write threw and the Reject button answered 500.
+    (mp.placement.findUnique as jest.Mock).mockResolvedValue(fakePlacement);
+    (mp.placement.update as jest.Mock).mockResolvedValue({
+      ...fakePlacement, placementStatus: 'cancelled',
+      student: { id: 'student-1', firstName: 'Ada', lastName: 'Okonkwo', email: 's@cs.edu' },
+    });
+    (mp.auditLog.create as jest.Mock).mockResolvedValue({});
+
+    await service.updatePlacementStatus('pl-1', 'coord-1', {
+      status: 'rejected', rejectionReason: 'Company not accredited',
+    });
+
+    expect(mp.placement.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          placementStatus: 'cancelled',
+          rejectionReason: 'Company not accredited',
+          isCurrent:       false,
+        }),
+      }),
+    );
+    // The audit trail keeps the coordinator's own word for what they did.
+    expect(mp.auditLog.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          metadata: expect.objectContaining({ to: 'rejected' }),
+        }),
+      }),
+    );
+  });
+
   it('auto-assigns the least-loaded regional supervisor on approval when none is given', async () => {
     (mp.placement.findUnique as jest.Mock).mockResolvedValue({ ...fakePlacement, region: 'greater_accra' });
     (mp.user.findMany as jest.Mock).mockResolvedValue([{ id: 'asu-1' }]); // sole regional supervisor
@@ -373,6 +407,48 @@ describe('service.getCompanyAnalytics', () => {
     const result = await service.getCompanyAnalytics('co-1');
     expect(result.totalSubmissions).toBe(2);
     expect(result.avgQualityScore).toBe(80);
+  });
+});
+
+// ─────────────────────────────────────────────────────────────
+describe('service.getPlacementStats', () => {
+  const setup = () => {
+    (mp.placement.groupBy as jest.Mock).mockResolvedValue([
+      { placementStatus: 'pending',   _count: { _all: 3 } },
+      { placementStatus: 'active',    _count: { _all: 12 } },
+      { placementStatus: 'completed', _count: { _all: 4 } },
+      { placementStatus: 'cancelled', _count: { _all: 2 } },
+    ]);
+    (mp.placement.count as jest.Mock).mockResolvedValue(2);  // cancelled WITH a reason
+    (mp.opportunityApplication.groupBy as jest.Mock).mockResolvedValue([
+      { status: 'pending',      _count: { _all: 5 } },
+      { status: 'under_review', _count: { _all: 2 } },
+      { status: 'shortlisted',  _count: { _all: 1 } },
+    ]);
+  };
+
+  it('counts approvals, rejections and the pipeline off real rows', async () => {
+    setup();
+    const stats = await service.getPlacementStats();
+
+    expect(stats.pending).toBe(3);
+    expect(stats.approved).toBe(16);  // active + completed
+    expect(stats.rejected).toBe(2);
+    expect(stats.total).toBe(21);
+    expect(stats.placementRate).toBe(89);  // 16 of 18 DECIDED, pending excluded
+    expect(stats.pipeline.find(p => p.key === 'under_review')?.count).toBe(2);
+  });
+
+  it('reports no placement rate at all when nothing has been decided', async () => {
+    (mp.placement.groupBy as jest.Mock).mockResolvedValue([
+      { placementStatus: 'pending', _count: { _all: 4 } },
+    ]);
+    (mp.placement.count as jest.Mock).mockResolvedValue(0);
+    (mp.opportunityApplication.groupBy as jest.Mock).mockResolvedValue([]);
+
+    const stats = await service.getPlacementStats();
+    // Not 0% — a queue nobody has reviewed yet is not a failure rate.
+    expect(stats.placementRate).toBeNull();
   });
 });
 

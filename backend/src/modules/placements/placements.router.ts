@@ -45,6 +45,13 @@ router.get(
   asyncHandler(ctrl.listPlacementsHandler),
 );
 
+// Before '/:id' so "stats" is never read as a placement id.
+router.get(
+  '/stats',
+  authorize('coordinator', 'admin'),
+  asyncHandler(ctrl.getPlacementStatsHandler),
+);
+
 router.patch(
   '/:id/status',
   authorize('coordinator', 'admin'),

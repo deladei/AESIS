@@ -98,6 +98,11 @@ export async function decideTransferRequestHandler(req: Request, res: Response) 
   return ok(res, request);
 }
 
+export async function getPlacementStatsHandler(_req: Request, res: Response) {
+  const stats = await service.getPlacementStats();
+  return ok(res, stats);
+}
+
 // ── Companies ─────────────────────────────────────────────────
 
 export async function createCompanyHandler(req: Request, res: Response) {

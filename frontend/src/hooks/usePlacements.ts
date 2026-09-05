@@ -15,12 +15,46 @@ export interface Placement {
   placementStatus:      string;
   finalizationStatus?:  FinalizationStatus;
   studentId:            string;
-  student?:             { id?: string; firstName: string; lastName: string; email: string };
-  company?:             { name: string };
+  student?:             {
+    id?: string; firstName: string; lastName: string; email: string;
+    indexNumber?: string | null;
+  };
+  company?:             { name: string; industry?: string | null };
   academicSupervisor?:  PlacementSupervisor | null;
   startDate:            string | null;
   endDate:              string | null;
   createdAt:            string;
+  /** Coordinator board columns, resolved server-side (see listPlacements). */
+  role?:                string | null;
+  department?:          string | null;
+  reviewedBy?:          string | null;
+  /** A cancellation carrying a reason — i.e. the coordinator refused it. */
+  isRejected?:          boolean;
+  approvedAt?:          string | null;
+  rejectionReason?:     string | null;
+  updatedAt?:           string;
+  region?:              RegionValue | null;
+}
+
+export interface PlacementStats {
+  pending:  number;
+  approved: number;
+  rejected: number;
+  total:    number;
+  /** Share of DECIDED placements approved; null while nothing is decided. */
+  placementRate: number | null;
+  pipeline: { key: string; label: string; count: number }[];
+}
+
+/** Placement board headline figures + funnel (coordinator/admin). */
+export function usePlacementStats() {
+  return useQuery({
+    queryKey: ['placements', 'stats'],
+    queryFn:  async () => {
+      const r = await api.get<{ data: PlacementStats }>('/placements/stats');
+      return r.data.data;
+    },
+  });
 }
 
 export interface Supervisor {
