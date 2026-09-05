@@ -133,9 +133,40 @@ export async function getStudentDashboard(studentId: string) {
   const placement =
     placements.find(p => p.placementStatus === 'active') ?? placements[0];
 
+  // Profile completeness is DERIVED at read time, not stored: a stored
+  // percentage goes stale the moment a field is filled in. Each item is a
+  // field the student can actually act on.
+  const student = await prisma.user.findUnique({
+    where: { id: studentId },
+    select: {
+      phone: true, gender: true, indexNumber: true, avatarUrl: true,
+      programmeId: true, academicLevel: true,
+      department: { select: { name: true } },
+      programme:  { select: { name: true } },
+    },
+  });
+  const profileFields = [
+    student?.phone, student?.gender, student?.indexNumber,
+    student?.avatarUrl, student?.programmeId, student?.academicLevel,
+  ];
+  const profileFilled = profileFields.filter((v) => v !== null && v !== undefined).length;
+
+  const profile = {
+    academicLevel: student?.academicLevel ?? null,
+    completionPct: Math.round((profileFilled / profileFields.length) * 100),
+    department:    student?.department?.name ?? null,
+    programme:     student?.programme?.name ?? null,
+  };
+
   if (!placement) {
+    // The student's own identity and profile completeness do not depend on a
+    // placement, and the sidebar reads them on every page — so this branch
+    // returns the same shape rather than a narrower one the UI would crash on.
     return {
       hasActivePlacement: false,
+      profile,
+      nextReview:         null,
+      tasks:              { done: 0, total: 0 },
       week:               null,
       logsSubmitted:      0,
       expectedLogs:       0,
@@ -204,22 +235,6 @@ export async function getStudentDashboard(studentId: string) {
     weeks: due,
   });
 
-  // Profile completeness is DERIVED at read time, not stored: a stored
-  // percentage goes stale the moment a field is filled in. Each item is a
-  // field the student can actually act on.
-  const student = await prisma.user.findUnique({
-    where: { id: studentId },
-    select: {
-      phone: true, gender: true, indexNumber: true, avatarUrl: true,
-      programmeId: true, academicLevel: true,
-    },
-  });
-  const profileFields = [
-    student?.phone, student?.gender, student?.indexNumber,
-    student?.avatarUrl, student?.programmeId, student?.academicLevel,
-  ];
-  const profileFilled = profileFields.filter((v) => v !== null && v !== undefined).length;
-
   // The next review the student has been booked into, if any.
   const nextVisit = await prisma.visitSchedule.findFirst({
     where: {
@@ -240,10 +255,7 @@ export async function getStudentDashboard(studentId: string) {
 
   return {
     hasActivePlacement: placement.placementStatus === 'active',
-    profile: {
-      academicLevel: student?.academicLevel ?? null,
-      completionPct: Math.round((profileFilled / profileFields.length) * 100),
-    },
+    profile,
     nextReview: nextVisit,
     tasks: { done: tasksDone, total: tasksTotal },
     week,                              // { current, total }

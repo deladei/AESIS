@@ -62,6 +62,11 @@ export function RoleShell({ role, user, children, topbarSlot }: RoleShellProps) 
   // coordinator's at the bottom.
   const identityOnTop = role === 'academic_supervisor';
 
+  // The dashboard is the only place that carries the student's academic
+  // identity, so it's null for every other role and while the query is loading.
+  const studentProgramme =
+    studentStats?.profile.programme ?? studentStats?.profile.department ?? null;
+
   const userCard = (
     <div className="m-3 rounded-2xl bg-sidebar-hover p-3">
       <div className="flex items-center gap-3">
@@ -72,6 +77,12 @@ export function RoleShell({ role, user, children, topbarSlot }: RoleShellProps) 
             {nav.roleLabel}
             {studentStats?.profile.academicLevel ? ` · Level ${studentStats.profile.academicLevel}` : ''}
           </span>
+          {/* Programme where the student has one, department otherwise — the
+              department is always set, so this line is never empty for a
+              student. Its own line so it can't crowd out the role above it. */}
+          {studentProgramme && (
+            <span className="block truncate text-[11px] text-sidebar-ink">{studentProgramme}</span>
+          )}
           <span className="mt-0.5 flex items-center gap-1 text-[11px] text-ok">
             <span className="h-1.5 w-1.5 rounded-full bg-ok" /> Online
           </span>

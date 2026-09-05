@@ -10,6 +10,8 @@ jest.mock('../../../config/prisma', () => ({
       findUnique: jest.fn().mockResolvedValue({
         phone: null, gender: null, indexNumber: null,
         avatarUrl: null, programmeId: null, academicLevel: null,
+        department: { name: 'Computer Science' },
+        programme:  null,
       }),
     },
     visitSchedule: { findFirst: jest.fn().mockResolvedValue(null) },
@@ -79,6 +81,24 @@ describe('getStudentDashboard', () => {
     expect(result.expectedLogs).toBe(24);
     expect(result.week!.current).toBe(3);  // 3 submitted (draft excluded)
     expect(result.completionPct).toBe(13); // round(3/24*100)
+  });
+
+  it('reports the student\'s department, and their programme when they have one', async () => {
+    (mp.placement.findMany as jest.Mock).mockResolvedValue([makePlacement()]);
+
+    // No programme on file: the department still names the student's faculty.
+    const noProgramme = await getStudentDashboard('stu-1');
+    expect(noProgramme.profile!.department).toBe('Computer Science');
+    expect(noProgramme.profile!.programme).toBeNull();
+
+    (mp.user.findUnique as jest.Mock).mockResolvedValueOnce({
+      phone: null, gender: null, indexNumber: null,
+      avatarUrl: null, programmeId: 'prog-1', academicLevel: 400,
+      department: { name: 'Computer Science' },
+      programme:  { name: 'BSc Computer Science' },
+    });
+    const withProgramme = await getStudentDashboard('stu-1');
+    expect(withProgramme.profile!.programme).toBe('BSc Computer Science');
   });
 
   it('counts a draft week with any submitted day toward progress (tallies real logging, not just closed weeks)', async () => {
@@ -177,6 +197,10 @@ describe('getStudentDashboard', () => {
       approved: 0, pendingReview: 0, revisionRequested: 0, inProgress: 0, total: 0,
     });
     expect(result.hours).toEqual({ logged: 0, expected: 0, perWeekMin: 0, shortfall: false });
+    // The sidebar reads profile on every page, so this branch must still carry
+    // it — a student without a placement still has a department and a level.
+    expect(result.profile!.department).toBe('Computer Science');
+    expect(result.profile!.completionPct).toBe(0);
   });
 
   it('sums attendance hours over submitted+ entries and flags a shortfall against the per-week minimum', async () => {

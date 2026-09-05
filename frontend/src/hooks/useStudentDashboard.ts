@@ -40,7 +40,13 @@ export interface NextReview {
 export interface StudentDashboard {
   hasActivePlacement: boolean;
   /** Derived at read time from the user's own fields — never a stored number. */
-  profile:            { academicLevel: number | null; completionPct: number };
+  profile: {
+    academicLevel: number | null;
+    completionPct: number;
+    /** The student's own department; always set. Programme is optional. */
+    department:    string | null;
+    programme:     string | null;
+  };
   nextReview:         NextReview | null;
   tasks:              { done: number; total: number };
   week:               { current: number; total: number } | null;
