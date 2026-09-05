@@ -1,5 +1,6 @@
 import {
   Area, AreaChart, CartesianGrid, Cell, Line, LineChart, Pie, PieChart,
+  PolarAngleAxis, PolarGrid, PolarRadiusAxis, Radar, RadarChart,
   ResponsiveContainer, Tooltip, XAxis, YAxis,
 } from 'recharts';
 import { LegendDot } from './Badge';
@@ -280,6 +281,52 @@ export function Sparkline({
       <LineChart data={data} margin={{ top: 4, right: 0, bottom: 0, left: 0 }}>
         <Line type="monotone" dataKey={yKey} stroke={tone} strokeWidth={2} dot={false} isAnimationActive={false} />
       </LineChart>
+    </ResponsiveContainer>
+  );
+}
+
+/**
+ * Competency radar.
+ *
+ * A radar is only honest with at least three axes — with two it is a line
+ * pretending to be a shape — so callers must fall back to bars below that. The
+ * value shown is each axis's share of the whole, and every axis is labelled:
+ * the polygon alone never carries the meaning.
+ */
+export function RadarProfile({
+  data, height = 240,
+}: {
+  data: { axis: string; value: number }[];
+  height?: number;
+}) {
+  if (data.length < 3) {
+    return <EmptyState title="Not enough competencies to chart" hint="Three or more tags are needed for a profile." className="py-8" />;
+  }
+
+  const max = Math.max(...data.map(d => d.value), 1);
+
+  return (
+    <ResponsiveContainer width="100%" height={height}>
+      <RadarChart data={data} outerRadius="72%">
+        <PolarGrid stroke="var(--chart-grid)" />
+        <PolarAngleAxis dataKey="axis" tick={AXIS} />
+        <PolarRadiusAxis domain={[0, max]} tick={false} axisLine={false} />
+        <Tooltip
+          content={({ active, payload }) => {
+            if (!active || !payload?.length) return null;
+            const p = payload[0];
+            return <TipShell title={String(p.payload.axis)} rows={[
+              { label: 'Share of activity', value: `${p.value}%`, color: 'var(--chart-line)' },
+            ]} />;
+          }}
+        />
+        <Radar
+          dataKey="value"
+          stroke="var(--chart-line)"
+          fill="var(--chart-line)"
+          fillOpacity={0.25}
+        />
+      </RadarChart>
     </ResponsiveContainer>
   );
 }
