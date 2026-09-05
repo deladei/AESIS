@@ -3536,3 +3536,70 @@ frontend test runner. App runs locally on **5174** (5173 was held) against backe
 **Carried.** Supabase password rotation; Neon deletion; `durationWeeks`/`totalWeeks` still not
 editable via any API; consolidation Phase 4; `jobs/deadlineReminder.ts` still queries the dead
 table and matches zero rows; validation sweep; S87 prod smokes; Render env nits.
+
+---
+
+## S95 — 2026-09-05 · Supervisor + coordinator laid out to the reference designs
+
+**Shipped as `2cf7a67` (supervisor) and `b7d9fe5` (coordinator).** Same calendar session.
+
+**Why this was needed after S94.** S94 built the *data* for every widget but kept my own
+layout, so neither page resembled the reference. The user's instruction was to replicate the
+designs; this does that.
+
+**Supervisor — and a FOURTH dead-table bug.** `recentWeeks` and `lastSubmittedAt` were read
+from `logbook_submissions`, so every student row rendered "no submissions yet" regardless of
+what had been submitted. Both now read `logbook_entry`. Legacy analyses are still read for the
+quality average alone — frozen history, and the only score older cohorts have — but never again
+for row data. **That is now four instances of this same class of bug** (student logbook, week
+counts, "Pending Reviews", and this). *Grep for more before trusting any panel.*
+
+Added to `/supervisor/dashboard`: per-student `company`, `progressPct` (submitted / weeks DUE),
+`submittedWeeks`, `weeksDue`, `programmeWeeks`, `finalizationStatus`; and `overview.avgProgress`
+for the donut's centre, averaged only over students who actually have weeks due — students with
+nothing due are excluded from both halves rather than counted as 0%.
+
+Layout: five headline figures; My Students (progress bars + next-review column); Overall
+Progress Overview (donut + signal strip); Upcoming Reviews; Recent Report Submissions; Pending
+Approvals; Insights.
+
+**Coordinator.** Added `statusDistribution`/`statusTotal` (grouped off `PlacementStatus`, so the
+donut cannot disagree with the table), `applicationTrend` (from the append-only event log),
+`placementRate`, and `deltas` for the KPI chips.
+
+**The delta chips return null when there is no prior period, and then render NOTHING.** A pilot
+has one month of history. The reference shows four "+12% from last month" chips; inventing them
+from a single data point is indefensible.
+
+**Not reproduced, deliberately:** the "Placement Prediction 87%" gauge (a forecast with no
+labelled outcome data; Prompt 5 rules it out by name) — replaced by the measured placement rate;
+and the inline chat box, because `/ai/chat` hardcodes `student_id` and would send a
+coordinator's id as a student's.
+
+**Shell.** Identity block now sits at the top of the rail for the supervisor and at the foot for
+everyone else, matching the designs, with an insights card at the foot. Supervisor nav labels
+follow the design where a real route backs them; Calendar, Documents and standalone Messages are
+omitted rather than pointed at 404s.
+
+**Seeded through the real endpoints** (not SQL): 3 opportunities posted + published by the
+coordinator; 4 students self-registered with Ghanaian names (Kwame Mensah, Ama Owusu, Kofi
+Boateng, Akosua Asante) and applied; 2 shortlisted, 1 under review. Note student registration
+carries the placement application with it, so each new applicant also created a *pending*
+placement — which is why `totalStudents` jumped to 12 and the status mix shows 4 pending.
+
+**State.** 854 tests green, 60/60 suites; both typechecks clean; production build green (main
+bundle 793 kB, Recharts in its own 564 kB chunk).
+
+**⚠️ Box limits, learned the hard way this session.** Running the full Jest suite OOM-kills the
+dev servers — do not run both at once. Dev servers must be launched **detached**
+(`setsid nohup …`) or the harness memory watchdog reaps them. `localhost` resolves to `::1`
+here with no listener: use `127.0.0.1` for Prisma, curl and any seed script. And
+`pkill -f "<pattern>"` matches the invoking shell's own command line — kill by port or PID.
+
+**Still not visually verified.** No browser has rendered these pages; there is still no frontend
+test runner.
+
+**Carried.** Supabase password rotation; Neon deletion; `durationWeeks`/`totalWeeks` not
+editable via any API; consolidation Phase 4; `deadlineReminder` still queries the dead table;
+validation sweep; S87 prod smokes; Render env nits. The two Docker containers stopped to free
+memory (`aesis_celery`, `aesis_ai`) need `docker start` before chatbot or enrichment work.
