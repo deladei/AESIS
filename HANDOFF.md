@@ -3285,3 +3285,87 @@ finalization list and now the late badges that ride on those rows. Same family a
 6. Prod smokes still open from S87: enrichment worker, weekly-link SendGrid email, S81
    in-browser list.
 7. Render dashboard nit: drop dead `CELERY_BROKER_URL`/`REDIS_URL` from `aesis-ai-engine`.
+
+---
+
+## S92 — 2026-09-05 · The programme is as long as the cohort says it is
+
+**Shipped as `e975357`** (backend + frontend, one commit, pushed to main → Render + Vercel).
+
+**Closed the `SYSTEM_MAX_WEEKS = 6` question carried since S87 — it was never one constant, it
+was two columns disagreeing.** `CohortConfig` has *both* `durationWeeks` (default 6, DB CHECK
+≥ 6, authoritative, read by 8 modules via `entries.week.ts::cohortDurationWeeks`) *and*
+`totalWeeks` (default 24, older, still read as a fallback at `student.service.ts:176`). Neither
+is writable through any API — `updateActiveCohortConfig` cannot set either and
+`COHORT_CONFIG_SELECT` does not even select `durationWeeks`. Making cohort length configurable
+is still open.
+
+Two defects, fixed together because they share a denominator:
+
+1. **Programme length is per cohort.** `SYSTEM_MAX_WEEKS` was 6 and documented as "the
+   internship is a fixed 6-week programme". It never was. It is now a sanity ceiling (52) and
+   the real length comes from the cohort, looked up once per request by
+   `durationWeeksByAcademicYear` (new, in `entries.week.ts`), keyed on the academic year because
+   that is where the length is configured.
+2. **Engagement is measured against what has come DUE**, not the whole programme. Dividing
+   submissions by all 24 weeks made every intern look at risk until their final week —
+   invisible at 6 weeks, glaring at 24. New `weeksDue` + `engagementPercent` in
+   `shared/utils/quality.ts`.
+
+**Two visible behaviours changed deliberately.** Nothing-due-yet now returns `null`, not 0 or
+100, so the UI renders `—` per the no-impossible-metrics rule: the admin dashboard no longer
+claims a perfect **100% avgEngagement for an empty cohort**, and Insights labels a just-started
+intern **"Too early"** rather than "At Risk". Risk scoring capped due weeks at the same literal
+6, so a student who went quiet in week ten was scored against a six-week denominator —
+`scoreRisk` now takes `programmeWeeks` from its caller.
+
+Also fixed the student week rail: `useEntries` requested `limit=12`, a hardcoded assumption of
+the 6-week programme (the S91 "found, not fixed" item), so weeks 13+ silently fell off the rail,
+the supervisor's finalization list, and the late badges riding those rows. Now `limit=100`, the
+API's own maximum.
+
+**State.** Backend **853 tests green, 60/60 suites**; `tsc --noEmit` clean both sides;
+`npm run build` green. `npm run lint` still has the one pre-existing `industry.schema.ts` error
+(untouched, unrelated).
+
+**Also this session: a full plan for rebuilding the three dashboards to the "UniConnect AI"
+mockups**, at `~/.claude/plans/using-this-iamges-image-vivid-pretzel.md`. Read it before starting
+that work. Headlines:
+
+- The user chose **full fidelity** — where a mockup widget has no backing data we build real
+  schema and a real producer, not a mock. Six domains: reviews/visits, tasks, documents +
+  resources, approvals, opportunities + applications, company partner fields.
+- **Their own Prompt 3 contradicts this** ("images are VISUAL LANGUAGE ONLY… OMIT THE WIDGET").
+  It must be amended before it is run or it will instruct a session to delete what this plan
+  builds.
+- **Cut as unbuildable:** the "Placement Prediction 87%" gauge (no labelled outcome data; their
+  own Prompt 5 forbids it), employer self-service, and every "+12% vs last month" delta until
+  there are two comparable periods of production history.
+
+**Found, not fixed — worth a decision.**
+1. **`jobs/deadlineReminder.ts:26` has been doing nothing.** It queries
+   `logbookSubmission.deadline` — the only stored deadline column in the schema, on the **dead**
+   legacy table with no live writer — so the 48 h and 24 h reminders match zero rows on every
+   run. It also hardcodes Friday via its own `getNextFriday()` instead of reading
+   `CohortConfig.submissionDeadlineDay`.
+2. **An `hod` user can never land anywhere.** `hod` inherits coordinator access on the backend
+   (`middleware/authorize.ts:15-18`) but has no entry in the frontend's `RootRedirect` map
+   (`router.tsx:94-99`) and no shell, so it falls through to `?? '/auth/login'` — a successful
+   login bounces straight back to the login page.
+3. **The demo seeds fill dead tables.** `seed-supervisor-demo.ts` and
+   `seed-real-students-demo.ts` write `LogbookSubmission` / `LogbookAnalysis` /
+   `StudentRiskScore`. A panel wired to those looks perfect locally and renders **empty in
+   prod**. Nothing seeds the live `logbook_entry` spine.
+4. `frontend/src/components/ui/` is empty (no shadcn despite `CLAUDE.md`), Recharts is a
+   dependency imported nowhere, and `tailwind.config.js` extends no colors — the live theme is
+   271 machine-generated hex-named vars with a second, dead shadcn token block beside it.
+
+**Carried.**
+1. **ROTATE the Supabase DB password — still not done** (burned since S88).
+2. **Neon project still not deleted** (quota-dead, password burned).
+3. **`durationWeeks` / `totalWeeks` are not editable through any API** — see above.
+4. **Consolidation Phase 4** — retire `modules/logbook/`.
+5. Validation sweep still excludes search/filter/chat inputs.
+6. Prod smokes still open from S87: enrichment worker, weekly-link SendGrid email, S81
+   in-browser list.
+7. Render dashboard nit: drop dead `CELERY_BROKER_URL`/`REDIS_URL` from `aesis-ai-engine`.
