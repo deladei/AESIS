@@ -59,7 +59,19 @@ export function weeksInAttachment(chainStart: Date, chainEnd: Date): number {
 }
 
 export interface AdmissibilityRules {
-  syncGraceDays: number; // hard outer bound for ANY write past chainEnd
+  /**
+   * The logbook is closed for good — the placement has been finalized, so its
+   * record is evidence behind a grade and may not gain new entries.
+   *
+   * This replaces a `chainEnd + syncGraceDays` date freeze. That rule shut the
+   * logbook three days after the attachment's end date, which meant a student
+   * finishing late could not log at all: every write returned "The logbook is
+   * closed for this attachment", and the lateness machinery below — which
+   * exists precisely so a late entry can be accepted and flagged — never got
+   * the chance to run. Anti-tamper is kept where it actually matters: once a
+   * placement is finalized, nothing more goes in.
+   */
+  logbookClosed: boolean;
   entryEditWindowDays: number; // days after creation an entry stays editable
 }
 
@@ -73,7 +85,11 @@ export type AdmissibilityVerdict =
  * lateness is derived, not stored), but:
  *  - future days are inadmissible (the logbook records work done, not planned);
  *  - non-working days are inadmissible (that is the point of classification);
- *  - once today is past chainEnd + syncGraceDays the logbook is frozen.
+ *  - a finalized placement is closed for good.
+ *
+ * A day inside the attachment that is simply overdue is ALWAYS admissible; it
+ * comes back `loggedLate` with the number of days, which is what the supervisor
+ * sees. Lateness is evidence to be shown, not a reason to refuse the record.
  */
 export function evaluateDayAdmissibility(
   workDate: Date,
@@ -91,8 +107,11 @@ export function evaluateDayAdmissibility(
   if (cls === 'non_working' || cls === 'weekly_rest') {
     return { admissible: false, reason: 'Date is not a working day for this cohort' };
   }
-  if (cal.chainEnd && daysBetween(cal.chainEnd, today) > rules.syncGraceDays) {
-    return { admissible: false, reason: 'The logbook is closed for this attachment' };
+  if (rules.logbookClosed) {
+    return {
+      admissible: false,
+      reason: 'This placement has been finalized; its logbook is closed',
+    };
   }
   const lateByDays = daysBetween(workDate, today);
   return { admissible: true, loggedLate: lateByDays > 0, lateByDays };

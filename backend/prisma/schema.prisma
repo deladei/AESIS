@@ -290,6 +290,8 @@ model AcademicYear {
   placements     Placement[]
   cohortConfigs  CohortConfig[]
   nonWorkingDays NonWorkingDay[]
+  resources      Resource[]
+  opportunities  InternshipOpportunity[]
 
   @@map("academic_years")
 }
@@ -362,6 +364,9 @@ model User {
   // are auto-balanced across all supervisors sharing it.
   supervisedRegion    Region?            @map("supervised_region")
   avatarUrl           String?            @map("avatar_url")
+  // Year of study (100/200/300/400). Students only; NULL on every existing row,
+  // and the UI renders "—" rather than guessing a level.
+  academicLevel       Int?               @map("academic_level")
   verificationToken   String?            @map("verification_token")
   passwordResetToken  String?            @map("password_reset_token")
   passwordResetExpiry DateTime?          @map("password_reset_expiry")
@@ -384,28 +389,43 @@ model User {
   visitSchedules              VisitSchedule[]      @relation("SupervisorVisits")
 
   // New weekly logbook pipeline
-  entryEvents          EntryEvent[]          @relation("EntryEventActor")
-  placementAssessments PlacementAssessment[] @relation("PlacementAssessor")
-  createdObjectives    LearningObjective[]   @relation("ObjectiveCreator")
-  confirmedObjectiveLinks EntryObjective[]   @relation("ObjectiveLinkConfirmer")
-  uploadedAttachments  EntryAttachment[]     @relation("AttachmentUploader")
-  gradesSignedOff      FinalGrade[]          @relation("GradeSignedOff")
-  rosterUploads        StudentRoster[]       @relation("RosterUploader")
-  rosterEntry          StudentRoster?        @relation("RosterClaim")
-  verifiedIndustrySupervisors IndustrySupervisor[] @relation("IndustrySupervisorVerifier")
-  createdAssessmentTokens     AssessmentToken[]    @relation("AssessmentTokenCreator")
-  enteredIndustryAssessments  AssessmentIndustry[] @relation("IndustryAssessmentEnteredBy")
+  entryEvents                 EntryEvent[]               @relation("EntryEventActor")
+  placementAssessments        PlacementAssessment[]      @relation("PlacementAssessor")
+  createdObjectives           LearningObjective[]        @relation("ObjectiveCreator")
+  confirmedObjectiveLinks     EntryObjective[]           @relation("ObjectiveLinkConfirmer")
+  uploadedAttachments         EntryAttachment[]          @relation("AttachmentUploader")
+  gradesSignedOff             FinalGrade[]               @relation("GradeSignedOff")
+  rosterUploads               StudentRoster[]            @relation("RosterUploader")
+  rosterEntry                 StudentRoster?             @relation("RosterClaim")
+  verifiedIndustrySupervisors IndustrySupervisor[]       @relation("IndustrySupervisorVerifier")
+  createdAssessmentTokens     AssessmentToken[]          @relation("AssessmentTokenCreator")
+  enteredIndustryAssessments  AssessmentIndustry[]       @relation("IndustryAssessmentEnteredBy")
   transferRequests            PlacementTransferRequest[] @relation("TransferStudent")
   transfersDecided            PlacementTransferRequest[] @relation("TransferDecider")
   weeklyCommentsAsStudent     IndustryWeeklyComment[]    @relation("WeeklyCommentStudent")
   weeklyCommentsEntered       IndustryWeeklyComment[]    @relation("WeeklyCommentEnteredBy")
 
   // SIWES daily logbook (Batch 1)
-  siwesDailyEntries     DailyEntry[]    @relation("SiwesDailyEntries")
+  siwesDailyEntries     DailyEntry[]   @relation("SiwesDailyEntries")
   // Weeks keyed on the student (student-relative week numbers, S87).
-  logbookEntriesOwned   LogbookEntry[]  @relation("StudentLogbookEntries")
-  siwesAbsences         Absence[]       @relation("SiwesAbsences")
-  siwesAbsencesRecorded Absence[]       @relation("SiwesAbsenceRecorder")
+  logbookEntriesOwned   LogbookEntry[] @relation("StudentLogbookEntries")
+  siwesAbsences         Absence[]      @relation("SiwesAbsences")
+  siwesAbsencesRecorded Absence[]      @relation("SiwesAbsenceRecorder")
+
+  // Dashboard domains
+  tasksAssigned       Task[]                   @relation("TaskAssignee")
+  tasksCreated        Task[]                   @relation("TaskCreator")
+  approvalsRequested  ApprovalRequest[]        @relation("ApprovalRequester")
+  approvalsAbout      ApprovalRequest[]        @relation("ApprovalSubject")
+  approvalsDecided    ApprovalRequest[]        @relation("ApprovalDecider")
+  resourcesCreated    Resource[]               @relation("ResourceCreator")
+  opportunitiesPosted InternshipOpportunity[]  @relation("OpportunityPoster")
+  applications        OpportunityApplication[] @relation("ApplicationStudent")
+  applicationsDecided OpportunityApplication[] @relation("ApplicationDecider")
+  applicationEvents   ApplicationEvent[]       @relation("ApplicationEventActor")
+  documentsOwned      PlacementDocument[]      @relation("DocumentOwner")
+  documentsUploaded   PlacementDocument[]      @relation("DocumentUploader")
+  visitsCreated       VisitSchedule[]          @relation("VisitCreator")
 
   @@map("users")
 }
@@ -448,16 +468,28 @@ model RefreshToken {
 // ─────────────────────────────────────────────
 
 model Company {
-  id        String   @id @default(uuid())
-  name      String   @unique
-  address   String? // AES-256-GCM encrypted at app layer
-  industry  String?
-  website   String?
-  createdAt DateTime @default(now()) @map("created_at")
-  updatedAt DateTime @updatedAt @map("updated_at")
+  id           String    @id @default(uuid())
+  name         String    @unique
+  address      String? // AES-256-GCM encrypted at app layer
+  industry     String?
+  website      String?
+  // Partner-company surface. A logo is optional and the UI falls back to an
+  // initials monogram — a monogram is not fake data, an unlicensed logo is a
+  // legal problem. Ranking is always by real placement count, never hand-ordered.
+  logoUrl      String?   @map("logo_url")
+  logoPublicId String?   @map("logo_public_id")
+  description  String?
+  contactEmail String?   @map("contact_email")
+  contactPhone String?   @map("contact_phone") // AES-256-GCM at the app layer
+  isPartner    Boolean   @default(false) @map("is_partner")
+  partnerSince DateTime? @map("partner_since")
+  createdAt    DateTime  @default(now()) @map("created_at")
+  updatedAt    DateTime  @updatedAt @map("updated_at")
 
-  placements Placement[]
+  placements    Placement[]
+  opportunities InternshipOpportunity[]
 
+  @@index([isPartner])
   @@map("companies")
 }
 
@@ -466,41 +498,41 @@ model Company {
 // ─────────────────────────────────────────────
 
 model Placement {
-  id                   String             @id @default(uuid())
-  studentId            String             @map("student_id")
-  student              User               @relation("StudentPlacements", fields: [studentId], references: [id])
-  academicSupervisorId String?            @map("academic_supervisor_id")
-  academicSupervisor   User?              @relation("AcademicSupervisorPlacements", fields: [academicSupervisorId], references: [id])
-  companySupervisorId  String?            @map("company_supervisor_id")
-  companySupervisor    User?              @relation("CompanySupervisorPlacements", fields: [companySupervisorId], references: [id])
-  companyId            String?            @map("company_id")
-  company              Company?           @relation(fields: [companyId], references: [id])
-  academicYearId       String             @map("academic_year_id")
-  academicYear         AcademicYear       @relation(fields: [academicYearId], references: [id])
-  region               Region?            @map("region")
-  startDate            DateTime?          @map("start_date")
-  endDate              DateTime?          @map("end_date")
-  placementStatus      PlacementStatus    @default(pending) @map("placement_status")
+  id                    String             @id @default(uuid())
+  studentId             String             @map("student_id")
+  student               User               @relation("StudentPlacements", fields: [studentId], references: [id])
+  academicSupervisorId  String?            @map("academic_supervisor_id")
+  academicSupervisor    User?              @relation("AcademicSupervisorPlacements", fields: [academicSupervisorId], references: [id])
+  companySupervisorId   String?            @map("company_supervisor_id")
+  companySupervisor     User?              @relation("CompanySupervisorPlacements", fields: [companySupervisorId], references: [id])
+  companyId             String?            @map("company_id")
+  company               Company?           @relation(fields: [companyId], references: [id])
+  academicYearId        String             @map("academic_year_id")
+  academicYear          AcademicYear       @relation(fields: [academicYearId], references: [id])
+  region                Region?            @map("region")
+  startDate             DateTime?          @map("start_date")
+  endDate               DateTime?          @map("end_date")
+  placementStatus       PlacementStatus    @default(pending) @map("placement_status")
   // Finalization track (new logbook pipeline) — kept separate from placementStatus
   // so the existing approval/analytics flows are untouched.
-  finalizationStatus   FinalizationStatus @default(active) @map("finalization_status")
-  rejectionReason      String?            @map("rejection_reason")
-  approvedAt           DateTime?          @map("approved_at")
-  approvedBy           String?            @map("approved_by") // coordinator user id
+  finalizationStatus    FinalizationStatus @default(active) @map("finalization_status")
+  rejectionReason       String?            @map("rejection_reason")
+  approvedAt            DateTime?          @map("approved_at")
+  approvedBy            String?            @map("approved_by") // coordinator user id
   // Transfer support: exactly ONE current placement per student (partial unique
   // index in migration SQL — Prisma cannot model it). A transferred/cancelled
   // placement keeps its rows for history; supersedes links the chain.
-  isCurrent             Boolean     @default(true) @map("is_current")
-  supersedesPlacementId String?     @map("supersedes_placement_id")
-  supersedes            Placement?  @relation("PlacementSupersedes", fields: [supersedesPlacementId], references: [id])
-  supersededBy          Placement[] @relation("PlacementSupersedes")
+  isCurrent             Boolean            @default(true) @map("is_current")
+  supersedesPlacementId String?            @map("supersedes_placement_id")
+  supersedes            Placement?         @relation("PlacementSupersedes", fields: [supersedesPlacementId], references: [id])
+  supersededBy          Placement[]        @relation("PlacementSupersedes")
   // Manual coordinator "flag for attention". These columns ARE the flag's audit
   // record (who/when/why); cleared on un-flag. No FK on flaggedById by design.
-  flaggedAt            DateTime?          @map("flagged_at")
-  flagReason           String?            @map("flag_reason")
-  flaggedById          String?            @map("flagged_by_id") // coordinator user id
-  createdAt            DateTime           @default(now()) @map("created_at")
-  updatedAt            DateTime           @updatedAt @map("updated_at")
+  flaggedAt             DateTime?          @map("flagged_at")
+  flagReason            String?            @map("flag_reason")
+  flaggedById           String?            @map("flagged_by_id") // coordinator user id
+  createdAt             DateTime           @default(now()) @map("created_at")
+  updatedAt             DateTime           @updatedAt @map("updated_at")
 
   logbookSubmissions LogbookSubmission[]
   riskScores         StudentRiskScore[]
@@ -508,22 +540,28 @@ model Placement {
   documents          PlacementDocument[]
 
   // New weekly logbook pipeline
-  logbookEntries      LogbookEntry[]
-  placementAssessment PlacementAssessment?
-  companyAttestation  CompanyAttestation?
-  learningObjectives  LearningObjective[]
-  finalGrade          FinalGrade?
-  messages            Message[]
-  industrySupervisors IndustrySupervisor[]
-  assessmentTokens    AssessmentToken[]
-  industryAssessments AssessmentIndustry[]
+  logbookEntries         LogbookEntry[]
+  placementAssessment    PlacementAssessment?
+  companyAttestation     CompanyAttestation?
+  learningObjectives     LearningObjective[]
+  finalGrade             FinalGrade?
+  messages               Message[]
+  industrySupervisors    IndustrySupervisor[]
+  assessmentTokens       AssessmentToken[]
+  industryAssessments    AssessmentIndustry[]
   industryWeeklyComments IndustryWeeklyComment[]
-  transfersFrom       PlacementTransferRequest[] @relation("TransferFrom")
-  transfersTo         PlacementTransferRequest[] @relation("TransferTo")
+  transfersFrom          PlacementTransferRequest[] @relation("TransferFrom")
+  transfersTo            PlacementTransferRequest[] @relation("TransferTo")
 
   // SIWES daily logbook (Batch 1)
-  siwesDailyEntries    DailyEntry[]
-  siwesAbsences        Absence[]
+  siwesDailyEntries DailyEntry[]
+  siwesAbsences     Absence[]
+
+  // Dashboard domains
+  tasks               Task[]
+  approvalRequests    ApprovalRequest[]
+  sourceApplication   OpportunityApplication? @relation("ApplicationPlacement", fields: [sourceApplicationId], references: [id])
+  sourceApplicationId String?                 @unique @map("source_application_id")
 
   @@map("placements")
 }
@@ -714,16 +752,29 @@ model Notification {
 // ─────────────────────────────────────────────
 
 model PlacementDocument {
-  id          String    @id @default(uuid())
-  placementId String    @map("placement_id")
-  placement   Placement @relation(fields: [placementId], references: [id], onDelete: Cascade)
-  docType     String    @map("doc_type") // placement_letter | acceptance_letter | final_report
-  fileUrl     String    @map("file_url")
-  fileName    String    @map("file_name")
-  fileSize    Int       @map("file_size")
-  mimeType    String    @map("mime_type")
-  uploadedAt  DateTime  @default(now()) @map("uploaded_at")
+  id              String    @id @default(uuid())
+  placementId     String    @map("placement_id")
+  placement       Placement @relation(fields: [placementId], references: [id], onDelete: Cascade)
+  docType         String    @map("doc_type") // placement_letter | acceptance_letter | internship_agreement | learning_plan | weekly_report | cv | final_report | other
+  title           String?
+  fileUrl         String    @map("file_url")
+  fileName        String    @map("file_name")
+  fileSize        Int       @map("file_size")
+  mimeType        String    @map("mime_type")
+  storagePublicId String?   @map("storage_public_id")
+  // Who it belongs to and who put it there. Backfilled from the placement's
+  // student for existing rows; kept nullable rather than tightened afterwards.
+  ownerUserId     String?   @map("owner_user_id")
+  owner           User?     @relation("DocumentOwner", fields: [ownerUserId], references: [id])
+  uploadedById    String?   @map("uploaded_by_id")
+  uploadedBy      User?     @relation("DocumentUploader", fields: [uploadedById], references: [id])
+  // Documents are evidence: they are hidden, never destroyed.
+  deletedAt       DateTime? @map("deleted_at")
+  uploadedAt      DateTime  @default(now()) @map("uploaded_at")
 
+  applications OpportunityApplication[] @relation("ApplicationCv")
+
+  @@index([ownerUserId, uploadedAt])
   @@map("placement_documents")
 }
 
@@ -732,17 +783,29 @@ model PlacementDocument {
 // ─────────────────────────────────────────────
 
 model VisitSchedule {
-  id           String    @id @default(uuid())
-  placementId  String    @map("placement_id")
-  placement    Placement @relation(fields: [placementId], references: [id])
-  supervisorId String    @map("supervisor_id")
-  supervisor   User      @relation("SupervisorVisits", fields: [supervisorId], references: [id])
-  scheduledAt  DateTime  @map("scheduled_at")
-  notes        String?
-  completed    Boolean   @default(false)
-  completedAt  DateTime? @map("completed_at")
-  createdAt    DateTime  @default(now()) @map("created_at")
+  id              String    @id @default(uuid())
+  placementId     String    @map("placement_id")
+  placement       Placement @relation(fields: [placementId], references: [id])
+  supervisorId    String    @map("supervisor_id")
+  supervisor      User      @relation("SupervisorVisits", fields: [supervisorId], references: [id])
+  scheduledAt     DateTime  @map("scheduled_at")
+  notes           String?
+  completed       Boolean   @default(false)
+  completedAt     DateTime? @map("completed_at")
+  // Everything below is what turns an unused table into a review appointment.
+  visitType       VisitType @default(review_meeting) @map("visit_type")
+  durationMinutes Int       @default(60) @map("duration_minutes")
+  location        String?
+  outcomeNote     String?   @map("outcome_note")
+  cancelledAt     DateTime? @map("cancelled_at")
+  cancelReason    String?   @map("cancel_reason")
+  createdById     String?   @map("created_by_id")
+  createdBy       User?     @relation("VisitCreator", fields: [createdById], references: [id])
+  updatedAt       DateTime  @updatedAt @map("updated_at")
+  createdAt       DateTime  @default(now()) @map("created_at")
 
+  @@index([supervisorId, scheduledAt])
+  @@index([placementId, scheduledAt])
   @@map("visit_schedules")
 }
 
@@ -914,21 +977,21 @@ model EntryEvent {
 // Advisory AI output. MUST NOT influence entry.status or any grade —
 // enforced in code (worker only INSERTs here).
 model AiAssessment {
-  id        String       @id @default(uuid())
-  entryId   String       @map("entry_id")
-  entry     LogbookEntry @relation(fields: [entryId], references: [id], onDelete: Cascade)
-  modelName String       @map("model_name")
-  relevance Decimal?     @db.Decimal(4, 3)
-  summary   Json?        @db.JsonB
+  id            String       @id @default(uuid())
+  entryId       String       @map("entry_id")
+  entry         LogbookEntry @relation(fields: [entryId], references: [id], onDelete: Cascade)
+  modelName     String       @map("model_name")
+  relevance     Decimal?     @db.Decimal(4, 3)
+  summary       Json?        @db.JsonB
   // 6-dimension rubric breakdown (0-100 each, Zod-validated before write).
-  quality   Json?        @db.JsonB
+  quality       Json?        @db.JsonB
   // Similarity report vs other submitted entries. Redacted on student and
   // company-supervisor reads (match ids point at other students' entries).
-  plagiarism Json?       @db.JsonB
+  plagiarism    Json?        @db.JsonB
   // Groq draft for the SUPERVISOR to edit before sending (human-in-loop);
   // redacted on student and company-supervisor reads.
-  feedbackDraft Json?    @map("feedback_draft") @db.JsonB
-  createdAt DateTime     @default(now()) @map("created_at")
+  feedbackDraft Json?        @map("feedback_draft") @db.JsonB
+  createdAt     DateTime     @default(now()) @map("created_at")
 
   @@index([entryId])
   @@map("ai_assessment")
@@ -1328,4 +1391,252 @@ model Absence {
   @@unique([studentId, absenceDate])
   @@index([placementId])
   @@map("absence")
+}
+
+// ─────────────────────────────────────────────
+// DASHBOARD DOMAINS
+// Every model below has a named human producer and a real endpoint. This repo
+// already carries tables nobody writes to (VisitSchedule was one until now);
+// nothing here may join them.
+// ─────────────────────────────────────────────
+
+enum VisitType {
+  site_visit
+  review_meeting
+  midterm_review
+  final_review
+  check_in
+}
+
+enum TaskCategory {
+  report
+  review
+  admin
+  meeting
+  other
+}
+
+enum TaskStatus {
+  open
+  in_progress
+  done
+  cancelled
+}
+
+/// A to-do item. Producers: the student adds their own; a supervisor or
+/// coordinator assigns one. "Tasks completed 18/28" is counted from these rows,
+/// never stored as a counter.
+model Task {
+  id          String       @id @default(uuid())
+  assigneeId  String       @map("assignee_id")
+  assignee    User         @relation("TaskAssignee", fields: [assigneeId], references: [id], onDelete: Cascade)
+  createdById String       @map("created_by_id")
+  createdBy   User         @relation("TaskCreator", fields: [createdById], references: [id])
+  placementId String?      @map("placement_id")
+  placement   Placement?   @relation(fields: [placementId], references: [id], onDelete: Cascade)
+  title       String
+  description String?
+  category    TaskCategory @default(other)
+  status      TaskStatus   @default(open)
+  dueAt       DateTime?    @map("due_at")
+  completedAt DateTime?    @map("completed_at")
+  /// Deep link to what the task is about (a returned week, an approval).
+  sourceType  String?      @map("source_type")
+  sourceId    String?      @map("source_id")
+  createdAt   DateTime     @default(now()) @map("created_at")
+  updatedAt   DateTime     @updatedAt @map("updated_at")
+
+  @@index([assigneeId, status, dueAt])
+  @@index([placementId])
+  @@map("task")
+}
+
+enum ApprovalKind {
+  leave
+  extension
+  supervisor_change
+  training_plan
+}
+
+enum ApprovalStatus {
+  requested
+  approved
+  rejected
+  withdrawn
+}
+
+/// A request that needs a human decision. One table with a `kind` rather than
+/// four near-clones: all four share the same lifecycle. Change of COMPANY stays
+/// in PlacementTransferRequest — its approval has structural side effects a
+/// generic table cannot carry.
+model ApprovalRequest {
+  id              String         @id @default(uuid())
+  kind            ApprovalKind
+  status          ApprovalStatus @default(requested)
+  requestedById   String         @map("requested_by_id")
+  requestedBy     User           @relation("ApprovalRequester", fields: [requestedById], references: [id], onDelete: Cascade)
+  /// Denormalised so a supervisor's queue is one indexed read, not a join chain.
+  studentId       String         @map("student_id")
+  student         User           @relation("ApprovalSubject", fields: [studentId], references: [id], onDelete: Cascade)
+  placementId     String         @map("placement_id")
+  placement       Placement      @relation(fields: [placementId], references: [id], onDelete: Cascade)
+  title           String
+  reason          String
+  effectiveFrom   DateTime?      @map("effective_from") @db.Date
+  effectiveTo     DateTime?      @map("effective_to") @db.Date
+  attachmentUrl   String?        @map("attachment_url")
+  payload         Json?
+  decidedById     String?        @map("decided_by_id")
+  decidedBy       User?          @relation("ApprovalDecider", fields: [decidedById], references: [id])
+  decidedAt       DateTime?      @map("decided_at")
+  decisionNote    String?        @map("decision_note")
+  /// Idempotency anchor for the approval's side effect (Absence rows, endDate…).
+  effectAppliedAt DateTime?      @map("effect_applied_at")
+  requestedAt     DateTime       @default(now()) @map("requested_at")
+  updatedAt       DateTime       @updatedAt @map("updated_at")
+
+  @@index([placementId, status])
+  @@index([studentId])
+  @@map("approval_request")
+}
+
+enum ResourceCategory {
+  guideline
+  template
+  rubric
+  policy
+  form
+  sample
+  other
+}
+
+/// Guidelines, report templates, assessment rubrics. Producer: the coordinator.
+model Resource {
+  id             String           @id @default(uuid())
+  title          String
+  description    String?
+  category       ResourceCategory @default(other)
+  fileUrl        String?          @map("file_url")
+  filePublicId   String?          @map("file_public_id")
+  externalUrl    String?          @map("external_url")
+  mimeType       String?          @map("mime_type")
+  fileSize       Int?             @map("file_size")
+  audienceRoles  UserRole[]       @map("audience_roles")
+  academicYearId String?          @map("academic_year_id")
+  academicYear   AcademicYear?    @relation(fields: [academicYearId], references: [id])
+  isPublished    Boolean          @default(false) @map("is_published")
+  sortOrder      Int              @default(0) @map("sort_order")
+  createdById    String           @map("created_by_id")
+  createdBy      User             @relation("ResourceCreator", fields: [createdById], references: [id])
+  archivedAt     DateTime?        @map("archived_at")
+  createdAt      DateTime         @default(now()) @map("created_at")
+  updatedAt      DateTime         @updatedAt @map("updated_at")
+
+  @@index([isPublished, category, sortOrder])
+  @@map("resource")
+}
+
+enum OpportunityStatus {
+  draft
+  published
+  closed
+  filled
+}
+
+enum ApplicationStatus {
+  pending
+  under_review
+  shortlisted
+  offered
+  accepted
+  rejected
+  withdrawn
+}
+
+enum ApplicationEventType {
+  submitted
+  status_changed
+  withdrawn
+  note_added
+}
+
+/// An internship posting. Producer: the coordinator (the industrial liaison).
+/// Employer self-service needs an employer identity flow that does not exist.
+model InternshipOpportunity {
+  id               String            @id @default(uuid())
+  companyId        String            @map("company_id")
+  company          Company           @relation(fields: [companyId], references: [id])
+  academicYearId   String            @map("academic_year_id")
+  academicYear     AcademicYear      @relation(fields: [academicYearId], references: [id])
+  postedById       String            @map("posted_by_id")
+  postedBy         User              @relation("OpportunityPoster", fields: [postedById], references: [id])
+  title            String
+  description      String
+  responsibilities String?
+  requiredSkills   String[]          @map("required_skills")
+  region           Region?
+  location         String?
+  slots            Int               @default(1)
+  minAcademicLevel Int?              @map("min_academic_level")
+  opensAt          DateTime?         @map("opens_at")
+  closesAt         DateTime?         @map("closes_at")
+  status           OpportunityStatus @default(draft)
+  publishedAt      DateTime?         @map("published_at")
+  createdAt        DateTime          @default(now()) @map("created_at")
+  updatedAt        DateTime          @updatedAt @map("updated_at")
+
+  applications OpportunityApplication[]
+
+  @@index([status, closesAt])
+  @@index([companyId])
+  @@map("internship_opportunity")
+}
+
+/// A student's application. Accepting one creates the Placement through the
+/// EXISTING placement path — the pipeline terminates in the current spine
+/// rather than standing up a second one beside it.
+model OpportunityApplication {
+  id              String                @id @default(uuid())
+  opportunityId   String                @map("opportunity_id")
+  opportunity     InternshipOpportunity @relation(fields: [opportunityId], references: [id], onDelete: Cascade)
+  studentId       String                @map("student_id")
+  student         User                  @relation("ApplicationStudent", fields: [studentId], references: [id], onDelete: Cascade)
+  statement       String?
+  cvDocumentId    String?               @map("cv_document_id")
+  cvDocument      PlacementDocument?    @relation("ApplicationCv", fields: [cvDocumentId], references: [id])
+  status          ApplicationStatus     @default(pending)
+  submittedAt     DateTime              @default(now()) @map("submitted_at")
+  statusChangedAt DateTime              @default(now()) @map("status_changed_at")
+  decidedById     String?               @map("decided_by_id")
+  decidedBy       User?                 @relation("ApplicationDecider", fields: [decidedById], references: [id])
+  decisionNote    String?               @map("decision_note")
+  createdAt       DateTime              @default(now()) @map("created_at")
+  updatedAt       DateTime              @updatedAt @map("updated_at")
+
+  events    ApplicationEvent[]
+  placement Placement?         @relation("ApplicationPlacement")
+
+  @@unique([opportunityId, studentId])
+  @@index([studentId, status])
+  @@index([status, submittedAt])
+  @@map("opportunity_application")
+}
+
+/// Append-only, mirroring entry_event. This is what makes the applications
+/// trend a real query rather than a snapshot that forgets its own history.
+model ApplicationEvent {
+  id            String                 @id @default(uuid())
+  applicationId String                 @map("application_id")
+  application   OpportunityApplication @relation(fields: [applicationId], references: [id], onDelete: Cascade)
+  type          ApplicationEventType
+  fromStatus    ApplicationStatus?     @map("from_status")
+  toStatus      ApplicationStatus?     @map("to_status")
+  actorId       String?                @map("actor_id")
+  actor         User?                  @relation("ApplicationEventActor", fields: [actorId], references: [id])
+  note          String?
+  createdAt     DateTime               @default(now()) @map("created_at")
+
+  @@index([applicationId])
+  @@index([type, createdAt])
+  @@map("application_event")
 }

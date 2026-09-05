@@ -6,6 +6,10 @@ import { api } from '@/lib/api';
 export interface CoordinatorDashboard {
   overview: {
     activePlacements:     number;
+    totalStudents:        number;
+    placedStudents:       number;
+    applications:         number;
+    shortlisted:          number;
     pendingApprovals:     number;
     complianceRate:       number;
     highRiskCount:        number;
@@ -16,6 +20,21 @@ export interface CoordinatorDashboard {
   };
   riskDistribution: { low: number; medium: number; high: number };
   submissionTrends: { week: number; scheduled: number; submitted: number }[];
+  recentApplications: {
+    id: string;
+    status: string;
+    submittedAt: string;
+    student: { firstName: string; lastName: string };
+    opportunity: { title: string; company: { name: string; logoUrl: string | null } };
+  }[];
+  /** Ranked by real active-placement count, never hand-ordered. */
+  partnerCompanies: {
+    id: string; name: string; logoUrl: string | null; industry: string | null;
+    isPartner: boolean; _count: { placements: number };
+  }[];
+  upcomingDeadlines: {
+    id: string; title: string; closesAt: string | null; company: { name: string };
+  }[];
   featureFlags:     { aiPulseMatching: boolean };
 }
 
@@ -304,10 +323,23 @@ export function useCoordinatorActivity(limit = 8) {
 
 export interface SupervisorDashboard {
   overview: {
-    assignedStudents: number;
-    pendingReview:    number;
-    avgQualityScore:  number | null;
+    assignedStudents:     number;
+    pendingReview:        number;
+    avgQualityScore:      number | null;
+    reportsThisMonth:     number;
+    completedInternships: number;
+    pendingApprovals:     number;
   };
+  upcomingReviews: {
+    id:              string;
+    scheduledAt:     string;
+    visitType:       string;
+    durationMinutes: number;
+    location:        string | null;
+    placementId:     string;
+    student:         string;
+    company:         string | null;
+  }[];
   students: {
     placementId:     string;
     student:         { id: string; firstName: string; lastName: string; email: string };
@@ -317,6 +349,7 @@ export interface SupervisorDashboard {
     recentWeeks:     { week: number; status: string; score: number | null }[];
     avgQualityScore: number | null;
     lastSubmittedAt: string | null;
+    nextReviewAt:    string | null;
   }[];
 }
 

@@ -19,7 +19,7 @@ const cal: AttachmentCalendar = {
   nonWorkingDays: new Set(['2026-06-10']), // a Wednesday holiday
 };
 
-const rules: AdmissibilityRules = { syncGraceDays: 3, entryEditWindowDays: 2 };
+const rules: AdmissibilityRules = { logbookClosed: false, entryEditWindowDays: 2 };
 
 describe('isoWeekday', () => {
   it('maps Monday to 1 and Sunday to 7', () => {
@@ -106,12 +106,20 @@ describe('evaluateDayAdmissibility', () => {
     }
   });
 
-  it('freezes the logbook past chainEnd + syncGraceDays', () => {
-    const lastGraceDay = d('2026-07-15'); // chainEnd + 3
-    expect(evaluateDayAdmissibility(d('2026-07-10'), lastGraceDay, cal, rules).admissible).toBe(true);
-    const afterGrace = d('2026-07-16');
-    const v = evaluateDayAdmissibility(d('2026-07-10'), afterGrace, cal, rules);
+  it('still admits a day long after the attachment ended, flagged late', () => {
+    // The old rule froze the logbook three days past chainEnd, so a student who
+    // finished late could not log at all. Overdue is now evidence, not a refusal.
+    const wayLater = d('2026-09-30');
+    const v = evaluateDayAdmissibility(d('2026-07-10'), wayLater, cal, rules);
+    expect(v.admissible).toBe(true);
+    expect(v).toMatchObject({ loggedLate: true });
+  });
+
+  it('closes the logbook once the placement is finalized', () => {
+    const closed: AdmissibilityRules = { ...rules, logbookClosed: true };
+    const v = evaluateDayAdmissibility(d('2026-07-10'), d('2026-07-11'), cal, closed);
     expect(v.admissible).toBe(false);
+    expect(v).toMatchObject({ reason: expect.stringContaining('finalized') });
   });
 });
 

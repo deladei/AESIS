@@ -142,6 +142,7 @@ export async function loadAttachmentContext(
       id: true,
       studentId: true,
       placementStatus: true,
+      finalizationStatus: true,
       isCurrent: true,
       academicYearId: true,
       startDate: true,
@@ -180,7 +181,10 @@ export async function loadAttachmentContext(
     },
     rules: {
       entryEditWindowDays: config?.entryEditWindowDays ?? 2,
-      syncGraceDays: config?.syncGraceDays ?? 3,
+      // Closed only once the placement is finalized. `CohortConfig.syncGraceDays`
+      // used to close it three days after the attachment's end date, which made
+      // a late finisher unable to log anything at all.
+      logbookClosed: placement.finalizationStatus === 'finalized',
     },
     effectiveEnd,
   };
@@ -377,8 +381,8 @@ export async function saveWeeklySummary(actor: Actor, input: SaveWeeklySummaryIn
   if (weekStart.getTime() > today.getTime()) {
     throw new AppError(422, 'Cannot report on a week that has not started');
   }
-  if (daysBetween(ctx.effectiveEnd, today) > ctx.rules.syncGraceDays) {
-    throw new AppError(422, 'The logbook is closed for this attachment');
+  if (ctx.rules.logbookClosed) {
+    throw new AppError(422, 'This placement has been finalized; its logbook is closed');
   }
 
   // weekEnding is derived from the chain calendar — the client never sets it.

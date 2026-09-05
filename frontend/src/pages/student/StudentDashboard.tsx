@@ -1,20 +1,27 @@
 import { Link } from 'react-router-dom';
+import { useState } from 'react';
 import {
-  Activity, Bell, Briefcase, Building2, CalendarDays, ClipboardCheck, Clock,
-  GraduationCap, Loader2, Mail, MessageSquare, Phone, Sparkles, Target, TrendingUp,
+  Activity, Bell, BookOpen, Briefcase, Building2, CalendarDays, CheckSquare,
+  ClipboardCheck, Clock, FileText, GraduationCap, Loader2, Mail, MessageSquare,
+  Phone, Plus, Sparkles, Square, Target, TrendingUp,
 } from 'lucide-react';
+import { cn } from '@/lib/utils';
 import type { DashboardSupervisor } from '@/hooks/useStudentDashboard';
 import { useAuth } from '@/contexts/AuthContext';
 import { useMyPlacements } from '@/hooks/usePlacements';
 import { useEntries, useEntry } from '@/hooks/useEntries';
 import { useStudentDashboard } from '@/hooks/useStudentDashboard';
 import { useNotifications } from '@/hooks/useNotifications';
+import { useTasks, useUpdateTask, useCreateTask, type Task } from '@/hooks/useTasks';
+import { useVisits } from '@/hooks/useVisits';
+import { useResources } from '@/hooks/useResources';
+import { useDocuments, formatFileSize } from '@/hooks/useDocuments';
 import { WeeklyLogbookTable } from '@/components/student/WeeklyLogbookTable';
 import { Card, CardHeader } from '@/components/ui/Card';
 import { StatCard } from '@/components/ui/StatCard';
 import { Badge, LegendDot } from '@/components/ui/Badge';
 import { EmptyState, SkeletonRows } from '@/components/ui/Feedback';
-import { NoValue, ProgressBar } from '@/components/ui/Bits';
+import { DateTile, NoValue, ProgressBar } from '@/components/ui/Bits';
 import { DonutStat, LineTrend } from '@/components/ui/Charts';
 
 function formatDate(iso: string | null | undefined): string {
@@ -38,6 +45,32 @@ function greeting(): string {
   if (h < 12) return 'Good morning';
   if (h < 17) return 'Good afternoon';
   return 'Good evening';
+}
+
+const TASK_TONE: Record<string, 'brand' | 'warn' | 'info' | 'done' | 'neutral'> = {
+  report:  'brand',
+  review:  'warn',
+  admin:   'info',
+  meeting: 'done',
+  other:   'neutral',
+};
+
+const VISIT_LABEL: Record<string, string> = {
+  site_visit:     'Site visit',
+  review_meeting: 'Review meeting',
+  midterm_review: 'Midterm review',
+  final_review:   'Final review',
+  check_in:       'Check-in',
+};
+
+function dueLabel(iso: string | null): string {
+  if (!iso) return 'No due date';
+  const d = new Date(iso);
+  const days = Math.round((d.getTime() - Date.now()) / 86_400_000);
+  if (days < 0) return `Overdue by ${Math.abs(days)} day${Math.abs(days) === 1 ? '' : 's'}`;
+  if (days === 0) return 'Due today';
+  if (days === 1) return 'Due tomorrow';
+  return `Due ${d.toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}`;
 }
 
 const STATUS_LABEL: Record<string, string> = {
@@ -109,6 +142,12 @@ export default function StudentDashboard() {
   // numeric, and derived from the placement dates — never on the raw list here.
   const { data: stats } = useStudentDashboard(!!active);
   const { data: notifications = [] } = useNotifications();
+  const { data: taskList } = useTasks();
+  const { data: visits = [] } = useVisits({ upcomingOnly: true });
+  const { data: resources = [] } = useResources();
+  const updateTask = useUpdateTask();
+  const createTask = useCreateTask();
+  const [newTask, setNewTask] = useState('');
 
   // Weeks the supervisor has decided on. The comment lives on the append-only
   // event, which only the detail endpoint carries, so the three most recent are
@@ -146,6 +185,9 @@ export default function StudentDashboard() {
       </div>
     );
   }
+
+  const documentsQuery = useDocuments(active.id);
+  const documents = documentsQuery.data ?? [];
 
   const weekTotal = stats?.week?.total ?? null;
   const weekCurrent = stats?.week?.current ?? 0;
@@ -219,6 +261,40 @@ export default function StudentDashboard() {
         </StatCard>
 
         <StatCard
+          label="Tasks completed"
+          value={stats ? `${stats.tasks.done} / ${stats.tasks.total}` : <NoValue />}
+          icon={CheckSquare}
+          tone="info"
+          footnote={
+            stats && stats.tasks.total === 0
+              ? 'Nothing on your list yet'
+              : 'Across your to-do list'
+          }
+        />
+
+        <StatCard
+          label="Next review"
+          value={
+            stats?.nextReview
+              ? new Date(stats.nextReview.scheduledAt).toLocaleDateString('en-GB', {
+                  day: 'numeric', month: 'short',
+                })
+              : <NoValue title="No review scheduled yet" />
+          }
+          icon={CalendarDays}
+          tone="warn"
+          footnote={
+            stats?.nextReview
+              ? `${VISIT_LABEL[stats.nextReview.visitType] ?? 'Review'} · ${new Date(stats.nextReview.scheduledAt).toLocaleTimeString('en-GB', { hour: 'numeric', minute: '2-digit' })}`
+              : 'Your supervisor schedules these'
+          }
+        />
+      </div>
+
+      {/* Second KPI row — attendance and quality, both real and both worth the
+          space the reference design gives to invented metrics. */}
+      <div className="grid gap-4 sm:grid-cols-2">
+        <StatCard
           label="Attendance hours"
           value={hours.expected > 0 ? `${hours.logged} / ${hours.expected}` : String(hours.logged)}
           icon={Clock}
@@ -267,6 +343,84 @@ export default function StudentDashboard() {
           </div>
         </Card>
 
+        <div className="space-y-4">
+        <Card>
+          <CardHeader
+            title="My to-do list"
+            subtitle={taskList ? `${taskList.progress.done} of ${taskList.progress.total} done` : undefined}
+            action={{ label: 'Logbook', to: '/student/logbook' }}
+          />
+
+          {/* Adding your own task is the point — a to-do list you cannot write
+              to is a notification feed with checkboxes. */}
+          <form
+            className="mb-3 flex gap-2"
+            onSubmit={(e) => {
+              e.preventDefault();
+              const title = newTask.trim();
+              if (title.length < 3) return;
+              createTask.mutate(
+                { title, category: 'other', placementId: active.id },
+                { onSuccess: () => setNewTask('') },
+              );
+            }}
+          >
+            <input
+              value={newTask}
+              onChange={(e) => setNewTask(e.target.value)}
+              placeholder="Add a task…"
+              className="flex-1 rounded-lg border border-line bg-surface px-3 py-1.5 text-sm text-ink placeholder:text-ink-muted focus:border-brand focus:outline-none"
+            />
+            <button
+              type="submit"
+              disabled={newTask.trim().length < 3 || createTask.isPending}
+              aria-label="Add task"
+              className="grid h-8 w-8 shrink-0 place-items-center rounded-lg bg-brand text-white disabled:opacity-40"
+            >
+              {createTask.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />}
+            </button>
+          </form>
+
+          {!taskList || taskList.tasks.length === 0 ? (
+            <EmptyState
+              icon={CheckSquare}
+              title="Nothing on your list"
+              hint="Add a task above, or your supervisor may assign you one."
+            />
+          ) : (
+            <ul className="space-y-2">
+              {taskList.tasks.slice(0, 6).map((t: Task) => {
+                const done = t.status === 'done';
+                return (
+                  <li key={t.id} className="flex items-start gap-2.5">
+                    <button
+                      type="button"
+                      onClick={() => updateTask.mutate({ id: t.id, status: done ? 'open' : 'done' })}
+                      aria-label={done ? `Reopen ${t.title}` : `Complete ${t.title}`}
+                      className="mt-0.5 shrink-0 text-ink-muted transition-colors hover:text-brand"
+                    >
+                      {done
+                        ? <CheckSquare className="h-4 w-4 text-ok" />
+                        : <Square className="h-4 w-4" />}
+                    </button>
+                    <div className="min-w-0 flex-1">
+                      <p className={cn('text-sm', done ? 'text-ink-muted line-through' : 'font-medium text-ink')}>
+                        {t.title}
+                      </p>
+                      <p className="text-xs text-ink-muted">
+                        {done && t.completedAt
+                          ? `Completed ${new Date(t.completedAt).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}`
+                          : dueLabel(t.dueAt)}
+                      </p>
+                    </div>
+                    <Badge tone={TASK_TONE[t.category] ?? 'neutral'}>{t.category}</Badge>
+                  </li>
+                );
+              })}
+            </ul>
+          )}
+        </Card>
+
         <Card>
           <CardHeader
             title="Learning objectives"
@@ -302,6 +456,7 @@ export default function StudentDashboard() {
             </ul>
           )}
         </Card>
+        </div>
       </div>
 
       {/* Activity / details / assistant */}
@@ -383,6 +538,113 @@ export default function StudentDashboard() {
             <MessageSquare className="h-4 w-4" />
             Open the assistant
           </Link>
+        </Card>
+      </div>
+
+      {/* Schedule / documents / resources */}
+      <div className="grid gap-4 lg:grid-cols-3">
+        <Card>
+          <CardHeader
+            title="Upcoming schedule"
+            subtitle="Reviews your supervisor has booked"
+          />
+          {visits.length === 0 ? (
+            <EmptyState
+              icon={CalendarDays}
+              title="Nothing scheduled"
+              hint="Reviews appear here as soon as your supervisor books one."
+            />
+          ) : (
+            <ul className="space-y-3">
+              {visits.slice(0, 4).map((v) => (
+                <li key={v.id} className="flex items-center gap-3">
+                  <DateTile date={new Date(v.scheduledAt)} tone="warn" />
+                  <div className="min-w-0 flex-1">
+                    <p className="truncate text-sm font-medium text-ink">
+                      {VISIT_LABEL[v.visitType] ?? 'Review'}
+                    </p>
+                    <p className="truncate text-xs text-ink-muted">
+                      {new Date(v.scheduledAt).toLocaleTimeString('en-GB', { hour: 'numeric', minute: '2-digit' })}
+                      {v.location ? ` · ${v.location}` : ''}
+                      {` · ${v.durationMinutes} min`}
+                    </p>
+                  </div>
+                  <Badge tone="warn">{VISIT_LABEL[v.visitType]?.split(' ')[0] ?? 'Review'}</Badge>
+                </li>
+              ))}
+            </ul>
+          )}
+        </Card>
+
+        <Card>
+          <CardHeader title="My documents" subtitle="Files on your placement record" />
+          {documents.length === 0 ? (
+            <EmptyState
+              icon={FileText}
+              title="No documents yet"
+              hint="Your placement letter and agreement appear here once uploaded."
+            />
+          ) : (
+            <ul className="space-y-3">
+              {documents.slice(0, 5).map((d) => (
+                <li key={d.id} className="flex items-center gap-3">
+                  <span className="grid h-9 w-9 shrink-0 place-items-center rounded-lg bg-danger-soft text-danger">
+                    <FileText className="h-4 w-4" />
+                  </span>
+                  <div className="min-w-0 flex-1">
+                    <a
+                      href={d.fileUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="block truncate text-sm font-medium text-ink hover:text-brand-ink hover:underline"
+                    >
+                      {d.title ?? d.fileName}
+                    </a>
+                    <p className="text-xs text-ink-muted">
+                      {d.docType.replace(/_/g, ' ')}
+                      {d.fileSize ? ` · ${formatFileSize(d.fileSize)}` : ''}
+                      {` · ${formatDate(d.uploadedAt)}`}
+                    </p>
+                  </div>
+                </li>
+              ))}
+            </ul>
+          )}
+        </Card>
+
+        <Card>
+          <CardHeader title="Quick resources" subtitle="Guidelines, templates and rubrics" />
+          {resources.length === 0 ? (
+            <EmptyState
+              icon={BookOpen}
+              title="No resources yet"
+              hint="Your coordinator publishes guidelines and templates here."
+            />
+          ) : (
+            <ul className="space-y-2">
+              {resources.slice(0, 5).map((r) => (
+                <li key={r.id}>
+                  <a
+                    href={r.externalUrl ?? r.fileUrl ?? '#'}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="flex items-center gap-3 rounded-xl border border-line p-2.5 transition-colors hover:border-brand hover:bg-brand-soft"
+                  >
+                    <span className="grid h-9 w-9 shrink-0 place-items-center rounded-lg bg-brand-soft text-brand-ink">
+                      <BookOpen className="h-4 w-4" />
+                    </span>
+                    <span className="min-w-0 flex-1">
+                      <span className="block truncate text-sm font-medium text-ink">{r.title}</span>
+                      {r.description && (
+                        <span className="block truncate text-xs text-ink-muted">{r.description}</span>
+                      )}
+                    </span>
+                    <Badge tone="neutral">{r.category}</Badge>
+                  </a>
+                </li>
+              ))}
+            </ul>
+          )}
         </Card>
       </div>
 

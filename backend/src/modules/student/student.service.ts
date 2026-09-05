@@ -204,8 +204,48 @@ export async function getStudentDashboard(studentId: string) {
     weeks: due,
   });
 
+  // Profile completeness is DERIVED at read time, not stored: a stored
+  // percentage goes stale the moment a field is filled in. Each item is a
+  // field the student can actually act on.
+  const student = await prisma.user.findUnique({
+    where: { id: studentId },
+    select: {
+      phone: true, gender: true, indexNumber: true, avatarUrl: true,
+      programmeId: true, academicLevel: true,
+    },
+  });
+  const profileFields = [
+    student?.phone, student?.gender, student?.indexNumber,
+    student?.avatarUrl, student?.programmeId, student?.academicLevel,
+  ];
+  const profileFilled = profileFields.filter((v) => v !== null && v !== undefined).length;
+
+  // The next review the student has been booked into, if any.
+  const nextVisit = await prisma.visitSchedule.findFirst({
+    where: {
+      placementId: placement.id,
+      cancelledAt: null,
+      completed: false,
+      scheduledAt: { gte: new Date() },
+    },
+    orderBy: { scheduledAt: 'asc' },
+    select: { id: true, scheduledAt: true, visitType: true, location: true, durationMinutes: true },
+  });
+
+  // "18 / 28" counted from real rows. Cancelled tasks are in neither half.
+  const [tasksDone, tasksTotal] = await Promise.all([
+    prisma.task.count({ where: { assigneeId: studentId, status: 'done' } }),
+    prisma.task.count({ where: { assigneeId: studentId, status: { not: 'cancelled' } } }),
+  ]);
+
   return {
     hasActivePlacement: placement.placementStatus === 'active',
+    profile: {
+      academicLevel: student?.academicLevel ?? null,
+      completionPct: Math.round((profileFilled / profileFields.length) * 100),
+    },
+    nextReview: nextVisit,
+    tasks: { done: tasksDone, total: tasksTotal },
     week,                              // { current, total }
     logsSubmitted:   submittedCount,
     expectedLogs:    week.total,

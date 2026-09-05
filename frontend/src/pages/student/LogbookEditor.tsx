@@ -592,6 +592,14 @@ function DayPanel({
    */
   async function persist(): Promise<string | undefined> {
     setFormErr(null);
+    // The week row may not exist yet, in which case the `entryId` prop is still
+    // undefined and the save below is what creates it. Track the id locally:
+    // `setSavedWeekEntryId` cannot be read back in this same tick, and returning
+    // the stale prop meant "Submit day" on the first day of a new week saved the
+    // day, returned undefined, and failed with "Could not open this week for
+    // submission" — the click read as a save and the day never went in.
+    let weekEntryId = entryId;
+
     if (hasContent) {
       const result = await saveDailyEntry.mutateAsync({
         placementId,
@@ -605,8 +613,10 @@ function DayPanel({
       setDaysLeftInWeek(result.daysRemainingInWeek);
       setWorkingDaysInWeek(result.workingDaysInWeek);
       setSavedWeekEntryId(result.weekEntryId);
+      if (result.weekEntryId) weekEntryId = result.weekEntryId;
     }
-    if (activityPayload.length > 0 || entryId) {
+
+    if (activityPayload.length > 0 || weekEntryId) {
       const entry = await saveDay.mutateAsync({
         placementId,
         weekNumber,
@@ -617,7 +627,8 @@ function DayPanel({
       });
       return entry.id;
     }
-    return entryId;
+
+    return weekEntryId;
   }
 
   async function handleSave() {

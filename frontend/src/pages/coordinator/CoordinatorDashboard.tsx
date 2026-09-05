@@ -1,8 +1,9 @@
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import {
-  AlertTriangle, BarChart3, Briefcase, Check, Clock, Eye, FileDown, Inbox,
-  Landmark, Loader2, RefreshCw, Users, X,
+  AlertTriangle, BarChart3, Briefcase, Building2, CalendarClock, Check, Clock,
+  Eye, FileDown, FileText, GraduationCap, Inbox, Landmark, Loader2, RefreshCw,
+  Users, X,
 } from 'lucide-react';
 import { useCoordinatorDashboard, useCoordinatorActivity, useCoordinatorCohorts, type CoordinatorActivity } from '@/hooks/useDashboard';
 import { useAllPlacements, useUpdatePlacementStatus } from '@/hooks/usePlacements';
@@ -12,11 +13,12 @@ import SupervisorWorkloadPanel from '@/components/coordinator/SupervisorWorkload
 import PerformanceDistributionModal from '@/components/coordinator/PerformanceDistributionModal';
 import GradeDistributionPanel from '@/components/coordinator/GradeDistributionPanel';
 import RegionRollupPanel from '@/components/coordinator/RegionRollupPanel';
+import { useApplications } from '@/hooks/useOpportunities';
 import { Card, CardHeader } from '@/components/ui/Card';
 import { StatCard } from '@/components/ui/StatCard';
 import { Badge } from '@/components/ui/Badge';
 import { EmptyState, ErrorState } from '@/components/ui/Feedback';
-import { NoValue, ProgressBar } from '@/components/ui/Bits';
+import { DateTile, InitialsAvatar, NoValue, ProgressBar } from '@/components/ui/Bits';
 import { DonutStat, MultiLineTrend } from '@/components/ui/Charts';
 
 /**
@@ -33,6 +35,25 @@ import { DonutStat, MultiLineTrend } from '@/components/ui/Charts';
  * absent one. Matching arrives with the opportunities/applications work, which
  * has real schema behind it.
  */
+
+
+const APPLICATION_TONE: Record<string, 'neutral' | 'brand' | 'ok' | 'warn' | 'danger' | 'info' | 'done'> = {
+  pending:      'neutral',
+  under_review: 'info',
+  shortlisted:  'brand',
+  offered:      'done',
+  accepted:     'ok',
+  rejected:     'danger',
+  withdrawn:    'neutral',
+};
+
+function daysLeft(iso: string | null): string {
+  if (!iso) return 'No closing date';
+  const days = Math.ceil((new Date(iso).getTime() - Date.now()) / 86_400_000);
+  if (days < 0) return 'Closed';
+  if (days === 0) return 'Closes today';
+  return `${days} day${days === 1 ? '' : 's'} left`;
+}
 
 function relativeTime(iso: string): string {
   const mins = Math.floor((Date.now() - new Date(iso).getTime()) / 60_000);
@@ -77,6 +98,7 @@ export default function CoordinatorDashboard() {
   const { data: activity, isLoading: activityLoading, refetch: refetchActivity } = useCoordinatorActivity(8);
   const { data: cohorts = [] } = useCoordinatorCohorts();
   const { data: cohortConfig } = useCohortConfig();
+  const { data: applications = [] } = useApplications(undefined, 5);
   const statsYearId = scopeYearId ?? cohortConfig?.academicYearId;
 
   const pendingList = pending?.placements ?? [];
@@ -145,13 +167,37 @@ export default function CoordinatorDashboard() {
       {/* KPIs */}
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
         <StatCard
-          label="Active interns"
-          value={ov ? ov.activePlacements.toLocaleString() : <NoValue />}
-          icon={Users}
+          label="Total students"
+          value={ov ? ov.totalStudents.toLocaleString() : <NoValue />}
+          icon={GraduationCap}
           tone="brand"
           loading={dashLoading}
-          footnote="Currently on placement"
+          footnote="Registered on the system"
           action={{ label: 'View all interns', to: '/coordinator/interns' }}
+        />
+        <StatCard
+          label="Active internships"
+          value={ov ? ov.activePlacements.toLocaleString() : <NoValue />}
+          icon={Users}
+          tone="ok"
+          loading={dashLoading}
+          footnote="Currently on placement"
+        />
+        <StatCard
+          label="Applications"
+          value={ov ? ov.applications.toLocaleString() : <NoValue />}
+          icon={FileText}
+          tone="info"
+          loading={dashLoading}
+          footnote={ov?.applications ? `${ov.shortlisted} shortlisted` : 'No applications yet'}
+        />
+        <StatCard
+          label="Placed students"
+          value={ov ? ov.placedStudents.toLocaleString() : <NoValue />}
+          icon={Check}
+          tone="done"
+          loading={dashLoading}
+          footnote="Placement approved or completed"
         />
         <StatCard
           label="Pending placements"
@@ -228,6 +274,101 @@ export default function CoordinatorDashboard() {
               </div>
               <ProgressBar value={ov.avgPerformance} className="mt-2" label="Average cohort performance" />
             </div>
+          )}
+        </Card>
+      </div>
+
+      {/* Applications, deadlines, partners */}
+      <div className="grid gap-4 lg:grid-cols-3">
+        <Card>
+          <CardHeader
+            title="Recent applications"
+            subtitle="Students applying to posted internships"
+          />
+          {applications.length === 0 ? (
+            <EmptyState
+              icon={FileText}
+              title="No applications yet"
+              hint="Post an internship opportunity and student applications appear here."
+            />
+          ) : (
+            <ul className="space-y-3">
+              {applications.map((a) => (
+                <li key={a.id} className="flex items-center gap-3">
+                  <span className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-brand-soft text-xs font-semibold text-brand-ink">
+                    {a.student.firstName[0]}{a.student.lastName[0]}
+                  </span>
+                  <div className="min-w-0 flex-1">
+                    <p className="truncate text-sm font-medium text-ink">
+                      {a.student.firstName} {a.student.lastName}
+                    </p>
+                    <p className="truncate text-xs text-ink-muted">
+                      {a.opportunity.title} · {a.opportunity.company.name}
+                    </p>
+                  </div>
+                  <div className="shrink-0 text-right">
+                    <Badge tone={APPLICATION_TONE[a.status] ?? 'neutral'}>
+                      {a.status.replace(/_/g, ' ')}
+                    </Badge>
+                    <p className="mt-1 text-[11px] text-ink-muted">{relativeTime(a.submittedAt)}</p>
+                  </div>
+                </li>
+              ))}
+            </ul>
+          )}
+        </Card>
+
+        <Card>
+          <CardHeader title="Upcoming deadlines" subtitle="Opportunities still open" />
+          {(dash?.upcomingDeadlines ?? []).length === 0 ? (
+            <EmptyState
+              icon={CalendarClock}
+              title="No deadlines"
+              hint="Closing dates on published opportunities show up here."
+            />
+          ) : (
+            <ul className="space-y-3">
+              {dash!.upcomingDeadlines.map((d) => (
+                <li key={d.id} className="flex items-center gap-3">
+                  <DateTile date={new Date(d.closesAt!)} tone="warn" />
+                  <div className="min-w-0 flex-1">
+                    <p className="truncate text-sm font-medium text-ink">{d.title}</p>
+                    <p className="truncate text-xs text-ink-muted">{d.company.name}</p>
+                  </div>
+                  <span className="shrink-0 text-xs font-semibold text-warn">{daysLeft(d.closesAt)}</span>
+                </li>
+              ))}
+            </ul>
+          )}
+        </Card>
+
+        <Card>
+          <CardHeader
+            title="Top host companies"
+            subtitle="Ranked by interns currently placed"
+            action={{ label: 'All companies', to: '/coordinator/companies' }}
+          />
+          {(dash?.partnerCompanies ?? []).length === 0 ? (
+            <EmptyState icon={Building2} title="No host companies yet" hint="Companies appear once placements are approved." />
+          ) : (
+            <ul className="space-y-2.5">
+              {dash!.partnerCompanies.slice(0, 6).map((c) => (
+                <li key={c.id} className="flex items-center gap-3">
+                  {/* A monogram, not a borrowed logo: an unlicensed mark is a
+                      legal problem, a monogram is just the company's initials. */}
+                  {c.logoUrl
+                    ? <img src={c.logoUrl} alt="" className="h-9 w-9 shrink-0 rounded-lg object-contain" />
+                    : <InitialsAvatar name={c.name} size={36} className="rounded-lg" />}
+                  <div className="min-w-0 flex-1">
+                    <p className="truncate text-sm font-medium text-ink">{c.name}</p>
+                    {c.industry && <p className="truncate text-xs text-ink-muted">{c.industry}</p>}
+                  </div>
+                  <span className="shrink-0 text-xs font-semibold text-ink-secondary">
+                    {c._count.placements}
+                  </span>
+                </li>
+              ))}
+            </ul>
           )}
         </Card>
       </div>

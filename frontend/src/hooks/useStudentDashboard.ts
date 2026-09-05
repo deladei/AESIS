@@ -29,8 +29,20 @@ export interface ObjectiveProgressSummary {
   confirmedEntryCount: number; // confirmed entry links only
 }
 
+export interface NextReview {
+  id:              string;
+  scheduledAt:     string;
+  visitType:       string;
+  location:        string | null;
+  durationMinutes: number;
+}
+
 export interface StudentDashboard {
   hasActivePlacement: boolean;
+  /** Derived at read time from the user's own fields — never a stored number. */
+  profile:            { academicLevel: number | null; completionPct: number };
+  nextReview:         NextReview | null;
+  tasks:              { done: number; total: number };
   week:               { current: number; total: number } | null;
   logsSubmitted:      number;
   expectedLogs:       number;

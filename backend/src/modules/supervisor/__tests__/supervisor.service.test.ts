@@ -2,9 +2,19 @@ jest.mock('../../../config/prisma', () => ({
   prisma: {
     placement: {
       findMany: jest.fn(),
+      count:    jest.fn().mockResolvedValue(0),
     },
-    logbookSubmission: {
-      count: jest.fn(),
+    // Pending review is counted from the ACTIVE pipeline now. It used to count
+    // logbook_submissions, a table with no writer, so the figure was always 0
+    // in production however many weeks were really waiting.
+    logbookEntry: {
+      count: jest.fn().mockResolvedValue(0),
+    },
+    visitSchedule: {
+      findMany: jest.fn().mockResolvedValue([]),
+    },
+    approvalRequest: {
+      count: jest.fn().mockResolvedValue(0),
     },
   },
 }));
@@ -33,7 +43,7 @@ describe('getSupervisorDashboard', () => {
 
   it('returns overview with correct assignedStudents and pendingReview', async () => {
     (mp.placement.findMany       as jest.Mock).mockResolvedValue([makePlacement(), makePlacement({ id: 'p-2' })]);
-    (mp.logbookSubmission.count  as jest.Mock).mockResolvedValue(3);
+    (mp.logbookEntry.count  as jest.Mock).mockResolvedValue(3);
 
     const result = await getSupervisorDashboard('sup-1');
 
@@ -43,7 +53,7 @@ describe('getSupervisorDashboard', () => {
 
   it('calculates avgQualityScore correctly', async () => {
     (mp.placement.findMany      as jest.Mock).mockResolvedValue([makePlacement()]);
-    (mp.logbookSubmission.count as jest.Mock).mockResolvedValue(0);
+    (mp.logbookEntry.count as jest.Mock).mockResolvedValue(0);
 
     const result = await getSupervisorDashboard('sup-1');
 
@@ -63,7 +73,7 @@ describe('getSupervisorDashboard', () => {
       ],
     });
     (mp.placement.findMany      as jest.Mock).mockResolvedValue([withV2]);
-    (mp.logbookSubmission.count as jest.Mock).mockResolvedValue(0);
+    (mp.logbookEntry.count as jest.Mock).mockResolvedValue(0);
 
     const result = await getSupervisorDashboard('sup-1');
 
@@ -82,7 +92,7 @@ describe('getSupervisorDashboard', () => {
       ],
     });
     (mp.placement.findMany      as jest.Mock).mockResolvedValue([v2Only]);
-    (mp.logbookSubmission.count as jest.Mock).mockResolvedValue(0);
+    (mp.logbookEntry.count as jest.Mock).mockResolvedValue(0);
 
     const result = await getSupervisorDashboard('sup-1');
 
@@ -91,7 +101,7 @@ describe('getSupervisorDashboard', () => {
 
   it('returns recentWeeks oldest-first (for sparkline)', async () => {
     (mp.placement.findMany      as jest.Mock).mockResolvedValue([makePlacement()]);
-    (mp.logbookSubmission.count as jest.Mock).mockResolvedValue(0);
+    (mp.logbookEntry.count as jest.Mock).mockResolvedValue(0);
 
     const result = await getSupervisorDashboard('sup-1');
     const weeks = result.students[0].recentWeeks.map(w => w.week);
@@ -107,7 +117,7 @@ describe('getSupervisorDashboard', () => {
       ],
     });
     (mp.placement.findMany      as jest.Mock).mockResolvedValue([noAnalysis]);
-    (mp.logbookSubmission.count as jest.Mock).mockResolvedValue(0);
+    (mp.logbookEntry.count as jest.Mock).mockResolvedValue(0);
 
     const result = await getSupervisorDashboard('sup-1');
 
@@ -117,7 +127,7 @@ describe('getSupervisorDashboard', () => {
 
   it('returns empty students and zero overview for supervisor with no placements', async () => {
     (mp.placement.findMany      as jest.Mock).mockResolvedValue([]);
-    (mp.logbookSubmission.count as jest.Mock).mockResolvedValue(0);
+    (mp.logbookEntry.count as jest.Mock).mockResolvedValue(0);
 
     const result = await getSupervisorDashboard('sup-1');
 
@@ -128,7 +138,7 @@ describe('getSupervisorDashboard', () => {
 
   it('maps riskTier and riskScore from latest riskScore entry', async () => {
     (mp.placement.findMany      as jest.Mock).mockResolvedValue([makePlacement()]);
-    (mp.logbookSubmission.count as jest.Mock).mockResolvedValue(0);
+    (mp.logbookEntry.count as jest.Mock).mockResolvedValue(0);
 
     const result = await getSupervisorDashboard('sup-1');
     const student = result.students[0];
@@ -140,7 +150,7 @@ describe('getSupervisorDashboard', () => {
   it('handles null riskScores gracefully', async () => {
     const noRisk = makePlacement({ riskScores: [] });
     (mp.placement.findMany      as jest.Mock).mockResolvedValue([noRisk]);
-    (mp.logbookSubmission.count as jest.Mock).mockResolvedValue(0);
+    (mp.logbookEntry.count as jest.Mock).mockResolvedValue(0);
 
     const result = await getSupervisorDashboard('sup-1');
     const student = result.students[0];

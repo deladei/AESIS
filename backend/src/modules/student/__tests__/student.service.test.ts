@@ -3,6 +3,17 @@ jest.mock('../../../config/prisma', () => ({
     placement: {
       findMany: jest.fn(),
     },
+    // The dashboard now also reports profile completeness, the next scheduled
+    // review, and task progress. Defaulted to "nothing yet" so the existing
+    // cases keep testing what they were written to test.
+    user: {
+      findUnique: jest.fn().mockResolvedValue({
+        phone: null, gender: null, indexNumber: null,
+        avatarUrl: null, programmeId: null, academicLevel: null,
+      }),
+    },
+    visitSchedule: { findFirst: jest.fn().mockResolvedValue(null) },
+    task: { count: jest.fn().mockResolvedValue(0) },
   },
 }));
 

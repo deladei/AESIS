@@ -94,24 +94,24 @@ export const ROLE_NAV: Record<ShellRole, RoleNav> = {
   },
 
   /**
-   * `hod` inherits coordinator access through the backend authorize hierarchy
-   * but had no entry in the frontend's role→landing map and no shell at all, so
-   * an HoD who logged in successfully was redirected straight back to the login
-   * page. It gets the coordinator's chrome, which is what its permissions
-   * already grant it.
+   * HoD is the coordinator, with a different title on the door.
+   *
+   * No route in the backend is hod-only: every appearance is
+   * `authorize('coordinator', 'hod', ...)`, and `isStaff()` in grades,
+   * industry, finalization and siwes treats the two identically. (The comment
+   * in `middleware/authorize.ts` about hod-only grade-release sign-off
+   * describes a route that does not exist.) So this shares the coordinator's
+   * item list by reference rather than copying it — two lists that must stay in
+   * step are two lists that will drift.
+   *
+   * It still needs its own entry at all because the role had NO shell and no
+   * landing route, which meant an HoD login bounced straight back to the login
+   * page.
    */
   hod: {
     brandSubtitle: 'Cohort Oversight',
     roleLabel: 'Head of Department',
-    items: [
-      { label: 'Intern Overview', href: '/coordinator/dashboard',   icon: LayoutDashboard },
-      { label: 'All Interns',     href: '/coordinator/interns',     icon: Users },
-      { label: 'Placements',      href: '/coordinator/placements',  icon: ClipboardList },
-      { label: 'Companies',       href: '/coordinator/companies',   icon: Building2 },
-      { label: 'Assignments',     href: '/coordinator/assignments', icon: UserCheck },
-      { label: 'AI Insights',     href: '/ai-insights',             icon: Sparkles, flag: 'aiInsights' },
-      { label: 'Settings',        href: '/coordinator/settings',    icon: Settings },
-    ],
+    get items() { return ROLE_NAV.coordinator.items; },
   },
 };
 

@@ -133,9 +133,54 @@ export async function getCoordinatorDashboard(opts: { academicYearId?: string } 
     v2QualityEntries,
   ));
 
+  // Everything the top row of the dashboard reports, counted from real rows.
+  const [totalStudents, placedStudents, applicationCount, shortlistedCount,
+         recentApplications, partnerCompanies, upcomingDeadlines] = await Promise.all([
+    prisma.user.count({ where: { role: 'student' } }),
+    prisma.placement.count({
+      where: { isCurrent: true, placementStatus: { in: ['active', 'completed'] } },
+    }),
+    prisma.opportunityApplication.count(),
+    prisma.opportunityApplication.count({ where: { status: 'shortlisted' } }),
+    prisma.opportunityApplication.findMany({
+      orderBy: { submittedAt: 'desc' },
+      take: 5,
+      select: {
+        id: true, status: true, submittedAt: true,
+        student: { select: { firstName: true, lastName: true } },
+        opportunity: {
+          select: { title: true, company: { select: { name: true, logoUrl: true } } },
+        },
+      },
+    }),
+    // Ranked by real placement count — never a hand-ordered list.
+    prisma.company.findMany({
+      where: { placements: { some: { isCurrent: true, placementStatus: 'active' } } },
+      select: {
+        id: true, name: true, logoUrl: true, industry: true, isPartner: true,
+        _count: { select: { placements: true } },
+      },
+      orderBy: { placements: { _count: 'desc' } },
+      take: 8,
+    }),
+    prisma.internshipOpportunity.findMany({
+      where: { status: 'published', closesAt: { gte: new Date() } },
+      orderBy: { closesAt: 'asc' },
+      take: 5,
+      select: {
+        id: true, title: true, closesAt: true,
+        company: { select: { name: true } },
+      },
+    }),
+  ]);
+
   return {
     overview: {
       activePlacements,
+      totalStudents,
+      placedStudents,
+      applications: applicationCount,
+      shortlisted: shortlistedCount,
       pendingApprovals,
       complianceRate,
       highRiskCount:    riskDistribution.high,
@@ -146,6 +191,9 @@ export async function getCoordinatorDashboard(opts: { academicYearId?: string } 
     },
     riskDistribution,
     submissionTrends,
+    recentApplications,
+    partnerCompanies,
+    upcomingDeadlines,
     // Client-readable feature flags. AI Pulse Matching is roadmap-only and off
     // in production; the panel renders disabled until a real service exists.
     featureFlags: {

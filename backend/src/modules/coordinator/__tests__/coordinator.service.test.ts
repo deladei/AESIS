@@ -47,9 +47,19 @@ jest.mock('../../../config/prisma', () => ({
       findUnique: jest.fn(),
       create: jest.fn(),
       update: jest.fn(),
+      count: jest.fn().mockResolvedValue(0),
     },
     company: {
-      findMany: jest.fn(),
+      findMany: jest.fn().mockResolvedValue([]),
+    },
+    // The dashboard's top row and its applications panels. Defaulted to empty
+    // so the existing cases keep asserting what they were written for.
+    opportunityApplication: {
+      count:    jest.fn().mockResolvedValue(0),
+      findMany: jest.fn().mockResolvedValue([]),
+    },
+    internshipOpportunity: {
+      findMany: jest.fn().mockResolvedValue([]),
     },
     studentRoster: {
       findUnique: jest.fn(),

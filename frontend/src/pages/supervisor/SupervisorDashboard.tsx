@@ -1,15 +1,17 @@
 import { Link } from 'react-router-dom';
 import {
-  AlertTriangle, Award, ClipboardCheck, Gauge, Loader2, MessageSquare,
-  Sparkles, TrendingUp, Users,
+  AlertTriangle, Award, Briefcase, CalendarDays, Check, ClipboardCheck, FileText,
+  Gauge, Inbox, Loader2, MessageSquare, Sparkles, TrendingUp, Users, X,
 } from 'lucide-react';
 import { useSupervisorDashboard, type SupervisorDashboard as Dash } from '@/hooks/useDashboard';
 import { useAuth } from '@/contexts/AuthContext';
+import { useVisits } from '@/hooks/useVisits';
+import { usePendingApprovals, useDecideApproval } from '@/hooks/useApprovals';
 import { Card, CardHeader } from '@/components/ui/Card';
 import { StatCard } from '@/components/ui/StatCard';
 import { Badge } from '@/components/ui/Badge';
 import { EmptyState } from '@/components/ui/Feedback';
-import { InitialsAvatar, NoValue, ProgressBar } from '@/components/ui/Bits';
+import { DateTile, InitialsAvatar, NoValue, ProgressBar } from '@/components/ui/Bits';
 import { DonutStat } from '@/components/ui/Charts';
 
 type Student = Dash['students'][number];
@@ -44,6 +46,14 @@ const WEEK_STATUS: Record<string, { label: string; tone: 'ok' | 'warn' | 'info' 
   not_submitted: { label: 'Not submitted', tone: 'neutral' },
 };
 
+const VISIT_LABEL: Record<string, string> = {
+  site_visit:     'Site visit',
+  review_meeting: 'Review',
+  midterm_review: 'Midterm',
+  final_review:   'Final',
+  check_in:       'Check-in',
+};
+
 const RISK: Record<string, { label: string; tone: 'ok' | 'warn' | 'danger' }> = {
   low:    { label: 'On track', tone: 'ok' },
   medium: { label: 'At risk',  tone: 'warn' },
@@ -65,6 +75,9 @@ const RISK: Record<string, { label: string; tone: 'ok' | 'warn' | 'danger' }> = 
 export default function SupervisorDashboard() {
   const { user } = useAuth();
   const { data, isLoading } = useSupervisorDashboard();
+  const { data: visits = [] } = useVisits({ upcomingOnly: true });
+  const { data: approvals = [] } = usePendingApprovals();
+  const decide = useDecideApproval();
 
   if (isLoading) {
     return (
@@ -74,7 +87,10 @@ export default function SupervisorDashboard() {
     );
   }
 
-  const overview = data?.overview ?? { assignedStudents: 0, pendingReview: 0, avgQualityScore: null };
+  const overview = data?.overview ?? {
+    assignedStudents: 0, pendingReview: 0, avgQualityScore: null,
+    reportsThisMonth: 0, completedInternships: 0, pendingApprovals: 0,
+  };
   const students = data?.students ?? [];
 
   const byTier = (t: string) => students.filter((s) => s.riskTier === t).length;
@@ -134,6 +150,23 @@ export default function SupervisorDashboard() {
           action={{ label: 'Open review queue', to: '/supervisor/review' }}
         />
         <StatCard
+          label="Reports submitted"
+          value={overview.reportsThisMonth}
+          icon={FileText}
+          tone="info"
+          footnote="This month"
+        />
+        <StatCard
+          label="Completed internships"
+          value={overview.completedInternships}
+          icon={Briefcase}
+          tone="done"
+          footnote="Finalized placements"
+        />
+      </div>
+
+      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+        <StatCard
           label="Average quality"
           value={overview.avgQualityScore != null ? `${Math.round(overview.avgQualityScore)} / 100` : <NoValue title="No scored weeks yet" />}
           icon={Gauge}
@@ -146,6 +179,13 @@ export default function SupervisorDashboard() {
           icon={AlertTriangle}
           tone={highRisk.length > 0 ? 'danger' : 'ok'}
           footnote={highRisk.length > 0 ? 'Flagged high risk' : 'No one flagged'}
+        />
+        <StatCard
+          label="Pending approvals"
+          value={approvals.length}
+          icon={ClipboardCheck}
+          tone={approvals.length > 0 ? 'warn' : 'ok'}
+          footnote={approvals.length > 0 ? 'Awaiting your decision' : 'Nothing waiting'}
         />
       </div>
 
@@ -179,7 +219,10 @@ export default function SupervisorDashboard() {
                         <p className="truncate text-sm font-semibold text-ink">{fullName(s)}</p>
                         {risk && <Badge tone={risk.tone}>{risk.label}</Badge>}
                       </div>
-                      <p className="truncate text-xs text-ink-muted">{formatWhen(s.lastSubmittedAt)}</p>
+                      <p className="truncate text-xs text-ink-muted">
+                        {formatWhen(s.lastSubmittedAt)}
+                        {s.nextReviewAt && ` · Next review ${new Date(s.nextReviewAt).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}`}
+                      </p>
                     </div>
 
                     <div className="hidden w-32 sm:block">
@@ -307,6 +350,104 @@ export default function SupervisorDashboard() {
               </div>
             )}
           </div>
+        </Card>
+      </div>
+
+      {/* Reviews + approvals */}
+      <div className="grid gap-4 lg:grid-cols-2">
+        <Card>
+          <CardHeader
+            title="Upcoming reviews"
+            subtitle="Reviews you have scheduled with your interns"
+          />
+          {visits.length === 0 ? (
+            <EmptyState
+              icon={CalendarDays}
+              title="Nothing scheduled"
+              hint="Schedule a review from an intern's page and it appears here — and on theirs."
+            />
+          ) : (
+            <ul className="space-y-3">
+              {visits.slice(0, 5).map((v) => (
+                <li key={v.id} className="flex items-center gap-3">
+                  <DateTile date={new Date(v.scheduledAt)} tone="warn" />
+                  <div className="min-w-0 flex-1">
+                    <p className="truncate text-sm font-medium text-ink">
+                      {v.placement.student.firstName} {v.placement.student.lastName}
+                    </p>
+                    <p className="truncate text-xs text-ink-muted">
+                      {v.placement.company?.name ?? 'No company'}
+                      {` · ${new Date(v.scheduledAt).toLocaleTimeString('en-GB', { hour: 'numeric', minute: '2-digit' })}`}
+                    </p>
+                  </div>
+                  <Badge tone="brand">{VISIT_LABEL[v.visitType] ?? 'Review'}</Badge>
+                </li>
+              ))}
+            </ul>
+          )}
+        </Card>
+
+        <Card>
+          <CardHeader
+            title="Pending approvals"
+            subtitle="Leave, extensions, supervisor changes and training plans"
+          />
+          {approvals.length === 0 ? (
+            <EmptyState icon={Inbox} title="Nothing to decide" hint="Requests from your interns land here." />
+          ) : (
+            <ul className="space-y-3">
+              {approvals.slice(0, 5).map((a) => {
+                const busy = decide.isPending && decide.variables?.id === a.id;
+                return (
+                  <li key={a.id} className="rounded-xl border border-line p-3">
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="min-w-0">
+                        <p className="truncate text-sm font-semibold text-ink">{a.student}</p>
+                        <p className="truncate text-xs text-ink-secondary">{a.title}</p>
+                        <p className="mt-0.5 text-xs text-ink-muted">
+                          {a.kind.replace(/_/g, ' ')}
+                          {a.effectiveFrom && ` · from ${new Date(a.effectiveFrom).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}`}
+                        </p>
+                      </div>
+
+                      {/* A company transfer is decided on its own screen — its
+                          approval creates a successor placement, which this
+                          panel deliberately does not try to do inline. */}
+                      {a.source === 'transfer' ? (
+                        <Link
+                          to="/coordinator/placements"
+                          className="shrink-0 rounded-lg border border-line px-2.5 py-1 text-xs font-semibold text-ink-secondary hover:bg-surface-sunken"
+                        >
+                          Review
+                        </Link>
+                      ) : (
+                        <div className="flex shrink-0 gap-1.5">
+                          <button
+                            type="button"
+                            disabled={busy}
+                            onClick={() => decide.mutate({ id: a.id, decision: 'rejected' })}
+                            aria-label={`Reject ${a.title}`}
+                            className="grid h-8 w-8 place-items-center rounded-lg border border-line text-danger hover:bg-danger-soft disabled:opacity-50"
+                          >
+                            <X className="h-4 w-4" />
+                          </button>
+                          <button
+                            type="button"
+                            disabled={busy}
+                            onClick={() => decide.mutate({ id: a.id, decision: 'approved' })}
+                            aria-label={`Approve ${a.title}`}
+                            className="grid h-8 w-8 place-items-center rounded-lg bg-ok text-white hover:opacity-90 disabled:opacity-50"
+                          >
+                            {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Check className="h-4 w-4" />}
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                  </li>
+                );
+              })}
+            </ul>
+          )}
         </Card>
       </div>
 

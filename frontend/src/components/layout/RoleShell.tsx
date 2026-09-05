@@ -4,6 +4,7 @@ import { cn } from '@/lib/utils';
 import { useAuth } from '@/contexts/AuthContext';
 import { useUnreadCount } from '@/hooks/useNotifications';
 import { useCoordinatorFeatureFlags } from '@/hooks/useDashboard';
+import { useStudentDashboard } from '@/hooks/useStudentDashboard';
 import { UserAvatar } from './UserAvatar';
 import { MobileNav } from './MobileNav';
 import { ThemeToggle } from './ThemeToggle';
@@ -40,6 +41,9 @@ export function RoleShell({ role, user, children, topbarSlot }: RoleShellProps) 
   const { pathname } = useLocation();
   const { data: unreadCount = 0 } = useUnreadCount();
   const { data: flags } = useCoordinatorFeatureFlags();
+  // The sidebar's profile-completion meter. Same cached query the student
+  // dashboard uses, so this costs no extra request.
+  const { data: studentStats } = useStudentDashboard(role === 'student');
 
   const nav = ROLE_NAV[role];
   const visibleNav = nav.items.filter((i) => !i.flag || flags?.[i.flag]);
@@ -108,9 +112,34 @@ export function RoleShell({ role, user, children, topbarSlot }: RoleShellProps) 
             <UserAvatar avatarUrl={user.avatarUrl} initials={user.initials} name={user.name} />
             <span className="min-w-0 leading-tight">
               <span className="block truncate text-sm font-semibold text-white">{user.name}</span>
-              <span className="block truncate text-[11px] text-sidebar-ink">{nav.roleLabel}</span>
+              <span className="block truncate text-[11px] text-sidebar-ink">
+                {nav.roleLabel}
+                {studentStats?.profile.academicLevel
+                  ? ` · Level ${studentStats.profile.academicLevel}`
+                  : ''}
+              </span>
             </span>
           </div>
+
+          {role === 'student' && studentStats && (
+            <div className="mt-3">
+              <div className="flex items-center justify-between text-[11px]">
+                <span className="text-sidebar-ink">Profile completion</span>
+                <span className="font-semibold text-white">{studentStats.profile.completionPct}%</span>
+              </div>
+              <div className="mt-1.5 h-1.5 w-full overflow-hidden rounded-full bg-white/10">
+                <div
+                  className="h-full rounded-full bg-ok transition-[width] duration-500"
+                  style={{ width: `${studentStats.profile.completionPct}%` }}
+                />
+              </div>
+              {studentStats.profile.completionPct < 100 && (
+                <Link to="/profile" className="mt-2 block text-[11px] font-semibold text-brand-ink hover:underline">
+                  Complete your profile →
+                </Link>
+              )}
+            </div>
+          )}
           <button
             type="button"
             onClick={logout}
