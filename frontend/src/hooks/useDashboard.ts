@@ -35,6 +35,20 @@ export interface CoordinatorDashboard {
   upcomingDeadlines: {
     id: string; title: string; closesAt: string | null; company: { name: string };
   }[];
+  /** Straight off PlacementStatus, so the donut can't disagree with the table. */
+  statusDistribution: { pending: number; active: number; completed: number; cancelled: number };
+  statusTotal: number;
+  /** From the append-only application event log; [] until there is history. */
+  applicationTrend: { day: string; applications: number; shortlisted: number }[];
+  /** Measured share of students holding a placement — not a forecast. */
+  placementRate: number | null;
+  /** null when there is only one period to compare — the chip then renders nothing. */
+  deltas: {
+    totalStudents:    number | null;
+    activePlacements: number | null;
+    applications:     number | null;
+    placedStudents:   number | null;
+  };
   featureFlags:     { aiPulseMatching: boolean };
 }
 

@@ -1,6 +1,27 @@
 import { Link } from 'react-router-dom';
+import { TrendingDown, TrendingUp } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Card } from './Card';
+
+/**
+ * The "+12% from last month" chip.
+ *
+ * `value` is null when there is only one period of history to compare against,
+ * and then nothing renders at all — a pilot cohort has no year-over-year, and a
+ * fabricated delta is exactly the sort of number nobody can defend.
+ */
+export function DeltaChip({ value, period }: { value: number | null; period: string }) {
+  if (value == null) return null;
+  const up = value >= 0;
+  const Icon = up ? TrendingUp : TrendingDown;
+  return (
+    <span className={cn('mt-1 inline-flex items-center gap-1 text-xs font-semibold', up ? 'text-ok' : 'text-danger')}>
+      <Icon className="h-3.5 w-3.5" />
+      {up ? '+' : ''}{value}%
+      <span className="font-normal text-ink-muted">{period}</span>
+    </span>
+  );
+}
 
 type Tone = 'brand' | 'ok' | 'warn' | 'danger' | 'info' | 'done';
 

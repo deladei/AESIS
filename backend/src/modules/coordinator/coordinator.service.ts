@@ -9,6 +9,7 @@ import {
 } from '../../shared/utils/quality';
 import { durationWeeksByAcademicYear, weeksForYear } from '../entries/entries.week';
 import { createNotification } from '../notifications/notifications.service';
+import { applicationTrend } from '../opportunities/opportunities.service';
 import { assignSupervisor } from '../placements/placements.service';
 import { emitToUser } from '../../shared/utils/socketEmitter';
 import { refreshRiskSnapshots, latestRiskDistribution } from '../risk/risk.service';
@@ -134,8 +135,23 @@ export async function getCoordinatorDashboard(opts: { academicYearId?: string } 
   ));
 
   // Everything the top row of the dashboard reports, counted from real rows.
+  // Month-over-month and year-over-year windows for the KPI delta chips. These
+  // are counted from real `created_at` history — a delta with only one period
+  // of data returns null and the chip renders nothing rather than a made-up
+  // "+12%".
+  const today = new Date();
+  const monthStart = new Date(Date.UTC(today.getUTCFullYear(), today.getUTCMonth(), 1));
+  const prevMonthStart = new Date(Date.UTC(today.getUTCFullYear(), today.getUTCMonth() - 1, 1));
+  const yearStart = new Date(Date.UTC(today.getUTCFullYear(), 0, 1));
+  const prevYearStart = new Date(Date.UTC(today.getUTCFullYear() - 1, 0, 1));
+
   const [totalStudents, placedStudents, applicationCount, shortlistedCount,
-         recentApplications, partnerCompanies, upcomingDeadlines] = await Promise.all([
+         recentApplications, partnerCompanies, upcomingDeadlines,
+         statusGroups, appTrend,
+         studentsThisYear, studentsLastYear,
+         placementsThisMonth, placementsLastMonth,
+         appsThisMonth, appsLastMonth,
+         placedThisMonth, placedLastMonth] = await Promise.all([
     prisma.user.count({ where: { role: 'student' } }),
     prisma.placement.count({
       where: { isCurrent: true, placementStatus: { in: ['active', 'completed'] } },
@@ -172,7 +188,61 @@ export async function getCoordinatorDashboard(opts: { academicYearId?: string } 
         company: { select: { name: true } },
       },
     }),
+    // Internship status mix — straight off PlacementStatus, so the donut can
+    // never disagree with the placements table.
+    prisma.placement.groupBy({
+      by: ['placementStatus'],
+      where: { isCurrent: true, ...cohort },
+      _count: { _all: true },
+    }),
+    applicationTrend(30),
+    prisma.user.count({ where: { role: 'student', createdAt: { gte: yearStart } } }),
+    prisma.user.count({ where: { role: 'student', createdAt: { gte: prevYearStart, lt: yearStart } } }),
+    prisma.placement.count({ where: { createdAt: { gte: monthStart } } }),
+    prisma.placement.count({ where: { createdAt: { gte: prevMonthStart, lt: monthStart } } }),
+    prisma.opportunityApplication.count({ where: { submittedAt: { gte: monthStart } } }),
+    prisma.opportunityApplication.count({ where: { submittedAt: { gte: prevMonthStart, lt: monthStart } } }),
+    prisma.placement.count({
+      where: { placementStatus: { in: ['active', 'completed'] }, approvedAt: { gte: monthStart } },
+    }),
+    prisma.placement.count({
+      where: {
+        placementStatus: { in: ['active', 'completed'] },
+        approvedAt: { gte: prevMonthStart, lt: monthStart },
+      },
+    }),
   ]);
+
+  /**
+   * Percentage change, or null when there is nothing to compare against.
+   *
+   * A pilot has one period of history, so most of these are null at launch —
+   * and null renders as no chip at all. Inventing "+12% from last month" out of
+   * a single data point is the kind of number nobody can defend.
+   */
+  const delta = (current: number, previous: number): number | null => {
+    if (previous <= 0) return null;
+    return Math.round(((current - previous) / previous) * 100);
+  };
+
+  const statusCount = (status: string) =>
+    statusGroups.find((g) => g.placementStatus === status)?._count._all ?? 0;
+
+  const statusDistribution = {
+    pending:   statusCount('pending'),
+    active:    statusCount('active'),
+    completed: statusCount('completed'),
+    cancelled: statusCount('cancelled') + statusCount('withdrawn') + statusCount('failed'),
+  };
+  const statusTotal = Object.values(statusDistribution).reduce((a, b) => a + b, 0);
+
+  // The honest replacement for the reference design's "placement prediction"
+  // gauge: what share of students actually hold a placement right now. A
+  // measured rate, not a forecast — there is no labelled outcome data to train
+  // a prediction on, and claiming one would be indefensible.
+  const placementRate = totalStudents > 0
+    ? Math.round((placedStudents / totalStudents) * 100)
+    : null;
 
   return {
     overview: {
@@ -194,6 +264,16 @@ export async function getCoordinatorDashboard(opts: { academicYearId?: string } 
     recentApplications,
     partnerCompanies,
     upcomingDeadlines,
+    statusDistribution,
+    statusTotal,
+    applicationTrend: appTrend,
+    placementRate,
+    deltas: {
+      totalStudents:    delta(studentsThisYear, studentsLastYear),
+      activePlacements: delta(placementsThisMonth, placementsLastMonth),
+      applications:     delta(appsThisMonth, appsLastMonth),
+      placedStudents:   delta(placedThisMonth, placedLastMonth),
+    },
     // Client-readable feature flags. AI Pulse Matching is roadmap-only and off
     // in production; the panel renders disabled until a real service exists.
     featureFlags: {

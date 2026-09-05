@@ -1,41 +1,38 @@
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import {
-  AlertTriangle, BarChart3, Briefcase, Building2, CalendarClock, Check, Clock,
-  Eye, FileDown, FileText, GraduationCap, Inbox, Landmark, Loader2, RefreshCw,
-  Users, X,
+  AlertTriangle, BarChart3, Briefcase, Building2, CalendarClock, Check, ChevronRight,
+  Clock, Eye, FileDown, FileText, GraduationCap, Inbox, Landmark, Loader2, RefreshCw,
+  Sparkles, TrendingUp, X,
 } from 'lucide-react';
 import { useCoordinatorDashboard, useCoordinatorActivity, useCoordinatorCohorts, type CoordinatorActivity } from '@/hooks/useDashboard';
 import { useAllPlacements, useUpdatePlacementStatus } from '@/hooks/usePlacements';
 import { useCohortConfig } from '@/hooks/useCohortConfig';
+import { useApplications } from '@/hooks/useOpportunities';
 import InternStatusTable from '@/components/coordinator/InternStatusTable';
 import SupervisorWorkloadPanel from '@/components/coordinator/SupervisorWorkloadPanel';
 import PerformanceDistributionModal from '@/components/coordinator/PerformanceDistributionModal';
 import GradeDistributionPanel from '@/components/coordinator/GradeDistributionPanel';
 import RegionRollupPanel from '@/components/coordinator/RegionRollupPanel';
-import { useApplications } from '@/hooks/useOpportunities';
 import { Card, CardHeader } from '@/components/ui/Card';
-import { StatCard } from '@/components/ui/StatCard';
+import { StatCard, DeltaChip } from '@/components/ui/StatCard';
 import { Badge } from '@/components/ui/Badge';
 import { EmptyState, ErrorState } from '@/components/ui/Feedback';
 import { DateTile, InitialsAvatar, NoValue, ProgressBar } from '@/components/ui/Bits';
 import { DonutStat, MultiLineTrend } from '@/components/ui/Charts';
 
 /**
- * Coordinator dashboard.
+ * Coordinator dashboard, laid out to the reference design: four headline
+ * figures, then Application Overview / Internship Status / Insights, then
+ * Recent Applications / Upcoming Deadlines / Placement Rate, then the intern
+ * table and the partner-company row.
  *
- * Backed by /coordinator/dashboard (metrics, risk mix, submission trend),
- * /coordinator/students (intern table), /coordinator/activity (audit feed) and
- * /placements?status=pending (approval queue).
- *
- * The previous version carried an "AI Pulse Matching" panel listing named
- * students with match percentages — those names and numbers were hardcoded in
- * the component. It has been removed rather than restyled: there is no matching
- * engine behind it, and a panel that invents student names is worse than an
- * absent one. Matching arrives with the opportunities/applications work, which
- * has real schema behind it.
+ * Two things the reference shows are deliberately not reproduced. Its
+ * "Placement Prediction 87%" gauge is a forecast with no labelled outcome data
+ * behind it — replaced here by the measured placement rate. Its inline chat box
+ * is absent because /ai/chat hardcodes a student id, so pointing a coordinator
+ * at it would send their id as a student's; the insight cards link out instead.
  */
-
 
 const APPLICATION_TONE: Record<string, 'neutral' | 'brand' | 'ok' | 'warn' | 'danger' | 'info' | 'done'> = {
   pending:      'neutral',
@@ -67,21 +64,17 @@ function relativeTime(iso: string): string {
   return `${Math.floor(days / 7)}w ago`;
 }
 
-// Recent-activity rows deep-link to their source entity when we have a route
-// for it. Placement audit rows open the intern profile.
+// Recent-activity rows deep-link to their source entity when a route exists.
 function activityLink(a: CoordinatorActivity): string | null {
   if (a.entityType === 'placement' && a.entityId) return `/coordinator/interns/${a.entityId}`;
   return null;
 }
 
 export default function CoordinatorDashboard() {
-  // Cohort scope — '' means the whole active population. Scopes every metric,
-  // the workload panel, the distribution, the intern table and the exports.
   const [yearId, setYearId] = useState('');
   const scopeYearId = yearId || undefined;
   const [showDistribution, setShowDistribution] = useState(false);
 
-  // Inline placement approve/reject. Reject expands a reason field.
   const updateStatus = useUpdatePlacementStatus();
   const [rejectingId, setRejectingId] = useState<string | null>(null);
   const [rejectReason, setRejectReason] = useState('');
@@ -114,23 +107,27 @@ export default function CoordinatorDashboard() {
     );
   }
 
-  const risk = dash?.riskDistribution ?? { low: 0, medium: 0, high: 0 };
-  const riskDonut = [
-    { label: 'On track', value: risk.low,    color: 'var(--chart-1)' },
-    { label: 'At risk',  value: risk.medium, color: 'var(--chart-2)' },
-    { label: 'Behind',   value: risk.high,   color: 'var(--chart-4)' },
-  ].filter((s) => s.value > 0);
-  const riskTotal = risk.low + risk.medium + risk.high;
+  const sd = dash?.statusDistribution ?? { pending: 0, active: 0, completed: 0, cancelled: 0 };
+  const statusTotal = dash?.statusTotal ?? 0;
+  const statusDonut = [
+    { label: 'Open',        value: sd.pending,   color: 'var(--chart-1)' },
+    { label: 'In Progress', value: sd.active,    color: 'var(--chart-2)' },
+    { label: 'Completed',   value: sd.completed, color: 'var(--chart-3)' },
+    { label: 'Cancelled',   value: sd.cancelled, color: 'var(--chart-4)' },
+  ].filter((d) => d.value > 0);
+  const inProgressShare = statusTotal > 0 ? Math.round((sd.active / statusTotal) * 100) : 0;
 
-  const trend = dash?.submissionTrends ?? [];
+  const appTrend = dash?.applicationTrend ?? [];
+  const risk = dash?.riskDistribution ?? { low: 0, medium: 0, high: 0 };
+  const topDept = dash?.partnerCompanies?.[0] ?? null;
 
   return (
     <div className="mx-auto max-w-[1400px] space-y-5 p-4 sm:p-6">
       <header className="flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-ink">Cohort oversight</h1>
+          <h1 className="text-2xl font-bold text-ink">Dashboard</h1>
           <p className="mt-1 text-sm text-ink-secondary">
-            Placement approvals, intern progress and supervisor load across the cohort.
+            Placements, applications and cohort progress at a glance.
           </p>
         </div>
 
@@ -164,7 +161,7 @@ export default function CoordinatorDashboard() {
         </div>
       </header>
 
-      {/* KPIs */}
+      {/* Four headline figures */}
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
         <StatCard
           label="Total students"
@@ -172,17 +169,21 @@ export default function CoordinatorDashboard() {
           icon={GraduationCap}
           tone="brand"
           loading={dashLoading}
-          footnote="Registered on the system"
           action={{ label: 'View all interns', to: '/coordinator/interns' }}
-        />
+        >
+          <DeltaChip value={dash?.deltas.totalStudents ?? null} period="from last year" />
+        </StatCard>
+
         <StatCard
           label="Active internships"
           value={ov ? ov.activePlacements.toLocaleString() : <NoValue />}
-          icon={Users}
+          icon={Briefcase}
           tone="ok"
           loading={dashLoading}
-          footnote="Currently on placement"
-        />
+        >
+          <DeltaChip value={dash?.deltas.activePlacements ?? null} period="from last month" />
+        </StatCard>
+
         <StatCard
           label="Applications"
           value={ov ? ov.applications.toLocaleString() : <NoValue />}
@@ -190,101 +191,127 @@ export default function CoordinatorDashboard() {
           tone="info"
           loading={dashLoading}
           footnote={ov?.applications ? `${ov.shortlisted} shortlisted` : 'No applications yet'}
-        />
+        >
+          <DeltaChip value={dash?.deltas.applications ?? null} period="from last month" />
+        </StatCard>
+
         <StatCard
           label="Placed students"
           value={ov ? ov.placedStudents.toLocaleString() : <NoValue />}
           icon={Check}
           tone="done"
           loading={dashLoading}
-          footnote="Placement approved or completed"
-        />
-        <StatCard
-          label="Pending placements"
-          value={ov ? ov.pendingApprovals : <NoValue />}
-          icon={Clock}
-          tone={ov?.pendingApprovals ? 'warn' : 'ok'}
-          loading={dashLoading}
-          footnote={ov?.pendingApprovals ? 'Awaiting your review' : 'All caught up'}
-          action={{ label: 'Review placements', to: '/coordinator/placements' }}
-        />
-        <StatCard
-          label="Needs attention"
-          value={ov ? ov.needsAttention : <NoValue />}
-          icon={AlertTriangle}
-          tone={ov?.needsAttention ? 'danger' : 'ok'}
-          loading={dashLoading}
-          footnote={ov?.needsAttention ? 'Flagged for review' : 'None flagged'}
-          action={{ label: 'See flagged interns', to: '/coordinator/interns?attention=1' }}
-        />
-        <StatCard
-          label="Host companies"
-          value={ov ? ov.hostCompanies : <NoValue />}
-          icon={Briefcase}
-          tone="info"
-          loading={dashLoading}
-          footnote="Currently hosting interns"
-          action={{ label: 'View companies', to: '/coordinator/companies' }}
-        />
+        >
+          <DeltaChip value={dash?.deltas.placedStudents ?? null} period="from last month" />
+        </StatCard>
       </div>
 
-      {/* Trend + risk mix */}
-      <div className="grid gap-4 lg:grid-cols-3">
-        <Card className="lg:col-span-2">
+      {/* Application overview · internship status · insights */}
+      <div className="grid gap-4 lg:grid-cols-12">
+        <Card className="lg:col-span-5">
           <CardHeader
-            title="Submissions against schedule"
-            subtitle="Weeks scheduled versus weeks actually submitted, cohort-wide"
+            title="Application overview"
+            subtitle="Applications received against those shortlisted"
           />
           <MultiLineTrend
-            data={trend as unknown as Record<string, unknown>[]}
-            xKey="week"
+            data={appTrend as unknown as Record<string, unknown>[]}
+            xKey="day"
             series={[
-              { key: 'scheduled', label: 'Scheduled', color: 'var(--chart-line)' },
-              { key: 'submitted', label: 'Submitted', color: 'var(--chart-1)' },
+              { key: 'applications', label: 'Applications', color: 'var(--chart-line)' },
+              { key: 'shortlisted',  label: 'Shortlisted',  color: 'var(--chart-1)' },
             ]}
           />
         </Card>
 
-        <Card>
-          <CardHeader
-            title="Risk mix"
-            subtitle="Rule-based tiers — advisory, never a grade"
-            control={
-              <button
-                type="button"
-                onClick={() => setShowDistribution(true)}
-                className="rounded-lg border border-line px-2.5 py-1 text-xs font-semibold text-ink-secondary hover:bg-surface-sunken"
-              >
-                <BarChart3 className="mr-1 inline h-3.5 w-3.5" />
-                Performance
-              </button>
-            }
-          />
+        <Card className="lg:col-span-3">
+          <CardHeader title="Internship status" />
           <DonutStat
-            data={riskDonut}
-            centerValue={riskTotal}
-            centerCaption={riskTotal === 1 ? 'intern' : 'interns'}
-            emptyHint="Risk tiers appear once interns begin submitting."
+            data={statusDonut}
+            centerValue={statusTotal}
+            centerCaption="Total"
+            emptyHint="Placements appear here once they are registered."
           />
-          {ov?.avgPerformance != null && (
-            <div className="mt-4 border-t border-line pt-3">
-              <div className="flex items-center justify-between text-xs">
-                <span className="text-ink-secondary">Average performance</span>
-                <span className="font-semibold text-ink">{ov.avgPerformance.toFixed(1)}</span>
-              </div>
-              <ProgressBar value={ov.avgPerformance} className="mt-2" label="Average cohort performance" />
+          {statusTotal > 0 && (
+            <div className="mt-4 rounded-xl bg-brand-soft p-3">
+              <p className="text-xs text-ink-secondary">
+                <span className="font-semibold text-brand-ink">Signal:</span>{' '}
+                {inProgressShare}% of placements are in progress.
+              </p>
+              <Link to="/coordinator/interns" className="mt-1 inline-block text-xs font-semibold text-brand-ink hover:underline">
+                View analysis →
+              </Link>
             </div>
           )}
         </Card>
+
+        <Card className="lg:col-span-4">
+          <CardHeader
+            title={<span className="flex items-center gap-2"><Sparkles className="h-4 w-4 text-brand" /> Insights</span>}
+            subtitle="Based on your cohort's own data"
+            action={{ label: 'View all', to: '/ai-insights' }}
+          />
+          <div className="space-y-2.5">
+            <Link
+              to="/coordinator/interns"
+              className="flex items-start gap-3 rounded-xl border border-line p-3 transition-colors hover:border-brand hover:bg-brand-soft"
+            >
+              <span className="grid h-9 w-9 shrink-0 place-items-center rounded-lg bg-ok-soft text-ok">
+                <TrendingUp className="h-4 w-4" />
+              </span>
+              <span className="min-w-0 flex-1">
+                <span className="block text-sm font-semibold text-ink">Application activity</span>
+                <span className="block text-xs text-ink-secondary">
+                  {appTrend.length === 0
+                    ? 'No applications yet — trends appear once students apply.'
+                    : `${appTrend.reduce((n, d) => n + d.applications, 0)} applications in the last 30 days.`}
+                </span>
+              </span>
+              <ChevronRight className="h-4 w-4 shrink-0 text-ink-muted" />
+            </Link>
+
+            <Link
+              to="/coordinator/interns?attention=1"
+              className="flex items-start gap-3 rounded-xl border border-line p-3 transition-colors hover:border-brand hover:bg-brand-soft"
+            >
+              <span className="grid h-9 w-9 shrink-0 place-items-center rounded-lg bg-warn-soft text-warn">
+                <AlertTriangle className="h-4 w-4" />
+              </span>
+              <span className="min-w-0 flex-1">
+                <span className="block text-sm font-semibold text-ink">At-risk internships</span>
+                <span className="block text-xs text-ink-secondary">
+                  {risk.high === 0
+                    ? 'No placement is currently flagged high risk.'
+                    : `${risk.high} flagged high risk and may need intervention.`}
+                </span>
+              </span>
+              <ChevronRight className="h-4 w-4 shrink-0 text-ink-muted" />
+            </Link>
+
+            <Link
+              to="/coordinator/companies"
+              className="flex items-start gap-3 rounded-xl border border-line p-3 transition-colors hover:border-brand hover:bg-brand-soft"
+            >
+              <span className="grid h-9 w-9 shrink-0 place-items-center rounded-lg bg-done-soft text-done">
+                <Building2 className="h-4 w-4" />
+              </span>
+              <span className="min-w-0 flex-1">
+                <span className="block text-sm font-semibold text-ink">Top host company</span>
+                <span className="block text-xs text-ink-secondary">
+                  {topDept
+                    ? `${topDept.name} hosts the most interns (${topDept._count.placements}).`
+                    : 'No company is hosting interns yet.'}
+                </span>
+              </span>
+              <ChevronRight className="h-4 w-4 shrink-0 text-ink-muted" />
+            </Link>
+          </div>
+        </Card>
       </div>
 
-      {/* Applications, deadlines, partners */}
+      {/* Applications · deadlines · placement rate */}
       <div className="grid gap-4 lg:grid-cols-3">
         <Card>
-          <CardHeader
-            title="Recent applications"
-            subtitle="Students applying to posted internships"
-          />
+          <CardHeader title="Recent applications" action={{ label: 'View all', to: '/coordinator/interns' }} />
           {applications.length === 0 ? (
             <EmptyState
               icon={FileText}
@@ -295,15 +322,13 @@ export default function CoordinatorDashboard() {
             <ul className="space-y-3">
               {applications.map((a) => (
                 <li key={a.id} className="flex items-center gap-3">
-                  <span className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-brand-soft text-xs font-semibold text-brand-ink">
-                    {a.student.firstName[0]}{a.student.lastName[0]}
-                  </span>
+                  <InitialsAvatar name={`${a.student.firstName} ${a.student.lastName}`} size={36} />
                   <div className="min-w-0 flex-1">
-                    <p className="truncate text-sm font-medium text-ink">
+                    <p className="truncate text-sm font-semibold text-ink">
                       {a.student.firstName} {a.student.lastName}
                     </p>
                     <p className="truncate text-xs text-ink-muted">
-                      {a.opportunity.title} · {a.opportunity.company.name}
+                      {a.opportunity.title} @ {a.opportunity.company.name}
                     </p>
                   </div>
                   <div className="shrink-0 text-right">
@@ -319,7 +344,7 @@ export default function CoordinatorDashboard() {
         </Card>
 
         <Card>
-          <CardHeader title="Upcoming deadlines" subtitle="Opportunities still open" />
+          <CardHeader title="Upcoming deadlines" action={{ label: 'View calendar', to: '/coordinator/settings' }} />
           {(dash?.upcomingDeadlines ?? []).length === 0 ? (
             <EmptyState
               icon={CalendarClock}
@@ -332,7 +357,7 @@ export default function CoordinatorDashboard() {
                 <li key={d.id} className="flex items-center gap-3">
                   <DateTile date={new Date(d.closesAt!)} tone="warn" />
                   <div className="min-w-0 flex-1">
-                    <p className="truncate text-sm font-medium text-ink">{d.title}</p>
+                    <p className="truncate text-sm font-semibold text-ink">{d.title}</p>
                     <p className="truncate text-xs text-ink-muted">{d.company.name}</p>
                   </div>
                   <span className="shrink-0 text-xs font-semibold text-warn">{daysLeft(d.closesAt)}</span>
@@ -342,37 +367,49 @@ export default function CoordinatorDashboard() {
           )}
         </Card>
 
-        <Card>
+        <Card className="flex flex-col">
           <CardHeader
-            title="Top host companies"
-            subtitle="Ranked by interns currently placed"
-            action={{ label: 'All companies', to: '/coordinator/companies' }}
+            title="Placement rate"
+            subtitle="Measured, not predicted"
           />
-          {(dash?.partnerCompanies ?? []).length === 0 ? (
-            <EmptyState icon={Building2} title="No host companies yet" hint="Companies appear once placements are approved." />
-          ) : (
-            <ul className="space-y-2.5">
-              {dash!.partnerCompanies.slice(0, 6).map((c) => (
-                <li key={c.id} className="flex items-center gap-3">
-                  {/* A monogram, not a borrowed logo: an unlicensed mark is a
-                      legal problem, a monogram is just the company's initials. */}
-                  {c.logoUrl
-                    ? <img src={c.logoUrl} alt="" className="h-9 w-9 shrink-0 rounded-lg object-contain" />
-                    : <InitialsAvatar name={c.name} size={36} className="rounded-lg" />}
-                  <div className="min-w-0 flex-1">
-                    <p className="truncate text-sm font-medium text-ink">{c.name}</p>
-                    {c.industry && <p className="truncate text-xs text-ink-muted">{c.industry}</p>}
-                  </div>
-                  <span className="shrink-0 text-xs font-semibold text-ink-secondary">
-                    {c._count.placements}
-                  </span>
-                </li>
-              ))}
-            </ul>
-          )}
+          <div className="flex flex-1 flex-col items-center justify-center">
+            <div className="relative grid h-32 w-32 place-items-center">
+              {/* A ring, not a gauge with a forecast in it: this is the share of
+                  students who actually hold a placement today. */}
+              <svg viewBox="0 0 120 120" className="absolute inset-0 -rotate-90">
+                <circle cx="60" cy="60" r="52" fill="none" stroke="var(--surface-sunken)" strokeWidth="12" />
+                <circle
+                  cx="60" cy="60" r="52" fill="none"
+                  stroke="var(--chart-1)" strokeWidth="12" strokeLinecap="round"
+                  strokeDasharray={`${((dash?.placementRate ?? 0) / 100) * 327} 327`}
+                />
+              </svg>
+              <div className="text-center">
+                <span className="block text-2xl font-bold text-ink">
+                  {dash?.placementRate != null ? `${dash.placementRate}%` : '—'}
+                </span>
+                <span className="block text-[11px] text-ink-muted">of students</span>
+              </div>
+            </div>
+
+            <div className="mt-4 w-full space-y-1.5 border-t border-line pt-3">
+              <p className="text-xs font-semibold text-ink">What this counts</p>
+              <p className="flex items-center gap-2 text-xs text-ink-secondary">
+                <Check className="h-3.5 w-3.5 text-ok" /> Placements approved or completed
+              </p>
+              <p className="flex items-center gap-2 text-xs text-ink-secondary">
+                <Check className="h-3.5 w-3.5 text-ok" /> Over every registered student
+              </p>
+              <p className="mt-2 text-[11px] text-ink-muted">
+                A measured rate. No placement outcome is forecast — there is no
+                labelled outcome data to support one.
+              </p>
+            </div>
+          </div>
         </Card>
       </div>
 
+      {/* Working panels */}
       <div className="grid grid-cols-12 gap-4">
         <div className="col-span-12 space-y-4 lg:col-span-8">
           <InternStatusTable pageSize={8} viewAllHref="/coordinator/interns" scopeYearId={scopeYearId} />
@@ -380,7 +417,6 @@ export default function CoordinatorDashboard() {
           <GradeDistributionPanel academicYearId={statsYearId} />
           <RegionRollupPanel academicYearId={statsYearId} />
 
-          {/* Placement approvals */}
           <Card>
             <CardHeader
               title="Placement requests"
@@ -522,6 +558,83 @@ export default function CoordinatorDashboard() {
           </Card>
         </div>
       </div>
+
+      {/* Partner companies */}
+      <Card>
+        <CardHeader
+          title="Top host companies"
+          subtitle="Ranked by interns currently placed"
+          action={{ label: 'View all partners', to: '/coordinator/companies' }}
+          control={
+            <button
+              type="button"
+              onClick={() => setShowDistribution(true)}
+              className="rounded-lg border border-line px-2.5 py-1 text-xs font-semibold text-ink-secondary hover:bg-surface-sunken"
+            >
+              <BarChart3 className="mr-1 inline h-3.5 w-3.5" />
+              Performance
+            </button>
+          }
+        />
+        {(dash?.partnerCompanies ?? []).length === 0 ? (
+          <EmptyState icon={Building2} title="No host companies yet" hint="Companies appear once placements are approved." />
+        ) : (
+          <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
+            {dash!.partnerCompanies.map((c) => (
+              <Link
+                key={c.id}
+                to="/coordinator/companies"
+                className="flex flex-col items-center gap-2 rounded-xl border border-line p-3 text-center transition-colors hover:border-brand hover:bg-brand-soft"
+              >
+                {/* A monogram, never a borrowed mark: an unlicensed logo is a
+                    legal problem, initials are just the company's name. */}
+                {c.logoUrl
+                  ? <img src={c.logoUrl} alt="" className="h-10 w-10 rounded-lg object-contain" />
+                  : <InitialsAvatar name={c.name} size={40} className="rounded-lg" />}
+                <span className="w-full truncate text-xs font-semibold text-ink">{c.name}</span>
+                <span className="text-[11px] text-ink-muted">
+                  {c._count.placements} intern{c._count.placements === 1 ? '' : 's'}
+                </span>
+              </Link>
+            ))}
+          </div>
+        )}
+      </Card>
+
+      {/* Compliance strip — a real configured figure, kept from the working set */}
+      {ov && (
+        <Card>
+          <div className="flex flex-wrap items-center gap-x-8 gap-y-3">
+            <div className="min-w-[140px]">
+              <p className="text-xs text-ink-secondary">Compliance rate</p>
+              <p className="text-lg font-bold text-ink">{ov.complianceRate}%</p>
+            </div>
+            <div className="min-w-[140px]">
+              <p className="text-xs text-ink-secondary">Average performance</p>
+              <p className="text-lg font-bold text-ink">
+                {ov.avgPerformance != null ? ov.avgPerformance.toFixed(1) : <NoValue />}
+              </p>
+              {ov.avgPerformance != null && (
+                <ProgressBar value={ov.avgPerformance} className="mt-1.5 w-32" label="Average performance" />
+              )}
+            </div>
+            <div className="min-w-[140px]">
+              <p className="text-xs text-ink-secondary">Needs attention</p>
+              <p className="text-lg font-bold text-ink">{ov.needsAttention}</p>
+            </div>
+            <div className="min-w-[140px]">
+              <p className="text-xs text-ink-secondary">Pending placements</p>
+              <p className="text-lg font-bold text-ink">{ov.pendingApprovals}</p>
+            </div>
+            <Link
+              to="/coordinator/interns?attention=1"
+              className="ml-auto inline-flex items-center gap-1.5 text-sm font-semibold text-brand-ink hover:underline"
+            >
+              <Clock className="h-4 w-4" /> Review flagged interns
+            </Link>
+          </div>
+        </Card>
+      )}
 
       {showDistribution && (
         <PerformanceDistributionModal scopeYearId={scopeYearId} onClose={() => setShowDistribution(false)} />

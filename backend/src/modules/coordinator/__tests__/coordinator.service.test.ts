@@ -5,6 +5,8 @@ jest.mock('../../../config/prisma', () => ({
       findMany:  jest.fn(),
       findUnique: jest.fn(),
       update:    jest.fn(),
+      // Status mix for the internship-status donut.
+      groupBy:   jest.fn().mockResolvedValue([]),
     },
     studentRiskScore: {
       findMany: jest.fn(),
@@ -59,6 +61,9 @@ jest.mock('../../../config/prisma', () => ({
       findMany: jest.fn().mockResolvedValue([]),
     },
     internshipOpportunity: {
+      findMany: jest.fn().mockResolvedValue([]),
+    },
+    applicationEvent: {
       findMany: jest.fn().mockResolvedValue([]),
     },
     studentRoster: {
