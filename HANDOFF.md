@@ -3688,3 +3688,80 @@ any API; validation sweep; S87 prod smokes; Render env nits. The two stopped Doc
 (`aesis_celery`, `aesis_ai`) need `docker start` before chatbot or enrichment work.
 **Grep before trusting any panel — eight instances of the dead-table bug is not a coincidence,
 it is a pattern.**
+
+---
+
+## S97 — 2026-09-06 · Attachment length becomes one editable number; validation sweep closed
+
+**Shipped as `c57650e` (cohort length) and `c18c066` (validation sweep).**
+
+### The programme's length was THREE numbers, none of them editable
+
+1. `CohortConfig.durationWeeks` — the logbook's week ceiling, with **no endpoint that
+   could write it**, and a database `CHECK duration_weeks >= 6` that made a 5-week cohort
+   impossible to configure at all. The write failed at the database.
+2. `CohortConfig.totalWeeks` (default **24**) — what the settings page quoted back. It
+   promised interns a 24-week placement while the logbook enforced 6.
+3. The SIWES calendar derived its own from the placement's start/end dates. **A cohort
+   configured for 5 weeks whose dates spanned 6 drew a six-week rail in the logbook while
+   the entries API rejected week 6 with a 422.** That is the "6 instead of 5".
+
+`durationWeeks` is now the single answer. Editable via `PATCH /coordinator/cohort-config`
+(1–52) with an Attachment length section on Cohort Settings that previews exactly what
+changes. `totalWeeks` is **off the API entirely** — the column stays only as a fallback for
+cohorts predating `durationWeeks`. `expectedWeeks` now lets the configured length beat the
+date span, and `effectiveEnd` is clamped by it (a placement that ends EARLY is still short —
+the configuration is a ceiling, not a floor). Defaults moved 6 → 5 across schema,
+`DEFAULT_DURATION_WEEKS`, `SCHEDULE_WEEKS` and the seed.
+
+**Migration `20260906110000_cohort_duration_editable`** — relaxes the CHECK to `>= 1`, moves
+rows still on the old default 6 to **5**, re-defaults the column. Data-preserving: no column
+dropped, no row deleted. ⚠️ The `>= 6` floor was documented as a departmental minimum; it now
+lives in configuration where a coordinator can change it, which is the point.
+
+### Validation sweep — closed
+
+S89 built the shared rules and wired the forms it touched; ten were never revisited. New
+shared primitives `newPassword` / `offeredPassword` / `httpUrl`; `loginSchema`,
+`resetPasswordInitSchema`, `resetPasswordConfirmSchema` moved into `shared/validation/auth`.
+
+Real defects closed, not decoration: **reject a placement** (button unlocked on any non-empty
+text, API demands 10 chars → bare 400); **attestation** (capped at 2,000 and silently
+truncated the paste; API accepts 5,000); **review a week** (no upper bound at all);
+**finalize** (no bound on narrative or waiver reason; grade truncated as typed); **schedule a
+call** (link check was `^https?://`, which accepts `https://` alone; and calls could be
+scheduled into the past); **add an objective** (silent truncation at 200); **set a new
+password** (hand-copied `length < 8`); **sign in / reset** (no email check).
+
+Untouched on purpose: search boxes, chat composers, filter selects, file pickers.
+`offeredPassword` is only "not empty" deliberately — telling an unauthenticated visitor their
+attempt is too short to be one of ours is a hint we should not give.
+
+### Design replication status — asked and answered
+
+The reference images are not in the repo or anywhere on disk (they were pasted into earlier
+sessions), so this is a census by design-system adoption, not a diff against the mockups.
+
+**On the design system (11):** the three dashboards, Coordinator Settings / Companies /
+Placement Approval / Supervisor Assignments, Admin All Interns, AI Insights, Feedback Centre,
+Profile.
+
+**NOT yet rebuilt (16)** — still on raw `var(--h-*)`, so they are also the pages that will
+look wrong in dark mode: `LogbookEditor` (193 legacy refs — the biggest), `EntryReview` (142),
+`PlacementFinalization` (114), **`AdminDashboard` (89 — despite S93's "three dashboards")**,
+`SubmissionHistory`, `InternDetail`, `NotificationInbox`, `Attestation`, `LoginPage`,
+`IndustryScore`, `WeeklyComment`, `ChatbotPanel`, `FinalAssessment`, `CohortReport`,
+`AdminReport`, `CompanyDetail`, plus the four auth pages. `InternsList` has 8 stragglers.
+
+### State
+
+**838 tests green, 59/59 suites.** Both typechecks clean; production build green.
+
+### ⚠️ Still not visually verified
+
+No browser has rendered any of this, and there is still no frontend test runner.
+
+### Carried
+
+Supabase password rotation; Neon deletion; S87 prod smokes; Render env nits; the two stopped
+Docker containers (`aesis_celery`, `aesis_ai`). **New:** 16 pages still off the design system.
