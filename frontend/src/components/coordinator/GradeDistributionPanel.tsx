@@ -31,7 +31,7 @@ export default function GradeDistributionPanel({ academicYearId }: { academicYea
   const { data: stats, isLoading, isError } = useCohortStats(academicYearId);
 
   const shell = (children: React.ReactNode) => (
-    <div className="rounded-xl border border-line bg-surface p-6">
+    <div className="rounded-card border border-line bg-surface p-6">
       <div className="mb-4 flex items-start justify-between">
         <div>
           <h3 className="flex items-center gap-2 text-lg font-semibold text-brand-ink">

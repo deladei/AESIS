@@ -27,7 +27,7 @@ export function ObjectivesPanel({ placementId, canDefine = false }: { placementI
   }
 
   return (
-    <section className="rounded-xl bg-surface p-6 shadow-sm">
+    <section className="rounded-xl bg-surface p-6 shadow-card">
       <div className="mb-4 flex items-center gap-2">
         <Target className="h-5 w-5 text-brand-ink" />
         <h3 className="text-sm font-bold text-ink">Learning objectives</h3>

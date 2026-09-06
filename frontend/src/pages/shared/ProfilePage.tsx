@@ -81,7 +81,7 @@ function AvatarUploader({ profile, initials }: { profile: Profile; initials: str
           {busy ? <Loader2 className="h-5 w-5 animate-spin text-white" /> : <Camera className="h-5 w-5 text-white" />}
         </span>
         {/* Always-visible badge so it's obvious the avatar is clickable to add/change a picture */}
-        <span className="absolute -bottom-0.5 -right-0.5 flex h-6 w-6 items-center justify-center rounded-full border-2 border-surface bg-brand text-ink-inverse shadow-sm">
+        <span className="absolute -bottom-0.5 -right-0.5 flex h-6 w-6 items-center justify-center rounded-full border-2 border-surface bg-brand text-ink-inverse shadow-card">
           <Camera className="h-3 w-3" />
         </span>
       </button>

@@ -14,7 +14,7 @@ const apiErr = (e: unknown) =>
 const fmtDate = (iso: string) =>
   new Date(iso).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
 
-const card = 'rounded-xl border border-line bg-surface p-5';
+const card = 'rounded-card border border-line bg-surface p-5';
 
 /**
  * Coordinator/supervisor tool: mint the week-scoped weekly-comment link for a

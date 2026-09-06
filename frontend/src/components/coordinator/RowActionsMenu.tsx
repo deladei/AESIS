@@ -75,7 +75,7 @@ export default function RowActionsMenu({ placementId, internName, flagged = fals
         {open && (
           <>
             <div className="fixed inset-0 z-10" onClick={() => setOpen(false)} />
-            <div role="menu" className="absolute right-0 z-20 mt-1 w-52 overflow-hidden rounded-lg border border-line bg-surface py-1 shadow-lg">
+            <div role="menu" className="absolute right-0 z-20 mt-1 w-52 overflow-hidden rounded-lg border border-line bg-surface py-1 shadow-pop">
               <button className={item} onClick={() => go(`/coordinator/interns/${placementId}`)}><User className="h-4 w-4 text-ink-muted" /> View profile</button>
               <button className={item} onClick={() => go(`/coordinator/interns/${placementId}`)}><FileText className="h-4 w-4 text-ink-muted" /> View logs</button>
               <button className={item} onClick={() => { setOpen(false); setModal('reassign'); }}><UserCheck className="h-4 w-4 text-ink-muted" /> Reassign supervisor</button>
@@ -99,7 +99,7 @@ export default function RowActionsMenu({ placementId, internName, flagged = fals
 
       {modal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 p-4" onClick={() => setModal(null)}>
-          <div className="w-full max-w-md rounded-xl bg-surface p-5 shadow-xl" onClick={(e) => e.stopPropagation()}>
+          <div className="w-full max-w-md rounded-xl bg-surface p-5 shadow-pop" onClick={(e) => e.stopPropagation()}>
             <div className="mb-3 flex items-center justify-between">
               <h3 className="text-base font-bold text-ink">
                 {modal === 'reassign' ? 'Reassign supervisor' : modal === 'flag' ? `Flag ${internName}` : `Message ${internName}`}
@@ -148,7 +148,7 @@ export default function RowActionsMenu({ placementId, internName, flagged = fals
       )}
 
       {toast && (
-        <div className="fixed bottom-4 right-4 z-50 rounded-lg bg-ink px-4 py-2 text-sm font-medium text-ink-inverse shadow-lg">{toast}</div>
+        <div className="fixed bottom-4 right-4 z-50 rounded-lg bg-ink px-4 py-2 text-sm font-medium text-ink-inverse shadow-pop">{toast}</div>
       )}
     </>
   );

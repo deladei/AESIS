@@ -136,7 +136,7 @@ export default function CoordinatorDashboard() {
             value={yearId}
             onChange={(e) => setYearId(e.target.value)}
             aria-label="Scope dashboard to a cohort"
-            className="rounded-xl border border-line bg-surface px-3 py-2 text-sm font-medium text-ink focus:border-brand focus:outline-none"
+            className="rounded-card border border-line bg-surface px-3 py-2 text-sm font-medium text-ink focus:border-brand focus:outline-none"
           >
             <option value="">All cohorts</option>
             {cohorts.map((c) => (
@@ -147,7 +147,7 @@ export default function CoordinatorDashboard() {
           <a
             href={`/coordinator/report${scopeYearId ? `?academicYearId=${scopeYearId}` : ''}`}
             target="_blank" rel="noopener noreferrer"
-            className="inline-flex items-center gap-1.5 rounded-xl border border-line px-3 py-2 text-sm font-semibold text-ink transition-colors hover:bg-surface-sunken"
+            className="inline-flex items-center gap-1.5 rounded-card border border-line px-3 py-2 text-sm font-semibold text-ink transition-colors hover:bg-surface-sunken"
           >
             <FileDown className="h-4 w-4" /> Export PDF
           </a>
@@ -550,7 +550,7 @@ export default function CoordinatorDashboard() {
             <div className="border-t border-line p-4">
               <Link
                 to="/coordinator/placements"
-                className="block w-full rounded-xl border border-line py-2 text-center text-sm font-semibold text-ink-secondary transition-colors hover:bg-surface-sunken hover:text-ink"
+                className="block w-full rounded-card border border-line py-2 text-center text-sm font-semibold text-ink-secondary transition-colors hover:bg-surface-sunken hover:text-ink"
               >
                 View placements
               </Link>

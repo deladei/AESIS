@@ -74,7 +74,7 @@ export default function NotificationInbox() {
       </div>
 
       {notifications.length === 0 ? (
-        <div className="flex flex-col items-center justify-center rounded-xl border border-dashed border-line bg-surface py-20 text-center">
+        <div className="flex flex-col items-center justify-center rounded-card border border-dashed border-line bg-surface py-20 text-center">
           <Bell className="mb-4 h-10 w-10 text-ink-muted" />
           <p className="text-sm text-ink-secondary">No notifications yet</p>
         </div>
@@ -133,7 +133,7 @@ export default function NotificationInbox() {
           onClick={() => setReplyTo(null)}
         >
           <div
-            className="flex h-[600px] w-full max-w-lg flex-col overflow-hidden rounded-2xl bg-surface shadow-2xl"
+            className="flex h-[600px] w-full max-w-lg flex-col overflow-hidden rounded-card bg-surface shadow-pop"
             onClick={(e) => e.stopPropagation()}
           >
             <div className="flex items-center justify-between border-b border-line px-4 py-3">

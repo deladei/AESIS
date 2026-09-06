@@ -349,7 +349,7 @@ export default function EntryReview() {
       <div className="grid gap-6 lg:grid-cols-[320px_1fr]">
         {/* Queue */}
         <aside className="lg:sticky lg:top-6 lg:self-start">
-          <div className="overflow-hidden rounded-xl border border-line bg-surface">
+          <div className="overflow-hidden rounded-card border border-line bg-surface">
             <div className="border-b border-line px-4 py-3 text-xs font-semibold uppercase tracking-wide text-ink-secondary">
               Awaiting review
             </div>
@@ -415,20 +415,20 @@ export default function EntryReview() {
         {/* Detail + action */}
         <section>
           {!selectedId ? (
-            <div className="rounded-xl border border-dashed border-line bg-surface py-24 text-center">
+            <div className="rounded-card border border-dashed border-line bg-surface py-24 text-center">
               <CheckCircle2 className="mx-auto mb-3 h-10 w-10 text-ok" />
               <h2 className="text-base font-semibold text-ink">Nothing to review</h2>
               <p className="mt-1 text-sm text-ink-secondary">Submitted weeks from your interns will appear here.</p>
             </div>
           ) : detailLoading || !detail ? (
-            <div className="flex h-64 items-center justify-center rounded-xl border border-line bg-surface">
+            <div className="flex h-64 items-center justify-center rounded-card border border-line bg-surface">
               <Loader2 className="h-6 w-6 animate-spin text-brand-ink" />
             </div>
           ) : (
             <div className="grid gap-5 xl:grid-cols-[1fr_300px]">
               {/* Entry content */}
               <div className="space-y-5">
-                <div className="rounded-xl border border-line bg-surface p-5">
+                <div className="rounded-card border border-line bg-surface p-5">
                   <div className="flex flex-wrap items-start justify-between gap-2">
                     <div>
                       <h2 className="text-lg font-bold text-ink">{studentName(detail)}</h2>
@@ -467,7 +467,7 @@ export default function EntryReview() {
                     student wrote up without itemising activities was invisible
                     here — and lateness lives on the day, not the activity. */}
                 {(detail.days ?? []).length > 0 && (
-                  <div className="rounded-xl border border-line bg-surface p-5">
+                  <div className="rounded-card border border-line bg-surface p-5">
                     <h3 className="mb-3 flex items-center gap-2 text-sm font-semibold text-ink">
                       <CalendarDays className="h-4 w-4 text-brand-ink" /> Days
                     </h3>
@@ -495,7 +495,7 @@ export default function EntryReview() {
                 )}
 
                 {/* Activities */}
-                <div className="rounded-xl border border-line bg-surface p-5">
+                <div className="rounded-card border border-line bg-surface p-5">
                   <h3 className="mb-3 flex items-center gap-2 text-sm font-semibold text-ink">
                     <FileText className="h-4 w-4 text-brand-ink" /> Activities
                   </h3>
@@ -526,13 +526,13 @@ export default function EntryReview() {
 
                 {/* Evidence — photos / documents the student attached. Read-only
                     for the supervisor, so they can assess the actual work. */}
-                <div className="rounded-xl border border-line bg-surface p-5">
+                <div className="rounded-card border border-line bg-surface p-5">
                   <EntryAttachments entryId={detail.id} editable={false} />
                 </div>
 
                 {/* Reflection */}
                 {detail.reflection ? (
-                  <div className="rounded-xl border border-line bg-surface p-5 space-y-3">
+                  <div className="rounded-card border border-line bg-surface p-5 space-y-3">
                     <h3 className="text-sm font-semibold text-ink">Reflection</h3>
                     <div>
                       <p className="mb-1 text-xs font-semibold uppercase tracking-wide text-ink-secondary">What they learned</p>
@@ -544,14 +544,14 @@ export default function EntryReview() {
                     </div>
                   </div>
                 ) : (
-                  <div className="rounded-xl border border-line bg-surface p-5">
+                  <div className="rounded-card border border-line bg-surface p-5">
                     <p className="text-sm text-ink-muted">No reflection submitted for this week.</p>
                   </div>
                 )}
 
                 {/* Event history */}
                 {detail.events && detail.events.length > 0 && (
-                  <div className="rounded-xl border border-line bg-surface p-5">
+                  <div className="rounded-card border border-line bg-surface p-5">
                     <h3 className="mb-3 text-sm font-semibold text-ink">History</h3>
                     <ol className="space-y-2">
                       {detail.events.map((ev) => (
@@ -576,7 +576,7 @@ export default function EntryReview() {
 
               {/* AI panel + actions */}
               <div className="space-y-4">
-                <div className="rounded-xl border border-line bg-surface p-5">
+                <div className="rounded-card border border-line bg-surface p-5">
                   <h3 className="mb-3 flex items-center gap-2 text-sm font-semibold text-ink">
                     <Sparkles className="h-4 w-4 text-brand-ink" /> AI assessment
                   </h3>
@@ -678,7 +678,7 @@ export default function EntryReview() {
 
                 {/* Action card — read-only once the week already has a decision
                     (a deep-linked entry can arrive here acknowledged/returned). */}
-                <div className="rounded-xl border border-line bg-surface p-5">
+                <div className="rounded-card border border-line bg-surface p-5">
                   {doneMsg ? (
                     <div className="flex items-start gap-2 text-sm text-ok">
                       <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0" /> {doneMsg}

@@ -16,7 +16,7 @@ export default function PerformanceDistributionModal({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 p-4" onClick={onClose}>
-      <div className="max-h-[85vh] w-full max-w-lg overflow-y-auto rounded-xl bg-surface p-6 shadow-xl" onClick={(e) => e.stopPropagation()}>
+      <div className="max-h-[85vh] w-full max-w-lg overflow-y-auto rounded-xl bg-surface p-6 shadow-pop" onClick={(e) => e.stopPropagation()}>
         <div className="mb-4 flex items-start justify-between">
           <div className="flex items-center gap-2">
             <BarChart3 className="h-5 w-5 text-brand-ink" />

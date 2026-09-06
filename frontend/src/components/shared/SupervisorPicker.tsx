@@ -87,7 +87,7 @@ export default function SupervisorPicker({
       {open && (
         <ul
           role="listbox"
-          className={`absolute z-20 max-h-60 w-full overflow-auto rounded-lg border border-line bg-surface py-1 shadow-xl ${
+          className={`absolute z-20 max-h-60 w-full overflow-auto rounded-lg border border-line bg-surface py-1 shadow-pop ${
             placement === 'above' ? 'bottom-full mb-1.5' : 'top-full mt-1.5'
           }`}
         >

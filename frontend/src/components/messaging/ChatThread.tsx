@@ -80,8 +80,8 @@ export function ChatThread({
               <div
                 className={
                   m.mine
-                    ? 'rounded-2xl rounded-tr-none bg-brand p-3 text-white shadow-sm'
-                    : 'rounded-2xl rounded-tl-none bg-brand-soft p-3'
+                    ? 'rounded-card rounded-tr-none bg-brand p-3 text-white shadow-card'
+                    : 'rounded-card rounded-tl-none bg-brand-soft p-3'
                 }
               >
                 {!m.mine && (
@@ -111,7 +111,7 @@ export function ChatThread({
             onChange={(e) => setText(e.target.value)}
             onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); onSend(); } }}
             placeholder={disabled ? 'Read-only' : 'Type a message…  (Enter to send)'}
-            className="max-h-32 flex-grow resize-none rounded-2xl border border-line bg-surface px-4 py-2 text-sm text-ink focus:border-brand focus:outline-none focus:ring-1 focus:ring-brand disabled:opacity-60"
+            className="max-h-32 flex-grow resize-none rounded-card border border-line bg-surface px-4 py-2 text-sm text-ink focus:border-brand focus:outline-none focus:ring-1 focus:ring-brand disabled:opacity-60"
           />
           <button
             onClick={onSend}

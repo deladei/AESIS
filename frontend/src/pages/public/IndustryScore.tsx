@@ -30,7 +30,7 @@ function Shell({ children }: { children: React.ReactNode }) {
           <p className="text-[11px] font-semibold text-ink-secondary">Company Supervisor Score</p>
         </div>
       </div>
-      <div className="w-full max-w-md rounded-2xl border border-line bg-surface p-7 shadow-sm">
+      <div className="w-full max-w-md rounded-card border border-line bg-surface p-7 shadow-card">
         {children}
       </div>
       <p className="mt-6 text-xs text-ink-muted">AI-Enhanced Student Internship Supervision System</p>
@@ -117,7 +117,7 @@ export default function IndustryScore() {
         </p>
       </div>
 
-      <dl className="mb-5 space-y-3 rounded-xl border border-line bg-surface-sunken p-4">
+      <dl className="mb-5 space-y-3 rounded-card border border-line bg-surface-sunken p-4">
         <div>
           <dt className="text-xs font-semibold uppercase tracking-wide text-ink-secondary">Student</dt>
           <dd className="text-sm font-medium text-ink">{ctx.student}</dd>

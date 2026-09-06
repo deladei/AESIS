@@ -438,7 +438,7 @@ export default function RegisterPage() {
                 {programmeOpen && (
                   <ul
                     role="listbox"
-                    className={`absolute z-20 w-full max-h-60 overflow-auto rounded-lg bg-ink border border-line-strong shadow-xl scrollbar-thin py-1 ${
+                    className={`absolute z-20 w-full max-h-60 overflow-auto rounded-lg bg-ink border border-line-strong shadow-pop scrollbar-thin py-1 ${
                       programmePlacement === 'above' ? 'bottom-full mb-1.5' : 'top-full mt-1.5'
                     }`}
                   >

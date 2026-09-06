@@ -20,7 +20,7 @@ export default function AIEnrichmentPanel() {
   const revive = useReviveEnrichment();
 
   return (
-    <section className="rounded-xl border border-line bg-surface p-6">
+    <section className="rounded-card border border-line bg-surface p-6">
       <div className="mb-1 flex items-center justify-between">
         <h3 className="flex items-center gap-2 text-sm font-bold text-ink">
           <Cpu className="h-5 w-5 text-brand-ink" /> AI enrichment pipeline

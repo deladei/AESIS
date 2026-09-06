@@ -68,7 +68,7 @@ export function RoleShell({ role, user, children, topbarSlot }: RoleShellProps) 
     studentStats?.profile.programme ?? studentStats?.profile.department ?? null;
 
   const userCard = (
-    <div className="m-3 rounded-2xl bg-sidebar-hover p-3">
+    <div className="m-3 rounded-card bg-sidebar-hover p-3">
       <div className="flex items-center gap-3">
         <UserAvatar avatarUrl={user.avatarUrl} initials={user.initials} name={user.name} />
         <span className="min-w-0 leading-tight">
@@ -124,7 +124,7 @@ export function RoleShell({ role, user, children, topbarSlot }: RoleShellProps) 
   const assistantCard = (
     <Link
       to={role === 'student' ? '/student/chatbot' : '/ai-insights'}
-      className="m-3 block rounded-2xl bg-brand p-3 transition-opacity hover:opacity-90"
+      className="m-3 block rounded-card bg-brand p-3 transition-opacity hover:opacity-90"
     >
       <span className="flex items-center gap-2 text-sm font-semibold text-white">
         <Sparkles className="h-4 w-4" /> Insights

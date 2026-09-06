@@ -87,12 +87,12 @@ export default function CompanyDetail() {
       </div>
 
       {placements.length === 0 ? (
-        <div className="flex flex-col items-center gap-2 rounded-xl border border-line bg-surface py-16 text-center">
+        <div className="flex flex-col items-center gap-2 rounded-card border border-line bg-surface py-16 text-center">
           <Inbox className="h-7 w-7 text-ink-muted" />
           <p className="text-sm text-ink-muted">No interns placed at this company yet.</p>
         </div>
       ) : (
-        <div className="overflow-hidden rounded-xl border border-line bg-surface">
+        <div className="overflow-hidden rounded-card border border-line bg-surface">
           <div className="overflow-x-auto">
             <table className="w-full text-left text-sm">
               <thead>

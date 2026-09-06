@@ -32,7 +32,7 @@ const COMPONENT_META: Record<GradeComponent, { label: string; hint: string }> = 
   logbook:    { label: 'Logbook',    hint: 'Weekly logbook' },
 };
 
-const card = 'rounded-xl border border-line bg-surface p-5';
+const card = 'rounded-card border border-line bg-surface p-5';
 const inputCls =
   'w-24 rounded-lg border border-line bg-surface px-2.5 py-1.5 text-sm text-ink outline-none focus:border-brand';
 

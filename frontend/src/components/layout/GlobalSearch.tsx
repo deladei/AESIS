@@ -44,7 +44,7 @@ export default function GlobalSearch() {
       {isFetching && <Loader2 className="absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 animate-spin text-ink-muted" />}
 
       {showPanel && (
-        <div className="absolute left-0 z-50 mt-2 w-[360px] overflow-hidden rounded-xl border border-line bg-surface shadow-xl">
+        <div className="absolute left-0 z-50 mt-2 w-[360px] overflow-hidden rounded-card border border-line bg-surface shadow-pop">
           {!hasResults ? (
             <p className="px-4 py-6 text-center text-sm text-ink-muted">
               {isFetching ? 'Searching…' : `No matches for “${debounced.trim()}”.`}

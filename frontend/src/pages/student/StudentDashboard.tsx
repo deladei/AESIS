@@ -669,7 +669,7 @@ export default function StudentDashboard() {
         ) : (
           <div className="grid gap-4 md:grid-cols-3">
             {feedbackCards.map(({ entry, decision }) => (
-              <div key={entry.id} className="rounded-xl border border-line bg-surface-sunken p-4">
+              <div key={entry.id} className="rounded-card border border-line bg-surface-sunken p-4">
                 <div className="mb-2 flex items-center justify-between gap-2">
                   <span className="text-sm font-semibold text-ink">Week {entry.weekNumber}</span>
                   <Badge tone={decision.toStatus === 'acknowledged' ? 'ok' : 'warn'}>

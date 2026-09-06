@@ -29,7 +29,7 @@ export default function AccountMenu({ user }: { user: { name: string; email: str
       </button>
 
       {open && (
-        <div className="absolute right-0 z-50 mt-2 w-64 overflow-hidden rounded-xl border border-line bg-surface shadow-xl">
+        <div className="absolute right-0 z-50 mt-2 w-64 overflow-hidden rounded-card border border-line bg-surface shadow-pop">
           <div className="border-b border-line px-4 py-3">
             <p className="truncate text-sm font-bold text-ink">{user.name}</p>
             <p className="truncate text-xs text-ink-muted">{user.email}</p>

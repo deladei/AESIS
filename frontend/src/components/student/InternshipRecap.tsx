@@ -197,7 +197,7 @@ export function InternshipRecap({ enabled, sample = false }: { enabled: boolean;
   const Icon = card.icon;
 
   return (
-    <section className="overflow-hidden rounded-2xl border border-brand bg-gradient-to-br from-brand-soft to-surface-sunken p-6 shadow-sm">
+    <section className="overflow-hidden rounded-card border border-brand bg-gradient-to-br from-brand-soft to-surface-sunken p-6 shadow-card">
       <div className="mb-4 flex items-center gap-2">
         <Sparkles className="h-4 w-4 text-brand-ink" />
         <h2 className="text-sm font-bold text-brand-ink">
@@ -229,7 +229,7 @@ export function InternshipRecap({ enabled, sample = false }: { enabled: boolean;
           type="button"
           onClick={() => setIndex((i) => Math.max(0, i - 1))}
           disabled={index === 0}
-          className="inline-flex h-8 w-8 items-center justify-center rounded-full bg-surface text-brand-ink shadow-sm transition-opacity disabled:opacity-30"
+          className="inline-flex h-8 w-8 items-center justify-center rounded-full bg-surface text-brand-ink shadow-card transition-opacity disabled:opacity-30"
           aria-label="Previous card"
         >
           <ChevronLeft className="h-4 w-4" />
@@ -255,7 +255,7 @@ export function InternshipRecap({ enabled, sample = false }: { enabled: boolean;
           type="button"
           onClick={() => setIndex((i) => Math.min(cards.length - 1, i + 1))}
           disabled={index >= cards.length - 1}
-          className="inline-flex h-8 w-8 items-center justify-center rounded-full bg-surface text-brand-ink shadow-sm transition-opacity disabled:opacity-30"
+          className="inline-flex h-8 w-8 items-center justify-center rounded-full bg-surface text-brand-ink shadow-card transition-opacity disabled:opacity-30"
           aria-label="Next card"
         >
           <ChevronRight className="h-4 w-4" />

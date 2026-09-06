@@ -228,7 +228,7 @@ export default function SupervisorDashboard() {
 
               <Link
                 to="/supervisor/review"
-                className="mt-4 block rounded-xl border border-line py-2 text-center text-sm font-semibold text-ink-secondary transition-colors hover:bg-surface-sunken hover:text-ink"
+                className="mt-4 block rounded-card border border-line py-2 text-center text-sm font-semibold text-ink-secondary transition-colors hover:bg-surface-sunken hover:text-ink"
               >
                 View all students
               </Link>
@@ -293,7 +293,7 @@ export default function SupervisorDashboard() {
               </ul>
               <Link
                 to="/supervisor/finalize"
-                className="mt-4 block rounded-xl border border-line py-2 text-center text-sm font-semibold text-ink-secondary transition-colors hover:bg-surface-sunken hover:text-ink"
+                className="mt-4 block rounded-card border border-line py-2 text-center text-sm font-semibold text-ink-secondary transition-colors hover:bg-surface-sunken hover:text-ink"
               >
                 View full schedule
               </Link>

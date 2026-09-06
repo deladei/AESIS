@@ -110,7 +110,7 @@ export default function PlacementFinalization() {
       <div className="grid gap-6 lg:grid-cols-[320px_1fr]">
         {/* Placement list */}
         <aside className="lg:sticky lg:top-6 lg:self-start">
-          <div className="overflow-hidden rounded-xl border border-line bg-surface">
+          <div className="overflow-hidden rounded-card border border-line bg-surface">
             <div className="border-b border-line px-4 py-3 text-xs font-semibold uppercase tracking-wide text-ink-secondary">
               Your interns
             </div>
@@ -150,7 +150,7 @@ export default function PlacementFinalization() {
         {/* Detail */}
         <section>
           {!selected ? (
-            <div className="rounded-xl border border-dashed border-line bg-surface py-24 text-center">
+            <div className="rounded-card border border-dashed border-line bg-surface py-24 text-center">
               <Award className="mx-auto mb-3 h-10 w-10 text-ink-muted" />
               <h2 className="text-base font-semibold text-ink">Nothing to finalize</h2>
               <p className="mt-1 text-sm text-ink-secondary">Your assigned placements will appear here.</p>
@@ -273,7 +273,7 @@ function FinalizationDetail({ placement }: { placement: Placement }) {
   return (
     <div className="space-y-5">
       {/* Header */}
-      <div className="rounded-xl border border-line bg-surface p-5">
+      <div className="rounded-card border border-line bg-surface p-5">
         <div className="flex flex-wrap items-start justify-between gap-2">
           <div>
             <h2 className="text-lg font-bold text-ink">{placementName(placement)}</h2>
@@ -311,7 +311,7 @@ function FinalizationDetail({ placement }: { placement: Placement }) {
       <SiwesCalendarPanel placementId={placement.id} />
 
       {/* Weekly resolution */}
-      <div className="rounded-xl border border-line bg-surface p-5">
+      <div className="rounded-card border border-line bg-surface p-5">
         <h3 className="mb-3 flex items-center gap-2 text-sm font-semibold text-ink">
           <ClipboardCheck className="h-4 w-4 text-brand-ink" /> Weekly entries
         </h3>
@@ -368,7 +368,7 @@ function FinalizationDetail({ placement }: { placement: Placement }) {
 
       {/* Assessment */}
       {!isFinalized && (
-        <div className="rounded-xl border border-line bg-surface p-5">
+        <div className="rounded-card border border-line bg-surface p-5">
           <h3 className="mb-3 flex items-center gap-2 text-sm font-semibold text-ink">
             <Award className="h-4 w-4 text-brand-ink" /> Final assessment
           </h3>
@@ -479,7 +479,7 @@ function FinalizationDetail({ placement }: { placement: Placement }) {
 
       {/* Company attestation invite */}
       {!isFinalized && (
-        <div className="rounded-xl border border-line bg-surface p-5">
+        <div className="rounded-card border border-line bg-surface p-5">
           <h3 className="mb-1 flex items-center gap-2 text-sm font-semibold text-ink">
             <Link2 className="h-4 w-4 text-brand-ink" /> Company attestation
           </h3>
@@ -523,7 +523,7 @@ function FinalizationDetail({ placement }: { placement: Placement }) {
 
       {/* Finalize */}
       {!isFinalized && (
-        <div className="rounded-xl border border-line bg-surface p-5">
+        <div className="rounded-card border border-line bg-surface p-5">
           <h3 className="mb-1 text-sm font-semibold text-ink">Finalize placement</h3>
           <p className="mb-3 text-xs text-ink-secondary">
             Closes the internship. This is permanent — the assessment locks and no further weeks can be reviewed.

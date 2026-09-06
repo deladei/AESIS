@@ -93,7 +93,7 @@ export default function StudentRosterPanel() {
   };
 
   return (
-    <section className="rounded-xl border border-line bg-surface p-6">
+    <section className="rounded-card border border-line bg-surface p-6">
       <div className="mb-1 flex items-center gap-2">
         <GraduationCap className="h-5 w-5 text-brand-ink" />
         <h2 className="text-sm font-bold text-ink">Upload class roster</h2>

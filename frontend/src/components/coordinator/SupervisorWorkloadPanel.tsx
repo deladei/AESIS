@@ -12,7 +12,7 @@ export default function SupervisorWorkloadPanel({ scopeYearId }: { scopeYearId?:
   const max  = data?.summary.max ?? 0;
 
   return (
-    <div className="rounded-xl border border-line bg-surface p-6">
+    <div className="rounded-card border border-line bg-surface p-6">
       <div className="mb-4 flex items-start justify-between">
         <div className="flex items-center gap-2">
           <Users2 className="h-5 w-5 text-brand-ink" />

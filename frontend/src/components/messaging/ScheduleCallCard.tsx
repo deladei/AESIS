@@ -57,7 +57,7 @@ export default function ScheduleCallCard({ placementId, internName }: { placemen
   };
 
   return (
-    <div className="rounded-xl border border-line bg-surface p-5">
+    <div className="rounded-card border border-line bg-surface p-5">
       <h3 className="mb-1 flex items-center gap-2 text-sm font-semibold text-ink">
         <Video className="h-4 w-4 text-brand-ink" /> Schedule a video call
       </h3>

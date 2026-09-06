@@ -241,7 +241,7 @@ export default function InternStatusTable({ pageSize = 20, viewAllHref, scopeYea
   const selectCls = 'rounded-lg border border-line bg-surface px-2.5 py-1.5 text-sm text-ink focus:border-brand focus:outline-none';
 
   return (
-    <div className="overflow-hidden rounded-xl border border-line bg-surface shadow-sm">
+    <div className="overflow-hidden rounded-card border border-line bg-surface shadow-card">
       <div className="flex items-center justify-between border-b border-line bg-surface-sunken px-6 py-4">
         <h3 className="text-lg font-semibold text-brand-ink">Intern Status Monitor</h3>
         <div className="flex items-center gap-2">
@@ -397,7 +397,7 @@ export default function InternStatusTable({ pageSize = 20, viewAllHref, scopeYea
       {/* Bulk assign supervisor modal */}
       {bulkAssignOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 p-4" onClick={() => setBulkAssignOpen(false)}>
-          <div className="w-full max-w-md rounded-xl bg-surface p-5 shadow-xl" onClick={(e) => e.stopPropagation()}>
+          <div className="w-full max-w-md rounded-xl bg-surface p-5 shadow-pop" onClick={(e) => e.stopPropagation()}>
             <div className="mb-3 flex items-center justify-between">
               <h3 className="text-base font-bold text-ink">Assign supervisor to {selected.size} intern{selected.size === 1 ? '' : 's'}</h3>
               <button onClick={() => setBulkAssignOpen(false)} aria-label="Close" className="rounded p-1 text-ink-muted hover:bg-surface-sunken"><X className="h-4 w-4" /></button>
@@ -418,7 +418,7 @@ export default function InternStatusTable({ pageSize = 20, viewAllHref, scopeYea
       )}
 
       {toast && (
-        <div className="fixed bottom-4 right-4 z-50 rounded-lg bg-ink px-4 py-2 text-sm font-medium text-ink-inverse shadow-lg">{toast}</div>
+        <div className="fixed bottom-4 right-4 z-50 rounded-lg bg-ink px-4 py-2 text-sm font-medium text-ink-inverse shadow-pop">{toast}</div>
       )}
     </div>
   );

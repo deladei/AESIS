@@ -96,7 +96,7 @@ export function MobileNav({
             aria-modal="true"
             aria-label="Navigation"
             className={cn(
-              'absolute inset-y-0 left-0 flex w-[280px] max-w-[85%] flex-col bg-brand-soft shadow-2xl transition-transform duration-300 ease-out',
+              'absolute inset-y-0 left-0 flex w-[280px] max-w-[85%] flex-col bg-brand-soft shadow-pop transition-transform duration-300 ease-out',
               open ? 'translate-x-0' : '-translate-x-full',
             )}
           >

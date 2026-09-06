@@ -243,7 +243,7 @@ export default function ChatbotPanel() {
 
           {/* ── Composer ───────────────────────────────────── */}
           <div className="border-t border-line p-5">
-            <div className="flex items-end gap-3 rounded-xl border border-line bg-surface p-3 transition-colors focus-within:border-brand">
+            <div className="flex items-end gap-3 rounded-card border border-line bg-surface p-3 transition-colors focus-within:border-brand">
               <textarea
                 ref={inputRef}
                 rows={1}

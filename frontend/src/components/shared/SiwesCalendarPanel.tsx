@@ -70,7 +70,7 @@ export function SiwesCalendarPanel({ placementId }: { placementId: string }) {
 
   if (isLoading) {
     return (
-      <div className="flex h-32 items-center justify-center rounded-xl border border-line bg-surface">
+      <div className="flex h-32 items-center justify-center rounded-card border border-line bg-surface">
         <Loader2 className="h-5 w-5 animate-spin text-brand-ink" />
       </div>
     );
@@ -86,7 +86,7 @@ export function SiwesCalendarPanel({ placementId }: { placementId: string }) {
   const lateCount = calendar.days.filter((d) => d.entry?.loggedLate).length;
 
   return (
-    <div className="overflow-hidden rounded-xl border border-line bg-surface">
+    <div className="overflow-hidden rounded-card border border-line bg-surface">
       <div className="border-b border-line bg-surface-sunken px-6 py-4">
         <h3 className="text-lg font-semibold text-brand-ink">Daily logbook</h3>
         <p className="mt-0.5 text-xs text-ink-muted">
@@ -129,7 +129,7 @@ export function SiwesCalendarPanel({ placementId }: { placementId: string }) {
               return (
                 <div
                   key={d.date}
-                  className="rounded-xl border border-line bg-surface px-4 py-3"
+                  className="rounded-card border border-line bg-surface px-4 py-3"
                 >
                   <div className="flex items-center gap-3">
                     <span className="w-10 shrink-0 text-center">
@@ -164,7 +164,7 @@ export function SiwesCalendarPanel({ placementId }: { placementId: string }) {
             })}
 
             {summary && (
-              <div className="rounded-xl border border-line bg-surface-sunken px-4 py-3">
+              <div className="rounded-card border border-line bg-surface-sunken px-4 py-3">
                 <p className="text-xs font-semibold text-ink-muted">
                   Weekly report · week ending {fmtDate(summary.weekEnding.slice(0, 10))}
                 </p>

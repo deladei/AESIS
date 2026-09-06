@@ -42,7 +42,7 @@ export default function InternDetail() {
   }
 
   const { student, placement, supervisors, progress, avgQuality, entries, riskHistory, feedback, supervisorHistory } = data;
-  const card = 'rounded-xl border border-line bg-surface p-5';
+  const card = 'rounded-card border border-line bg-surface p-5';
 
   return (
     <div className="p-6">
@@ -126,7 +126,7 @@ export default function InternDetail() {
       </div>
 
       {/* Logs */}
-      <div className="mt-4 overflow-hidden rounded-xl border border-line bg-surface">
+      <div className="mt-4 overflow-hidden rounded-card border border-line bg-surface">
         <div className="border-b border-line bg-surface-sunken px-6 py-4"><h3 className="text-lg font-semibold text-brand-ink">Logbook entries</h3></div>
         {entries.length === 0 ? <p className="px-6 py-8 text-center text-sm text-ink-muted">No entries yet.</p> : (
           <div className="overflow-x-auto">
@@ -161,7 +161,7 @@ export default function InternDetail() {
 
       <div className="mt-4 grid grid-cols-1 gap-4 lg:grid-cols-2">
         {/* Feedback */}
-        <div className="overflow-hidden rounded-xl border border-line bg-surface">
+        <div className="overflow-hidden rounded-card border border-line bg-surface">
           <div className="border-b border-line bg-surface-sunken px-6 py-4"><h3 className="flex items-center gap-1.5 text-lg font-semibold text-brand-ink"><MessageSquare className="h-4 w-4" /> Supervisor feedback</h3></div>
           <div className="space-y-4 p-6">
             {feedback.length === 0 ? <p className="text-sm text-ink-muted">No feedback yet.</p> : feedback.map((f, i) => (
@@ -174,7 +174,7 @@ export default function InternDetail() {
         </div>
 
         {/* Supervisor history */}
-        <div className="overflow-hidden rounded-xl border border-line bg-surface">
+        <div className="overflow-hidden rounded-card border border-line bg-surface">
           <div className="border-b border-line bg-surface-sunken px-6 py-4"><h3 className="text-lg font-semibold text-brand-ink">Supervisor history</h3></div>
           <div className="space-y-4 p-6">
             {supervisorHistory.length === 0 ? <p className="text-sm text-ink-muted">No assignment changes recorded.</p> : supervisorHistory.map((h, i) => (

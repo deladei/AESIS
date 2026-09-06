@@ -464,7 +464,7 @@ export default function LogbookEditor() {
             {/* The selected day, then the week's own narrative */}
             <div className="space-y-4">
               {!day ? (
-                <div className="rounded-xl border border-line bg-surface px-6 py-10 text-center">
+                <div className="rounded-card border border-line bg-surface px-6 py-10 text-center">
                   <CalendarDays className="mx-auto mb-3 h-8 w-8 text-brand-ink" />
                   <p className="text-sm text-ink-secondary">Select a day to log what you worked on.</p>
                 </div>
@@ -659,7 +659,7 @@ function DayPanel({
   const inputCls = 'w-full rounded-lg border border-line bg-surface px-3 py-2 text-sm text-ink placeholder:text-ink-muted focus:border-brand focus:outline-none disabled:bg-surface-sunken';
 
   return (
-    <div className="rounded-xl border border-line bg-surface p-4">
+    <div className="rounded-card border border-line bg-surface p-4">
       <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
         <h2 className="text-sm font-bold text-ink">{fmtDate(day.date)}</h2>
         <div className="flex items-center gap-2">
@@ -1010,7 +1010,7 @@ function WeeklyReportCard({
   const error = parsed && !parsed.success ? parsed.error.issues[0]?.message : undefined;
 
   return (
-    <div className="rounded-xl border border-line bg-surface p-4">
+    <div className="rounded-card border border-line bg-surface p-4">
       <div className="mb-2 flex items-center justify-between">
         <h2 className="text-sm font-bold text-ink">Weekly report</h2>
         {summary && (

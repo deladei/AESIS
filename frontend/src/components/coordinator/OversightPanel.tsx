@@ -100,7 +100,7 @@ export default function OversightPanel() {
         </button>
       </div>
 
-      <div className="overflow-hidden rounded-xl bg-surface shadow-sm">
+      <div className="overflow-hidden rounded-xl bg-surface shadow-card">
         <div className="overflow-x-auto">
           <table className="w-full text-left text-sm">
             <thead>

@@ -28,7 +28,7 @@ export default function QuickActionsMenu() {
         <Zap className="h-5 w-5" />
       </button>
       {open && (
-        <div className="absolute right-0 z-50 mt-2 w-56 overflow-hidden rounded-xl border border-line bg-surface py-1 shadow-xl">
+        <div className="absolute right-0 z-50 mt-2 w-56 overflow-hidden rounded-card border border-line bg-surface py-1 shadow-pop">
           <p className="px-4 pb-1 pt-2 text-[11px] font-bold uppercase tracking-wide text-ink-muted">Quick actions</p>
           {ACTIONS.map((a) => {
             const Icon = a.icon;
