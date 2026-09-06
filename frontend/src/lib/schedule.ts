@@ -16,10 +16,11 @@ export interface ScheduleWeek {
 /**
  * Fallback length only, for the moment before the calendar has loaded. The real
  * number is the cohort's configured `durationWeeks`, which the calendar
- * endpoint returns as `totalWeeks` — cohorts run 24 weeks, so hardcoding 6 made
- * the dashboard table and the history page disagree with the logbook itself.
+ * endpoint returns as `totalWeeks`. Hardcoding a length here made the dashboard
+ * table and the history page disagree with the logbook itself; this matches the
+ * schema default so the pre-load frame is at least the common case.
  */
-export const SCHEDULE_WEEKS = 6;
+export const SCHEDULE_WEEKS = 5;
 
 export function toYMD(d: Date): string {
   return d.toISOString().slice(0, 10);

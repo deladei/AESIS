@@ -333,10 +333,10 @@ describe('listStudents', () => {
 
     expect(student.department).toBe('Computer Science');
     expect(student.supervisor).toEqual({ id: 's-1', name: 'Kofi Adjei' });
-    expect(student.programmeWeeks).toBe(6);  // cohort has no config → schema default
-    expect(student.weeksDue).toBe(6);        // started in January, so all six are due
+    expect(student.programmeWeeks).toBe(5);  // cohort has no config → schema default
+    expect(student.weeksDue).toBe(5);        // started in January, so all five are due
     expect(student.submittedWeeks).toBe(6);
-    expect(student.progressPct).toBe(100);   // 6 submitted / 6 due
+    expect(student.progressPct).toBe(100);   // capped: 6 submitted against 5 due
   });
 
   it('maps riskTier and riskScore from the latest riskScore entry', async () => {
@@ -532,7 +532,7 @@ describe('getStudentDetail', () => {
     expect(r.supervisors.academic).toMatchObject({ name: 'Theo Walls' });
     expect(r.supervisors.company).toBeNull();
     expect(r.progress).toMatchObject({
-      submittedWeeks: 1, weeksDue: 6, programmeWeeks: 6, progressPct: 17,
+      submittedWeeks: 1, weeksDue: 5, programmeWeeks: 5, progressPct: 20,
     });
     expect(r.avgQuality).toBe(82);            // corrupt 151565326582 excluded
     expect(r.entries).toHaveLength(2);
@@ -622,7 +622,7 @@ describe('bulk actions + CSV export', () => {
     expect(lines[1]).toContain('Ama Mensah');
     expect(lines[1]).toContain('ama@x.edu');
     expect(lines[1]).toContain('Theo Walls');
-    expect(lines[1]).toContain('33'); // 2/6 → 33%
+    expect(lines[1]).toContain('40'); // 2/5 → 40%
   });
 });
 
@@ -843,14 +843,16 @@ describe('getActiveCohortConfig', () => {
 
   it('returns the active year config in flattened shape', async () => {
     (mp.cohortConfig.findFirst as jest.Mock).mockResolvedValue({
-      id: 'cc-1', minWeeklyHours: 40, totalWeeks: 24,
+      id: 'cc-1', minWeeklyHours: 40, durationWeeks: 5,
       academicYear: { id: 'ay-1', label: '2024/2025' },
     });
 
     const result = await getActiveCohortConfig();
 
+    // `durationWeeks`, never `totalWeeks`: two numbers both called "weeks" is
+    // what let this page quote a 24-week placement while the logbook enforced 6.
     expect(result).toEqual({
-      id: 'cc-1', minWeeklyHours: 40, totalWeeks: 24,
+      id: 'cc-1', minWeeklyHours: 40, durationWeeks: 5,
       academicYearId: 'ay-1', academicYearLabel: '2024/2025',
     });
     // Scopes to the active academic year.
@@ -883,6 +885,20 @@ describe('updateActiveCohortConfig', () => {
     expect(call.data).toEqual({ minWeeklyHours: 35 });
     expect(result.minWeeklyHours).toBe(35);
     expect(result.academicYearLabel).toBe('2024/2025');
+  });
+
+  it('writes the attachment length — the field that had no endpoint at all', async () => {
+    (mp.cohortConfig.findFirst as jest.Mock).mockResolvedValue({ id: 'cc-1' });
+    (mp.cohortConfig.update as jest.Mock).mockResolvedValue({
+      id: 'cc-1', minWeeklyHours: 40, performanceThreshold: 50, durationWeeks: 5,
+      academicYear: { id: 'ay-1', label: '2024/2025' },
+    });
+
+    const result = await updateActiveCohortConfig({ durationWeeks: 5 });
+
+    const call = (mp.cohortConfig.update as jest.Mock).mock.calls[0][0];
+    expect(call.data).toEqual({ durationWeeks: 5 });
+    expect(result.durationWeeks).toBe(5);
   });
 
   it('throws 404 (and never writes) when no active cohort config exists', async () => {
@@ -962,6 +978,15 @@ describe('updateCohortConfigSchema — grade weights', () => {
   it('rejects an empty payload', () => {
     const r = updateCohortConfigSchema.safeParse({});
     expect(r.success).toBe(false);
+  });
+
+  it('accepts a 5-week attachment, and rejects 0 or beyond a year', () => {
+    // 5 was impossible before: no endpoint wrote durationWeeks, and the
+    // database carried CHECK duration_weeks >= 6.
+    expect(updateCohortConfigSchema.safeParse({ durationWeeks: 5 }).success).toBe(true);
+    expect(updateCohortConfigSchema.safeParse({ durationWeeks: 0 }).success).toBe(false);
+    expect(updateCohortConfigSchema.safeParse({ durationWeeks: 53 }).success).toBe(false);
+    expect(updateCohortConfigSchema.safeParse({ durationWeeks: 5.5 }).success).toBe(false);
   });
 });
 

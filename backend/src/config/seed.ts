@@ -80,7 +80,9 @@ async function seed() {
       submissionDeadlineMinute:59,
       reminderDayOfWeek:       1,
       reminderHour:            8,
-      totalWeeks:              6,
+      // Attachment length — the one number every screen and rule reads.
+      // `totalWeeks` is legacy and deliberately left on its schema default.
+      durationWeeks:           5,
     },
   });
   console.log(`✓ Academic year: ${academicYear.label}`);

@@ -203,7 +203,7 @@ export async function getStudentDashboard(studentId: string) {
   const week = weekProgress({
     startDate:        placement.startDate,
     endDate:          placement.endDate,
-    totalWeeksConfig: cohort?.durationWeeks ?? cohort?.totalWeeks ?? null,
+    configuredWeeks:  cohort?.durationWeeks ?? cohort?.totalWeeks ?? null,
     submittedCount,
   });
   // What the student owes SO FAR. `week.total` is the whole programme — right

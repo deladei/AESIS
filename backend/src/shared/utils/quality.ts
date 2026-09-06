@@ -28,7 +28,7 @@ const WEEK_MS = 7 * 24 * 60 * 60 * 1000;
 export const SYSTEM_MAX_WEEKS = 52;
 
 /** Mirrors `CohortConfig.durationWeeks`'s schema default, for the no-config case. */
-const DEFAULT_TOTAL_WEEKS = 6;
+const DEFAULT_TOTAL_WEEKS = 5;
 
 /** Coerce a raw score (number | string | Prisma.Decimal | null) to a finite number, or null. */
 export function toQualityNumber(raw: unknown): number | null {
@@ -115,28 +115,30 @@ export function weeksBetween(start: Date, end: Date): number {
 /**
  * Expected number of logbook weeks for a placement.
  *
- * Derived from the actual start/end dates first, so the displayed period can
- * never contradict the dates shown next to it. Falls back to the cohort's
- * configured `totalWeeks`, then to the default, only when the date span is
- * unusable. The result is capped at SYSTEM_MAX_WEEKS only as a sanity bound —
- * the cohort's configured length is the real answer, not a literal here.
+ * **The cohort's configured length wins.** This used to derive the answer from
+ * the placement's start/end dates FIRST and consult the configuration only when
+ * the dates were unusable — so a cohort configured for 5 weeks whose placement
+ * dates happened to span 6 rendered "week 3 of 6" while every rule in the
+ * system (the logbook's week ceiling, `weeksDue`, the compliance denominator)
+ * enforced 5. One programme cannot be two lengths.
+ *
+ * The date span is now only a fallback, for placements whose cohort has no
+ * configuration at all. SYSTEM_MAX_WEEKS remains a sanity bound, nothing more.
  */
 export function expectedWeeks(
   startDate: Date | string | null | undefined,
   endDate: Date | string | null | undefined,
-  totalWeeksConfig?: number | null,
+  configuredWeeks?: number | null,
 ): number {
   let raw = DEFAULT_TOTAL_WEEKS;
-  if (startDate && endDate) {
+  if (configuredWeeks && configuredWeeks > 0) {
+    raw = configuredWeeks;
+  } else if (startDate && endDate) {
     const s = new Date(startDate);
     const e = new Date(endDate);
     if (!Number.isNaN(s.getTime()) && !Number.isNaN(e.getTime()) && e > s) {
       raw = weeksBetween(s, e);
-    } else if (totalWeeksConfig && totalWeeksConfig > 0) {
-      raw = totalWeeksConfig;
     }
-  } else if (totalWeeksConfig && totalWeeksConfig > 0) {
-    raw = totalWeeksConfig;
   }
   return Math.min(SYSTEM_MAX_WEEKS, raw);
 }
@@ -149,10 +151,10 @@ export function expectedWeeks(
 export function weekProgress(opts: {
   startDate: Date | string | null | undefined;
   endDate: Date | string | null | undefined;
-  totalWeeksConfig?: number | null;
+  configuredWeeks?: number | null;
   submittedCount: number;
 }): { current: number; total: number } {
-  const total = expectedWeeks(opts.startDate, opts.endDate, opts.totalWeeksConfig);
+  const total = expectedWeeks(opts.startDate, opts.endDate, opts.configuredWeeks);
   const current = Math.max(0, Math.min(opts.submittedCount, total));
   return { current, total };
 }

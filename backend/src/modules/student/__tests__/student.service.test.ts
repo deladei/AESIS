@@ -38,7 +38,10 @@ const makePlacement = (overrides: Record<string, unknown> = {}) => ({
   startDate:       new Date('2026-01-12'),
   endDate:         new Date('2026-06-29'), // 24 weeks
   placementStatus: 'active',
-  academicYear:    { cohortConfigs: [{ durationWeeks: 6, totalWeeks: 6 }] }, // dates must win
+  // The CONFIGURED length wins over the date span — one programme cannot be
+  // two lengths (see expectedWeeks). 24 here, so the 24-week assertions below
+  // are testing the configuration, not the dates.
+  academicYear:    { cohortConfigs: [{ durationWeeks: 24, totalWeeks: 6 }] },
   // Legacy submissions feed only the advisory AI quality average now.
   logbookSubmissions: [
     { submissionStatus: 'approved',  analysis: { qualityScore: '80' } },
@@ -70,9 +73,9 @@ describe('getStudentDashboard', () => {
     expect(result.avgQualityScore!).toBeLessThanOrEqual(100);
   });
 
-  it('takes the week total from the real date span, not a hardcoded 6', async () => {
-    // The dates span 24 weeks. SYSTEM_MAX_WEEKS used to flatten that to 6, so a
-    // student in week 10 was shown "week 6 of 6" and 100% complete (S91).
+  it('takes the week total from the cohort configuration, not a hardcoded 6', async () => {
+    // SYSTEM_MAX_WEEKS used to flatten this to 6, so a student in week 10 was
+    // shown "week 6 of 6" and 100% complete (S91).
     (mp.placement.findMany as jest.Mock).mockResolvedValue([makePlacement()]);
 
     const result = await getStudentDashboard('stu-1');
@@ -81,6 +84,19 @@ describe('getStudentDashboard', () => {
     expect(result.expectedLogs).toBe(24);
     expect(result.week!.current).toBe(3);  // 3 submitted (draft excluded)
     expect(result.completionPct).toBe(13); // round(3/24*100)
+  });
+
+  it('lets the configured length override a date span that disagrees', async () => {
+    // Dates span 24 weeks, the cohort is configured for 5. Before this the
+    // dates won, so the student read "of 24" while the logbook refused week 6.
+    (mp.placement.findMany as jest.Mock).mockResolvedValue([
+      makePlacement({ academicYear: { cohortConfigs: [{ durationWeeks: 5, totalWeeks: 24 }] } }),
+    ]);
+
+    const result = await getStudentDashboard('stu-1');
+
+    expect(result.week!.total).toBe(5);
+    expect(result.expectedLogs).toBe(5);
   });
 
   it('reports the student\'s department, and their programme when they have one', async () => {

@@ -305,6 +305,9 @@ model CohortConfig {
   submissionDeadlineMinute Int          @default(59) @map("submission_deadline_minute")
   reminderDayOfWeek        Int          @default(1) @map("reminder_day_of_week") // 1 = Monday
   reminderHour             Int          @default(8) @map("reminder_hour")
+  // LEGACY. Superseded by `durationWeeks`, which is the number every screen and
+  // every rule now reads. Kept only as a fallback for cohorts created before
+  // `durationWeeks` existed; nothing writes it and no API exposes it.
   totalWeeks               Int          @default(24) @map("total_weeks")
   // Per-week minimum attendance hours. Drives the intern dashboard's cumulative
   // hours target + shortfall flag. 0 = no minimum configured (never short).
@@ -321,10 +324,12 @@ model CohortConfig {
   weightUniversity         Int          @default(30) @map("weight_university")
   weightReport             Int          @default(30) @map("weight_report")
   weightLogbook            Int          @default(10) @map("weight_logbook")
-  // SIWES daily-logbook calendar + admissibility window (Batch 1). The logbook
-  // cover says 8 weeks, the department says minimum 6 — configuration absorbs
-  // the discrepancy (CHECK duration_weeks >= 6 in migration SQL).
-  durationWeeks            Int          @default(6) @map("duration_weeks")
+  // Attachment length in weeks — THE single source of truth for "how long is
+  // this programme". Coordinator-editable (see updateActiveCohortConfig); the
+  // database only bounds it at >= 1 (CHECK duration_weeks >= 1). The old
+  // >= 6 floor made a 5-week cohort unconfigurable at the database, which is
+  // the wrong place for a departmental rule to live.
+  durationWeeks            Int          @default(5) @map("duration_weeks")
   workingDays              Int[]        @default([1, 2, 3, 4, 5]) @map("working_days") // ISO dow
   entryEditWindowDays      Int          @default(2) @map("entry_edit_window_days")
   syncGraceDays            Int          @default(3) @map("sync_grace_days") // hard outer bound past placement end

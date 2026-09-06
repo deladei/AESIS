@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import {
   Clock, Loader2, Check, AlertCircle, Gauge, Scale, Send, CheckCircle2,
-  Download, CalendarDays, Plus, Trash2, ShieldCheck,
+  Download, CalendarDays, Plus, Trash2, ShieldCheck, CalendarRange,
 } from 'lucide-react';
 import { useCohortConfig, useUpdateCohortConfig } from '@/hooks/useCohortConfig';
 import { useReleaseCohort, useCohortReport, type CohortReport } from '@/hooks/useGrade';
@@ -383,15 +383,17 @@ export default function CohortSettings() {
   const update = useUpdateCohortConfig();
 
   // Local form state, seeded once the config loads.
+  const [weeks, setWeeks] = useState<string>('');
   const [hours, setHours] = useState<string>('');
   const [threshold, setThreshold] = useState<string>('');
   const [weights, setWeights] = useState<Record<WeightKey, string>>({
     weightIndustry: '', weightUniversity: '', weightReport: '', weightLogbook: '',
   });
-  const [savedField, setSavedField] = useState<'hours' | 'threshold' | 'weights' | null>(null);
+  const [savedField, setSavedField] = useState<'weeks' | 'hours' | 'threshold' | 'weights' | null>(null);
 
   useEffect(() => {
     if (config) {
+      setWeeks(String(config.durationWeeks));
       setHours(String(config.minWeeklyHours));
       setThreshold(String(config.performanceThreshold));
       setWeights({
@@ -417,12 +419,21 @@ export default function CohortSettings() {
 
   // Bounds come from the shared field rules, so the inline message here is the
   // same text the API would return for the same value.
+  const weeksCheck = weeks.trim() === '' ? null : boundedInt(1, 52, 'Attachment length').safeParse(Number(weeks));
+  const weeksError = weeksCheck && !weeksCheck.success ? weeksCheck.error.issues[0]?.message : undefined;
+  const parsedWk   = Number(weeks);
+  const validWk    = weeksCheck?.success === true;
+  const dirtyWk    = validWk && parsedWk !== config.durationWeeks;
+
   const hoursCheck = hours.trim() === '' ? null : boundedInt(0, 168, 'Minimum hours per week').safeParse(Number(hours));
   const hoursError = hoursCheck && !hoursCheck.success ? hoursCheck.error.issues[0]?.message : undefined;
   const parsed   = Number(hours);
   const valid    = hoursCheck?.success === true;
   const dirty    = valid && parsed !== config.minWeeklyHours;
-  const expected = valid && parsed > 0 ? parsed * config.totalWeeks : 0;
+  // Previewed against the length CURRENTLY IN THE BOX, so editing both at once
+  // shows the total the coordinator is actually about to create.
+  const previewWeeks = validWk ? parsedWk : config.durationWeeks;
+  const expected = valid && parsed > 0 ? parsed * previewWeeks : 0;
 
   const thresholdCheck = threshold.trim() === '' ? null : boundedInt(0, 100, 'Minimum average score').safeParse(Number(threshold));
   const thresholdError = thresholdCheck && !thresholdCheck.success ? thresholdCheck.error.issues[0]?.message : undefined;
@@ -458,15 +469,57 @@ export default function CohortSettings() {
             </p>
           </header>
 
-          {/* 1 ── attendance minimum */}
+          {/* 1 ── attachment length */}
           <Section
-            n={1} icon={Clock} title="Weekly attendance minimum"
+            n={1} icon={CalendarRange} title="Attachment length"
+            hint="How many weeks this cohort's attachment runs for. Everything else counts against it."
+            aside={
+              <Impact title="What this changes">
+                {validWk
+                  ? <>The logbook accepts weeks <strong>1&nbsp;to&nbsp;{parsedWk}</strong> and refuses week {parsedWk + 1}.
+                      Every &ldquo;week X of Y&rdquo;, every progress bar and the compliance denominator
+                      all read {parsedWk}.</>
+                  : <>The attachment length bounds the logbook and every progress figure in the system.</>}
+              </Impact>
+            }
+          >
+            <label htmlFor="durationWeeks" className="mb-2 block text-sm font-medium text-ink-secondary">
+              Weeks in the attachment
+            </label>
+            <div className="flex flex-wrap items-center gap-4">
+              <div className="relative">
+                <input
+                  id="durationWeeks" type="number" min={1} max={52} step={1} value={weeks}
+                  aria-invalid={!!weeksError} onChange={(e) => setWeeks(e.target.value)}
+                  className="w-32 rounded-lg border border-line bg-surface px-4 py-2.5 pr-16 text-base font-semibold text-ink outline-none focus:border-brand"
+                />
+                <span className="pointer-events-none absolute right-4 top-1/2 -translate-y-1/2 text-sm text-ink-muted">weeks</span>
+                <FieldError message={weeksError} />
+              </div>
+              <SaveButton
+                onClick={() => { if (dirtyWk) { setSavedField('weeks'); update.mutate({ durationWeeks: parsedWk }); } }}
+                disabled={!dirtyWk || update.isPending}
+                pending={update.isPending && savedField === 'weeks'}
+              />
+              <SaveState saved={savedOK('weeks', dirtyWk)} failed={update.isError && savedField === 'weeks'} />
+            </div>
+            {validWk && parsedWk < config.durationWeeks && (
+              <p className="mt-3 text-xs font-medium text-warn">
+                Shortening the attachment does not delete anything. Weeks already logged beyond
+                week&nbsp;{parsedWk} stay in the record — they simply stop counting toward progress.
+              </p>
+            )}
+          </Section>
+
+          {/* 2 ── attendance minimum */}
+          <Section
+            n={2} icon={Clock} title="Weekly attendance minimum"
             hint="Drives each intern's cumulative-hours target and their shortfall flag."
             aside={
               <Impact title="What this changes">
                 {valid && parsed > 0
-                  ? <>Interns are expected to log <strong>{expected} hours</strong> across the {config.totalWeeks}-week
-                      placement ({parsed} h/week × {config.totalWeeks} weeks). Anyone below reads as short.</>
+                  ? <>Interns are expected to log <strong>{expected} hours</strong> across the {previewWeeks}-week
+                      placement ({parsed} h/week × {previewWeeks} weeks). Anyone below reads as short.</>
                   : <>Set to 0 to disable the minimum — interns will never see an attendance shortfall.</>}
               </Impact>
             }
@@ -493,9 +546,9 @@ export default function CohortSettings() {
             </div>
           </Section>
 
-          {/* 2 ── performance threshold */}
+          {/* 3 ── performance threshold */}
           <Section
-            n={2} icon={Gauge} title="Performance threshold"
+            n={3} icon={Gauge} title="Performance threshold"
             hint="Interns whose average logbook quality score falls below this are flagged for attention."
             aside={
               <Impact tone="warn" title="Impact preview">
@@ -529,9 +582,9 @@ export default function CohortSettings() {
             </div>
           </Section>
 
-          {/* 3 ── grade weights */}
+          {/* 4 ── grade weights */}
           <Section
-            n={3} icon={Scale} title="Final grade weights"
+            n={4} icon={Scale} title="Final grade weights"
             hint="How the four component scores combine into each intern's final grade. Must total exactly 100."
             aside={
               <DonutStat
@@ -605,6 +658,7 @@ export default function CohortSettings() {
 
         <aside className="space-y-5">
           <SettingsHealth
+            durationWeeks={config.durationWeeks}
             attendance={config.minWeeklyHours > 0}
             threshold={config.performanceThreshold > 0}
             weights={config.weightIndustry + config.weightUniversity + config.weightReport + config.weightLogbook === 100}
@@ -622,11 +676,18 @@ export default function CohortSettings() {
  * setting is on, or it is off and here is what that turns off with it.
  */
 function SettingsHealth({
-  attendance, threshold, weights, academicYearId,
-}: { attendance: boolean; threshold: boolean; weights: boolean; academicYearId: string }) {
+  durationWeeks, attendance, threshold, weights, academicYearId,
+}: {
+  durationWeeks: number; attendance: boolean; threshold: boolean;
+  weights: boolean; academicYearId: string;
+}) {
   const { data: days = [] } = useNonWorkingDays(academicYearId);
 
   const checks = [
+    // Always on — the column is NOT NULL — so this row reports the value rather
+    // than a yes/no, which would always read "yes" and tell nobody anything.
+    { label: `Attachment length: ${durationWeeks} week${durationWeeks === 1 ? '' : 's'}`, on: true,
+      off: 'Not configured.' },
     { label: 'Attendance minimum', on: attendance, off: 'No hours target; nobody flags as short.' },
     { label: 'Performance threshold', on: threshold, off: 'Low scores raise no signal.' },
     { label: 'Grade weights total 100', on: weights, off: 'Aggregation will refuse these weights.' },

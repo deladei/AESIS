@@ -157,7 +157,13 @@ describe('week/date invariant', () => {
   });
 
   it('falls back to the schema default when there is no span and no config', () => {
-    expect(expectedWeeks(null, null)).toBe(6);
+    expect(expectedWeeks(null, null)).toBe(5);
+  });
+
+  it('prefers the configured length over a date span that disagrees', () => {
+    // One programme cannot be two lengths: the cohort's configuration is the
+    // answer, and the dates are only a fallback for an unconfigured cohort.
+    expect(expectedWeeks('2026-01-12', '2026-06-29', 5)).toBe(5);
   });
 
   it('still refuses an absurd span — the ceiling is a sanity bound, not a length', () => {
@@ -168,7 +174,7 @@ describe('week/date invariant', () => {
     const p = weekProgress({
       startDate: '2026-01-12',
       endDate: '2026-06-29',
-      totalWeeksConfig: 24,
+      configuredWeeks: 24,
       submittedCount: 30,
     });
     expect(p.total).toBe(24);

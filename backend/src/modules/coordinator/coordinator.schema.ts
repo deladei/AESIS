@@ -1,6 +1,11 @@
 import { z } from 'zod';
 
 // Cohort configuration the coordinator can edit for the active academic year.
+//  • durationWeeks        — attachment length. THE single source of truth for
+//    "how long is this programme": the logbook's week ceiling, every "week X of
+//    Y", and the expected-hours total all read it. Bounded 1–52 here and
+//    CHECK >= 1 in the database. It used to be unreachable — no endpoint wrote
+//    it and a database CHECK >= 6 made a 5-week cohort impossible.
 //  • minWeeklyHours       — per-week minimum attendance hours. 0 disables the
 //    intern dashboard's shortfall flag. Capped at 168 (hours in a week).
 //  • performanceThreshold — logbook quality score (0–100) below which an intern
@@ -15,6 +20,7 @@ const WEIGHT_KEYS = ['weightIndustry', 'weightUniversity', 'weightReport', 'weig
 
 export const updateCohortConfigSchema = z
   .object({
+    durationWeeks:        z.coerce.number().int().min(1).max(52).optional(),
     minWeeklyHours:       z.coerce.number().int().min(0).max(168).optional(),
     performanceThreshold: z.coerce.number().int().min(0).max(100).optional(),
     weightIndustry:       z.coerce.number().int().min(0).max(100).optional(),

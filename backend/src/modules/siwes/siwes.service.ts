@@ -4,11 +4,11 @@ import { AppError } from '../../middleware/errorHandler';
 import { parseDateOnly, todayUtc, daysBetween } from '../entries/entry.dates';
 import { authorizePlacement, type Actor } from '../entries/entries.policy';
 import { evaluateWeekCompletion } from '../entries/entries.autosubmit';
+import { DEFAULT_DURATION_WEEKS } from '../entries/entries.week';
 import {
   classifyDay,
   evaluateDayAdmissibility,
   weekNumberFor,
-  weeksInAttachment,
   withinEditWindow,
   type AttachmentCalendar,
   type AdmissibilityRules,
@@ -47,7 +47,16 @@ export interface AttachmentContext {
   };
   cal: AttachmentCalendar;
   rules: AdmissibilityRules;
-  /** endDate ?? chainStart + durationWeeks — the calendar always has an end. */
+  /**
+   * The cohort's configured attachment length. THE answer to "how many weeks",
+   * everywhere: the calendar rail, the weekly-report ceiling, and
+   * `assertWeekWithinCohort` all read this one number.
+   */
+  durationWeeks: number;
+  /**
+   * Last day of the attachment: the placement's own end date, but never later
+   * than `durationWeeks` allows. The calendar always has an end.
+   */
   effectiveEnd: Date;
 }
 
@@ -160,10 +169,20 @@ export async function loadAttachmentContext(
   ]);
 
   const chainStart = await resolveChainStart(placement);
-  const durationWeeks = config?.durationWeeks ?? 6;
-  const effectiveEnd = placement.endDate
+  const durationWeeks = config?.durationWeeks ?? DEFAULT_DURATION_WEEKS;
+
+  // The configured length is a CEILING, not just a fallback. This used to take
+  // the placement's end date whenever it had one, so a cohort configured for 5
+  // weeks whose placement dates happened to span 6 rendered a six-week rail in
+  // the logbook — while the entries API refused week 6 with a 422. One
+  // attachment cannot be two lengths.
+  const configuredEnd = addDays(chainStart, durationWeeks * 7 - 1);
+  const placementEnd = placement.endDate
     ? parseDateOnly(iso(placement.endDate), 'endDate')
-    : addDays(chainStart, durationWeeks * 7 - 1);
+    : null;
+  const effectiveEnd = placementEnd && placementEnd.getTime() < configuredEnd.getTime()
+    ? placementEnd
+    : configuredEnd;
 
   return {
     placement: {
@@ -173,6 +192,7 @@ export async function loadAttachmentContext(
       isCurrent: placement.isCurrent,
       academicYearId: placement.academicYearId,
     },
+    durationWeeks,
     cal: {
       chainStart,
       chainEnd: effectiveEnd,
@@ -373,9 +393,8 @@ export async function saveWeeklySummary(actor: Actor, input: SaveWeeklySummaryIn
   assertWritablePlacement(ctx);
 
   const today = todayUtc();
-  const totalWeeks = weeksInAttachment(ctx.cal.chainStart, ctx.effectiveEnd);
-  if (input.weekNumber > totalWeeks) {
-    throw new AppError(422, `The attachment spans ${totalWeeks} week(s)`);
+  if (input.weekNumber > ctx.durationWeeks) {
+    throw new AppError(422, `The attachment spans ${ctx.durationWeeks} week(s)`);
   }
   const weekStart = addDays(ctx.cal.chainStart, (input.weekNumber - 1) * 7);
   if (weekStart.getTime() > today.getTime()) {
@@ -576,7 +595,9 @@ export async function getLogbookCalendar(
     placementId: ctx.placement.id,
     chainStart: iso(ctx.cal.chainStart),
     chainEnd: iso(ctx.effectiveEnd),
-    totalWeeks: weeksInAttachment(ctx.cal.chainStart, ctx.effectiveEnd),
+    // The configured length, not the date span — they are the same number now
+    // that effectiveEnd is clamped, and this says which one is authoritative.
+    totalWeeks: ctx.durationWeeks,
     days,
     weeklySummaries: summaries.map((w) =>
       serializeWeeklyReport(w, w.reflection!, addDays(ctx.cal.chainStart, (w.weekNumber - 1) * 7 + 6)),

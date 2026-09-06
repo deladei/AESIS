@@ -13,7 +13,9 @@ import { AppError } from '../../middleware/errorHandler';
  * Mirrors the SIWES pipeline, which already rejects a week beyond the
  * attachment span with the same 422.
  */
-export const DEFAULT_DURATION_WEEKS = 6;
+// Matches the schema default on `CohortConfig.durationWeeks`. Used only when a
+// cohort has no configuration row at all; a configured cohort always wins.
+export const DEFAULT_DURATION_WEEKS = 5;
 
 export async function cohortDurationWeeks(
   placementId: string,

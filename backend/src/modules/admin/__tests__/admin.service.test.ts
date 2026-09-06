@@ -78,7 +78,7 @@ describe('getAdminDashboard', () => {
 
     expect(result.overview.activeInterns).toBe(12);
     expect(result.overview.pendingReviews).toBe(8);
-    expect(result.overview.avgEngagement).toBe(75); // round(54/72*100)
+    expect(result.overview.avgEngagement).toBe(90); // round(54/60*100) — 5-week cohorts
     expect(result.submissionCounts).toEqual({ pending: 8, reviewed: 24 });
   });
 
@@ -124,13 +124,13 @@ describe('getAdminDashboard', () => {
     expect(result.pulseBoard[0]).toMatchObject({
       engagementPct: 100,
       submittedWeeks: 6,
-      weeksDue: 6,
-      programmeWeeks: 6,
+      weeksDue: 5,
+      programmeWeeks: 5,
       feedbackCount: 2,
       department: 'B.Sc. IT',
       riskTier: 'medium',
     });
-    expect(result.pulseBoard[1]).toMatchObject({ engagementPct: 50, feedbackCount: 1 });
+    expect(result.pulseBoard[1]).toMatchObject({ engagementPct: 60, feedbackCount: 1 }); // 3/5
   });
 
   it('maps recent submitted entries to the view shape', async () => {

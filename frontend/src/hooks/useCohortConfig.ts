@@ -5,7 +5,7 @@ export interface CohortConfig {
   id:                   string;
   minWeeklyHours:       number;
   performanceThreshold: number;   // quality score below which an intern flags as at-risk (0 = off)
-  totalWeeks:           number;
+  durationWeeks:        number;   // attachment length — the ONE week count every screen reads
   weightIndustry:       number;   // final-grade aggregation weights (% points, sum to 100)
   weightUniversity:     number;
   weightReport:         number;
@@ -27,14 +27,16 @@ export function useCohortConfig(enabled = true) {
 }
 
 /**
- * Set the active cohort's per-week minimum attendance hours. On success we both
- * prime the config cache and invalidate the intern dashboard so the attendance
- * tile (logged vs target) reflects the new minimum immediately.
+ * Update the active cohort's settings. On success we both prime the config
+ * cache and invalidate the surfaces that read it — the attachment length is the
+ * ceiling on the logbook's week numbers and the denominator of every "week X of
+ * Y", so changing it moves far more than this page.
  */
 export function useUpdateCohortConfig() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async (input: {
+      durationWeeks?: number;
       minWeeklyHours?: number;
       performanceThreshold?: number;
       weightIndustry?: number;
@@ -53,6 +55,10 @@ export function useUpdateCohortConfig() {
       qc.invalidateQueries({ queryKey: ['student', 'dashboard'] });
       qc.invalidateQueries({ queryKey: ['coordinator'] });
       qc.invalidateQueries({ queryKey: ['grade'] });
+      // Attachment length bounds the logbook and every progress denominator.
+      qc.invalidateQueries({ queryKey: ['entries'] });
+      qc.invalidateQueries({ queryKey: ['siwes'] });
+      qc.invalidateQueries({ queryKey: ['supervisor'] });
     },
   });
 }

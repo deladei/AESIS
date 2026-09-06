@@ -1385,7 +1385,10 @@ const COHORT_CONFIG_SELECT = {
   id:                   true,
   minWeeklyHours:       true,
   performanceThreshold: true,
-  totalWeeks:           true,
+  // Attachment length. `totalWeeks` is deliberately NOT exposed: two numbers
+  // both called "weeks" is what let the settings page quote a 24-week
+  // placement while the logbook enforced 6.
+  durationWeeks:        true,
   weightIndustry:       true,
   weightUniversity:     true,
   weightReport:         true,
@@ -1397,7 +1400,7 @@ type CohortConfigRow = {
   id: string;
   minWeeklyHours: number;
   performanceThreshold: number;
-  totalWeeks: number;
+  durationWeeks: number;
   weightIndustry: number;
   weightUniversity: number;
   weightReport: number;
@@ -1410,7 +1413,7 @@ function shapeCohortConfig(c: CohortConfigRow) {
     id:                   c.id,
     minWeeklyHours:       c.minWeeklyHours,
     performanceThreshold: c.performanceThreshold,
-    totalWeeks:           c.totalWeeks,
+    durationWeeks:        c.durationWeeks,
     weightIndustry:       c.weightIndustry,
     weightUniversity:     c.weightUniversity,
     weightReport:         c.weightReport,
@@ -1444,11 +1447,13 @@ export async function getActiveCohortConfig() {
   return shapeCohortConfig(config);
 }
 
-/** Update the active cohort's editable settings (min weekly hours, performance
- *  threshold, and/or the four final-grade weights). The schema guarantees the
- *  weights, when present, arrive as a complete set summing to 100, so this just
- *  writes through. 404 when no active config exists. */
+/** Update the active cohort's editable settings (attachment length, min weekly
+ *  hours, performance threshold, and/or the four final-grade weights). The
+ *  schema guarantees the weights, when present, arrive as a complete set
+ *  summing to 100, so this just writes through. 404 when no active config
+ *  exists. */
 export async function updateActiveCohortConfig(input: {
+  durationWeeks?: number;
   minWeeklyHours?: number;
   performanceThreshold?: number;
   weightIndustry?: number;
@@ -1465,6 +1470,7 @@ export async function updateActiveCohortConfig(input: {
   const updated = await prisma.cohortConfig.update({
     where:  { id: existing.id },
     data:   {
+      ...(input.durationWeeks        !== undefined ? { durationWeeks:        input.durationWeeks }        : {}),
       ...(input.minWeeklyHours       !== undefined ? { minWeeklyHours:       input.minWeeklyHours }       : {}),
       ...(input.performanceThreshold !== undefined ? { performanceThreshold: input.performanceThreshold } : {}),
       ...(input.weightIndustry       !== undefined ? { weightIndustry:       input.weightIndustry }       : {}),

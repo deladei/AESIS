@@ -74,9 +74,9 @@ describe('getInsights', () => {
     expect(akosua.status).toBe('On Track');
     expect(akosua.flagged).toBe(false);
 
-    // Yaw: 1/6 submitted → 17% engagement → flagged At Risk; relevance mean(40)=40.
+    // Yaw: 1/5 submitted → 20% engagement → flagged At Risk; relevance mean(40)=40.
     const yaw = r.performanceMonitoring.find(p => p.name === 'Yaw Asante')!;
-    expect(yaw.engagementPct).toBe(17);
+    expect(yaw.engagementPct).toBe(20);
     expect(yaw.flagged).toBe(true);
     expect(yaw.status).toBe('At Risk');
     expect(yaw.relevanceScore).toBe(40);
