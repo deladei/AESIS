@@ -3845,3 +3845,65 @@ image, so they were migrated onto the design system rather than laid out to a de
 `LogbookEditor`, `PlacementFinalization`, `InternDetail`, `CompanyDetail`, `NotificationInbox`,
 the two print reports, the auth pages and the three public magic-link pages keep their existing
 layouts. If designs arrive for those, that is the next pass.
+
+---
+
+## S99 — 2026-09-06 · Ran it. Screenshotted all 33 routes in dark mode. Fixed what that found.
+
+**Shipped as `1e9ebb6` and `9307a6e`.** First time this app has ever been rendered in a browser
+by this project.
+
+### How it was verified
+
+Playwright (cached chromium at `~/.cache/ms-playwright/chromium-1223`) against the local dev
+server, logging in through the real form as each of the four roles, `localStorage['aesis-theme']
+= 'dark'` set before first paint. **33 routes, 0 redirects.** Harness + PNGs in the session
+scratchpad (`shots.mjs`, `shots/`).
+
+Accounts: `admin@aesis.cs.edu / Admin@1234`, `coordinator@aesis.cs.edu / Coord@1234`,
+`supervisor@aesis.cs.edu / Super@1234`, students `/ Student@1234`.
+
+### Bugs the render found — none of which a typecheck or a test would have caught
+
+1. **The account menu called everybody "Head Coordinator"** — a literal string in
+   `AccountMenu.tsx`, so a student saw themselves labelled as the coordinator on every single
+   page. Now reads the real role through one `ROLE_LABELS` map (`lib/roles.ts`).
+2. **The Submissions donut overflowed its card** and collided with the right rail. `DonutStat`
+   pairs its chart with a legend at `sm:flex-row` — a VIEWPORT breakpoint, which knows nothing
+   about the 190px column it was asked to sit in. Replaced with a self-contained ring.
+3. **The Vite dev proxy targeted `localhost`.** On this box that resolves to ::1 first with
+   nothing listening, so every proxied call failed and the SPA looked like a backend outage.
+   Now `127.0.0.1`. (`vite preview` also gained the proxy, so the built app can be driven
+   locally.)
+
+### Then covered the pages that never had a design
+
+- **No ALL-CAPS labels left** — 36 `uppercase tracking-wide` eyebrows across 16 files, against
+  standing feedback. One deliberate exception kept and commented: the MAY/18 date tile.
+- **Notifications** rebuilt — it was the barest screen in the app.
+- **One page shell** — `InternsList`, `InternDetail`, `CompanyDetail` had their own widths and
+  paddings, so the gutter changed as you navigated. Page titles are `<h1>` now; every page had
+  been starting its heading outline at level two.
+
+### ⚠️ Box limits, again
+
+3.6 GB total. **Chromium + Vite + the API + a production build together OOM-kill each other** —
+the sweep died three times until duplicate Vite instances were killed by PID and the roles were
+shot in two halves. Never run `npm run build` while the harness is running. `pkill -f vite`
+kills the invoking shell too (it matches its own command line) — kill by PID.
+
+### State
+
+Frontend typecheck clean, production build green, backend **838 tests / 59 suites** green.
+
+### What is now genuinely verified vs not
+
+**Verified:** every route renders in dark mode for its role, no crashes, no redirect loops, no
+unreadable panels. **Not verified:** light mode was not swept, no narrow-viewport pass, and no
+interaction testing (forms submit, dialogs open) — the sweep only navigates and screenshots.
+
+### Carried
+
+Supabase password rotation; Neon deletion; S87 prod smokes; Render env nits; stopped Docker
+containers. Local seed data still uses non-Ghanaian demo names (Sarah Jenkins, David Rivera,
+Elena Kostas, Alex Kim) — against the Ghana-names rule, and visible in every screenshot.
