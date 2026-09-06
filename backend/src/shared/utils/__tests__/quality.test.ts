@@ -10,6 +10,8 @@ import {
   weeksDue,
   engagementPercent,
   weekProgress,
+  workingDaysElapsed,
+  dayProgressPercent,
 } from '../quality';
 
 describe('meanQualityScore', () => {
@@ -206,5 +208,51 @@ describe('weeksDue — engagement counts what is owed, not the whole programme',
   it('never reports over 100%, however many weeks were submitted', () => {
     expect(engagementPercent(9, 3)).toBe(100);
     expect(engagementPercent(2, 4)).toBe(50);
+  });
+});
+
+// ── Day-level progress ──────────────────────────────────────────
+
+describe('workingDaysElapsed / dayProgressPercent', () => {
+  const monFri = (d: Date) => {
+    const wd = d.getUTCDay();
+    return wd >= 1 && wd <= 5;
+  };
+  const start = new Date('2026-01-05T00:00:00.000Z'); // a Monday
+
+  it('counts only working days that have already come due', () => {
+    // Wed of week 1 → Mon, Tue, Wed have come due.
+    expect(workingDaysElapsed(start, 6, monFri, new Date('2026-01-07T00:00:00.000Z'))).toBe(3);
+    // End of week 1 (Sunday) → the five weekdays.
+    expect(workingDaysElapsed(start, 6, monFri, new Date('2026-01-11T00:00:00.000Z'))).toBe(5);
+  });
+
+  it('never counts past the end of the attachment', () => {
+    // A 6-week attachment is 30 working days however long ago it ended.
+    expect(workingDaysElapsed(start, 6, monFri, new Date('2027-01-01T00:00:00.000Z'))).toBe(30);
+  });
+
+  it('excludes days the cohort does not work', () => {
+    const noWednesdays = (d: Date) => monFri(d) && d.getUTCDay() !== 3;
+    expect(workingDaysElapsed(start, 1, noWednesdays, new Date('2026-01-11T00:00:00.000Z'))).toBe(4);
+  });
+
+  it('is 0 before the attachment starts, and for a missing start date', () => {
+    expect(workingDaysElapsed(start, 6, monFri, new Date('2025-12-01T00:00:00.000Z'))).toBe(0);
+    expect(workingDaysElapsed(null, 6, monFri)).toBe(0);
+  });
+
+  it('reports one logged day of a five-day week as 20%, not 0%', () => {
+    // The reported bug: a whole week had to close before the bar moved.
+    expect(dayProgressPercent(1, 5)).toBe(20);
+    expect(dayProgressPercent(4, 5)).toBe(80);
+  });
+
+  it('returns null when nothing is due yet, never a misleading 0', () => {
+    expect(dayProgressPercent(0, 0)).toBeNull();
+  });
+
+  it('caps at 100 so logging ahead cannot exceed the target', () => {
+    expect(dayProgressPercent(9, 5)).toBe(100);
   });
 });

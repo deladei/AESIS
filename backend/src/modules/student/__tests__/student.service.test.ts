@@ -16,6 +16,9 @@ jest.mock('../../../config/prisma', () => ({
     },
     visitSchedule: { findFirst: jest.fn().mockResolvedValue(null) },
     task: { count: jest.fn().mockResolvedValue(0) },
+    // Day-level progress counts working days that have come due, so holidays
+    // (which are not owed) are read. Defaulted to none.
+    nonWorkingDay: { findMany: jest.fn().mockResolvedValue([]) },
   },
 }));
 
@@ -83,7 +86,10 @@ describe('getStudentDashboard', () => {
     expect(result.week!.total).toBe(24);
     expect(result.expectedLogs).toBe(24);
     expect(result.week!.current).toBe(3);  // 3 submitted (draft excluded)
-    expect(result.completionPct).toBe(13); // round(3/24*100)
+    // completionPct is DAY-level now, and these fixture weeks carry no day rows
+    // with written work — so nothing has been logged, and it reads 0 rather
+    // than crediting a week the student never wrote in.
+    expect(result.completionPct).toBe(0);
   });
 
   it('lets the configured length override a date span that disagrees', async () => {
@@ -121,15 +127,19 @@ describe('getStudentDashboard', () => {
     (mp.placement.findMany as jest.Mock).mockResolvedValue([
       makePlacement({
         logbookEntries: [
-          // Week-level submit → counts.
-          { status: 'acknowledged', hoursLogged: null, submittedAt: new Date('2026-01-20'), days: [{ status: 'submitted' }] },
-          // Still a draft week (not closed) but the student submitted 3 of 5 days → counts.
+          // Week-level submit → counts as a submitted WEEK.
+          { status: 'acknowledged', hoursLogged: null, submittedAt: new Date('2026-01-20'),
+            days: [{ status: 'submitted', descriptionOfWork: 'Shadowed the ops team' }] },
+          // Still a draft week, but three days carry written work.
           { status: 'draft', hoursLogged: null, submittedAt: null, days: [
-            { status: 'submitted' }, { status: 'submitted' }, { status: 'submitted' },
-            { status: 'draft' }, { status: 'draft' },
+            { status: 'submitted', descriptionOfWork: 'Wrote the intake script' },
+            { status: 'submitted', descriptionOfWork: 'Paired on the API' },
+            { status: 'submitted', descriptionOfWork: 'Fixed the report job' },
+            { status: 'draft', descriptionOfWork: null },
+            { status: 'draft', descriptionOfWork: '   ' },
           ] },
-          // Pure draft, nothing logged yet → does NOT count.
-          { status: 'draft', hoursLogged: null, submittedAt: null, days: [{ status: 'draft' }] },
+          // Pure draft, nothing written → contributes nothing.
+          { status: 'draft', hoursLogged: null, submittedAt: null, days: [{ status: 'draft', descriptionOfWork: null }] },
         ],
       }),
     ]);
@@ -138,7 +148,12 @@ describe('getStudentDashboard', () => {
 
     expect(result.week!.current).toBe(2);   // 1 week-submitted + 1 partially-logged
     expect(result.logsSubmitted).toBe(2);
-    expect(result.completionPct).toBe(8);   // round(2/24*100) — 24-week attachment
+    // Four days carry written work; a whitespace-only description is not work.
+    // The placement started 2026-01-12 against a 24-week cohort, so every one
+    // of its working days has long since come due and the share is tiny — but
+    // it is no longer ZERO, which is the whole point: partial weeks count.
+    expect(result.completionPct).toBeGreaterThan(0);
+    expect(result.completionPct).toBeLessThan(10);
   });
 
   it('returns null avgQualityScore and "—"-able state when no log is scored', async () => {

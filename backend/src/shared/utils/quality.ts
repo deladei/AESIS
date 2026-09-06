@@ -188,3 +188,50 @@ export function engagementPercent(submitted: number, due: number): number | null
   if (due <= 0) return null;
   return Math.min(100, Math.round((Math.max(0, submitted) / due) * 100));
 }
+
+// ── Day-level progress ──────────────────────────────────────────
+
+/**
+ * Working days of the attachment that have already come DUE.
+ *
+ * Progress used to be counted in whole WEEKS, so a student who had logged four
+ * days of week 1 read 0% — the work was real and the bar said nothing had
+ * happened. Days are the unit the student actually submits, so days are the
+ * unit progress is measured in.
+ *
+ * `isWorkingDay` is injected rather than importing `classifyDay` directly: this
+ * module is shared with the browser bundle and must not pull in the calendar's
+ * Prisma-facing dependencies. Callers pass a closure over the cohort's
+ * `workingDays` and holiday set.
+ */
+export function workingDaysElapsed(
+  chainStart: Date | string | null | undefined,
+  durationWeeks: number,
+  isWorkingDay: (d: Date) => boolean,
+  today: Date = new Date(),
+): number {
+  if (!chainStart) return 0;
+  const start = new Date(chainStart);
+  if (Number.isNaN(start.getTime())) return 0;
+
+  const cap = Math.min(Math.max(0, durationWeeks), SYSTEM_MAX_WEEKS) * 7;
+  const elapsed = Math.floor((today.getTime() - start.getTime()) / 86_400_000) + 1;
+  const span = Math.max(0, Math.min(elapsed, cap));
+
+  let count = 0;
+  for (let i = 0; i < span; i++) {
+    if (isWorkingDay(new Date(start.getTime() + i * 86_400_000))) count++;
+  }
+  return count;
+}
+
+/**
+ * Progress as a percentage of what is owed SO FAR — never of the whole
+ * programme, which reads as "behind" from day one and cannot reach 100% until
+ * the final week. `null` when nothing is due yet, so the UI renders "—" rather
+ * than a misleading 0 (the no-impossible-metrics rule).
+ */
+export function dayProgressPercent(daysLogged: number, daysDue: number): number | null {
+  if (daysDue <= 0) return null;
+  return Math.min(100, Math.round((Math.max(0, daysLogged) / daysDue) * 100));
+}

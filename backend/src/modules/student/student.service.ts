@@ -1,7 +1,10 @@
 import { prisma } from '../../config/prisma';
 import {
   meanQualityScore, mergedQualityScores, weekProgress, weeksDue,
+  workingDaysElapsed, dayProgressPercent,
 } from '../../shared/utils/quality';
+import { resolveChainStart, DEFAULT_DURATION_WEEKS } from '../entries/entries.week';
+import { classifyDay } from '../siwes/siwes.calendar';
 import { hoursSummary } from '../../shared/utils/hours';
 import { decryptPII } from '../../shared/utils/crypto';
 
@@ -78,12 +81,20 @@ export async function getStudentDashboard(studentId: string) {
       startDate:       true,
       endDate:         true,
       placementStatus: true,
+      // Needed to anchor week/day arithmetic on the supersedes-chain root.
+      supersedesPlacementId: true,
+      academicYearId: true,
       academicYear: {
         select: {
           // `durationWeeks` is the length the logbook itself enforces; the older
           // `totalWeeks` is kept only as a fallback for cohorts predating it.
           cohortConfigs: {
-            select: { durationWeeks: true, totalWeeks: true, minWeeklyHours: true },
+            select: {
+              durationWeeks: true, totalWeeks: true, minWeeklyHours: true,
+              // Needed to count DUE working days: a holiday or a rest day is
+              // not something the student is behind on.
+              workingDays: true,
+            },
             take: 1,
           },
         },
@@ -109,7 +120,9 @@ export async function getStudentDashboard(studentId: string) {
           status: true,
           hoursLogged: true,
           submittedAt: true,
-          days: { select: { status: true } },
+          // `descriptionOfWork` decides whether a day counts as logged — a bare
+          // status row is not work (see the calendar's `missing` flag).
+          days: { select: { status: true, descriptionOfWork: true } },
           // Latest v2 assessment per week — the quality signal the retired
           // legacy writer no longer produces (see mergedQualityScores).
           assessments: {
@@ -211,9 +224,43 @@ export async function getStudentDashboard(studentId: string) {
   // working towards.
   const due = weeksDue(placement.startDate, week.total);
 
-  const completionPct = week.total > 0
-    ? Math.min(100, Math.round((submittedCount / week.total) * 100))
+  // ── Day-level progress ──────────────────────────────────────
+  //
+  // Progress is days logged over working days ALREADY DUE. Counting whole weeks
+  // over the whole programme (what this used to do) meant four logged days of
+  // week 1 read 0%, and the number could not reach 100% before the final week.
+  const chainStart = await resolveChainStart({
+    id: placement.id,
+    startDate: placement.startDate,
+    supersedesPlacementId: placement.supersedesPlacementId,
+  }).catch(() => null);
+
+  const holidays = chainStart
+    ? await prisma.nonWorkingDay.findMany({
+        where:  { academicYearId: placement.academicYearId },
+        select: { day: true },
+      })
+    : [];
+  const holidaySet = new Set(holidays.map(h => h.day.toISOString().slice(0, 10)));
+  const cal = {
+    chainStart: chainStart ?? new Date(0),
+    chainEnd:   new Date(8.64e15),
+    workingDays: cohort?.workingDays ?? [1, 2, 3, 4, 5],
+    nonWorkingDays: holidaySet,
+  };
+
+  const daysDue = chainStart
+    ? workingDaysElapsed(
+        chainStart,
+        cohort?.durationWeeks ?? DEFAULT_DURATION_WEEKS,
+        (d) => classifyDay(d, cal) === 'working',
+      )
     : 0;
+  const daysLogged = placement.logbookEntries.reduce(
+    (n, e) => n + (e.days ?? []).filter(d => (d.descriptionOfWork ?? '').trim() !== '').length,
+    0,
+  );
+  const completionPct = dayProgressPercent(daysLogged, daysDue) ?? 0;
 
   // Objective progress — only CONFIRMED entry links count.
   const objectives = placement.learningObjectives.map(o => ({
