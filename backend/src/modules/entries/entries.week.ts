@@ -1,5 +1,6 @@
 import { prisma } from '../../config/prisma';
 import { AppError } from '../../middleware/errorHandler';
+import { parseDateOnly } from './entry.dates';
 
 /**
  * The upper bound on a week number is the COHORT's configured attachment
@@ -77,4 +78,67 @@ export function weeksForYear(
 ): number {
   const n = academicYearId ? weeksByYear.get(academicYearId) : undefined;
   return n && n > 0 ? n : DEFAULT_DURATION_WEEKS;
+}
+
+// ── Week bounds ───────────────────────────────────────────────
+
+const DAY_MS = 86_400_000;
+const iso = (d: Date): string => d.toISOString().slice(0, 10);
+
+/**
+ * Resolve the supersedes chain to its root and return its start date, pinned to
+ * UTC midnight.
+ *
+ * The attachment is continuous across an approved transfer, so every date and
+ * week rule anchors on the FIRST placement's start date — week numbering never
+ * resets. Lives here rather than in `siwes.service` because the entries writers
+ * need it too, and `siwes.service` already imports from this module (importing
+ * back would be a cycle).
+ */
+export async function resolveChainStart(placement: {
+  id: string;
+  startDate: Date | null;
+  supersedesPlacementId: string | null;
+}): Promise<Date> {
+  let current = placement;
+  const seen = new Set<string>([placement.id]);
+  while (current.supersedesPlacementId) {
+    const parent = await prisma.placement.findUnique({
+      where:  { id: current.supersedesPlacementId },
+      select: { id: true, startDate: true, supersedesPlacementId: true },
+    });
+    if (!parent || seen.has(parent.id)) break;
+    seen.add(parent.id);
+    current = parent;
+  }
+  if (!current.startDate) {
+    throw new AppError(409, 'The attachment has no configured start date');
+  }
+  return parseDateOnly(iso(current.startDate), 'startDate');
+}
+
+/** Week N of an attachment anchored on `chainStart`: [start, start+6]. */
+export function weekBoundsFrom(chainStart: Date, weekNumber: number): { periodStart: Date; periodEnd: Date } {
+  const periodStart = new Date(chainStart.getTime() + (weekNumber - 1) * 7 * DAY_MS);
+  return { periodStart, periodEnd: new Date(periodStart.getTime() + 6 * DAY_MS) };
+}
+
+/**
+ * THE server-side derivation of a week's date range.
+ *
+ * Three writers used to derive these independently and two of them trusted
+ * client-supplied bounds (`entries.day.service`, `entries.service`), so
+ * whichever path first created the row decided the week's dates — and
+ * `deadlineReminder` and `weekAutoSubmit`, which both key on `periodEnd`, fired
+ * against whatever that happened to be. The client no longer gets a say.
+ */
+export async function weekBoundsFor(
+  placementId: string,
+  weekNumber: number,
+): Promise<{ periodStart: Date; periodEnd: Date }> {
+  const placement = await prisma.placement.findUniqueOrThrow({
+    where:  { id: placementId },
+    select: { id: true, startDate: true, supersedesPlacementId: true },
+  });
+  return weekBoundsFrom(await resolveChainStart(placement), weekNumber);
 }

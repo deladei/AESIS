@@ -175,7 +175,8 @@ export default function SubmissionHistory() {
   // Every week of the programme, with the entry (if any) attached.
   const weeks = useMemo(() => {
     const byNumber = new Map(entries.map((e) => [e.weekNumber, e]));
-    const schedule = buildSchedule(activePlacement?.startDate ?? null, totalWeeks);
+    // chainStart, not the placement's own startDate — see buildSchedule.
+    const schedule = buildSchedule(calendar?.chainStart ?? activePlacement?.startDate ?? null, totalWeeks);
 
     // A placement with no start date yet has no schedule; fall back to whatever
     // entries exist so the page is never blank when data does exist.
@@ -198,7 +199,7 @@ export default function SubmissionHistory() {
         const bLive = b.state !== 'pending' ? 1 : 0;
         return bLive - aLive || (aLive ? b.weekNumber - a.weekNumber : a.weekNumber - b.weekNumber);
       });
-  }, [entries, activePlacement?.startDate, totalWeeks]);
+  }, [entries, calendar?.chainStart, activePlacement?.startDate, totalWeeks]);
 
   if (placementsLoading || entriesLoading) {
     return <div className="mx-auto max-w-[1500px] p-4 sm:p-6"><Card><SkeletonRows rows={6} /></Card></div>;

@@ -2,7 +2,7 @@ import { prisma } from '../../config/prisma';
 import { AppError } from '../../middleware/errorHandler';
 import { parseDateOnly, isFuture, todayUtc, daysBetween } from './entry.dates';
 import { authorizePlacement, assertPlacementAccess, type Actor } from './entries.policy';
-import { assertWeekWithinCohort } from './entries.week';
+import { assertWeekWithinCohort, weekBoundsFor } from './entries.week';
 import type { SaveDayInput } from './entries.schema';
 
 // Anti-cheat transparency: a day submitted within this grace window of its own
@@ -44,8 +44,10 @@ export async function saveDayDraft(actor: Actor, input: SaveDayInput) {
   await assertWeekWithinCohort(input.placementId, input.weekNumber);
 
   const date = parseDateOnly(input.date, 'date');
-  const periodStart = parseDateOnly(input.periodStart, 'periodStart');
-  const periodEnd = parseDateOnly(input.periodEnd, 'periodEnd');
+  // Derived from the attachment's chain start, never from the request. The
+  // client used to supply these and whichever writer created the row first
+  // decided the week's dates for everyone downstream.
+  const { periodStart, periodEnd } = await weekBoundsFor(input.placementId, input.weekNumber);
   if (date.getTime() < periodStart.getTime() || date.getTime() > periodEnd.getTime()) {
     throw new AppError(422, 'That day is outside this week');
   }
@@ -100,7 +102,11 @@ export async function saveDayDraft(actor: Actor, input: SaveDayInput) {
         workDate: date,
         status: 'draft',
       },
-      update: { status: 'draft', submittedAt: null },
+      // Saving a day must not un-submit it. This used to force
+      // `status: 'draft', submittedAt: null`, and the editor calls this route on
+      // effectively every save — so editing a typo in a submitted day silently
+      // withdrew it. The SIWES writer never touched status; now neither does this.
+      update: {},
     });
 
     return tx.logbookEntry.findUniqueOrThrow({ where: { id: entry.id }, include: DAY_ENTRY_INCLUDE });

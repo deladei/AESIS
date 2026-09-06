@@ -12,7 +12,7 @@ import {
   type TransitionAction,
 } from './entry.stateMachine';
 import { parseDateOnly, isFuture, todayUtc, daysBetween } from './entry.dates';
-import { assertWeekWithinCohort } from './entries.week';
+import { assertWeekWithinCohort, weekBoundsFor } from './entries.week';
 import { evaluateWeekCompletion } from './entries.autosubmit';
 import { evaluateDayWindow } from './entries.day.service';
 import { chainPlacementIds } from '../siwes/siwes.service';
@@ -91,12 +91,16 @@ async function loadEntryWithOwnership(entryId: string) {
   return entry;
 }
 
-function validateDraftDates(input: SaveDraftInput) {
-  const periodStart = parseDateOnly(input.periodStart, 'periodStart');
-  const periodEnd = parseDateOnly(input.periodEnd, 'periodEnd');
-  if (periodEnd.getTime() < periodStart.getTime()) {
-    throw new AppError(422, 'periodEnd cannot be before periodStart');
-  }
+/**
+ * `periodStart`/`periodEnd` are DERIVED, never taken from the request — see
+ * `weekBoundsFor`. The body still carries them (older clients send them) and
+ * they are simply ignored, so a client cannot decide what "week 3" means.
+ */
+function validateDraftDates(
+  input: SaveDraftInput,
+  bounds: { periodStart: Date; periodEnd: Date },
+) {
+  const { periodStart, periodEnd } = bounds;
   // Anti-cheat: a week cannot be logged before it starts — mirrors the per-day
   // path, which rejects future days. Without this the legacy week-level route
   // lets a student pre-fill future weeks.
@@ -152,7 +156,8 @@ async function chainRootId(
 export async function saveDraft(actor: Actor, input: SaveDraftInput) {
   await authorizePlacement(actor, input.placementId, 'write');
   await assertWeekWithinCohort(input.placementId, input.weekNumber);
-  const { periodStart, periodEnd, activities } = validateDraftDates(input);
+  const bounds = await weekBoundsFor(input.placementId, input.weekNumber);
+  const { periodStart, periodEnd, activities } = validateDraftDates(input, bounds);
 
   return prisma.$transaction(async (tx) => {
     // Weeks are keyed on the student, not the placement (S87): week numbers are

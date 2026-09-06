@@ -4,7 +4,7 @@ import { AppError } from '../../middleware/errorHandler';
 import { parseDateOnly, todayUtc, daysBetween } from '../entries/entry.dates';
 import { authorizePlacement, type Actor } from '../entries/entries.policy';
 import { evaluateWeekCompletion } from '../entries/entries.autosubmit';
-import { DEFAULT_DURATION_WEEKS } from '../entries/entries.week';
+import { DEFAULT_DURATION_WEEKS, resolveChainStart } from '../entries/entries.week';
 import {
   classifyDay,
   evaluateDayAdmissibility,
@@ -58,34 +58,6 @@ export interface AttachmentContext {
    * than `durationWeeks` allows. The calendar always has an end.
    */
   effectiveEnd: Date;
-}
-
-/**
- * Resolve the supersedes chain to its root. The attachment is continuous
- * across an approved transfer, so every date/week rule anchors on the FIRST
- * placement's start date — week numbering never resets.
- */
-async function resolveChainStart(placement: {
-  id: string;
-  startDate: Date | null;
-  supersedesPlacementId: string | null;
-}): Promise<Date> {
-  let current = placement;
-  const seen = new Set<string>([placement.id]);
-  while (current.supersedesPlacementId) {
-    const parent = await prisma.placement.findUnique({
-      where: { id: current.supersedesPlacementId },
-      select: { id: true, startDate: true, supersedesPlacementId: true },
-    });
-    if (!parent || seen.has(parent.id)) break;
-    seen.add(parent.id);
-    current = parent;
-  }
-  if (!current.startDate) {
-    throw new AppError(409, 'The attachment has no configured start date');
-  }
-  // Normalize to a UTC date-only anchor.
-  return parseDateOnly(iso(current.startDate), 'startDate');
 }
 
 /**
@@ -520,14 +492,19 @@ export async function deleteNonWorkingDay(id: string) {
 
 // ── Chain-aware logbook calendar ──────────────────────────────
 
+/** A day counts as logged only once it carries written work. */
+function hasWrittenContent(entry: { descriptionOfWork?: string | null } | null | undefined): boolean {
+  return !!entry && !!entry.descriptionOfWork && entry.descriptionOfWork.trim().length > 0;
+}
+
 export interface CalendarDay {
   date: string;
   weekNumber: number;
   class: DayClass;
   entry: ReturnType<typeof serializeDailyEntry> | null;
   absence: { id: string; kind: string; reason: string | null; recordedById: string | null } | null;
-  /** A past working day with neither an entry nor an absence. Never fires on
-   *  holidays/rest days — that is what classification is for. */
+  /** A past working day with neither a WRITTEN entry nor an absence. Never
+   *  fires on holidays/rest days — that is what classification is for. */
   missing: boolean;
 }
 
@@ -587,7 +564,16 @@ export async function getLogbookCalendar(
       absence: absence
         ? { id: absence.id, kind: absence.kind, reason: absence.reason, recordedById: absence.recordedById }
         : null,
-      missing: cls === 'working' && !entry && !absence && d.getTime() < today.getTime(),
+      // "Logged" means the student actually wrote something. A bare status row
+      // (the day route can create one with no text) used to clear this flag, so
+      // the calendar called the day Logged while `entries.autosubmit`, which
+      // requires a non-empty `descriptionOfWork`, still counted it as owed.
+      // One definition, the stricter one.
+      missing:
+        cls === 'working' &&
+        !hasWrittenContent(entry) &&
+        !absence &&
+        d.getTime() < today.getTime(),
     });
   }
 

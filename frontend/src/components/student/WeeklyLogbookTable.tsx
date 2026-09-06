@@ -47,9 +47,11 @@ export function WeeklyLogbookTable({ placementId, startDate }: WeeklyLogbookTabl
   // The cohort's real length, not a literal: this table sits next to a logbook
   // that renders every configured week, and the two must agree.
   const { data: calendar } = useSiwesCalendar(placementId);
+  // Anchored on the attachment's chain start, which is what the backend numbers
+  // weeks from — `startDate` is only the fallback before the calendar answers.
   const schedule = useMemo(
-    () => buildSchedule(startDate, calendar?.totalWeeks),
-    [startDate, calendar?.totalWeeks],
+    () => buildSchedule(calendar?.chainStart ?? startDate, calendar?.totalWeeks),
+    [calendar?.chainStart, startDate, calendar?.totalWeeks],
   );
   const entryByWeek = useMemo(() => {
     const m = new Map<number, (typeof entries)[number]>();

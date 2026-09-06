@@ -42,7 +42,12 @@ export function addDaysYMD(start: Date, days: number): Date {
   return d;
 }
 
-// The programme is `totalWeeks` long, anchored at the placement start (week 1).
+// The programme is `totalWeeks` long, anchored at the attachment's CHAIN START
+// — the first placement in a supersedes chain, which is what the backend numbers
+// weeks from (siwes.calendar.ts::weekNumberFor). Passing the current placement's
+// own `startDate` instead made a transferred student's week numbers and date
+// ranges here disagree with the logbook's; the calendar endpoint returns
+// `chainStart` for exactly this reason.
 // Every week is visible so the student sees the whole programme; weeks whose
 // start date hasn't arrived yet are marked `upcoming` (their days stay locked
 // until the date arrives). Pass the cohort's real length — the default is only

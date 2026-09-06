@@ -88,14 +88,27 @@ async function mkUser(role: Actor['role'], tag: string): Promise<Actor> {
   return { id: u.id, role };
 }
 
+/**
+ * Week dates are DERIVED server-side from the attachment's chain start now, so
+ * the fixtures have to agree with that arithmetic rather than pin every week to
+ * one hard-coded range. Far enough back that even week 48 is in the past — a
+ * week cannot be logged before it starts.
+ */
+const CHAIN_START = '2025-09-01';
+const DAY = 86_400_000;
+const chainDay = (weekNumber: number, offset: number) =>
+  new Date(Date.parse(`${CHAIN_START}T00:00:00.000Z`) + ((weekNumber - 1) * 7 + offset) * DAY)
+    .toISOString().slice(0, 10);
+
 const week = (n: number) => ({
   placementId: '',
   weekNumber: n,
-  periodStart: '2026-03-02',
-  periodEnd: '2026-03-08',
+  // Sent for older clients; the server ignores them and derives its own.
+  periodStart: chainDay(n, 0),
+  periodEnd: chainDay(n, 6),
   hoursLogged: 40,
   activities: [
-    { activityDate: '2026-03-03', description: 'Built an API endpoint', competencyTags: ['backend'] },
+    { activityDate: chainDay(n, 1), description: 'Built an API endpoint', competencyTags: ['backend'] },
   ],
   reflection: { learning: 'Learned Express', challenges: 'Auth was tricky', supervisorVisible: true },
 });
@@ -131,10 +144,10 @@ beforeAll(async () => {
   coordinator = await mkUser('coordinator', 'coord');
 
   const pa = await prisma.placement.create({
-    data: { studentId: studentA.id, academicSupervisorId: supervisorA.id, academicYearId: yearId },
+    data: { studentId: studentA.id, academicSupervisorId: supervisorA.id, academicYearId: yearId, startDate: new Date(`${CHAIN_START}T00:00:00.000Z`) },
   });
   const pb = await prisma.placement.create({
-    data: { studentId: studentB.id, academicSupervisorId: supervisorOther.id, academicYearId: yearId },
+    data: { studentId: studentB.id, academicSupervisorId: supervisorOther.id, academicYearId: yearId, startDate: new Date(`${CHAIN_START}T00:00:00.000Z`) },
   });
   placementA = pa.id;
   placementB = pb.id;
@@ -181,8 +194,8 @@ describe('write path', () => {
       ...week(2),
       placementId: placementA,
       activities: [
-        { activityDate: '2026-03-04', description: 'Wrote tests', competencyTags: [] },
-        { activityDate: '2026-03-05', description: 'Fixed a bug', competencyTags: [] },
+        { activityDate: chainDay(2, 2), description: 'Wrote tests', competencyTags: [] },
+        { activityDate: chainDay(2, 3), description: 'Fixed a bug', competencyTags: [] },
       ],
     });
     expect(second.id).toBe(first.id);
@@ -203,16 +216,20 @@ describe('write path', () => {
   });
 
   itdb('rejects logging a week that has not started yet with 422', async () => {
-    const start = new Date(Date.now() + 14 * 86_400_000).toISOString().slice(0, 10);
-    const end = new Date(Date.now() + 20 * 86_400_000).toISOString().slice(0, 10);
+    // The server derives the range from the attachment's start, so "not started
+    // yet" is now a property of the PLACEMENT, not of what the client sends —
+    // a future-dated body would simply be ignored.
+    const student = await mkUser('student', 'studentFuture');
+    const future = await prisma.placement.create({
+      data: {
+        studentId: student.id,
+        academicSupervisorId: supervisorA.id,
+        academicYearId: yearId,
+        startDate: new Date(Date.now() + 14 * 86_400_000),
+      },
+    });
     await expect(
-      saveDraft(studentA, {
-        ...week(30),
-        placementId: placementA,
-        periodStart: start,
-        periodEnd: end,
-        activities: [],
-      }),
+      saveDraft(student, { ...week(1), placementId: future.id, activities: [] }),
     ).rejects.toMatchObject({ statusCode: 422 });
   });
 
@@ -222,8 +239,8 @@ describe('write path', () => {
         ...week(31),
         placementId: placementA,
         activities: [
-          // Week is 2026-03-02..08; this date is in the past but out of period.
-          { activityDate: '2026-02-20', description: 'wrong week', competencyTags: [] },
+          // A past date, but belonging to a different derived week.
+          { activityDate: chainDay(29, 0), description: 'wrong week', competencyTags: [] },
         ],
       }),
     ).rejects.toMatchObject({ statusCode: 422 });
@@ -285,12 +302,12 @@ describe('the day path and the week path are independent', () => {
   itdb('submitting a day marks the day and leaves the week a draft', async () => {
     const pingsBefore = await prisma.notification.count({ where: { userId: supervisorA.id } });
     const saved = await saveDayDraft(studentA, {
-      ...dayWeek, placementId: placementA, date: '2026-03-03', activities: [],
+      ...dayWeek, placementId: placementA, date: chainDay(44, 1), activities: [],
     });
-    const after = await submitDay(studentA, saved.id, '2026-03-03');
+    const after = await submitDay(studentA, saved.id, chainDay(44, 1));
 
     // The day is final...
-    const day = after.days.find((d) => iso(d.workDate) === '2026-03-03');
+    const day = after.days.find((d) => iso(d.workDate) === chainDay(44, 1));
     expect(day?.status).toBe('submitted');
     expect(day?.submittedAt).not.toBeNull();
 
@@ -307,9 +324,9 @@ describe('the day path and the week path are independent', () => {
 
   itdb('the week still submits normally afterwards, exactly once', async () => {
     const saved = await saveDayDraft(studentA, {
-      ...dayWeek, weekNumber: 45, placementId: placementA, date: '2026-03-04', activities: [],
+      ...dayWeek, weekNumber: 45, placementId: placementA, date: chainDay(45, 2), activities: [],
     });
-    await submitDay(studentA, saved.id, '2026-03-04');
+    await submitDay(studentA, saved.id, chainDay(45, 2));
     const submitted = await submitEntry(studentA, saved.id);
 
     expect(submitted.status).toBe('submitted');
@@ -318,15 +335,10 @@ describe('the day path and the week path are independent', () => {
   });
 });
 
-// Weeks in their own period: `week()` pins every case to 2–8 Mar, and
-// (studentId, workDate) is unique, so a lateness case needs days no earlier
-// test has already claimed.
-const lateWeek = (n: number) => ({
-  ...week(n),
-  periodStart: '2026-04-06',
-  periodEnd: '2026-04-12',
-  activities: [],
-});
+// Every week now derives its own distinct range from the chain start, so a
+// lateness case no longer needs a hand-picked period to avoid the
+// (studentId, workDate) unique index.
+const lateWeek = (n: number) => ({ ...week(n), activities: [] });
 
 // ── What the logbook screen reads ─────────────────────────────
 describe('getEntry gives the logbook what it renders', () => {
@@ -336,7 +348,7 @@ describe('getEntry gives the logbook what it renders', () => {
     // `undefined.slice(...)` and the logbook white-screened. Assert the wire
     // shape, since TypeScript cannot: the client's interface is hand-written.
     const saved = await saveDayDraft(studentA, {
-      ...week(46), placementId: placementA, date: '2026-03-05', activities: [],
+      ...week(46), placementId: placementA, date: chainDay(46, 3), activities: [],
     });
     const detail = await getEntry(studentA, saved.id);
 
@@ -379,7 +391,7 @@ describe('getEntry gives the logbook what it renders', () => {
 
   itdb('rolls the week up to one late headline the reviewer sees first', async () => {
     const saved = await saveDayDraft(studentA, {
-      ...lateWeek(12), placementId: placementA, date: '2026-04-07', activities: [],
+      ...lateWeek(12), placementId: placementA, date: chainDay(12, 1), activities: [],
     });
     const detail = await getEntry(studentA, saved.id);
 
@@ -419,7 +431,7 @@ describe('the supervisor queue sees lateness before opening a week', () => {
     // listEntries returned no day data at all, so the review queue and the
     // finalization week list had nothing to show.
     const saved = await saveDayDraft(studentA, {
-      ...lateWeek(13), placementId: placementA, date: '2026-04-08', activities: [],
+      ...lateWeek(13), placementId: placementA, date: chainDay(13, 2), activities: [],
     });
     const { entries } = await listEntries(supervisorA, { placementId: placementA, page: 1, limit: 50 });
     const row = entries.find((e) => e.id === saved.id);
@@ -437,7 +449,7 @@ describe('a week with gaps is still the student\'s to send', () => {
     // Missing a day used to strand the week in draft for the rest of the
     // attachment: the API always accepted it, the screen just never asked.
     const saved = await saveDayDraft(studentA, {
-      ...lateWeek(14), placementId: placementA, date: '2026-04-09', activities: [],
+      ...lateWeek(14), placementId: placementA, date: chainDay(14, 3), activities: [],
     });
     const before = await getEntry(studentA, saved.id);
     expect(before.completion?.complete).toBe(false);
@@ -531,8 +543,8 @@ describe('audit trail', () => {
       placementId: placementA,
       hoursLogged: 35,
       activities: [
-        { activityDate: '2026-03-04', description: 'Wrote tests', competencyTags: ['qa'] },
-        { activityDate: '2026-03-05', description: 'Code review', competencyTags: ['review'] },
+        { activityDate: chainDay(41, 2), description: 'Wrote tests', competencyTags: ['qa'] },
+        { activityDate: chainDay(41, 3), description: 'Code review', competencyTags: ['review'] },
       ],
     });
 
@@ -820,7 +832,7 @@ describe('placement finalization', () => {
   async function freshCase(tag: string): Promise<{ pid: string; student: Actor }> {
     const student = await mkUser('student', tag);
     const p = await prisma.placement.create({
-      data: { studentId: student.id, academicSupervisorId: supervisorA.id, academicYearId: yearId },
+      data: { studentId: student.id, academicSupervisorId: supervisorA.id, academicYearId: yearId, startDate: new Date(`${CHAIN_START}T00:00:00.000Z`) },
     });
     return { pid: p.id, student };
   }
@@ -931,6 +943,7 @@ describe('company attestation (magic link)', () => {
         academicSupervisorId: supervisorA.id,
         academicYearId: yearId,
         companyId: company.id,
+        startDate: new Date(`${CHAIN_START}T00:00:00.000Z`),
         // One current placement per student (partial unique index): studentA's
         // current slot is placementA.
         isCurrent: false,
