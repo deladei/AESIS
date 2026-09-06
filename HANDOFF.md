@@ -3765,3 +3765,83 @@ No browser has rendered any of this, and there is still no frontend test runner.
 
 Supabase password rotation; Neon deletion; S87 prod smokes; Render env nits; the two stopped
 Docker containers (`aesis_celery`, `aesis_ai`). **New:** 16 pages still off the design system.
+
+---
+
+## S98 — 2026-09-06 · The whole SPA onto the design system; four designs built
+
+**Shipped as `deedc87`, `d80b063`, `c687e3d`, `32f86ce`.** The user supplied 13 reference
+images. Nine were pages already rebuilt in S95–S96; **four were new** — Submissions, Final
+Assessment, Review logbooks, AI Assistant.
+
+### The colour system is now actually one system
+
+| Before | After |
+|---|---|
+| 659 `var(--h-*)` refs across 51 files | **0** |
+| ~150 raw Tailwind palette shades in 15 files | **0** |
+| 5 card radii / elevations, 4 popover lifts | 1 of each |
+
+`--h-*` was a flat machine-generated hex list with **no dark-mode counterpart**, so every page
+using it went white-on-white the moment the shell went dark. Each hex was mapped to the
+semantic slot it stood in for; light mode is unchanged and **dark mode works for the first
+time**. The login hero is the deliberate exception — it is dark in BOTH themes, so its text is
+literal `text-white/70`, never `ink-inverse` (that token flips to near-black).
+
+**⚠️ Latent bug this exposed and fixed.** Theme colours were declared as plain `var(--surface)`,
+which gives Tailwind no channels for an alpha — so `bg-surface-sunken/60`, `bg-surface/70` and
+friends, **written across the app for months, compiled to nothing**. They now build through
+`color-mix(… calc(<alpha-value> * 100%) …)`; the un-suffixed class is byte-identical. Verified
+in the emitted CSS, not assumed.
+
+`RiskBadge` and `shared/StatusBadge` deleted — dark-only (400-level on `/10` fills) and
+imported by nothing.
+
+### The four designed pages
+
+**Submissions.** Now lists EVERY week, not only weeks with a row — a week nobody opened has no
+`logbook_entry`, so a student who had started nothing saw a blank page instead of their five
+upcoming weeks. The rail is built from the cohort's configured span, so this page and the
+logbook can never disagree. Added the donut, per-row outcome column, summary, real next
+deadline. **Not built:** the "AI Submission Coach / Analyze with AI" panel (no pre-submission
+endpoint) and the "AI Insights" button (`/ai-insights` is closed to students). Per-row written
+verdicts are not invented — the row states what the STATUS means, the expanded panel carries
+the actual words.
+
+**Final Assessment.** The locked state is what a student sees for most of the programme, so it
+is a real page now, not an apology. The grade card reports the grade's ACTUAL state
+(`GradeView.status`/`released`), not the design's fixed "Ready for grade release" pill. The "AI
+Preparation Coach" links to the assistant that exists.
+
+**AI Assistant.** Greeting block, capability tiles, 2×2 suggested questions, rail of popular
+topics that ASK the assistant on click rather than linking to topic pages that don't exist.
+**Omitted:** "Attach file", "Search documents", the grounding toggle (no endpoints; grounding
+isn't optional, so the footer states it). "AI confidence: High" → the real engine health probe.
+
+**Review logbooks.** Needed only its headline labels; the token migration closed the rest.
+
+### AdminDashboard — S93's "three dashboards" was wrong
+
+It was never rebuilt. Hand-rolled cards, an `items-end` header shoving three bare stat boxes
+into the corner, and `bg-slate-200` / `bg-amber-100` / `text-rose-800`. Now on
+StatCard/Card/Badge/ProgressBar/EmptyState/ErrorState like the other two. "AI Alerts" renamed
+"Advisory alerts" — its own footnote already said that is what it is.
+
+### State
+
+**838 tests green, 59/59 suites.** Both typechecks clean, production build green.
+
+### ⚠️ Still not visually verified
+
+**No browser has rendered any of this and there is still no frontend test runner.** The colour
+audit is mechanical and trustworthy (grep + emitted CSS); the LAYOUTS are not verified. Before
+demoing: log in as each of the four roles and check light AND dark plus a narrow viewport.
+
+### Carried
+
+Supabase password rotation; Neon deletion; S87 prod smokes; Render env nits; the two stopped
+Docker containers (`aesis_celery`, `aesis_ai`). **New:** 12 of the 16 pages had no reference
+image, so they were migrated onto the design system rather than laid out to a design —
+`LogbookEditor`, `PlacementFinalization`, `InternDetail`, `CompanyDetail`, `NotificationInbox`,
+the two print reports, the auth pages and the three public magic-link pages keep their existing
+layouts. If designs arrive for those, that is the next pass.

@@ -134,7 +134,7 @@ export function MobileNav({
                     className={cn(
                       'mx-2 my-1 flex items-center gap-3 rounded-lg px-4 py-3 transition-colors duration-200',
                       active
-                        ? 'bg-brand font-semibold text-white shadow-sm shadow-brand/30'
+                        ? 'bg-brand font-semibold text-ink-inverse shadow-card'
                         : 'text-ink-secondary hover:bg-brand-soft hover:text-brand-ink',
                     )}
                   >
