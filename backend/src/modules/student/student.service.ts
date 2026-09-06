@@ -95,11 +95,10 @@ export async function getStudentDashboard(studentId: string) {
       companySupervisor: {
         select: { firstName: true, lastName: true, email: true, phone: true },
       },
+      // Frozen pre-S82 quality scores only — the legacy table has no writer
+      // and nothing else here reads it.
       logbookSubmissions: {
-        select: {
-          submissionStatus: true,
-          analysis: { select: { qualityScore: true } },
-        },
+        select: { analysis: { select: { qualityScore: true } } },
       },
       // Active weekly workflow — drives the per-log status breakdown + hours.
       // `days` carries the per-day submission state: the DAY (Mon–Fri) is the

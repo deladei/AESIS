@@ -30,25 +30,17 @@ export async function getCoordinatorDashboard(opts: { academicYearId?: string } 
     activePlacements,
     pendingApprovals,
     riskDistribution,
-    scheduledByWeek,
     qualityRows,
     v2QualityEntries,
     partnerCompanyRows,
     threshold,
-    attentionPlacements,
+    activeRows,
   ] = await Promise.all([
     prisma.placement.count({ where: activeScope }),
     prisma.placement.count({ where: { placementStatus: 'pending', ...cohort } }),
     // Latest risk tier per active placement (the table is a movement history —
     // never aggregate it raw).
     latestRiskDistribution(activeScope),
-    // All submissions for active placements — grouped by week
-    prisma.logbookSubmission.groupBy({
-      by:      ['weekNumber'],
-      _count:  { _all: true },
-      where:   { placement: activeScope },
-      orderBy: { weekNumber: 'asc' },
-    }),
     // Cohort-wide logbook quality scores (active placements). Averaged below via
     // the validated/clamped path so a corrupt stored score can't skew the mean.
     // Two sources: legacy logbook_analyses (frozen history — writer retired S82)…
@@ -68,14 +60,18 @@ export async function getCoordinatorDashboard(opts: { academicYearId?: string } 
       distinct: ['companyId'],
     }),
     getActivePerformanceThreshold(),
-    // Minimal per-placement data to derive the "needs attention" count (item 13).
+    // Per-placement data behind BOTH the "needs attention" count (item 13) and
+    // the weekly compliance trend. One read, one source: the donut and the
+    // trend cannot disagree with the intern table.
     prisma.placement.findMany({
       where:  activeScope,
       select: {
         academicSupervisorId: true,
+        startDate:            true,
+        academicYearId:       true,
         logbookEntries: {
           select: {
-            status: true, submittedAt: true, periodEnd: true,
+            status: true, submittedAt: true, periodEnd: true, weekNumber: true,
             assessments: { select: { quality: true }, orderBy: { createdAt: 'desc' }, take: 1 },
           },
         },
@@ -84,19 +80,12 @@ export async function getCoordinatorDashboard(opts: { academicYearId?: string } 
     }),
   ]);
 
-  const submittedByWeek = await prisma.logbookSubmission.groupBy({
-    by:      ['weekNumber'],
-    _count:  { _all: true },
-    where: {
-      placement:        activeScope,
-      submissionStatus: { in: ['submitted', 'approved', 'under_review'] },
-    },
-    orderBy: { weekNumber: 'asc' },
-  });
+  // Programme length per cohort, one query for every active placement.
+  const weeksByYear = await durationWeeksByAcademicYear(activeRows.map(p => p.academicYearId));
 
   // Needs-attention count — same derivation as the intern table (item 13).
   const now = new Date();
-  const needsAttention = attentionPlacements.reduce((n, p) => {
+  const needsAttention = activeRows.reduce((n, p) => {
     const overdueLogs = p.logbookEntries.filter(e => e.status === 'draft' && e.periodEnd != null && new Date(e.periodEnd) < now).length;
     const submittedWeeks = p.logbookEntries.filter(e => e.submittedAt != null).length;
     const avgQualityScore = meanQualityScore(mergedQualityScores(
@@ -110,20 +99,49 @@ export async function getCoordinatorDashboard(opts: { academicYearId?: string } 
     return n + (attention ? 1 : 0);
   }, 0);
 
-  // Overall compliance rate
-  const totalScheduled = scheduledByWeek.reduce((s, r) => s + r._count._all, 0);
-  const totalSubmitted = submittedByWeek.reduce((s, r) => s + r._count._all, 0);
+  // Weekly compliance, off the LIVE table.
+  //
+  // Both halves of this used to be grouped off `logbook_submission`, which is
+  // dead — so "scheduled" and "submitted" were both zero and the trend chart
+  // was permanently empty while compliance read a flattering 100%.
+  //
+  // "Scheduled" is not a row count: a week nobody has opened has no row at all,
+  // and counting only rows would make compliance 100% by construction. It is
+  // the number of weeks that have actually come DUE per placement — the same
+  // `weeksDue` the intern table and engagement % already use.
+  const scheduledPerWeek = new Map<number, number>();
+  const submittedPerWeek = new Map<number, number>();
+
+  for (const p of activeRows) {
+    const due = weeksDue(p.startDate, weeksForYear(weeksByYear, p.academicYearId), now);
+    for (let w = 1; w <= due; w++) {
+      scheduledPerWeek.set(w, (scheduledPerWeek.get(w) ?? 0) + 1);
+    }
+    for (const e of p.logbookEntries) {
+      // Handed in at all — a returned week was still submitted once, and an
+      // acknowledged one certainly was.
+      if (e.submittedAt == null) continue;
+      submittedPerWeek.set(e.weekNumber, (submittedPerWeek.get(e.weekNumber) ?? 0) + 1);
+    }
+  }
+
+  const totalScheduled = [...scheduledPerWeek.values()].reduce((s, n) => s + n, 0);
+  // Only weeks that are actually due count toward compliance; an early
+  // submission cannot push the rate above 100%.
+  const totalSubmitted = [...submittedPerWeek.entries()]
+    .reduce((s, [week, n]) => s + Math.min(n, scheduledPerWeek.get(week) ?? 0), 0);
   const complianceRate = totalScheduled > 0
     ? Math.round((totalSubmitted / totalScheduled) * 100)
     : 100;
 
-  // Per-week trend
-  const submittedMap = new Map(submittedByWeek.map(r => [r.weekNumber, r._count._all]));
-  const submissionTrends = scheduledByWeek.map(r => ({
-    week:      r.weekNumber,
-    scheduled: r._count._all,
-    submitted: submittedMap.get(r.weekNumber) ?? 0,
-  }));
+  // Per-week trend, oldest week first.
+  const submissionTrends = [...scheduledPerWeek.keys()]
+    .sort((a, b) => a - b)
+    .map(week => ({
+      week,
+      scheduled: scheduledPerWeek.get(week) ?? 0,
+      submitted: submittedPerWeek.get(week) ?? 0,
+    }));
 
   // Cohort average performance (quality) via the validated/clamped path:
   // meanQualityScore drops null + out-of-range scores and clamps to [0, 100], so

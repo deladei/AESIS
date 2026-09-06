@@ -145,6 +145,30 @@ function stubDashboardExtras(
     .mockResolvedValueOnce(opts.attention ?? []);
 }
 
+const DAY_MS = 86_400_000;
+
+/**
+ * One active placement, as the dashboard now reads it: compliance is derived
+ * from weeks that have come DUE (from `startDate`) against weeks actually
+ * handed in on `logbook_entry` — never from the retired `logbook_submission`
+ * table, which is why these rows carry both.
+ */
+function activeRow(weeksAgo: number, submittedWeeks: number[] = []) {
+  return {
+    academicSupervisorId: 'sup-1',
+    startDate:            new Date(Date.now() - weeksAgo * 7 * DAY_MS),
+    academicYearId:       'ay-1',
+    logbookEntries: submittedWeeks.map((w) => ({
+      status:      'submitted',
+      submittedAt: new Date(),
+      periodEnd:   new Date(Date.now() - DAY_MS),
+      weekNumber:  w,
+      assessments: [],
+    })),
+    logbookSubmissions: [],
+  };
+}
+
 // ── getCoordinatorDashboard ───────────────────────────────────
 
 describe('getCoordinatorDashboard', () => {
@@ -157,17 +181,15 @@ describe('getCoordinatorDashboard', () => {
 
     (latestRiskDistribution as jest.Mock).mockResolvedValue({ low: 25, medium: 10, high: 5 });
 
-    (mp.logbookSubmission.groupBy as jest.Mock)
-      .mockResolvedValueOnce([
-        { weekNumber: 1, _count: { _all: 40 } },
-        { weekNumber: 2, _count: { _all: 40 } },
-      ])
-      .mockResolvedValueOnce([
-        { weekNumber: 1, _count: { _all: 36 } },
-        { weekNumber: 2, _count: { _all: 32 } },
-      ]);
-
-    stubDashboardExtras({ scores: [87.25], companies: 24 });
+    // 40 active placements, each two weeks in → 80 weeks due. 34 of them have
+    // handed in both weeks (68 submitted); the other 6 have handed in nothing.
+    stubDashboardExtras({
+      scores: [87.25], companies: 24,
+      attention: [
+        ...Array.from({ length: 34 }, () => activeRow(2, [1, 2])),
+        ...Array.from({ length: 6 },  () => activeRow(2)),
+      ],
+    });
 
     const result = await getCoordinatorDashboard();
 
@@ -186,9 +208,6 @@ describe('getCoordinatorDashboard', () => {
   it('returns avgPerformance null when no analyses exist', async () => {
     (mp.placement.count as jest.Mock).mockResolvedValue(0);
     (latestRiskDistribution as jest.Mock).mockResolvedValue({ low: 0, medium: 0, high: 0 });
-    (mp.logbookSubmission.groupBy as jest.Mock)
-      .mockResolvedValueOnce([])
-      .mockResolvedValueOnce([]);
     stubDashboardExtras({ scores: [], companies: 0 });
 
     const result = await getCoordinatorDashboard();
@@ -200,9 +219,6 @@ describe('getCoordinatorDashboard', () => {
   it('excludes an out-of-range stored score so avgPerformance can never leave [0, 100]', async () => {
     (mp.placement.count as jest.Mock).mockResolvedValue(0);
     (latestRiskDistribution as jest.Mock).mockResolvedValue({ low: 0, medium: 0, high: 0 });
-    (mp.logbookSubmission.groupBy as jest.Mock)
-      .mockResolvedValueOnce([])
-      .mockResolvedValueOnce([]);
     // A corrupt 151565326582 and a negative -5 must be dropped (Decimal-as-string
     // included); the valid 80 & 60 average to 70 — the metric stays in range.
     stubDashboardExtras({ scores: ['80', '151565326582', '60', '-5'], companies: 3 });
@@ -217,9 +233,6 @@ describe('getCoordinatorDashboard', () => {
   it('merges v2 entry-assessment scores with legacy analyses in avgPerformance', async () => {
     (mp.placement.count as jest.Mock).mockResolvedValue(0);
     (latestRiskDistribution as jest.Mock).mockResolvedValue({ low: 0, medium: 0, high: 0 });
-    (mp.logbookSubmission.groupBy as jest.Mock)
-      .mockResolvedValueOnce([])
-      .mockResolvedValueOnce([]);
     // Legacy 80 (frozen history) + v2 60 → one mean of 70 across the pipeline switch.
     stubDashboardExtras({ scores: ['80'], v2Scores: [60], companies: 0 });
 
@@ -231,9 +244,6 @@ describe('getCoordinatorDashboard', () => {
   it('returns complianceRate 100 when no submissions are scheduled', async () => {
     (mp.placement.count as jest.Mock).mockResolvedValue(0);
     (latestRiskDistribution as jest.Mock).mockResolvedValue({ low: 0, medium: 0, high: 0 });
-    (mp.logbookSubmission.groupBy as jest.Mock)
-      .mockResolvedValueOnce([])   // scheduled
-      .mockResolvedValueOnce([]);  // submitted
     stubDashboardExtras();
 
     const result = await getCoordinatorDashboard();
@@ -244,7 +254,6 @@ describe('getCoordinatorDashboard', () => {
   it('builds riskDistribution with zero counts for missing tiers', async () => {
     (mp.placement.count as jest.Mock).mockResolvedValue(0);
     (latestRiskDistribution as jest.Mock).mockResolvedValue({ low: 0, medium: 0, high: 3 });
-    (mp.logbookSubmission.groupBy as jest.Mock).mockResolvedValue([]);
     stubDashboardExtras();
 
     const result = await getCoordinatorDashboard();
@@ -255,16 +264,13 @@ describe('getCoordinatorDashboard', () => {
   it('builds submissionTrends with correct scheduled/submitted per week', async () => {
     (mp.placement.count as jest.Mock).mockResolvedValue(10);
     (latestRiskDistribution as jest.Mock).mockResolvedValue({ low: 0, medium: 0, high: 0 });
-    (mp.logbookSubmission.groupBy as jest.Mock)
-      .mockResolvedValueOnce([
-        { weekNumber: 1, _count: { _all: 10 } },
-        { weekNumber: 2, _count: { _all: 10 } },
-      ])
-      .mockResolvedValueOnce([
-        { weekNumber: 1, _count: { _all: 8 } },
-        // week 2 has no submitted entries
-      ]);
-    stubDashboardExtras();
+    // 10 placements two weeks in; 8 of them handed in week 1, nobody week 2.
+    stubDashboardExtras({
+      attention: [
+        ...Array.from({ length: 8 }, () => activeRow(2, [1])),
+        ...Array.from({ length: 2 }, () => activeRow(2)),
+      ],
+    });
 
     const result = await getCoordinatorDashboard();
 
