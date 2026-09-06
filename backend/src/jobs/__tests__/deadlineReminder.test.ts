@@ -4,12 +4,12 @@ jest.mock('node-cron', () => ({
 
 jest.mock('../../config/prisma', () => ({
   prisma: {
-    logbookSubmission: { findMany: jest.fn() },
+    logbookEntry: { findMany: jest.fn() },
   },
 }));
 
 jest.mock('../../config/logger', () => ({
-  logger: { info: jest.fn(), error: jest.fn() },
+  logger: { info: jest.fn(), error: jest.fn(), debug: jest.fn() },
 }));
 
 jest.mock('../../shared/utils/email', () => ({
@@ -23,62 +23,47 @@ jest.mock('../../shared/utils/socketEmitter', () => ({
 jest.mock('../../modules/notifications/notifications.service', () => ({
   createNotification: jest.fn().mockResolvedValue({
     id: 'notif-1', type: 'submission_reminder', title: 'Due soon',
-    body: 'Submit now', link: '/logbook/week/1', createdAt: new Date(),
+    body: 'Submit now', link: '/student/logbook?week=1', createdAt: new Date(),
   }),
 }));
 
 import cron from 'node-cron';
-import { startDeadlineReminderJobs } from '../deadlineReminder';
+import { runDeadlineReminder, startDeadlineReminderJobs } from '../deadlineReminder';
 import { prisma } from '../../config/prisma';
 import { sendEmail } from '../../shared/utils/email';
 import { emitToUser } from '../../shared/utils/socketEmitter';
 import { createNotification } from '../../modules/notifications/notifications.service';
 
-const mockPrisma = prisma as jest.Mocked<typeof prisma>;
+const mockPrisma = prisma as unknown as { logbookEntry: { findMany: jest.Mock } };
+
+const TODAY = new Date('2026-09-07T00:00:00.000Z');
+const utc = (s: string) => new Date(`${s}T00:00:00.000Z`);
+
+function week(overrides: Record<string, unknown> = {}) {
+  return {
+    weekNumber: 3,
+    periodEnd:  utc('2026-09-09'),   // two days out
+    studentId:  'stu-1',
+    student:    { email: 'kwame@cs.edu', firstName: 'Kwame' },
+    ...overrides,
+  };
+}
 
 afterEach(() => jest.clearAllMocks());
 
 describe('startDeadlineReminderJobs', () => {
-  it('schedules two cron jobs', () => {
+  it('schedules one daily job on Ghana time', () => {
     startDeadlineReminderJobs();
-    expect(cron.schedule).toHaveBeenCalledTimes(2);
-    // Wed 09:00
+    expect(cron.schedule).toHaveBeenCalledTimes(1);
     expect(cron.schedule).toHaveBeenCalledWith(
-      '0 9 * * 3',
+      '0 9 * * *',
       expect.any(Function),
-      expect.objectContaining({ timezone: 'Africa/Lagos' }),
-    );
-    // Thu 09:00
-    expect(cron.schedule).toHaveBeenCalledWith(
-      '0 9 * * 4',
-      expect.any(Function),
-      expect.objectContaining({ timezone: 'Africa/Lagos' }),
+      expect.objectContaining({ timezone: 'Africa/Accra' }),
     );
   });
 
-  it('executes the callback and sends notifications when submissions need reminding', async () => {
-    (mockPrisma.logbookSubmission.findMany as jest.Mock).mockResolvedValue([
-      {
-        weekNumber: 3,
-        studentId:  'stu-1',
-        student:    { email: 'stu@cs.edu', firstName: 'Ada' },
-      },
-    ]);
-
-    startDeadlineReminderJobs();
-
-    // Capture and invoke the first scheduled callback (48h Wed job)
-    const callback = (cron.schedule as jest.Mock).mock.calls[0][1] as () => Promise<void>;
-    await callback();
-
-    expect(mockPrisma.logbookSubmission.findMany).toHaveBeenCalled();
-    expect(createNotification).toHaveBeenCalledWith(expect.objectContaining({ userId: 'stu-1' }));
-    expect(emitToUser).toHaveBeenCalledWith('stu-1', 'notification:new', expect.any(Object));
-    expect(sendEmail).toHaveBeenCalledWith(expect.objectContaining({ to: 'stu@cs.edu' }));
-  });
-
-  it('logs error and does not throw when DB query fails', async () => {
-    (mockPrisma.logbookSubmission.findMany as jest.Mock).mockRejectedValue(new Error('DB error'));
+  it('logs and does not throw when the query fails', async () => {
+    mockPrisma.logbookEntry.findMany.mockRejectedValue(new Error('DB error'));
     const { logger } = jest.requireMock('../../config/logger');
 
     startDeadlineReminderJobs();
@@ -86,23 +71,64 @@ describe('startDeadlineReminderJobs', () => {
     await expect(callback()).resolves.toBeUndefined();
     expect(logger.error).toHaveBeenCalled();
   });
+});
 
-  it('sends urgent wording for the 24h job (Thursday)', async () => {
-    (mockPrisma.logbookSubmission.findMany as jest.Mock).mockResolvedValue([
-      {
-        weekNumber: 5,
-        studentId:  'stu-2',
-        student:    { email: 'stu2@cs.edu', firstName: 'Ola' },
-      },
+describe('runDeadlineReminder', () => {
+  it('reads the live logbook_entry table, not the retired submissions table', async () => {
+    mockPrisma.logbookEntry.findMany.mockResolvedValue([]);
+    await runDeadlineReminder(TODAY);
+
+    const where = mockPrisma.logbookEntry.findMany.mock.calls[0][0].where;
+    expect(where.status).toEqual({ in: ['draft', 'returned'] });
+    expect(where.placement).toEqual({ is: { placementStatus: 'active' } });
+    // Both reminder windows, keyed off each week's own end date.
+    expect(where.periodEnd).toEqual({ in: [utc('2026-09-08'), utc('2026-09-09')] });
+  });
+
+  it('notifies, emits and emails a student two days out', async () => {
+    mockPrisma.logbookEntry.findMany.mockResolvedValue([week()]);
+
+    const { reminded } = await runDeadlineReminder(TODAY);
+
+    expect(reminded).toBe(1);
+    expect(createNotification).toHaveBeenCalledWith(expect.objectContaining({
+      userId: 'stu-1',
+      type:   'submission_reminder',
+      link:   '/student/logbook?week=3',
+      metadata: { weekNumber: 3, hoursUntilDeadline: 48 },
+    }));
+    expect(emitToUser).toHaveBeenCalledWith('stu-1', 'notification:new', expect.any(Object));
+    expect(sendEmail).toHaveBeenCalledWith(expect.objectContaining({
+      to:      'kwame@cs.edu',
+      subject: expect.stringContaining('48h'),
+    }));
+  });
+
+  it('escalates the wording at 24 hours', async () => {
+    mockPrisma.logbookEntry.findMany.mockResolvedValue([
+      week({ weekNumber: 5, periodEnd: utc('2026-09-08'), studentId: 'stu-2' }),
     ]);
 
-    startDeadlineReminderJobs();
-    // Second scheduled callback = Thu 09:00 = 24h
-    const callback24h = (cron.schedule as jest.Mock).mock.calls[1][1] as () => Promise<void>;
-    await callback24h();
+    await runDeadlineReminder(TODAY);
 
-    expect(sendEmail).toHaveBeenCalledWith(
-      expect.objectContaining({ subject: expect.stringContaining('URGENT') }),
-    );
+    expect(sendEmail).toHaveBeenCalledWith(expect.objectContaining({
+      subject: expect.stringContaining('Urgent'),
+    }));
+    expect(createNotification).toHaveBeenCalledWith(expect.objectContaining({
+      metadata: { weekNumber: 5, hoursUntilDeadline: 24 },
+    }));
+  });
+
+  it('keeps going when one student\'s email fails', async () => {
+    mockPrisma.logbookEntry.findMany.mockResolvedValue([
+      week({ studentId: 'stu-1' }),
+      week({ studentId: 'stu-2', student: { email: 'ama@cs.edu', firstName: 'Ama' } }),
+    ]);
+    (sendEmail as jest.Mock).mockRejectedValueOnce(new Error('SMTP down'));
+
+    const { reminded } = await runDeadlineReminder(TODAY);
+
+    expect(reminded).toBe(1);
+    expect(sendEmail).toHaveBeenCalledTimes(2);
   });
 });

@@ -41,16 +41,23 @@ async function runWeeklyReport() {
     const [activePlacements, submittedLastWeek, totalScheduledLastWeek, riskDistribution] =
       await Promise.all([
         prisma.placement.count({ where: { placementStatus: 'active' } }),
-        // Submissions submitted last week
-        prisma.logbookSubmission.count({
+        // Weeks actually handed in during the reporting window. Both of these
+        // counted `logbook_submission`, which is retired — the report has been
+        // mailing "0 of 0, 100% compliant" to every coordinator since the
+        // pipeline switched. They read `logbook_entry` now.
+        prisma.logbookEntry.count({
           where: {
-            submittedAt:      { gte: lastMonday, lte: lastSunday },
-            submissionStatus: { in: ['submitted', 'approved', 'under_review'] },
+            submittedAt: { gte: lastMonday, lte: lastSunday },
+            placement:   { is: { placementStatus: 'active' } },
           },
         }),
-        // Submissions whose deadline fell last week (total scheduled)
-        prisma.logbookSubmission.count({
-          where: { deadline: { gte: lastMonday, lte: lastSunday } },
+        // Weeks that CLOSED during the window — the denominator. A week's
+        // deadline is its own periodEnd; there is no stored deadline column.
+        prisma.logbookEntry.count({
+          where: {
+            periodEnd: { gte: lastMonday, lte: lastSunday },
+            placement: { is: { placementStatus: 'active' } },
+          },
         }),
         // Latest tier per active placement (the risk table is a movement
         // history — a raw count would include superseded high rows).
@@ -108,6 +115,8 @@ async function runWeeklyReport() {
 }
 
 export function startWeeklyReportJob(): void {
-  cron.schedule('0 8 * * 1', runWeeklyReport, { timezone: 'Africa/Lagos' });
+  // Ghana time. Africa/Lagos is UTC+1, so the Monday 08:00 report was
+  // actually landing at 07:00 for its Ghanaian readers.
+  cron.schedule('0 8 * * 1', runWeeklyReport, { timezone: 'Africa/Accra' });
   logger.info('CRON: weekly coordinator report scheduled (Mon 08:00)');
 }

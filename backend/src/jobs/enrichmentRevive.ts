@@ -21,6 +21,6 @@ export function startEnrichmentReviveJob(): void {
   // Every 6 hours. Failed jobs already retry via backoff; this rescues the
   // abandoned ones a handful of times a day — cheap and safe (enrichment is
   // advisory and idempotent).
-  cron.schedule('0 */6 * * *', runRevive, { timezone: 'Africa/Lagos' });
+  cron.schedule('0 */6 * * *', runRevive, { timezone: 'Africa/Accra' });
   logger.info('CRON: enrichment self-heal scheduled (every 6h)');
 }

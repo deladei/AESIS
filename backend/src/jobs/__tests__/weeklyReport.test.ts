@@ -4,7 +4,7 @@ jest.mock('../../config/prisma', () => ({
   prisma: {
     user:                { findMany: jest.fn() },
     placement:           { count: jest.fn() },
-    logbookSubmission:   { count: jest.fn() },
+    logbookEntry:        { count: jest.fn() },
   },
 }));
 
@@ -44,7 +44,7 @@ describe('startWeeklyReportJob', () => {
     expect(cron.schedule).toHaveBeenCalledWith(
       '0 8 * * 1',
       expect.any(Function),
-      expect.objectContaining({ timezone: 'Africa/Lagos' }),
+      expect.objectContaining({ timezone: 'Africa/Accra' }),
     );
   });
 
@@ -53,9 +53,9 @@ describe('startWeeklyReportJob', () => {
       { id: 'coord-1', email: 'coord@cs.edu', firstName: 'Dr. Ike' },
     ]);
     (mockPrisma.placement.count as jest.Mock).mockResolvedValue(20);
-    (mockPrisma.logbookSubmission.count as jest.Mock)
-      .mockResolvedValueOnce(15)   // submittedLastWeek
-      .mockResolvedValueOnce(20);  // totalScheduledLastWeek
+    (mockPrisma.logbookEntry.count as jest.Mock)
+      .mockResolvedValueOnce(15)   // weeks handed in last week
+      .mockResolvedValueOnce(20);  // weeks that closed last week
     mockDistribution.mockResolvedValue({ low: 10, medium: 8, high: 2 });
 
     await invokeJob();
@@ -84,7 +84,7 @@ describe('startWeeklyReportJob', () => {
       { id: 'coord-2', email: 'c@cs.edu', firstName: 'Dr. X' },
     ]);
     (mockPrisma.placement.count as jest.Mock).mockResolvedValue(5);
-    (mockPrisma.logbookSubmission.count as jest.Mock).mockResolvedValue(0);
+    (mockPrisma.logbookEntry.count as jest.Mock).mockResolvedValue(0);
     mockDistribution.mockResolvedValue({ low: 0, medium: 0, high: 0 });
 
     await invokeJob();
