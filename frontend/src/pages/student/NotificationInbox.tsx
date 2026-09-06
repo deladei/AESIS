@@ -1,9 +1,12 @@
 import { useEffect, useState } from 'react';
-import { Bell, AlertTriangle, MessageSquare, CheckCircle2, FileText, Clock, Loader2, Reply, X } from 'lucide-react';
+import { Bell, AlertTriangle, MessageSquare, CheckCircle2, FileText, Clock, Reply, X, CheckCheck } from 'lucide-react';
 import { useNotifications, useMarkRead, useMarkAllRead, useUnreadCount } from '@/hooks/useNotifications';
 import { getSocket } from '@/lib/socket';
 import { queryClient } from '@/lib/queryClient';
 import { ChatThread } from '@/components/messaging/ChatThread';
+import { Card } from '@/components/ui/Card';
+import { Badge } from '@/components/ui/Badge';
+import { EmptyState, SkeletonRows } from '@/components/ui/Feedback';
 
 const notifConfig: Record<string, { icon: React.ElementType; iconClass: string; bg: string }> = {
   risk_alert:           { icon: AlertTriangle,  iconClass: 'text-danger', bg: 'bg-danger-soft border-danger' },
@@ -44,40 +47,41 @@ export default function NotificationInbox() {
   }, []);
 
   if (isLoading) {
-    return (
-      <div className="flex h-64 items-center justify-center p-6">
-        <Loader2 className="h-6 w-6 animate-spin text-brand-ink" />
-      </div>
-    );
+    return <div className="mx-auto max-w-3xl p-4 sm:p-6"><Card><SkeletonRows rows={5} /></Card></div>;
   }
 
   return (
-    <div className="mx-auto max-w-3xl space-y-5 px-6 py-6">
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-3">
-          <h1 className="text-xl font-bold text-ink">Notifications</h1>
-          {unread > 0 && (
-            <span className="rounded-full border border-brand bg-brand-soft px-2 py-0.5 font-mono text-xs text-brand-ink">
-              {unread} unread
-            </span>
-          )}
+    <div className="mx-auto max-w-3xl space-y-5 p-4 sm:p-6">
+      <header className="flex flex-wrap items-start justify-between gap-3">
+        <div className="min-w-0">
+          <h1 className="flex flex-wrap items-center gap-2 text-2xl font-bold tracking-tight text-ink">
+            Notifications
+            {unread > 0 && <Badge tone="brand">{unread} unread</Badge>}
+          </h1>
+          <p className="mt-1 text-sm text-ink-secondary">
+            Reminders, feedback and decisions on your placement.
+          </p>
         </div>
         {unread > 0 && (
           <button
+            type="button"
             onClick={() => markAllRead.mutate()}
             disabled={markAllRead.isPending}
-            className="cursor-pointer text-xs font-medium text-brand-ink transition-colors hover:text-brand-ink disabled:opacity-60"
+            className="inline-flex shrink-0 items-center gap-2 rounded-lg border border-line px-3 py-2 text-xs font-semibold text-ink-secondary transition-colors enabled:hover:border-brand enabled:hover:text-brand-ink disabled:opacity-50"
           >
-            Mark all read
+            <CheckCheck className="h-3.5 w-3.5" /> Mark all read
           </button>
         )}
-      </div>
+      </header>
 
       {notifications.length === 0 ? (
-        <div className="flex flex-col items-center justify-center rounded-card border border-dashed border-line bg-surface py-20 text-center">
-          <Bell className="mb-4 h-10 w-10 text-ink-muted" />
-          <p className="text-sm text-ink-secondary">No notifications yet</p>
-        </div>
+        <Card>
+          <EmptyState
+            icon={Bell}
+            title="No notifications yet"
+            hint="Deadline reminders, supervisor feedback and placement decisions land here."
+          />
+        </Card>
       ) : (
         <div className="space-y-2">
           {notifications.map((n) => {
@@ -87,10 +91,10 @@ export default function NotificationInbox() {
               <div
                 key={n.id}
                 onClick={() => { if (!n.isRead) markRead.mutate(n.id); }}
-                className={`flex cursor-pointer items-start gap-4 rounded-xl border px-5 py-4 transition-colors ${
+                className={`flex cursor-pointer items-start gap-4 rounded-card border px-5 py-4 shadow-card transition-colors ${
                   n.isRead
                     ? 'border-line bg-surface hover:bg-surface-sunken'
-                    : 'border-brand bg-surface-sunken hover:bg-surface-sunken'
+                    : 'border-brand bg-surface-sunken'
                 }`}
               >
                 <div className={`mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border ${cfg.bg}`}>

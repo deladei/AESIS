@@ -53,7 +53,7 @@ export default function GlobalSearch() {
             <div className="max-h-96 overflow-y-auto py-1">
               {interns.length > 0 && (
                 <>
-                  <p className="px-4 pb-1 pt-2 text-[11px] font-bold uppercase tracking-wide text-ink-muted">Interns</p>
+                  <p className="px-4 pb-1 pt-2 text-[11px] font-bold text-ink-muted">Interns</p>
                   {interns.map((i) => (
                     <button key={i.placementId} onClick={() => go(`/coordinator/interns/${i.placementId}`)}
                       className="flex w-full items-center gap-3 px-4 py-2 text-left transition-colors hover:bg-brand-soft">
@@ -68,7 +68,7 @@ export default function GlobalSearch() {
               )}
               {companies.length > 0 && (
                 <>
-                  <p className="px-4 pb-1 pt-2 text-[11px] font-bold uppercase tracking-wide text-ink-muted">Companies</p>
+                  <p className="px-4 pb-1 pt-2 text-[11px] font-bold text-ink-muted">Companies</p>
                   {companies.map((c) => (
                     <button key={c.id} onClick={() => go('/coordinator/companies')}
                       className="flex w-full items-center gap-3 px-4 py-2 text-left transition-colors hover:bg-brand-soft">

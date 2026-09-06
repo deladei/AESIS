@@ -125,15 +125,15 @@ export default function Attestation() {
 
       <dl className="mb-5 space-y-3 rounded-card border border-line bg-surface-sunken p-4">
         <div>
-          <dt className="text-xs font-semibold uppercase tracking-wide text-ink-secondary">Student</dt>
+          <dt className="text-xs font-semibold text-ink-secondary">Student</dt>
           <dd className="text-sm font-medium text-ink">{ctx.student}</dd>
         </div>
         <div>
-          <dt className="text-xs font-semibold uppercase tracking-wide text-ink-secondary">Organisation</dt>
+          <dt className="text-xs font-semibold text-ink-secondary">Organisation</dt>
           <dd className="text-sm font-medium text-ink">{ctx.organisation ?? '—'}</dd>
         </div>
         <div>
-          <dt className="text-xs font-semibold uppercase tracking-wide text-ink-secondary">Placement period</dt>
+          <dt className="text-xs font-semibold text-ink-secondary">Placement period</dt>
           <dd className="inline-flex items-center gap-1.5 text-sm font-medium text-ink">
             <CalendarDays className="h-3.5 w-3.5 text-brand-ink" />
             {fmtDate(ctx.startDate)} – {fmtDate(ctx.endDate)}

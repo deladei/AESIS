@@ -32,15 +32,15 @@ export default function InternsList() {
   };
 
   return (
-    <div className="p-6">
+    <div className="mx-auto max-w-[1500px] p-4 sm:p-6">
       <div className="mb-6 flex flex-wrap items-end justify-between gap-4">
         <div>
           <p className="mb-1 text-xs font-semibold tracking-wide text-brand-ink">Coordinator</p>
-          <h2 className="text-3xl font-bold tracking-tight text-ink">
+          <h1 className="text-2xl font-bold tracking-tight text-ink">
             {view === 'oversight'
               ? 'Intern Oversight'
               : attentionOnly ? 'Interns needing attention' : 'All Interns'}
-          </h2>
+          </h1>
           <p className="mt-1 text-sm text-ink-muted">
             {view === 'oversight'
               ? 'Read-only at-risk monitoring across every active placement.'

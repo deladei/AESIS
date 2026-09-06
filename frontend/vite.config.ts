@@ -28,6 +28,16 @@ export default defineConfig(({ mode }) => ({
       },
     },
   },
+  // `vite preview` serves the production build. It needs the same API proxy the
+  // dev server has, or the built SPA can only be exercised against a deployed
+  // backend — which is exactly when you most want to check it locally.
+  preview: {
+    port: 5173,
+    proxy: {
+      '/api':       { target: 'http://127.0.0.1:3002', changeOrigin: true },
+      '/socket.io': { target: 'http://127.0.0.1:3002', changeOrigin: true, ws: true },
+    },
+  },
   server: {
     port: 5173,
     ...(mode === 'development' && {

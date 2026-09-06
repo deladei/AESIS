@@ -104,7 +104,7 @@ export default function OversightPanel() {
         <div className="overflow-x-auto">
           <table className="w-full text-left text-sm">
             <thead>
-              <tr className="border-b border-line text-xs font-semibold uppercase tracking-wide text-ink-muted">
+              <tr className="border-b border-line text-xs font-semibold text-ink-muted">
                 <th className="px-5 py-3">Intern</th>
                 <th className="px-5 py-3">Supervisor</th>
                 <th className="px-5 py-3">Risk</th>

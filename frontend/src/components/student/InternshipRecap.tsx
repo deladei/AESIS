@@ -204,7 +204,7 @@ export function InternshipRecap({ enabled, sample = false }: { enabled: boolean;
           {sample ? 'Example — what your recap will look like' : 'Your internship, wrapped'}
         </h2>
         {sample && (
-          <span className="ml-auto rounded-full bg-warn-soft px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-warn">
+          <span className="ml-auto rounded-full bg-warn-soft px-2 py-0.5 text-[10px] font-bold text-warn">
             Sample data
           </span>
         )}
@@ -213,7 +213,7 @@ export function InternshipRecap({ enabled, sample = false }: { enabled: boolean;
       {/* key on the card so remounting replays the CSS transition */}
       <div key={card.key} className="animate-[recapIn_320ms_ease-out] text-center">
         <Icon className="mx-auto mb-3 h-8 w-8 text-brand-ink" />
-        <p className="text-[11px] font-semibold uppercase tracking-wide text-ink-muted">
+        <p className="text-[11px] font-semibold text-ink-muted">
           {card.eyebrow}
         </p>
         <p className="mx-auto mt-1 max-w-lg text-lg font-bold leading-snug text-ink">

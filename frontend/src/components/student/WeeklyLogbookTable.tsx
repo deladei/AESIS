@@ -84,7 +84,7 @@ export function WeeklyLogbookTable({ placementId, startDate }: WeeklyLogbookTabl
         <div className="overflow-x-auto">
           <table className="w-full border-collapse text-left text-sm">
             <thead>
-              <tr className="border-b border-line text-xs font-semibold uppercase tracking-wide text-ink-secondary">
+              <tr className="border-b border-line text-xs font-semibold text-ink-secondary">
                 <th className="px-3 py-2.5">Week</th>
                 <th className="px-3 py-2.5">Period</th>
                 <th className="px-3 py-2.5">Hours</th>

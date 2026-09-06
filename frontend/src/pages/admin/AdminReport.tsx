@@ -31,7 +31,7 @@ export default function AdminReport() {
     { label: 'Tracked interns', value: dash ? String(dash.pulseBoard.length) : '—' },
   ];
 
-  const sectionTitle = 'mb-3 text-sm font-bold uppercase tracking-wide text-ink-muted';
+  const sectionTitle = 'mb-3 text-sm font-bold text-ink-muted';
   const dash100 = stats?.distribution ? Math.max(...stats.distribution, 1) : 1;
 
   return (

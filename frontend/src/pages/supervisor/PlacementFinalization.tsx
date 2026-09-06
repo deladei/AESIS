@@ -111,7 +111,7 @@ export default function PlacementFinalization() {
         {/* Placement list */}
         <aside className="lg:sticky lg:top-6 lg:self-start">
           <div className="overflow-hidden rounded-card border border-line bg-surface">
-            <div className="border-b border-line px-4 py-3 text-xs font-semibold uppercase tracking-wide text-ink-secondary">
+            <div className="border-b border-line px-4 py-3 text-xs font-semibold text-ink-secondary">
               Your interns
             </div>
             {placements.length === 0 ? (

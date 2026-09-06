@@ -29,7 +29,7 @@ export default function QuickActionsMenu() {
       </button>
       {open && (
         <div className="absolute right-0 z-50 mt-2 w-56 overflow-hidden rounded-card border border-line bg-surface py-1 shadow-pop">
-          <p className="px-4 pb-1 pt-2 text-[11px] font-bold uppercase tracking-wide text-ink-muted">Quick actions</p>
+          <p className="px-4 pb-1 pt-2 text-[11px] font-bold text-ink-muted">Quick actions</p>
           {ACTIONS.map((a) => {
             const Icon = a.icon;
             return (

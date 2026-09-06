@@ -57,7 +57,7 @@ export default function InternDetail() {
             {student.name.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase()}
           </div>
           <div>
-            <h2 className="text-2xl font-bold tracking-tight text-ink">{student.name}</h2>
+            <h1 className="text-2xl font-bold tracking-tight text-ink">{student.name}</h1>
             <div className="mt-1 flex flex-wrap items-center gap-x-4 gap-y-1 text-sm text-ink-muted">
               <span className="inline-flex items-center gap-1"><Mail className="h-3.5 w-3.5" />{student.email}</span>
               {student.department && <span className="inline-flex items-center gap-1"><GraduationCap className="h-3.5 w-3.5" />{student.department}</span>}
@@ -95,13 +95,13 @@ export default function InternDetail() {
           <p className="mb-2 text-xs font-semibold tracking-wide text-ink-muted">Supervisors</p>
           <div className="space-y-3">
             <div>
-              <p className="text-[11px] uppercase tracking-wide text-ink-muted">Academic</p>
+              <p className="text-[11px] text-ink-muted">Academic</p>
               {supervisors.academic ? (
                 <><p className="text-sm font-bold text-ink">{supervisors.academic.name}</p><p className="text-xs text-ink-muted">{supervisors.academic.email}</p></>
               ) : <p className="text-sm text-ink-muted">Unassigned</p>}
             </div>
             <div>
-              <p className="text-[11px] uppercase tracking-wide text-ink-muted">Company</p>
+              <p className="text-[11px] text-ink-muted">Company</p>
               {supervisors.company ? (
                 <><p className="text-sm font-bold text-ink">{supervisors.company.name}</p><p className="text-xs text-ink-muted">{supervisors.company.email}</p></>
               ) : <p className="text-sm text-ink-muted">Unassigned</p>}

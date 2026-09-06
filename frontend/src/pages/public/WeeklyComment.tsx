@@ -117,15 +117,15 @@ export default function WeeklyComment() {
 
       <dl className="mb-5 space-y-3 rounded-card border border-line bg-surface-sunken p-4">
         <div>
-          <dt className="text-xs font-semibold uppercase tracking-wide text-ink-secondary">Trainee</dt>
+          <dt className="text-xs font-semibold text-ink-secondary">Trainee</dt>
           <dd className="text-sm font-medium text-ink">{ctx.studentName}</dd>
         </div>
         <div>
-          <dt className="text-xs font-semibold uppercase tracking-wide text-ink-secondary">Supervisor</dt>
+          <dt className="text-xs font-semibold text-ink-secondary">Supervisor</dt>
           <dd className="text-sm font-medium text-ink">{ctx.supervisorName}</dd>
         </div>
         <div>
-          <dt className="text-xs font-semibold uppercase tracking-wide text-ink-secondary">Organisation</dt>
+          <dt className="text-xs font-semibold text-ink-secondary">Organisation</dt>
           <dd className="text-sm font-medium text-ink">{ctx.companyName ?? '—'}</dd>
         </div>
       </dl>

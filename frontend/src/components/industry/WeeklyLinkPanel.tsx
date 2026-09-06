@@ -85,7 +85,7 @@ export function WeeklyLinkPanel({ placementId, totalWeeks }: { placementId: stri
         <div className="space-y-3">
           {/* Supervisor */}
           <div>
-            <label className="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-ink-muted">
+            <label className="mb-1 block text-[11px] font-semibold text-ink-muted">
               Supervisor
             </label>
             {list.length === 1 ? (
@@ -110,7 +110,7 @@ export function WeeklyLinkPanel({ placementId, totalWeeks }: { placementId: stri
 
           {/* Week */}
           <div>
-            <label className="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-ink-muted">
+            <label className="mb-1 block text-[11px] font-semibold text-ink-muted">
               Week
             </label>
             <select

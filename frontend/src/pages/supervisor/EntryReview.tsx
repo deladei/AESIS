@@ -350,7 +350,7 @@ export default function EntryReview() {
         {/* Queue */}
         <aside className="lg:sticky lg:top-6 lg:self-start">
           <div className="overflow-hidden rounded-card border border-line bg-surface">
-            <div className="border-b border-line px-4 py-3 text-xs font-semibold uppercase tracking-wide text-ink-secondary">
+            <div className="border-b border-line px-4 py-3 text-xs font-semibold text-ink-secondary">
               Awaiting review
             </div>
             {queue.length === 0 ? (
@@ -535,11 +535,11 @@ export default function EntryReview() {
                   <div className="rounded-card border border-line bg-surface p-5 space-y-3">
                     <h3 className="text-sm font-semibold text-ink">Reflection</h3>
                     <div>
-                      <p className="mb-1 text-xs font-semibold uppercase tracking-wide text-ink-secondary">What they learned</p>
+                      <p className="mb-1 text-xs font-semibold text-ink-secondary">What they learned</p>
                       <p className="whitespace-pre-wrap text-sm text-ink">{detail.reflection.learning}</p>
                     </div>
                     <div>
-                      <p className="mb-1 text-xs font-semibold uppercase tracking-wide text-ink-secondary">Challenges</p>
+                      <p className="mb-1 text-xs font-semibold text-ink-secondary">Challenges</p>
                       <p className="whitespace-pre-wrap text-sm text-ink">{detail.reflection.challenges}</p>
                     </div>
                   </div>
@@ -601,7 +601,7 @@ export default function EntryReview() {
                       )}
                       {aiSummary?.concerns && aiSummary.concerns.length > 0 && (
                         <div>
-                          <p className="mb-1 text-xs font-semibold uppercase tracking-wide text-warn">Concerns</p>
+                          <p className="mb-1 text-xs font-semibold text-warn">Concerns</p>
                           <ul className="list-inside list-disc space-y-0.5 text-xs text-ink-secondary">
                             {aiSummary.concerns.map((c, i) => <li key={i}>{c}</li>)}
                           </ul>
@@ -611,7 +611,7 @@ export default function EntryReview() {
                       {/* Quality breakdown (v2 assessments only) */}
                       {quality && QUALITY_DIMS.some((d) => pct100(quality[d.key]) != null) && (
                         <div className="border-t border-line pt-3">
-                          <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-ink-secondary">Writing quality</p>
+                          <p className="mb-2 text-xs font-semibold text-ink-secondary">Writing quality</p>
                           <div className="space-y-2">
                             {QUALITY_DIMS.map(({ key, label }) => {
                               const v = pct100(quality[key]);

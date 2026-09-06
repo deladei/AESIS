@@ -66,7 +66,7 @@ export default function CohortReport() {
           </header>
 
           <section className="mb-8">
-            <h2 className="mb-3 text-sm font-bold uppercase tracking-wide text-ink-muted">Overview</h2>
+            <h2 className="mb-3 text-sm font-bold text-ink-muted">Overview</h2>
             <div className="grid grid-cols-4 gap-4">
               {metrics.map((m) => (
                 <div key={m.label} className="rounded-lg border border-line p-3">
@@ -78,7 +78,7 @@ export default function CohortReport() {
           </section>
 
           <section className="mb-8">
-            <h2 className="mb-3 text-sm font-bold uppercase tracking-wide text-ink-muted">Supervisor workload</h2>
+            <h2 className="mb-3 text-sm font-bold text-ink-muted">Supervisor workload</h2>
             {workload && workload.rows.length > 0 ? (
               <>
                 <p className="mb-2 text-sm text-ink-secondary">
@@ -105,7 +105,7 @@ export default function CohortReport() {
           </section>
 
           <section className="mb-8">
-            <h2 className="mb-3 text-sm font-bold uppercase tracking-wide text-ink-muted">Performance distribution</h2>
+            <h2 className="mb-3 text-sm font-bold text-ink-muted">Performance distribution</h2>
             {dist && dist.scoredCount > 0 ? (
               <>
                 <p className="mb-2 text-sm text-ink-secondary">
@@ -125,7 +125,7 @@ export default function CohortReport() {
           </section>
 
           <section className="mb-8">
-            <h2 className="mb-3 text-sm font-bold uppercase tracking-wide text-ink-muted">Released-grade distribution</h2>
+            <h2 className="mb-3 text-sm font-bold text-ink-muted">Released-grade distribution</h2>
             {gradeStats && gradeStats.count > 0 ? (
               <p className="text-sm text-ink-secondary">
                 n={gradeStats.count} · mean {gradeStats.mean} · median {gradeStats.median} · pass rate {gradeStats.passRate}% ·
@@ -135,7 +135,7 @@ export default function CohortReport() {
           </section>
 
           <section className="mb-8">
-            <h2 className="mb-3 text-sm font-bold uppercase tracking-wide text-ink-muted">Grades by region</h2>
+            <h2 className="mb-3 text-sm font-bold text-ink-muted">Grades by region</h2>
             {regions && regions.count > 0 ? (
               <table className="w-full text-left text-sm">
                 <thead><tr className="border-b border-line text-xs text-ink-muted">
@@ -157,7 +157,7 @@ export default function CohortReport() {
           </section>
 
           <section>
-            <h2 className="mb-3 text-sm font-bold uppercase tracking-wide text-ink-muted">Interns ({students.length})</h2>
+            <h2 className="mb-3 text-sm font-bold text-ink-muted">Interns ({students.length})</h2>
             <table className="w-full text-left text-sm">
               <thead><tr className="border-b border-line text-xs text-ink-muted">
                 <th className="py-1">Name</th><th className="py-1">Department</th><th className="py-1">Supervisor</th>

@@ -40,7 +40,7 @@ export default function CompanyDetail() {
 
   if (isError || !data) {
     return (
-      <div className="mx-auto max-w-4xl p-6">
+      <div className="mx-auto max-w-[1500px] p-4 sm:p-6">
         <Link to="/coordinator/companies" className="mb-4 inline-flex items-center gap-1.5 text-sm font-medium text-brand-ink hover:underline">
           <ArrowLeft className="h-4 w-4" /> All companies
         </Link>
@@ -55,7 +55,7 @@ export default function CompanyDetail() {
   const active = placements.filter((p) => p.placementStatus === 'active').length;
 
   return (
-    <div className="mx-auto max-w-5xl space-y-6 p-6">
+    <div className="mx-auto max-w-[1500px] space-y-5 p-4 sm:p-6">
       <div>
         <Link to="/coordinator/companies" className="mb-2 inline-flex items-center gap-1.5 text-sm font-medium text-brand-ink hover:underline">
           <ArrowLeft className="h-4 w-4" /> All companies
@@ -65,7 +65,7 @@ export default function CompanyDetail() {
             <Building2 className="h-6 w-6 text-brand-ink" />
           </div>
           <div className="min-w-0">
-            <h1 className="text-xl font-bold text-ink">{company.name}</h1>
+            <h1 className="text-2xl font-bold tracking-tight text-ink">{company.name}</h1>
             <p className="text-sm text-ink-muted">
               {company.industry ?? 'Host company'} ·{' '}
               <span className="inline-flex items-center gap-1">
@@ -96,7 +96,7 @@ export default function CompanyDetail() {
           <div className="overflow-x-auto">
             <table className="w-full text-left text-sm">
               <thead>
-                <tr className="border-b border-line text-xs font-semibold uppercase tracking-wide text-ink-muted">
+                <tr className="border-b border-line text-xs font-semibold text-ink-muted">
                   <th className="px-5 py-3">Intern</th>
                   <th className="px-5 py-3">Index no.</th>
                   <th className="px-5 py-3">Supervisor</th>

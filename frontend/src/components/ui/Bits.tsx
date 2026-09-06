@@ -65,7 +65,7 @@ export function DateTile({ date, tone = 'brand' }: { date: Date; tone?: 'brand' 
       className={cn('grid h-12 w-12 shrink-0 place-items-center rounded-xl leading-none', tones[tone])}
       aria-label={date.toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' })}
     >
-      <span className="text-[10px] font-bold uppercase tracking-wide">{month}</span>
+      <span className="text-[10px] font-bold uppercase">{month}</span>
       <span className="text-base font-bold">{day}</span>
     </div>
   );
