@@ -81,9 +81,12 @@ export default function GradeDistributionPanel({ academicYearId }: { academicYea
       </div>
 
       {/* 10-bucket histogram (0–100). Bar height scaled to the busiest bucket. */}
-      <div className="flex h-32 items-end gap-1.5">
+      {/* `items-stretch` + `justify-end`: a percentage bar height only resolves
+          against a parent that HAS a height. The column used to be content-sized,
+          so the only thing with any height was the label text. */}
+      <div className="flex h-32 items-stretch gap-1.5">
         {stats.distribution.map((c, i) => (
-          <div key={i} className="flex flex-1 flex-col items-center gap-1" title={`${i * 10}–${i === 9 ? 100 : i * 10 + 9}: ${c}`}>
+          <div key={i} className="flex flex-1 flex-col items-center justify-end gap-1" title={`${i * 10}–${i === 9 ? 100 : i * 10 + 9}: ${c}`}>
             <span className="text-[10px] font-semibold text-ink-secondary">{c > 0 ? c : ''}</span>
             <div
               className="w-full rounded-t bg-brand transition-all"

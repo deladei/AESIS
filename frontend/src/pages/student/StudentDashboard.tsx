@@ -341,7 +341,6 @@ export default function StudentDashboard() {
                 yKey="progress"
                 yLabel="Progress"
                 valueSuffix="%"
-                height={190}
               />
             </div>
           </div>

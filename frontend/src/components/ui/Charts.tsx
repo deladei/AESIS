@@ -3,6 +3,7 @@ import {
   PolarAngleAxis, PolarGrid, PolarRadiusAxis, Radar, RadarChart,
   ResponsiveContainer, Tooltip, XAxis, YAxis,
 } from 'recharts';
+import { cn } from '@/lib/utils';
 import { LegendDot } from './Badge';
 import { EmptyState } from './Feedback';
 
@@ -54,12 +55,27 @@ export interface DonutSlice {
  * visible label is what makes that legal, not a preference.
  */
 export function DonutStat({
-  data, centerValue, centerCaption, emptyHint,
+  data, centerValue, centerCaption, emptyHint, layout = 'stack', size = 180, legend = true,
 }: {
   data: DonutSlice[];
   centerValue: React.ReactNode;
   centerCaption: string;
   emptyHint?: string;
+  /**
+   * Where the legend goes. Defaults to `stack` — underneath.
+   *
+   * This used to be `sm:flex-row`, a VIEWPORT breakpoint, which knows nothing
+   * about the column it was dropped into. Every call site in the app is a
+   * narrow one (a 330px assignments rail, a 320px settings aside, a 3-of-12
+   * dashboard cell), so a 180px ring and a legend fought over ~120px and the
+   * legend overflowed the card. The call site knows how much room it has; the
+   * component does not.
+   */
+  layout?: 'row' | 'stack';
+  /** Ring diameter in px. The hole scales with it. */
+  size?: number;
+  /** Some panels name the slices elsewhere and want the ring alone. */
+  legend?: boolean;
 }) {
   const total = data.reduce((sum, d) => sum + d.value, 0);
 
@@ -67,17 +83,20 @@ export function DonutStat({
     return <EmptyState title="Nothing to chart yet" hint={emptyHint} className="py-8" />;
   }
 
+  const outer = size / 2 - 6;
+  const inner = outer - 26;
+
   return (
-    <div className="flex flex-col items-center gap-5 sm:flex-row">
-      <div className="relative h-[180px] w-[180px] shrink-0">
+    <div className={cn('flex flex-col items-center gap-5', layout === 'row' && 'sm:flex-row')}>
+      <div className="relative shrink-0" style={{ height: size, width: size }}>
         <ResponsiveContainer width="100%" height="100%">
           <PieChart>
             <Pie
               data={data}
               dataKey="value"
               nameKey="label"
-              innerRadius={58}
-              outerRadius={84}
+              innerRadius={inner}
+              outerRadius={outer}
               paddingAngle={2}
               startAngle={90}
               endAngle={-270}
@@ -108,19 +127,28 @@ export function DonutStat({
         </div>
       </div>
 
-      <div className="w-full flex-1 space-y-2.5">
-        {data.map((d) => (
-          <LegendDot
-            key={d.label}
-            color={d.color}
-            label={d.label}
-            value={`${d.value} (${Math.round((d.value / total) * 100)}%)`}
-          />
-        ))}
-      </div>
+      {legend && (
+        <div className="w-full flex-1 space-y-2.5">
+          {data.map((d) => (
+            <LegendDot
+              key={d.label}
+              color={d.color}
+              label={d.label}
+              value={`${d.value} (${Math.round((d.value / total) * 100)}%)`}
+            />
+          ))}
+        </div>
+      )}
     </div>
   );
 }
+
+/**
+ * The one trend height. Charts were being called at 190, 200, 220 and the 240
+ * default, so two cards in the same grid row had different natural heights and
+ * the shorter one's chart floated in the leftover space.
+ */
+export const TREND_HEIGHT = 220;
 
 /**
  * Single-series trend with a crosshair tooltip.
@@ -130,7 +158,7 @@ export function DonutStat({
  * an enhancement.
  */
 export function LineTrend({
-  data, xKey, yKey, yLabel, height = 240, valueSuffix = '',
+  data, xKey, yKey, yLabel, height = TREND_HEIGHT, valueSuffix = '',
 }: {
   data: Record<string, unknown>[];
   xKey: string;
@@ -204,7 +232,7 @@ export interface TrendSeries {
  * identity may not rest on colour alone.
  */
 export function MultiLineTrend({
-  data, xKey, series, height = 240,
+  data, xKey, series, height = TREND_HEIGHT,
 }: {
   data: Record<string, unknown>[];
   xKey: string;
@@ -294,7 +322,7 @@ export function Sparkline({
  * the polygon alone never carries the meaning.
  */
 export function RadarProfile({
-  data, height = 240,
+  data, height = TREND_HEIGHT,
 }: {
   data: { axis: string; value: number }[];
   height?: number;

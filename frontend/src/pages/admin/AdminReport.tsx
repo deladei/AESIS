@@ -101,9 +101,12 @@ export default function AdminReport() {
                   <span>Resit (40–49): <b>{stats.bands.resit}</b></span>
                   <span>Fail (&lt;40): <b>{stats.bands.fail}</b></span>
                 </div>
-                <div className="flex h-20 items-end gap-1">
+                {/* `items-stretch` + `justify-end`: the bar's percentage height
+                    needs a resolved parent height. With the column content-sized
+                    (the old `items-end`) every bar collapsed to nothing. */}
+                <div className="flex h-20 items-stretch gap-1">
                   {stats.distribution.map((c, i) => (
-                    <div key={i} className="flex flex-1 flex-col items-center">
+                    <div key={i} className="flex flex-1 flex-col items-center justify-end">
                       <div className="w-full bg-brand" style={{ height: `${(c / dash100) * 100}%` }} />
                       <span className="text-[8px] text-ink-muted">{i * 10}</span>
                     </div>

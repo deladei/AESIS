@@ -107,7 +107,7 @@ export default function AIInsights() {
           ) : (
             <LineTrend
               data={relevanceTrend.map(t => ({ week: `Wk ${t.week}`, relevance: t.avgRelevance }))}
-              xKey="week" yKey="relevance" yLabel="Relevance" valueSuffix="/100" height={220}
+              xKey="week" yKey="relevance" yLabel="Relevance" valueSuffix="/100"
             />
           )}
         </Card>
@@ -126,7 +126,7 @@ export default function AIInsights() {
           ) : (
             <LineTrend
               data={hours.weeks.map(w => ({ week: `Wk ${w.week}`, hours: w.avgHours }))}
-              xKey="week" yKey="hours" yLabel="Average hours" valueSuffix=" h" height={220}
+              xKey="week" yKey="hours" yLabel="Average hours" valueSuffix=" h"
             />
           )}
         </Card>

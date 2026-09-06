@@ -178,7 +178,7 @@ export default function SupervisorDashboard() {
 
       {/* Students · progress · reviews */}
       <div className="grid gap-4 lg:grid-cols-3">
-        <Card className="flex flex-col">
+        <Card>
           <CardHeader title="My students" action={{ label: 'View all', to: '/supervisor/review' }} />
 
           {students.length === 0 ? (

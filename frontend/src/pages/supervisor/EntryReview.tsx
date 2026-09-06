@@ -258,7 +258,7 @@ export default function EntryReview() {
                 }),
                 submissions: t.count,
               }))}
-              xKey="week" yKey="submissions" yLabel="Submissions" height={200}
+              xKey="week" yKey="submissions" yLabel="Submissions"
             />
           )}
         </Card>
