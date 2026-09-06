@@ -6,7 +6,7 @@ import { FieldError } from '@/components/shared/FieldError';
 import { useFieldErrors, resetPasswordInitSchema } from '@/lib/validation';
 
 const inputClass =
-  'w-full px-4 py-2.5 rounded-lg bg-[var(--h-ffffff)] border border-[var(--h-c4c5d5-60)] text-[var(--h-0b1c30)] placeholder-[var(--h-757684)] text-sm focus:outline-none focus:border-[var(--h-15157d)] focus:ring-1 focus:ring-[var(--h-15157d)] transition-colors duration-150';
+  'w-full px-4 py-2.5 rounded-lg bg-surface border border-line text-ink placeholder:text-ink-muted text-sm focus:outline-none focus:border-brand focus:ring-1 focus:ring-brand transition-colors duration-150';
 
 export default function ResetPasswordPage() {
   const [email, setEmail]     = useState('');
@@ -38,13 +38,13 @@ export default function ResetPasswordPage() {
   };
 
   return (
-    <div className="min-h-screen bg-[var(--h-ffffff)] flex items-center justify-center p-8">
+    <div className="min-h-screen bg-surface flex items-center justify-center p-8">
       <div className="w-full max-w-md">
         <div className="flex items-center gap-3 mb-10">
-          <div className="w-9 h-9 rounded-xl bg-[var(--h-15157d)] flex items-center justify-center">
+          <div className="w-9 h-9 rounded-xl bg-brand flex items-center justify-center">
             <span className="text-white font-bold font-mono">A</span>
           </div>
-          <p className="text-[var(--h-0b1c30)] font-bold text-lg">AESIS</p>
+          <p className="text-ink font-bold text-lg">AESIS</p>
         </div>
 
         {sent ? (
@@ -52,22 +52,22 @@ export default function ResetPasswordPage() {
             <div className="w-14 h-14 rounded-full bg-emerald-50 border border-emerald-200 flex items-center justify-center mb-6">
               <MailCheck className="w-7 h-7 text-emerald-600" />
             </div>
-            <h2 className="text-2xl font-bold text-[var(--h-0b1c30)] mb-2">Check your inbox</h2>
-            <p className="text-[var(--h-757684)] text-sm leading-relaxed mb-8">
-              If <span className="text-[var(--h-0b1c30)] font-medium">{email}</span> is registered,
+            <h2 className="text-2xl font-bold text-ink mb-2">Check your inbox</h2>
+            <p className="text-ink-muted text-sm leading-relaxed mb-8">
+              If <span className="text-ink font-medium">{email}</span> is registered,
               we've sent it a password-reset link. The link expires in 1 hour.
             </p>
             <Link
               to="/auth/login"
-              className="inline-flex items-center gap-2 text-sm text-[var(--h-15157d)] hover:opacity-80 font-medium transition-opacity duration-150"
+              className="inline-flex items-center gap-2 text-sm text-brand-ink hover:opacity-80 font-medium transition-opacity duration-150"
             >
               <ArrowLeft className="w-4 h-4" /> Back to sign in
             </Link>
           </div>
         ) : (
           <>
-            <h2 className="text-2xl font-bold text-[var(--h-0b1c30)] mb-1">Reset your password</h2>
-            <p className="text-[var(--h-757684)] text-sm mb-8">
+            <h2 className="text-2xl font-bold text-ink mb-1">Reset your password</h2>
+            <p className="text-ink-muted text-sm mb-8">
               Enter your account email and we'll send you a link to set a new password.
             </p>
 
@@ -79,7 +79,7 @@ export default function ResetPasswordPage() {
 
             <form onSubmit={handleSubmit} className="space-y-5">
               <div>
-                <label htmlFor="email" className="block text-sm font-medium text-[var(--h-0b1c30)] mb-1.5">
+                <label htmlFor="email" className="block text-sm font-medium text-ink mb-1.5">
                   Email address
                 </label>
                 <input
@@ -100,7 +100,7 @@ export default function ResetPasswordPage() {
               <button
                 type="submit"
                 disabled={loading}
-                className="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg bg-[var(--h-15157d)] hover:opacity-90 text-white font-semibold text-sm transition-opacity duration-150 cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed focus:outline-none focus:ring-2 focus:ring-[var(--h-15157d)] focus:ring-offset-2"
+                className="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg bg-brand hover:opacity-90 text-white font-semibold text-sm transition-opacity duration-150 cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed focus:outline-none focus:ring-2 focus:ring-brand focus:ring-offset-2"
               >
                 {loading ? (
                   <><Loader2 className="w-4 h-4 animate-spin" /> Sending link…</>
@@ -110,9 +110,9 @@ export default function ResetPasswordPage() {
               </button>
             </form>
 
-            <p className="mt-8 text-center text-sm text-[var(--h-757684)]">
+            <p className="mt-8 text-center text-sm text-ink-muted">
               Remembered it?{' '}
-              <Link to="/auth/login" className="text-[var(--h-15157d)] hover:opacity-80 font-medium transition-opacity duration-150">
+              <Link to="/auth/login" className="text-brand-ink hover:opacity-80 font-medium transition-opacity duration-150">
                 Sign in
               </Link>
             </p>

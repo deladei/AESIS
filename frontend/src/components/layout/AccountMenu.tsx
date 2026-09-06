@@ -18,36 +18,36 @@ export default function AccountMenu({ user }: { user: { name: string; email: str
     <div className="relative" ref={ref}>
       <button
         onClick={() => setOpen((v) => !v)}
-        className="flex items-center gap-3 rounded-full p-1 transition-colors hover:bg-[var(--h-e5eeff)]"
+        className="flex items-center gap-3 rounded-full p-1 transition-colors hover:bg-brand-soft"
         aria-label="Account menu" aria-haspopup="true" aria-expanded={open}
       >
         <span className="hidden text-right lg:block">
-          <span className="block text-sm font-bold text-[var(--h-15157d)]">{user.name}</span>
-          <span className="block text-xs text-[var(--h-757684)]">Head Coordinator</span>
+          <span className="block text-sm font-bold text-brand-ink">{user.name}</span>
+          <span className="block text-xs text-ink-muted">Head Coordinator</span>
         </span>
         <UserAvatar avatarUrl={user.avatarUrl} initials={user.initials} name={user.name} />
       </button>
 
       {open && (
-        <div className="absolute right-0 z-50 mt-2 w-64 overflow-hidden rounded-xl border border-[var(--h-c4c5d5-60)] bg-[var(--h-ffffff)] shadow-xl">
-          <div className="border-b border-[var(--h-c4c5d5-40)] px-4 py-3">
-            <p className="truncate text-sm font-bold text-[var(--h-0b1c30)]">{user.name}</p>
-            <p className="truncate text-xs text-[var(--h-757684)]">{user.email}</p>
-            <span className="mt-2 inline-flex items-center gap-1 rounded-full bg-[var(--h-eff4ff)] px-2 py-0.5 text-[11px] font-semibold text-[var(--h-15157d)]">
+        <div className="absolute right-0 z-50 mt-2 w-64 overflow-hidden rounded-xl border border-line bg-surface shadow-xl">
+          <div className="border-b border-line px-4 py-3">
+            <p className="truncate text-sm font-bold text-ink">{user.name}</p>
+            <p className="truncate text-xs text-ink-muted">{user.email}</p>
+            <span className="mt-2 inline-flex items-center gap-1 rounded-full bg-brand-soft px-2 py-0.5 text-[11px] font-semibold text-brand-ink">
               <ShieldCheck className="h-3 w-3" /> Coordinator
             </span>
           </div>
           <div className="py-1">
             <Link to="/profile" onClick={() => setOpen(false)}
-              className="flex items-center gap-3 px-4 py-2 text-sm text-[var(--h-0b1c30)] transition-colors hover:bg-[var(--h-eff4ff)]">
-              <UserRound className="h-4 w-4 text-[var(--h-15157d)]" /> My Profile
+              className="flex items-center gap-3 px-4 py-2 text-sm text-ink transition-colors hover:bg-brand-soft">
+              <UserRound className="h-4 w-4 text-brand-ink" /> My Profile
             </Link>
             <Link to="/coordinator/settings" onClick={() => setOpen(false)}
-              className="flex items-center gap-3 px-4 py-2 text-sm text-[var(--h-0b1c30)] transition-colors hover:bg-[var(--h-eff4ff)]">
-              <Settings className="h-4 w-4 text-[var(--h-15157d)]" /> Settings
+              className="flex items-center gap-3 px-4 py-2 text-sm text-ink transition-colors hover:bg-brand-soft">
+              <Settings className="h-4 w-4 text-brand-ink" /> Settings
             </Link>
             <button onClick={() => { setOpen(false); logout(); }}
-              className="flex w-full items-center gap-3 px-4 py-2 text-sm text-[var(--h-444653)] transition-colors hover:bg-[var(--h-ffdad6)] hover:text-[var(--h-ba1a1a)]">
+              className="flex w-full items-center gap-3 px-4 py-2 text-sm text-ink-secondary transition-colors hover:bg-danger-soft hover:text-danger">
               <LogOut className="h-4 w-4" /> Sign out
             </button>
           </div>

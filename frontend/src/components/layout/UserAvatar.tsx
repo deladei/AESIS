@@ -28,7 +28,7 @@ export function UserAvatar({
     <span
       className={cn(
         base,
-        'flex items-center justify-center bg-[var(--h-e1e0ff)] text-xs font-semibold text-[var(--h-15157d)]',
+        'flex items-center justify-center bg-brand-soft text-xs font-semibold text-brand-ink',
       )}
     >
       {initials}

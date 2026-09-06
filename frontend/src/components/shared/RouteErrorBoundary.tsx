@@ -42,18 +42,18 @@ export class RouteErrorBoundary extends Component<Props, State> {
 
     return (
       <div className="flex min-h-[60vh] items-center justify-center p-6">
-        <div className="max-w-md rounded-xl border border-[var(--h-c4c5d5-60)] bg-[var(--h-ffffff)] p-8 text-center shadow-sm">
+        <div className="max-w-md rounded-xl border border-line bg-surface p-8 text-center shadow-sm">
           <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-red-50">
             <AlertTriangle className="h-6 w-6 text-red-500" />
           </div>
-          <h2 className="text-lg font-semibold text-[var(--h-0b1c30)]">This page hit a snag</h2>
-          <p className="mt-2 text-sm text-[var(--h-64748b)]">
+          <h2 className="text-lg font-semibold text-ink">This page hit a snag</h2>
+          <p className="mt-2 text-sm text-ink-secondary">
             Something went wrong while loading this view. The rest of the app is still working —
             you can retry, or use the menu to go elsewhere.
           </p>
           <button
             onClick={this.handleRetry}
-            className="mt-6 inline-flex items-center gap-2 rounded-lg bg-[var(--h-15157d)] px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-[var(--h-2e3192)]"
+            className="mt-6 inline-flex items-center gap-2 rounded-lg bg-brand px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-brand"
           >
             <RotateCcw className="h-4 w-4" />
             Try again

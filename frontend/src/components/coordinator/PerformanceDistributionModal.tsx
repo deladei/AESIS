@@ -16,24 +16,24 @@ export default function PerformanceDistributionModal({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 p-4" onClick={onClose}>
-      <div className="max-h-[85vh] w-full max-w-lg overflow-y-auto rounded-xl bg-[var(--h-ffffff)] p-6 shadow-xl" onClick={(e) => e.stopPropagation()}>
+      <div className="max-h-[85vh] w-full max-w-lg overflow-y-auto rounded-xl bg-surface p-6 shadow-xl" onClick={(e) => e.stopPropagation()}>
         <div className="mb-4 flex items-start justify-between">
           <div className="flex items-center gap-2">
-            <BarChart3 className="h-5 w-5 text-[var(--h-15157d)]" />
-            <h3 className="text-lg font-bold text-[var(--h-0b1c30)]">Performance distribution</h3>
+            <BarChart3 className="h-5 w-5 text-brand-ink" />
+            <h3 className="text-lg font-bold text-ink">Performance distribution</h3>
           </div>
-          <button onClick={onClose} aria-label="Close" className="rounded p-1 text-[var(--h-757684)] hover:bg-[var(--h-eff4ff)]"><X className="h-4 w-4" /></button>
+          <button onClick={onClose} aria-label="Close" className="rounded p-1 text-ink-muted hover:bg-brand-soft"><X className="h-4 w-4" /></button>
         </div>
 
         {isLoading || !data ? (
-          <div className="flex justify-center py-10"><Loader2 className="h-5 w-5 animate-spin text-[var(--h-15157d)]" /></div>
+          <div className="flex justify-center py-10"><Loader2 className="h-5 w-5 animate-spin text-brand-ink" /></div>
         ) : data.scoredCount === 0 ? (
-          <p className="py-8 text-center text-sm text-[var(--h-757684)]">
+          <p className="py-8 text-center text-sm text-ink-muted">
             No logbook scores yet{data.unscoredCount > 0 ? ` (${data.unscoredCount} intern${data.unscoredCount === 1 ? '' : 's'} awaiting their first scored entry)` : ''}.
           </p>
         ) : (
           <>
-            <p className="mb-4 text-xs text-[var(--h-757684)]">
+            <p className="mb-4 text-xs text-ink-muted">
               {data.scoredCount} scored intern{data.scoredCount === 1 ? '' : 's'}
               {data.unscoredCount > 0 && ` · ${data.unscoredCount} not yet scorable`}
               {data.threshold > 0 && ` · threshold ${data.threshold}/100`}
@@ -43,31 +43,31 @@ export default function PerformanceDistributionModal({
             <div className="mb-6 space-y-2">
               {data.buckets.map((b) => (
                 <div key={b.label} className="flex items-center gap-3">
-                  <span className="w-16 shrink-0 text-right text-xs font-medium text-[var(--h-757684)]">{b.label}</span>
-                  <div className="h-5 flex-1 overflow-hidden rounded bg-[var(--h-eef0f5)]">
-                    <div className="h-full rounded bg-[var(--h-15157d)]" style={{ width: `${Math.round((b.count / maxBucket) * 100)}%` }} />
+                  <span className="w-16 shrink-0 text-right text-xs font-medium text-ink-muted">{b.label}</span>
+                  <div className="h-5 flex-1 overflow-hidden rounded bg-surface-sunken">
+                    <div className="h-full rounded bg-brand" style={{ width: `${Math.round((b.count / maxBucket) * 100)}%` }} />
                   </div>
-                  <span className="w-6 shrink-0 text-right text-xs font-semibold text-[var(--h-0b1c30)]">{b.count}</span>
+                  <span className="w-6 shrink-0 text-right text-xs font-semibold text-ink">{b.count}</span>
                 </div>
               ))}
             </div>
 
             {/* Below threshold */}
             {data.threshold > 0 && (
-              <div className="border-t border-[var(--h-eef1ff)] pt-4">
-                <h4 className="mb-2 text-sm font-semibold text-[var(--h-0b1c30)]">
+              <div className="border-t border-line pt-4">
+                <h4 className="mb-2 text-sm font-semibold text-ink">
                   Below threshold ({data.belowThreshold.length})
                 </h4>
                 {data.belowThreshold.length === 0 ? (
-                  <p className="text-sm text-[var(--h-1b7a45)]">Every scored intern is at or above {data.threshold}/100.</p>
+                  <p className="text-sm text-ok">Every scored intern is at or above {data.threshold}/100.</p>
                 ) : (
                   <ul className="space-y-1.5">
                     {data.belowThreshold.map((s) => (
                       <li key={s.placementId} className="flex items-center justify-between text-sm">
-                        <Link to={`/coordinator/interns/${s.placementId}`} className="font-medium text-[var(--h-15157d)] hover:underline" onClick={onClose}>
+                        <Link to={`/coordinator/interns/${s.placementId}`} className="font-medium text-brand-ink hover:underline" onClick={onClose}>
                           {s.name}
                         </Link>
-                        <span className="font-semibold text-[var(--h-b3261e)]">{s.avg.toFixed(1)}</span>
+                        <span className="font-semibold text-danger">{s.avg.toFixed(1)}</span>
                       </li>
                     ))}
                   </ul>

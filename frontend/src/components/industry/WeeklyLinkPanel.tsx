@@ -14,7 +14,7 @@ const apiErr = (e: unknown) =>
 const fmtDate = (iso: string) =>
   new Date(iso).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
 
-const card = 'rounded-xl border border-[var(--h-c4c5d5-60)] bg-[var(--h-ffffff)] p-5';
+const card = 'rounded-xl border border-line bg-surface p-5';
 
 /**
  * Coordinator/supervisor tool: mint the week-scoped weekly-comment link for a
@@ -59,45 +59,45 @@ export function WeeklyLinkPanel({ placementId, totalWeeks }: { placementId: stri
   return (
     <div className={card}>
       <div className="mb-3 flex items-center gap-2">
-        <MessageSquare className="h-4 w-4 text-[var(--h-15157d)]" />
-        <h3 className="text-sm font-bold text-[var(--h-0b1c30)]">Weekly comment link</h3>
+        <MessageSquare className="h-4 w-4 text-brand-ink" />
+        <h3 className="text-sm font-bold text-ink">Weekly comment link</h3>
       </div>
-      <p className="mb-4 text-xs text-[var(--h-757684)]">
+      <p className="mb-4 text-xs text-ink-muted">
         Send the industry supervisor a secure single-use link to leave a formative comment on a given
         week. The student and the university supervisor can see it.
       </p>
 
       {issue.error && (
-        <div className="mb-3 flex items-start gap-2 rounded-lg bg-[var(--h-fff1ee)] p-2.5 text-xs text-[var(--h-b3261e)]">
+        <div className="mb-3 flex items-start gap-2 rounded-lg bg-danger-soft p-2.5 text-xs text-danger">
           <AlertCircle className="mt-0.5 h-3.5 w-3.5 shrink-0" /> {apiErr(issue.error)}
         </div>
       )}
 
       {supers.isLoading ? (
-        <div className="flex items-center gap-2 text-xs text-[var(--h-757684)]">
+        <div className="flex items-center gap-2 text-xs text-ink-muted">
           <Loader2 className="h-3.5 w-3.5 animate-spin" /> Loading supervisors…
         </div>
       ) : list.length === 0 ? (
-        <p className="rounded-lg border border-dashed border-[var(--h-c4c5d5-60)] p-3 text-xs text-[var(--h-757684)]">
+        <p className="rounded-lg border border-dashed border-line p-3 text-xs text-ink-muted">
           No industry supervisor on record for this placement.
         </p>
       ) : (
         <div className="space-y-3">
           {/* Supervisor */}
           <div>
-            <label className="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-[var(--h-757684)]">
+            <label className="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-ink-muted">
               Supervisor
             </label>
             {list.length === 1 ? (
-              <p className="text-sm text-[var(--h-0b1c30)]">
+              <p className="text-sm text-ink">
                 <span className="font-semibold">{selected?.name}</span>
-                {selected?.designation ? <span className="text-[var(--h-757684)]"> · {selected.designation}</span> : null}
+                {selected?.designation ? <span className="text-ink-muted"> · {selected.designation}</span> : null}
               </p>
             ) : (
               <select
                 value={activeId}
                 onChange={(e) => setSupervisorId(e.target.value)}
-                className="w-full rounded-lg border border-[var(--h-c4c5d5-60)] bg-[var(--h-ffffff)] px-2.5 py-1.5 text-sm text-[var(--h-0b1c30)]"
+                className="w-full rounded-lg border border-line bg-surface px-2.5 py-1.5 text-sm text-ink"
               >
                 {list.map((s) => (
                   <option key={s.id} value={s.id}>
@@ -110,13 +110,13 @@ export function WeeklyLinkPanel({ placementId, totalWeeks }: { placementId: stri
 
           {/* Week */}
           <div>
-            <label className="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-[var(--h-757684)]">
+            <label className="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-ink-muted">
               Week
             </label>
             <select
               value={weekNumber}
               onChange={(e) => setWeekNumber(Number(e.target.value))}
-              className="w-full rounded-lg border border-[var(--h-c4c5d5-60)] bg-[var(--h-ffffff)] px-2.5 py-1.5 text-sm text-[var(--h-0b1c30)]"
+              className="w-full rounded-lg border border-line bg-surface px-2.5 py-1.5 text-sm text-ink"
             >
               {Array.from({ length: weeks }, (_, i) => i + 1).map((w) => (
                 <option key={w} value={w}>Week {w}</option>
@@ -130,7 +130,7 @@ export function WeeklyLinkPanel({ placementId, totalWeeks }: { placementId: stri
               type="button"
               disabled={issue.isPending || noEmail}
               onClick={() => onIssue(true)}
-              className="inline-flex items-center gap-1.5 rounded-lg bg-[var(--h-15157d)] px-3 py-1.5 text-xs font-semibold text-white hover:opacity-90 disabled:opacity-40"
+              className="inline-flex items-center gap-1.5 rounded-lg bg-brand px-3 py-1.5 text-xs font-semibold text-white hover:opacity-90 disabled:opacity-40"
             >
               {issue.isPending && issue.variables?.send ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Mail className="h-3.5 w-3.5" />}
               Email link
@@ -139,30 +139,30 @@ export function WeeklyLinkPanel({ placementId, totalWeeks }: { placementId: stri
               type="button"
               disabled={issue.isPending}
               onClick={() => onIssue(false)}
-              className="inline-flex items-center gap-1.5 rounded-lg border border-[var(--h-c4c5d5-60)] px-3 py-1.5 text-xs font-semibold text-[var(--h-15157d)] hover:bg-[var(--h-f3f3f7)] disabled:opacity-40"
+              className="inline-flex items-center gap-1.5 rounded-lg border border-line px-3 py-1.5 text-xs font-semibold text-brand-ink hover:bg-surface-sunken disabled:opacity-40"
             >
               {issue.isPending && !issue.variables?.send ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Link2 className="h-3.5 w-3.5" />}
               Get link
             </button>
-            {noEmail && <span className="text-xs text-[var(--h-9a6700)]">No email on file — use “Get link”.</span>}
+            {noEmail && <span className="text-xs text-warn">No email on file — use “Get link”.</span>}
           </div>
 
           {/* Result */}
           {result && (
-            <div className="rounded-lg border border-dashed border-[var(--h-c4c5d5-60)] p-3">
-              <p className="mb-2 text-xs text-[var(--h-757684)]">
+            <div className="rounded-lg border border-dashed border-line p-3">
+              <p className="mb-2 text-xs text-ink-muted">
                 {result.emailedTo
-                  ? <>Sent to <span className="font-semibold text-[var(--h-1b7a45)]">{result.emailedTo}</span> · expires {fmtDate(result.expiresAt)}</>
+                  ? <>Sent to <span className="font-semibold text-ok">{result.emailedTo}</span> · expires {fmtDate(result.expiresAt)}</>
                   : <>Link ready · expires {fmtDate(result.expiresAt)}</>}
               </p>
               <div className="flex items-center gap-2">
                 <input
                   readOnly value={result.url}
-                  className="min-w-0 flex-1 rounded-lg border border-[var(--h-c4c5d5-60)] bg-[var(--h-f3f3f7)] px-2.5 py-1.5 text-xs text-[var(--h-444653)]"
+                  className="min-w-0 flex-1 rounded-lg border border-line bg-surface-sunken px-2.5 py-1.5 text-xs text-ink-secondary"
                 />
                 <button
                   type="button" onClick={onCopy}
-                  className="inline-flex shrink-0 items-center gap-1 rounded-lg bg-[var(--h-15157d)] px-2.5 py-1.5 text-xs font-semibold text-white hover:opacity-90"
+                  className="inline-flex shrink-0 items-center gap-1 rounded-lg bg-brand px-2.5 py-1.5 text-xs font-semibold text-white hover:opacity-90"
                 >
                   {copied ? <Check className="h-3.5 w-3.5" /> : <Copy className="h-3.5 w-3.5" />}
                   {copied ? 'Copied' : 'Copy'}

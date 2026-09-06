@@ -56,9 +56,9 @@ export default function LoginPage() {
   };
 
   return (
-    <div className="min-h-screen bg-[var(--h-ffffff)] flex">
+    <div className="min-h-screen bg-surface flex">
       {/* Left panel — brand */}
-      <div className="hidden lg:flex flex-col w-[480px] bg-[var(--h-15157d)] p-12 relative overflow-hidden">
+      <div className="hidden lg:flex flex-col w-[480px] bg-brand p-12 relative overflow-hidden">
         {/* Faint grid texture */}
         <div
           className="absolute inset-0 opacity-[0.06] pointer-events-none"
@@ -71,19 +71,19 @@ export default function LoginPage() {
 
         <div className="relative z-10">
           <div className="flex items-center gap-3 mb-20">
-            <div className="w-10 h-10 rounded-xl bg-[var(--h-ffffff)] flex items-center justify-center">
-              <span className="text-[var(--h-15157d)] font-bold text-lg font-mono">A</span>
+            <div className="w-10 h-10 rounded-xl bg-surface flex items-center justify-center">
+              <span className="text-brand-ink font-bold text-lg font-mono">A</span>
             </div>
             <div>
               <p className="text-white font-bold text-xl tracking-wide">AESIS</p>
-              <p className="text-[var(--h-c4c5d5)] text-xs">Department of Computer Science</p>
+              <p className="text-white/70 text-xs">Department of Computer Science</p>
             </div>
           </div>
 
           <h1 className="text-3xl font-bold text-white mb-4 leading-tight">
             Internship supervision,<br />kept on track.
           </h1>
-          <p className="text-[var(--h-dce9ff)] text-base leading-relaxed mb-12 max-w-sm">
+          <p className="text-white/85 text-base leading-relaxed mb-12 max-w-sm">
             One place to follow every student through their placement — from the first
             logbook entry to the final sign-off.
           </p>
@@ -91,19 +91,19 @@ export default function LoginPage() {
           <div className="space-y-5">
             {ROLE_POINTS.map(({ icon: Icon, label, desc }) => (
               <div key={label} className="flex items-start gap-3.5">
-                <div className="w-9 h-9 rounded-lg bg-[var(--h-ffffff-10)] flex items-center justify-center shrink-0">
-                  <Icon className="w-[18px] h-[18px] text-[var(--h-89ceff)]" strokeWidth={2} />
+                <div className="w-9 h-9 rounded-lg bg-white/10 flex items-center justify-center shrink-0">
+                  <Icon className="w-[18px] h-[18px] text-white" strokeWidth={2} />
                 </div>
                 <div>
                   <p className="text-white text-sm font-medium">{label}</p>
-                  <p className="text-[var(--h-c4c5d5)] text-xs leading-relaxed mt-0.5 max-w-[18rem]">{desc}</p>
+                  <p className="text-white/70 text-xs leading-relaxed mt-0.5 max-w-[18rem]">{desc}</p>
                 </div>
               </div>
             ))}
           </div>
         </div>
 
-        <div className="relative z-10 mt-auto flex items-center gap-2 text-[var(--h-c4c5d5)] text-xs">
+        <div className="relative z-10 mt-auto flex items-center gap-2 text-white/70 text-xs">
           <ShieldCheck className="w-3.5 h-3.5" />
           <span>Encrypted in transit and at rest · role-based access</span>
         </div>
@@ -114,14 +114,14 @@ export default function LoginPage() {
         <div className="w-full max-w-md">
           {/* Mobile logo */}
           <div className="flex items-center gap-3 mb-10 lg:hidden">
-            <div className="w-9 h-9 rounded-xl bg-[var(--h-15157d)] flex items-center justify-center">
+            <div className="w-9 h-9 rounded-xl bg-brand flex items-center justify-center">
               <span className="text-white font-bold font-mono">A</span>
             </div>
-            <p className="text-[var(--h-0b1c30)] font-bold text-lg">AESIS</p>
+            <p className="text-ink font-bold text-lg">AESIS</p>
           </div>
 
-          <h2 className="text-2xl font-bold text-[var(--h-0b1c30)] mb-1">Sign in</h2>
-          <p className="text-[var(--h-757684)] text-sm mb-8">Use your institutional email address</p>
+          <h2 className="text-2xl font-bold text-ink mb-1">Sign in</h2>
+          <p className="text-ink-muted text-sm mb-8">Use your institutional email address</p>
 
           {error && (
             <div className="mb-6 px-4 py-3 rounded-lg bg-red-50 border border-red-200 text-red-700 text-sm">
@@ -131,7 +131,7 @@ export default function LoginPage() {
 
           <form onSubmit={handleSubmit} className="space-y-5">
             <div>
-              <label htmlFor="email" className="block text-sm font-medium text-[var(--h-0b1c30)] mb-1.5">
+              <label htmlFor="email" className="block text-sm font-medium text-ink mb-1.5">
                 Institutional email
               </label>
               <input
@@ -144,13 +144,13 @@ export default function LoginPage() {
                 onChange={(e) => { setForm({ ...form, email: e.target.value }); clear('email'); }}
                 onBlur={() => check('email', form.email)}
                 placeholder="you@cs.edu.gh"
-                className="w-full px-4 py-2.5 rounded-lg bg-[var(--h-ffffff)] border border-[var(--h-c4c5d5-60)] text-[var(--h-0b1c30)] placeholder-[var(--h-757684)] text-sm focus:outline-none focus:border-[var(--h-15157d)] focus:ring-1 focus:ring-[var(--h-15157d)] transition-colors duration-150"
+                className="w-full px-4 py-2.5 rounded-lg bg-surface border border-line text-ink placeholder:text-ink-muted text-sm focus:outline-none focus:border-brand focus:ring-1 focus:ring-brand transition-colors duration-150"
               />
               <FieldError message={errors.email} />
             </div>
 
             <div>
-              <label htmlFor="password" className="block text-sm font-medium text-[var(--h-0b1c30)] mb-1.5">
+              <label htmlFor="password" className="block text-sm font-medium text-ink mb-1.5">
                 Password
               </label>
               <div className="relative">
@@ -163,12 +163,12 @@ export default function LoginPage() {
                   value={form.password}
                   onChange={(e) => { setForm({ ...form, password: e.target.value }); clear('password'); }}
                   placeholder="••••••••"
-                  className="w-full px-4 py-2.5 pr-11 rounded-lg bg-[var(--h-ffffff)] border border-[var(--h-c4c5d5-60)] text-[var(--h-0b1c30)] placeholder-[var(--h-757684)] text-sm focus:outline-none focus:border-[var(--h-15157d)] focus:ring-1 focus:ring-[var(--h-15157d)] transition-colors duration-150"
+                  className="w-full px-4 py-2.5 pr-11 rounded-lg bg-surface border border-line text-ink placeholder:text-ink-muted text-sm focus:outline-none focus:border-brand focus:ring-1 focus:ring-brand transition-colors duration-150"
                 />
                 <button
                   type="button"
                   onClick={() => setShowPassword(!showPassword)}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-[var(--h-757684)] hover:text-[var(--h-15157d)] transition-colors duration-150 cursor-pointer"
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-ink-muted hover:text-brand-ink transition-colors duration-150 cursor-pointer"
                   aria-label={showPassword ? 'Hide password' : 'Show password'}
                 >
                   {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
@@ -176,7 +176,7 @@ export default function LoginPage() {
               </div>
               <FieldError message={errors.password} />
               <div className="flex justify-end mt-1.5">
-                <Link to="/auth/reset-password" className="text-xs text-[var(--h-15157d)] hover:opacity-80 transition-opacity duration-150">
+                <Link to="/auth/reset-password" className="text-xs text-brand-ink hover:opacity-80 transition-opacity duration-150">
                   Forgot password?
                 </Link>
               </div>
@@ -185,7 +185,7 @@ export default function LoginPage() {
             <button
               type="submit"
               disabled={loading}
-              className="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg bg-[var(--h-15157d)] hover:opacity-90 text-white font-semibold text-sm transition-opacity duration-150 cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed focus:outline-none focus:ring-2 focus:ring-[var(--h-15157d)] focus:ring-offset-2"
+              className="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg bg-brand hover:opacity-90 text-white font-semibold text-sm transition-opacity duration-150 cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed focus:outline-none focus:ring-2 focus:ring-brand focus:ring-offset-2"
             >
               {loading ? (
                 <>
@@ -198,15 +198,15 @@ export default function LoginPage() {
             </button>
           </form>
 
-          <p className="mt-8 text-center text-sm text-[var(--h-757684)]">
+          <p className="mt-8 text-center text-sm text-ink-muted">
             Don't have an account?{' '}
-            <Link to="/auth/register" className="text-[var(--h-15157d)] hover:opacity-80 font-medium transition-opacity duration-150">
+            <Link to="/auth/register" className="text-brand-ink hover:opacity-80 font-medium transition-opacity duration-150">
               Register
             </Link>
           </p>
 
-          <div className="mt-8 pt-6 border-t border-[var(--h-c4c5d5-60)]">
-            <p className="text-xs text-[var(--h-757684)] text-center leading-relaxed">
+          <div className="mt-8 pt-6 border-t border-line">
+            <p className="text-xs text-ink-muted text-center leading-relaxed">
               Access is limited to authorised Computer Science Department staff and students.
             </p>
           </div>

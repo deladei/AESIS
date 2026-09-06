@@ -19,20 +19,20 @@ function statusOf(err: unknown): number | undefined {
 
 function Shell({ children }: { children: React.ReactNode }) {
   return (
-    <div className="flex min-h-screen flex-col items-center justify-center bg-[var(--h-f8f9ff)] px-4 py-10">
+    <div className="flex min-h-screen flex-col items-center justify-center bg-surface-sunken px-4 py-10">
       <div className="mb-6 flex items-center gap-3">
-        <div className="flex h-11 w-11 items-center justify-center rounded-lg bg-[var(--h-15157d)]">
+        <div className="flex h-11 w-11 items-center justify-center rounded-lg bg-brand">
           <GraduationCap className="h-6 w-6 text-white" />
         </div>
         <div>
-          <h1 className="text-2xl font-bold leading-tight text-[var(--h-15157d)]">AESIS</h1>
-          <p className="text-[11px] font-semibold text-[var(--h-464652)]">Weekly Supervisor Comment</p>
+          <h1 className="text-2xl font-bold leading-tight text-brand-ink">AESIS</h1>
+          <p className="text-[11px] font-semibold text-ink-secondary">Weekly Supervisor Comment</p>
         </div>
       </div>
-      <div className="w-full max-w-md rounded-2xl border border-[var(--h-e2e6ef)] bg-[var(--h-ffffff)] p-7 shadow-sm">
+      <div className="w-full max-w-md rounded-2xl border border-line bg-surface p-7 shadow-sm">
         {children}
       </div>
-      <p className="mt-6 text-xs text-[var(--h-94a3b8)]">AI-Enhanced Student Internship Supervision System</p>
+      <p className="mt-6 text-xs text-ink-muted">AI-Enhanced Student Internship Supervision System</p>
     </div>
   );
 }
@@ -68,7 +68,7 @@ export default function WeeklyComment() {
     return (
       <Shell>
         <div className="flex h-32 items-center justify-center">
-          <Loader2 className="h-6 w-6 animate-spin text-[var(--h-8a4cfc)]" />
+          <Loader2 className="h-6 w-6 animate-spin text-brand-ink" />
         </div>
       </Shell>
     );
@@ -82,9 +82,9 @@ export default function WeeklyComment() {
     return (
       <Shell>
         <div className="text-center">
-          <AlertCircle className="mx-auto mb-3 h-10 w-10 text-[var(--h-f5b8ad)]" />
-          <h2 className="text-base font-semibold text-[var(--h-0b1c30)]">Link unavailable</h2>
-          <p className="mt-1.5 text-sm text-[var(--h-64748b)]">{msg}</p>
+          <AlertCircle className="mx-auto mb-3 h-10 w-10 text-danger" />
+          <h2 className="text-base font-semibold text-ink">Link unavailable</h2>
+          <p className="mt-1.5 text-sm text-ink-secondary">{msg}</p>
         </div>
       </Shell>
     );
@@ -94,9 +94,9 @@ export default function WeeklyComment() {
     return (
       <Shell>
         <div className="text-center">
-          <CheckCircle2 className="mx-auto mb-3 h-12 w-12 text-[var(--h-aee3c2)]" />
-          <h2 className="text-lg font-semibold text-[var(--h-0b1c30)]">Thank you</h2>
-          <p className="mt-1.5 text-sm text-[var(--h-64748b)]">
+          <CheckCircle2 className="mx-auto mb-3 h-12 w-12 text-ok" />
+          <h2 className="text-lg font-semibold text-ink">Thank you</h2>
+          <p className="mt-1.5 text-sm text-ink-secondary">
             Your week {ctx.weekNumber} comment for {ctx.studentName} has been recorded in their
             logbook. You can close this page.
           </p>
@@ -108,53 +108,53 @@ export default function WeeklyComment() {
   return (
     <Shell>
       <div className="mb-5">
-        <h2 className="text-lg font-bold text-[var(--h-0b1c30)]">Week {ctx.weekNumber} — supervisor's comment</h2>
-        <p className="mt-1 text-sm text-[var(--h-64748b)]">
+        <h2 className="text-lg font-bold text-ink">Week {ctx.weekNumber} — supervisor's comment</h2>
+        <p className="mt-1 text-sm text-ink-secondary">
           Please comment briefly on the trainee's performance and conduct this week. Your comment
           goes into their logbook over your name.
         </p>
       </div>
 
-      <dl className="mb-5 space-y-3 rounded-xl border border-[var(--h-eef0f5)] bg-[var(--h-fbfcfe)] p-4">
+      <dl className="mb-5 space-y-3 rounded-xl border border-line bg-surface-sunken p-4">
         <div>
-          <dt className="text-xs font-semibold uppercase tracking-wide text-[var(--h-64748b)]">Trainee</dt>
-          <dd className="text-sm font-medium text-[var(--h-0b1c30)]">{ctx.studentName}</dd>
+          <dt className="text-xs font-semibold uppercase tracking-wide text-ink-secondary">Trainee</dt>
+          <dd className="text-sm font-medium text-ink">{ctx.studentName}</dd>
         </div>
         <div>
-          <dt className="text-xs font-semibold uppercase tracking-wide text-[var(--h-64748b)]">Supervisor</dt>
-          <dd className="text-sm font-medium text-[var(--h-0b1c30)]">{ctx.supervisorName}</dd>
+          <dt className="text-xs font-semibold uppercase tracking-wide text-ink-secondary">Supervisor</dt>
+          <dd className="text-sm font-medium text-ink">{ctx.supervisorName}</dd>
         </div>
         <div>
-          <dt className="text-xs font-semibold uppercase tracking-wide text-[var(--h-64748b)]">Organisation</dt>
-          <dd className="text-sm font-medium text-[var(--h-0b1c30)]">{ctx.companyName ?? '—'}</dd>
+          <dt className="text-xs font-semibold uppercase tracking-wide text-ink-secondary">Organisation</dt>
+          <dd className="text-sm font-medium text-ink">{ctx.companyName ?? '—'}</dd>
         </div>
       </dl>
 
-      <label htmlFor="comment" className="mb-1.5 block text-sm font-semibold text-[var(--h-0b1c30)]">
+      <label htmlFor="comment" className="mb-1.5 block text-sm font-semibold text-ink">
         Comment on the trainee's week
       </label>
       <textarea
         id="comment" rows={5} value={comment} maxLength={MAX_LEN}
         onChange={(e) => setComment(e.target.value)}
         placeholder="e.g. Handled the assigned tasks well and asked good questions. Punctual all week."
-        className="mb-1 w-full resize-y rounded-lg border border-[var(--h-d8dce6)] bg-[var(--h-ffffff)] px-3 py-2.5 text-sm text-[var(--h-0b1c30)] placeholder-[var(--h-94a3b8)] focus:border-[var(--h-8a4cfc)] focus:outline-none focus:ring-1 focus:ring-[var(--h-8a4cfc)]"
+        className="mb-1 w-full resize-y rounded-lg border border-line bg-surface px-3 py-2.5 text-sm text-ink placeholder:text-ink-muted focus:border-brand focus:outline-none focus:ring-1 focus:ring-brand"
       />
-      <p className="mb-4 text-right text-[11px] text-[var(--h-94a3b8)]">{comment.length}/{MAX_LEN}</p>
+      <p className="mb-4 text-right text-[11px] text-ink-muted">{comment.length}/{MAX_LEN}</p>
 
       {formErr && (
-        <div className="mb-3 flex items-start gap-2 text-xs text-[var(--h-b3261e)]">
+        <div className="mb-3 flex items-start gap-2 text-xs text-danger">
           <AlertCircle className="mt-0.5 h-3.5 w-3.5 shrink-0" /> {formErr}
         </div>
       )}
 
       <button
         type="button" onClick={handleSubmit} disabled={submit.isPending || !valid}
-        className="inline-flex w-full items-center justify-center gap-2 rounded-lg bg-[var(--h-15157d)] px-4 py-3 text-sm font-semibold text-white transition-colors hover:bg-[var(--h-1f1fa0)] disabled:cursor-not-allowed disabled:opacity-60"
+        className="inline-flex w-full items-center justify-center gap-2 rounded-lg bg-brand px-4 py-3 text-sm font-semibold text-white transition-colors hover:bg-brand-hover disabled:cursor-not-allowed disabled:opacity-60"
       >
         {submit.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <MessageSquareText className="h-4 w-4" />}
         Submit comment
       </button>
-      <p className="mt-3 text-center text-[11px] text-[var(--h-94a3b8)]">
+      <p className="mt-3 text-center text-[11px] text-ink-muted">
         This is a single-use, secure link. The trainee and their university supervisor will see this
         comment in the logbook.
       </p>

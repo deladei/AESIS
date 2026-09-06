@@ -31,31 +31,31 @@ export default function AdminReport() {
     { label: 'Tracked interns', value: dash ? String(dash.pulseBoard.length) : '—' },
   ];
 
-  const sectionTitle = 'mb-3 text-sm font-bold uppercase tracking-wide text-[var(--h-757684)]';
+  const sectionTitle = 'mb-3 text-sm font-bold uppercase tracking-wide text-ink-muted';
   const dash100 = stats?.distribution ? Math.max(...stats.distribution, 1) : 1;
 
   return (
-    <div className="mx-auto max-w-4xl bg-[var(--h-ffffff)] p-10 text-[var(--h-0b1c30)] print:p-0">
+    <div className="mx-auto max-w-4xl bg-surface p-10 text-ink print:p-0">
       <div className="mb-8 flex items-center justify-between print:hidden">
-        <p className="text-sm text-[var(--h-757684)]">Use “Print” and choose “Save as PDF” to export.</p>
+        <p className="text-sm text-ink-muted">Use “Print” and choose “Save as PDF” to export.</p>
         <button
           onClick={() => window.print()}
-          className="inline-flex items-center gap-2 rounded-lg bg-[var(--h-15157d)] px-4 py-2 text-sm font-semibold text-white hover:opacity-90"
+          className="inline-flex items-center gap-2 rounded-lg bg-brand px-4 py-2 text-sm font-semibold text-white hover:opacity-90"
         >
           <Printer className="h-4 w-4" /> Print / Save as PDF
         </button>
       </div>
 
       {l1 ? (
-        <div className="flex justify-center py-20"><Loader2 className="h-6 w-6 animate-spin text-[var(--h-15157d)]" /></div>
+        <div className="flex justify-center py-20"><Loader2 className="h-6 w-6 animate-spin text-brand-ink" /></div>
       ) : (
         <>
-          <header className="mb-8 border-b border-[var(--h-c4c5d5)] pb-4">
+          <header className="mb-8 border-b border-line pb-4">
             <h1 className="text-2xl font-bold">AESIS — System Report</h1>
-            <p className="mt-1 text-sm text-[var(--h-444653)]">
+            <p className="mt-1 text-sm text-ink-secondary">
               Academic year: <span className="font-semibold">{config?.academicYearLabel ?? '—'}</span>
             </p>
-            <p className="text-xs text-[var(--h-757684)]">Generated {generated}</p>
+            <p className="text-xs text-ink-muted">Generated {generated}</p>
           </header>
 
           {/* Overview */}
@@ -63,8 +63,8 @@ export default function AdminReport() {
             <h2 className={sectionTitle}>Overview</h2>
             <div className="grid grid-cols-3 gap-4">
               {metrics.map((m) => (
-                <div key={m.label} className="rounded-lg border border-[var(--h-c4c5d5-60)] p-3">
-                  <p className="text-xs text-[var(--h-757684)]">{m.label}</p>
+                <div key={m.label} className="rounded-lg border border-line p-3">
+                  <p className="text-xs text-ink-muted">{m.label}</p>
                   <p className="mt-1 text-xl font-bold">{m.value}</p>
                 </div>
               ))}
@@ -75,15 +75,15 @@ export default function AdminReport() {
           <section className="mb-8">
             <h2 className={sectionTitle}>AI enrichment pipeline</h2>
             {enrich ? (
-              <p className="text-sm text-[var(--h-444653)]">
+              <p className="text-sm text-ink-secondary">
                 {enrich.succeeded} succeeded · {enrich.pending} pending · {enrich.processing} processing ·{' '}
-                <span className={enrich.failed ? 'text-[var(--h-b3261e)]' : ''}>{enrich.failed} failed</span> ·{' '}
-                <span className={enrich.abandoned ? 'text-[var(--h-b3261e)]' : ''}>{enrich.abandoned} abandoned</span>{' '}
+                <span className={enrich.failed ? 'text-danger' : ''}>{enrich.failed} failed</span> ·{' '}
+                <span className={enrich.abandoned ? 'text-danger' : ''}>{enrich.abandoned} abandoned</span>{' '}
                 (of {enrich.total}). {enrich.revivable > 0
                   ? `${enrich.revivable} job(s) need a re-run — advisory AI relevance is incomplete.`
                   : 'Healthy — advisory AI relevance is up to date.'}
               </p>
-            ) : <p className="text-sm text-[var(--h-757684)]">Pipeline status unavailable.</p>}
+            ) : <p className="text-sm text-ink-muted">Pipeline status unavailable.</p>}
           </section>
 
           {/* Grade distribution */}
@@ -91,7 +91,7 @@ export default function AdminReport() {
             <h2 className={sectionTitle}>Released-grade distribution</h2>
             {stats && stats.count > 0 ? (
               <>
-                <p className="mb-2 text-sm text-[var(--h-444653)]">
+                <p className="mb-2 text-sm text-ink-secondary">
                   n={stats.count} · mean {stats.mean} · median {stats.median} · pass rate {stats.passRate}% ·
                   range {stats.min}–{stats.max}
                 </p>
@@ -104,13 +104,13 @@ export default function AdminReport() {
                 <div className="flex h-20 items-end gap-1">
                   {stats.distribution.map((c, i) => (
                     <div key={i} className="flex flex-1 flex-col items-center">
-                      <div className="w-full bg-[var(--h-15157d)]" style={{ height: `${(c / dash100) * 100}%` }} />
-                      <span className="text-[8px] text-[var(--h-757684)]">{i * 10}</span>
+                      <div className="w-full bg-brand" style={{ height: `${(c / dash100) * 100}%` }} />
+                      <span className="text-[8px] text-ink-muted">{i * 10}</span>
                     </div>
                   ))}
                 </div>
               </>
-            ) : <p className="text-sm text-[var(--h-757684)]">No grades released yet.</p>}
+            ) : <p className="text-sm text-ink-muted">No grades released yet.</p>}
           </section>
 
           {/* Grades by region */}
@@ -118,13 +118,13 @@ export default function AdminReport() {
             <h2 className={sectionTitle}>Grades by region</h2>
             {regions && regions.count > 0 ? (
               <table className="w-full text-left text-sm">
-                <thead><tr className="border-b border-[var(--h-c4c5d5-60)] text-xs text-[var(--h-757684)]">
+                <thead><tr className="border-b border-line text-xs text-ink-muted">
                   <th className="py-1">Region</th><th className="py-1 text-right">Interns</th>
                   <th className="py-1 text-right">Avg</th><th className="py-1 text-right">Pass rate</th>
                 </tr></thead>
                 <tbody>
                   {regions.regions.map((r) => (
-                    <tr key={r.region ?? 'unspecified'} className="border-b border-[var(--h-eef1ff)]">
+                    <tr key={r.region ?? 'unspecified'} className="border-b border-line">
                       <td className="py-1">{r.region ? regionLabel(r.region) : 'Unspecified'}</td>
                       <td className="py-1 text-right">{r.count}</td>
                       <td className="py-1 text-right font-semibold">{r.mean}</td>
@@ -133,7 +133,7 @@ export default function AdminReport() {
                   ))}
                 </tbody>
               </table>
-            ) : <p className="text-sm text-[var(--h-757684)]">No released grades to roll up.</p>}
+            ) : <p className="text-sm text-ink-muted">No released grades to roll up.</p>}
           </section>
 
           {/* At-risk interns */}
@@ -141,13 +141,13 @@ export default function AdminReport() {
             <h2 className={sectionTitle}>Interns needing attention ({atRisk.length})</h2>
             {atRisk.length > 0 ? (
               <table className="w-full text-left text-sm">
-                <thead><tr className="border-b border-[var(--h-c4c5d5-60)] text-xs text-[var(--h-757684)]">
+                <thead><tr className="border-b border-line text-xs text-ink-muted">
                   <th className="py-1">Intern</th><th className="py-1">Department</th><th className="py-1">Risk</th>
                   <th className="py-1 text-right">Weeks due</th><th className="py-1 text-right">Engagement</th>
                 </tr></thead>
                 <tbody>
                   {atRisk.map((p) => (
-                    <tr key={p.placementId} className="border-b border-[var(--h-eef1ff)]">
+                    <tr key={p.placementId} className="border-b border-line">
                       <td className="py-1">{p.name}</td>
                       <td className="py-1">{p.department ?? '—'}</td>
                       <td className="py-1 capitalize">{p.riskTier}</td>
@@ -157,7 +157,7 @@ export default function AdminReport() {
                   ))}
                 </tbody>
               </table>
-            ) : <p className="text-sm text-[var(--h-757684)]">No interns flagged at risk.</p>}
+            ) : <p className="text-sm text-ink-muted">No interns flagged at risk.</p>}
           </section>
 
           {/* Recent submissions */}
@@ -165,13 +165,13 @@ export default function AdminReport() {
             <h2 className={sectionTitle}>Recent submissions</h2>
             {(dash?.recentSubmissions ?? []).length > 0 ? (
               <table className="w-full text-left text-sm">
-                <thead><tr className="border-b border-[var(--h-c4c5d5)] text-xs text-[var(--h-757684)]">
+                <thead><tr className="border-b border-line text-xs text-ink-muted">
                   <th className="py-1">Intern</th><th className="py-1 text-right">Week</th>
                   <th className="py-1">Status</th><th className="py-1 text-right">Submitted</th>
                 </tr></thead>
                 <tbody>
                   {dash!.recentSubmissions.map((s) => (
-                    <tr key={s.id} className="border-b border-[var(--h-eef1ff)]">
+                    <tr key={s.id} className="border-b border-line">
                       <td className="py-1">{s.internName}</td>
                       <td className="py-1 text-right">{s.weekNumber}</td>
                       <td className="py-1 capitalize">{s.status}</td>
@@ -180,7 +180,7 @@ export default function AdminReport() {
                   ))}
                 </tbody>
               </table>
-            ) : <p className="text-sm text-[var(--h-757684)]">No recent submissions.</p>}
+            ) : <p className="text-sm text-ink-muted">No recent submissions.</p>}
           </section>
         </>
       )}

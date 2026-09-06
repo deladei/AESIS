@@ -19,7 +19,7 @@ function statusPill(day: SiwesCalendarDay, today: string) {
   // Lateness rides alongside as its own pill (one shared label app-wide), so
   // this only says whether the day was written up.
   if (day.entry) {
-    return { label: 'Logged', cls: 'bg-[var(--h-dcf5e6)] text-[var(--h-1b7a45)]', Icon: CheckCircle2 };
+    return { label: 'Logged', cls: 'bg-ok-soft text-ok', Icon: CheckCircle2 };
   }
   if (day.absence) {
     const label =
@@ -27,20 +27,20 @@ function statusPill(day: SiwesCalendarDay, today: string) {
       day.absence.kind === 'permitted' ? 'Permitted absence' : 'Unexcused absence';
     const cls =
       day.absence.kind === 'unexcused'
-        ? 'bg-[var(--h-ffe2dc)] text-[var(--h-b3261e)]'
-        : 'bg-[var(--h-eef0f5)] text-[var(--h-64748b)]';
+        ? 'bg-danger-soft text-danger'
+        : 'bg-surface-sunken text-ink-secondary';
     return { label, cls, Icon: Stethoscope };
   }
   if (day.class === 'non_working') {
-    return { label: 'Public holiday', cls: 'bg-[var(--h-eef0f5)] text-[var(--h-94a3b8)]', Icon: Sun };
+    return { label: 'Public holiday', cls: 'bg-surface-sunken text-ink-muted', Icon: Sun };
   }
   if (day.date > today) {
-    return { label: 'Upcoming', cls: 'bg-[var(--h-eef0f5)] text-[var(--h-94a3b8)]', Icon: Clock };
+    return { label: 'Upcoming', cls: 'bg-surface-sunken text-ink-muted', Icon: Clock };
   }
   if (day.missing) {
-    return { label: 'Not logged', cls: 'bg-[var(--h-ffe2dc)] text-[var(--h-b3261e)]', Icon: AlertCircle };
+    return { label: 'Not logged', cls: 'bg-danger-soft text-danger', Icon: AlertCircle };
   }
-  return { label: 'Open', cls: 'bg-[var(--h-eef0f5)] text-[var(--h-64748b)]', Icon: CalendarDays };
+  return { label: 'Open', cls: 'bg-surface-sunken text-ink-secondary', Icon: CalendarDays };
 }
 
 export function SiwesCalendarPanel({ placementId }: { placementId: string }) {
@@ -70,8 +70,8 @@ export function SiwesCalendarPanel({ placementId }: { placementId: string }) {
 
   if (isLoading) {
     return (
-      <div className="flex h-32 items-center justify-center rounded-xl border border-[var(--h-c4c5d5-40)] bg-[var(--h-ffffff)]">
-        <Loader2 className="h-5 w-5 animate-spin text-[var(--h-8a4cfc)]" />
+      <div className="flex h-32 items-center justify-center rounded-xl border border-line bg-surface">
+        <Loader2 className="h-5 w-5 animate-spin text-brand-ink" />
       </div>
     );
   }
@@ -86,15 +86,15 @@ export function SiwesCalendarPanel({ placementId }: { placementId: string }) {
   const lateCount = calendar.days.filter((d) => d.entry?.loggedLate).length;
 
   return (
-    <div className="overflow-hidden rounded-xl border border-[var(--h-c4c5d5-60)] bg-[var(--h-ffffff)]">
-      <div className="border-b border-[var(--h-c4c5d5-60)] bg-[var(--h-f8f9ff)] px-6 py-4">
-        <h3 className="text-lg font-semibold text-[var(--h-15157d)]">Daily logbook</h3>
-        <p className="mt-0.5 text-xs text-[var(--h-757684)]">
+    <div className="overflow-hidden rounded-xl border border-line bg-surface">
+      <div className="border-b border-line bg-surface-sunken px-6 py-4">
+        <h3 className="text-lg font-semibold text-brand-ink">Daily logbook</h3>
+        <p className="mt-0.5 text-xs text-ink-muted">
           {fmtDate(calendar.chainStart)} – {fmtDate(calendar.chainEnd)}
           · {loggedCount} day{loggedCount === 1 ? '' : 's'} logged
           {lateCount > 0 && <> · {lateCount} late</>}
           {missingCount > 0 && (
-            <span className="font-semibold text-[var(--h-b3261e)]"> · {missingCount} not logged</span>
+            <span className="font-semibold text-danger"> · {missingCount} not logged</span>
           )}
         </p>
       </div>
@@ -109,13 +109,13 @@ export function SiwesCalendarPanel({ placementId }: { placementId: string }) {
                 onClick={() => setSelectedWeek(w.weekNumber)}
                 className={`rounded-lg px-3 py-1.5 text-sm font-semibold transition-colors ${
                   w.weekNumber === selectedWeek
-                    ? 'bg-[var(--h-15157d)] text-[var(--h-ffffff)]'
-                    : 'bg-[var(--h-eef0f5)] text-[var(--h-0b1c30)] hover:bg-[var(--h-dce9ff)]'
+                    ? 'bg-brand text-ink-inverse'
+                    : 'bg-surface-sunken text-ink hover:bg-brand-soft'
                 }`}
               >
                 Week {w.weekNumber}
                 {attention && w.weekNumber !== selectedWeek && (
-                  <span className="ml-1.5 inline-block h-1.5 w-1.5 rounded-full bg-[var(--h-b3261e)] align-middle" />
+                  <span className="ml-1.5 inline-block h-1.5 w-1.5 rounded-full bg-danger align-middle" />
                 )}
               </button>
             );
@@ -129,14 +129,14 @@ export function SiwesCalendarPanel({ placementId }: { placementId: string }) {
               return (
                 <div
                   key={d.date}
-                  className="rounded-xl border border-[var(--h-c4c5d5-40)] bg-[var(--h-ffffff)] px-4 py-3"
+                  className="rounded-xl border border-line bg-surface px-4 py-3"
                 >
                   <div className="flex items-center gap-3">
                     <span className="w-10 shrink-0 text-center">
-                      <span className="block text-[11px] font-semibold text-[var(--h-757684)]">
+                      <span className="block text-[11px] font-semibold text-ink-muted">
                         {weekdayShort(d.date)}
                       </span>
-                      <span className="block text-base font-bold text-[var(--h-0b1c30)]">
+                      <span className="block text-base font-bold text-ink">
                         {dayOfMonth(d.date)}
                       </span>
                     </span>
@@ -148,14 +148,14 @@ export function SiwesCalendarPanel({ placementId }: { placementId: string }) {
 
                   {d.entry && (
                     <div className="mt-2 space-y-1.5 pl-13 text-sm" style={{ paddingLeft: '3.25rem' }}>
-                      <p className="text-[var(--h-0b1c30)]">{d.entry.descriptionOfWork}</p>
-                      <p className="text-xs text-[var(--h-464652)]">
+                      <p className="text-ink">{d.entry.descriptionOfWork}</p>
+                      <p className="text-xs text-ink-secondary">
                         <span className="font-semibold">Skills:</span> {d.entry.newSkillsLearnt}
                       </p>
                     </div>
                   )}
                   {d.absence?.reason && (
-                    <p className="mt-1 text-xs text-[var(--h-757684)]" style={{ paddingLeft: '3.25rem' }}>
+                    <p className="mt-1 text-xs text-ink-muted" style={{ paddingLeft: '3.25rem' }}>
                       {d.absence.reason}
                     </p>
                   )}
@@ -164,11 +164,11 @@ export function SiwesCalendarPanel({ placementId }: { placementId: string }) {
             })}
 
             {summary && (
-              <div className="rounded-xl border border-[var(--h-c4c5d5-40)] bg-[var(--h-f8f9fc)] px-4 py-3">
-                <p className="text-xs font-semibold text-[var(--h-757684)]">
+              <div className="rounded-xl border border-line bg-surface-sunken px-4 py-3">
+                <p className="text-xs font-semibold text-ink-muted">
                   Weekly report · week ending {fmtDate(summary.weekEnding.slice(0, 10))}
                 </p>
-                <p className="mt-1 text-sm text-[var(--h-0b1c30)]">{summary.reportText}</p>
+                <p className="mt-1 text-sm text-ink">{summary.reportText}</p>
               </div>
             )}
           </div>

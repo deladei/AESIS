@@ -11,7 +11,7 @@ import { AlertCircle } from 'lucide-react';
 export function FieldError({ message }: { message?: string }) {
   if (!message) return null;
   return (
-    <p role="alert" className="mt-1 flex items-start gap-1 text-[11px] font-medium text-[var(--h-b3261e)]">
+    <p role="alert" className="mt-1 flex items-start gap-1 text-[11px] font-medium text-danger">
       <AlertCircle className="mt-px h-3 w-3 shrink-0" />
       {message}
     </p>

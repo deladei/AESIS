@@ -6,12 +6,12 @@ import { queryClient } from '@/lib/queryClient';
 import { ChatThread } from '@/components/messaging/ChatThread';
 
 const notifConfig: Record<string, { icon: React.ElementType; iconClass: string; bg: string }> = {
-  risk_alert:           { icon: AlertTriangle,  iconClass: 'text-[var(--h-b3261e)]', bg: 'bg-[var(--h-ffe2dc)] border-[var(--h-f5b8ad)]' },
-  feedback_received:    { icon: MessageSquare,  iconClass: 'text-[var(--h-15157d)]', bg: 'bg-[var(--h-e1e8ff)] border-[var(--h-bcc8ff)]' },
-  submission_reminder:  { icon: Clock,          iconClass: 'text-[var(--h-9a6700)]', bg: 'bg-[var(--h-fff4e0)] border-[var(--h-f3d690)]' },
-  placement_approved:   { icon: CheckCircle2,   iconClass: 'text-[var(--h-1b7a45)]', bg: 'bg-[var(--h-dcf5e6)] border-[var(--h-aee3c2)]' },
-  escalation:           { icon: AlertTriangle,  iconClass: 'text-[var(--h-b45309)]', bg: 'bg-[var(--h-ffedd5)] border-[var(--h-fed7aa)]' },
-  system:               { icon: FileText,       iconClass: 'text-[var(--h-64748b)]', bg: 'bg-[var(--h-eef0f5)] border-[var(--h-d8dce6)]' },
+  risk_alert:           { icon: AlertTriangle,  iconClass: 'text-danger', bg: 'bg-danger-soft border-danger' },
+  feedback_received:    { icon: MessageSquare,  iconClass: 'text-brand-ink', bg: 'bg-brand-soft border-brand' },
+  submission_reminder:  { icon: Clock,          iconClass: 'text-warn', bg: 'bg-warn-soft border-warn' },
+  placement_approved:   { icon: CheckCircle2,   iconClass: 'text-ok', bg: 'bg-ok-soft border-ok' },
+  escalation:           { icon: AlertTriangle,  iconClass: 'text-warn', bg: 'bg-warn-soft border-warn' },
+  system:               { icon: FileText,       iconClass: 'text-ink-secondary', bg: 'bg-surface-sunken border-line' },
 };
 
 function formatDate(iso: string) {
@@ -46,7 +46,7 @@ export default function NotificationInbox() {
   if (isLoading) {
     return (
       <div className="flex h-64 items-center justify-center p-6">
-        <Loader2 className="h-6 w-6 animate-spin text-[var(--h-8a4cfc)]" />
+        <Loader2 className="h-6 w-6 animate-spin text-brand-ink" />
       </div>
     );
   }
@@ -55,9 +55,9 @@ export default function NotificationInbox() {
     <div className="mx-auto max-w-3xl space-y-5 px-6 py-6">
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-3">
-          <h1 className="text-xl font-bold text-[var(--h-0b1c30)]">Notifications</h1>
+          <h1 className="text-xl font-bold text-ink">Notifications</h1>
           {unread > 0 && (
-            <span className="rounded-full border border-[var(--h-bcc8ff)] bg-[var(--h-e1e8ff)] px-2 py-0.5 font-mono text-xs text-[var(--h-15157d)]">
+            <span className="rounded-full border border-brand bg-brand-soft px-2 py-0.5 font-mono text-xs text-brand-ink">
               {unread} unread
             </span>
           )}
@@ -66,7 +66,7 @@ export default function NotificationInbox() {
           <button
             onClick={() => markAllRead.mutate()}
             disabled={markAllRead.isPending}
-            className="cursor-pointer text-xs font-medium text-[var(--h-712ae2)] transition-colors hover:text-[var(--h-5a1fc0)] disabled:opacity-60"
+            className="cursor-pointer text-xs font-medium text-brand-ink transition-colors hover:text-brand-ink disabled:opacity-60"
           >
             Mark all read
           </button>
@@ -74,9 +74,9 @@ export default function NotificationInbox() {
       </div>
 
       {notifications.length === 0 ? (
-        <div className="flex flex-col items-center justify-center rounded-xl border border-dashed border-[var(--h-d8dce6)] bg-[var(--h-ffffff)] py-20 text-center">
-          <Bell className="mb-4 h-10 w-10 text-[var(--h-cbd2e0)]" />
-          <p className="text-sm text-[var(--h-64748b)]">No notifications yet</p>
+        <div className="flex flex-col items-center justify-center rounded-xl border border-dashed border-line bg-surface py-20 text-center">
+          <Bell className="mb-4 h-10 w-10 text-ink-muted" />
+          <p className="text-sm text-ink-secondary">No notifications yet</p>
         </div>
       ) : (
         <div className="space-y-2">
@@ -89,8 +89,8 @@ export default function NotificationInbox() {
                 onClick={() => { if (!n.isRead) markRead.mutate(n.id); }}
                 className={`flex cursor-pointer items-start gap-4 rounded-xl border px-5 py-4 transition-colors ${
                   n.isRead
-                    ? 'border-[var(--h-e2e6ef)] bg-[var(--h-ffffff)] hover:bg-[var(--h-f8f9ff)]'
-                    : 'border-[var(--h-bcc8ff)] bg-[var(--h-f4f6ff)] hover:bg-[var(--h-eef2ff)]'
+                    ? 'border-line bg-surface hover:bg-surface-sunken'
+                    : 'border-brand bg-surface-sunken hover:bg-surface-sunken'
                 }`}
               >
                 <div className={`mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border ${cfg.bg}`}>
@@ -98,12 +98,12 @@ export default function NotificationInbox() {
                 </div>
                 <div className="min-w-0 flex-1">
                   <div className="mb-0.5 flex items-center gap-2">
-                    <p className={`text-sm font-semibold ${n.isRead ? 'text-[var(--h-464652)]' : 'text-[var(--h-0b1c30)]'}`}>
+                    <p className={`text-sm font-semibold ${n.isRead ? 'text-ink-secondary' : 'text-ink'}`}>
                       {n.title}
                     </p>
-                    {!n.isRead && <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-[var(--h-15157d)]" />}
+                    {!n.isRead && <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-brand" />}
                   </div>
-                  <p className="text-xs leading-relaxed text-[var(--h-64748b)]">{n.body}</p>
+                  <p className="text-xs leading-relaxed text-ink-secondary">{n.body}</p>
                   {n.metadata?.kind === 'message' && n.metadata.placementId && (
                     <button
                       onClick={(e) => {
@@ -111,13 +111,13 @@ export default function NotificationInbox() {
                         if (!n.isRead) markRead.mutate(n.id);
                         setReplyTo({ placementId: n.metadata!.placementId!, who: n.metadata!.senderName ?? 'your mentor' });
                       }}
-                      className="mt-2 inline-flex items-center gap-1.5 rounded-lg border border-[var(--h-bcc8ff)] bg-[var(--h-ffffff)] px-2.5 py-1 text-xs font-semibold text-[var(--h-15157d)] hover:bg-[var(--h-eef2ff)]"
+                      className="mt-2 inline-flex items-center gap-1.5 rounded-lg border border-brand bg-surface px-2.5 py-1 text-xs font-semibold text-brand-ink hover:bg-surface-sunken"
                     >
                       <Reply className="h-3.5 w-3.5" /> Reply
                     </button>
                   )}
                 </div>
-                <span className="mt-0.5 shrink-0 whitespace-nowrap text-xs text-[var(--h-94a3b8)]">
+                <span className="mt-0.5 shrink-0 whitespace-nowrap text-xs text-ink-muted">
                   {formatDate(n.createdAt)}
                 </span>
               </div>
@@ -133,12 +133,12 @@ export default function NotificationInbox() {
           onClick={() => setReplyTo(null)}
         >
           <div
-            className="flex h-[600px] w-full max-w-lg flex-col overflow-hidden rounded-2xl bg-[var(--h-ffffff)] shadow-2xl"
+            className="flex h-[600px] w-full max-w-lg flex-col overflow-hidden rounded-2xl bg-surface shadow-2xl"
             onClick={(e) => e.stopPropagation()}
           >
-            <div className="flex items-center justify-between border-b border-[var(--h-c7c5d4-30)] px-4 py-3">
-              <h3 className="text-sm font-bold text-[var(--h-15157d)]">Reply to {replyTo.who}</h3>
-              <button onClick={() => setReplyTo(null)} className="text-[var(--h-757684)] hover:text-[var(--h-0b1c30)]" aria-label="Close">
+            <div className="flex items-center justify-between border-b border-line px-4 py-3">
+              <h3 className="text-sm font-bold text-brand-ink">Reply to {replyTo.who}</h3>
+              <button onClick={() => setReplyTo(null)} className="text-ink-muted hover:text-ink" aria-label="Close">
                 <X className="h-4 w-4" />
               </button>
             </div>

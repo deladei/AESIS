@@ -86,10 +86,10 @@ export function EntryAttachments({
     <div>
       <div className="mb-3 flex items-center justify-between">
         <div>
-          <h3 className="flex items-center gap-1.5 text-sm font-semibold text-[var(--h-0b1c30)]">
-            <Paperclip className="h-4 w-4 text-[var(--h-8a4cfc)]" /> Attachments
+          <h3 className="flex items-center gap-1.5 text-sm font-semibold text-ink">
+            <Paperclip className="h-4 w-4 text-brand-ink" /> Attachments
           </h3>
-          <p className="text-xs text-[var(--h-64748b)]">
+          <p className="text-xs text-ink-secondary">
             {date ? 'Photos or documents as evidence for this day (optional)' : 'Photos or documents as evidence for this week'}
           </p>
         </div>
@@ -101,7 +101,7 @@ export function EntryAttachments({
             />
             <button
               type="button" onClick={() => fileInput.current?.click()} disabled={upload.isPending}
-              className="inline-flex items-center gap-1 rounded-lg bg-[var(--h-f1ecff)] px-3 py-1.5 text-sm font-medium text-[var(--h-712ae2)] transition-colors hover:bg-[var(--h-e6dcff)] disabled:opacity-50"
+              className="inline-flex items-center gap-1 rounded-lg bg-brand-soft px-3 py-1.5 text-sm font-medium text-brand-ink transition-colors hover:bg-brand-soft disabled:opacity-50"
             >
               {upload.isPending
                 ? <><Loader2 className="h-4 w-4 animate-spin" /> Uploading…</>
@@ -112,17 +112,17 @@ export function EntryAttachments({
       </div>
 
       {error && (
-        <div className="mb-3 flex items-start gap-2 rounded-lg border border-[var(--h-f5b8ad)] bg-[var(--h-fff1ee)] px-3 py-2 text-xs text-[var(--h-b3261e)]">
+        <div className="mb-3 flex items-start gap-2 rounded-lg border border-danger bg-danger-soft px-3 py-2 text-xs text-danger">
           <AlertCircle className="mt-0.5 h-3.5 w-3.5 shrink-0" /> {error}
         </div>
       )}
 
       {isLoading ? (
         <div className="flex justify-center py-6">
-          <Loader2 className="h-5 w-5 animate-spin text-[var(--h-8a4cfc)]" />
+          <Loader2 className="h-5 w-5 animate-spin text-brand-ink" />
         </div>
       ) : attachments.length === 0 ? (
-        <p className="rounded-lg border border-dashed border-[var(--h-d8dce6)] py-6 text-center text-sm text-[var(--h-94a3b8)]">
+        <p className="rounded-lg border border-dashed border-line py-6 text-center text-sm text-ink-muted">
           {editable ? 'No files yet — add a photo or document if you have evidence to share.' : 'No files attached.'}
         </p>
       ) : (
@@ -155,7 +155,7 @@ function ImageTile({ a, editable, showDay, onDelete, deleting }: {
   a: EntryAttachment; editable: boolean; showDay: boolean; onDelete: () => void; deleting: boolean;
 }) {
   return (
-    <div className="group relative overflow-hidden rounded-lg border border-[var(--h-e2e6ef)]">
+    <div className="group relative overflow-hidden rounded-lg border border-line">
       <a href={a.fileUrl} target="_blank" rel="noopener noreferrer" title={a.fileName}>
         <img src={a.fileUrl} alt={a.fileName} className="h-28 w-full object-cover" />
       </a>
@@ -180,25 +180,25 @@ function DocRow({ a, editable, showDay, onDelete, deleting }: {
   a: EntryAttachment; editable: boolean; showDay: boolean; onDelete: () => void; deleting: boolean;
 }) {
   return (
-    <li className="flex items-center gap-3 rounded-lg border border-[var(--h-e8ebf2)] bg-[var(--h-fbfcfe)] px-3 py-2">
-      <FileText className="h-5 w-5 shrink-0 text-[var(--h-712ae2)]" />
+    <li className="flex items-center gap-3 rounded-lg border border-line bg-surface-sunken px-3 py-2">
+      <FileText className="h-5 w-5 shrink-0 text-brand-ink" />
       <a
         href={a.fileUrl} target="_blank" rel="noopener noreferrer"
-        className="min-w-0 flex-1 truncate text-sm font-medium text-[var(--h-15157d)] hover:underline"
+        className="min-w-0 flex-1 truncate text-sm font-medium text-brand-ink hover:underline"
         title={a.fileName}
       >
         {a.fileName}
       </a>
       {showDay && a.dayDate && (
-        <span className="shrink-0 rounded bg-[var(--h-eef0f5)] px-1.5 py-0.5 text-[10px] font-medium text-[var(--h-64748b)]">
+        <span className="shrink-0 rounded bg-surface-sunken px-1.5 py-0.5 text-[10px] font-medium text-ink-secondary">
           {fmtDay(a.dayDate)}
         </span>
       )}
-      <span className="shrink-0 text-xs text-[var(--h-64748b)]">{fmtBytes(a.fileSize)}</span>
+      <span className="shrink-0 text-xs text-ink-secondary">{fmtBytes(a.fileSize)}</span>
       {editable && (
         <button
           type="button" onClick={onDelete} disabled={deleting} aria-label={`Remove ${a.fileName}`}
-          className="shrink-0 rounded-md p-1.5 text-[var(--h-94a3b8)] transition-colors hover:bg-[var(--h-ffe2dc)] hover:text-[var(--h-b3261e)] disabled:opacity-50"
+          className="shrink-0 rounded-md p-1.5 text-ink-muted transition-colors hover:bg-danger-soft hover:text-danger disabled:opacity-50"
         >
           <X className="h-4 w-4" />
         </button>

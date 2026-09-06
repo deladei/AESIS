@@ -82,12 +82,12 @@ const errMessage = (err: unknown): string =>
 type WeekState = EntryStatus | 'not_started' | 'upcoming';
 
 const WEEK_STATUS_META: Record<WeekState, { label: string; cls: string; Icon: React.ElementType }> = {
-  not_started:  { label: 'Not started',  cls: 'bg-[var(--h-eef0f5)] text-[var(--h-64748b)]', Icon: Calendar },
-  upcoming:     { label: 'Upcoming',     cls: 'bg-[var(--h-eef0f5)] text-[var(--h-94a3b8)]', Icon: Clock },
-  draft:        { label: 'In progress',  cls: 'bg-[var(--h-fff4e0)] text-[var(--h-9a6700)]', Icon: Clock },
-  submitted:    { label: 'In review',    cls: 'bg-[var(--h-e1e8ff)] text-[var(--h-15157d)]', Icon: Send },
-  returned:     { label: 'Returned',     cls: 'bg-[var(--h-ffe2dc)] text-[var(--h-b3261e)]', Icon: RotateCcw },
-  acknowledged: { label: 'Acknowledged', cls: 'bg-[var(--h-dcf5e6)] text-[var(--h-1b7a45)]', Icon: CheckCircle2 },
+  not_started:  { label: 'Not started',  cls: 'bg-surface-sunken text-ink-secondary', Icon: Calendar },
+  upcoming:     { label: 'Upcoming',     cls: 'bg-surface-sunken text-ink-muted', Icon: Clock },
+  draft:        { label: 'In progress',  cls: 'bg-warn-soft text-warn', Icon: Clock },
+  submitted:    { label: 'In review',    cls: 'bg-brand-soft text-brand-ink', Icon: Send },
+  returned:     { label: 'Returned',     cls: 'bg-danger-soft text-danger', Icon: RotateCcw },
+  acknowledged: { label: 'Acknowledged', cls: 'bg-ok-soft text-ok', Icon: CheckCircle2 },
 };
 
 function WeekStatusPill({ status }: { status: WeekState }) {
@@ -102,28 +102,28 @@ function WeekStatusPill({ status }: { status: WeekState }) {
 // ── Day status ──────────────────────────────────────────────────
 function dayVisual(day: SiwesCalendarDay, today: string, submitted: boolean) {
   if (submitted) {
-    return { label: 'Submitted', cls: 'bg-[var(--h-dcf5e6)] text-[var(--h-1b7a45)]', Icon: CheckCircle2 };
+    return { label: 'Submitted', cls: 'bg-ok-soft text-ok', Icon: CheckCircle2 };
   }
   // Lateness is its own pill beside this one (one shared label app-wide), so
   // this only says whether the day has been written up.
   if (day.entry) {
-    return { label: 'Logged', cls: 'bg-[var(--h-fff4e0)] text-[var(--h-9a6700)]', Icon: Clock };
+    return { label: 'Logged', cls: 'bg-warn-soft text-warn', Icon: Clock };
   }
   if (day.absence) {
     const kind = day.absence.kind === 'sick' ? 'Sick'
       : day.absence.kind === 'permitted' ? 'Permitted absence' : 'Unexcused absence';
-    return { label: kind, cls: 'bg-[var(--h-eef0f5)] text-[var(--h-64748b)]', Icon: Stethoscope };
+    return { label: kind, cls: 'bg-surface-sunken text-ink-secondary', Icon: Stethoscope };
   }
   if (day.class === 'non_working') {
-    return { label: 'Public holiday', cls: 'bg-[var(--h-eef0f5)] text-[var(--h-94a3b8)]', Icon: Sun };
+    return { label: 'Public holiday', cls: 'bg-surface-sunken text-ink-muted', Icon: Sun };
   }
   if (day.date > today) {
-    return { label: 'Upcoming', cls: 'bg-[var(--h-eef0f5)] text-[var(--h-94a3b8)]', Icon: Clock };
+    return { label: 'Upcoming', cls: 'bg-surface-sunken text-ink-muted', Icon: Clock };
   }
   if (day.missing) {
-    return { label: 'Not logged', cls: 'bg-[var(--h-ffe2dc)] text-[var(--h-b3261e)]', Icon: AlertCircle };
+    return { label: 'Not logged', cls: 'bg-danger-soft text-danger', Icon: AlertCircle };
   }
-  return { label: 'Open', cls: 'bg-[var(--h-eef0f5)] text-[var(--h-64748b)]', Icon: CalendarDays };
+  return { label: 'Open', cls: 'bg-surface-sunken text-ink-secondary', Icon: CalendarDays };
 }
 
 type LocalActivity = { description: string; competencyTags: string[] };
@@ -195,7 +195,7 @@ export default function LogbookEditor() {
   if (placementsLoading || calendarLoading || entriesLoading) {
     return (
       <div className="flex h-64 items-center justify-center">
-        <Loader2 className="h-6 w-6 animate-spin text-[var(--h-8a4cfc)]" />
+        <Loader2 className="h-6 w-6 animate-spin text-brand-ink" />
       </div>
     );
   }
@@ -203,9 +203,9 @@ export default function LogbookEditor() {
   if (!placement || !calendar) {
     return (
       <div className="mx-auto max-w-xl px-6 py-20 text-center">
-        <BookOpen className="mx-auto mb-4 h-12 w-12 text-[var(--h-8a4cfc)]" />
-        <h2 className="mb-1 text-lg font-bold text-[var(--h-0b1c30)]">No active placement</h2>
-        <p className="text-sm text-[var(--h-464652)]">
+        <BookOpen className="mx-auto mb-4 h-12 w-12 text-brand-ink" />
+        <h2 className="mb-1 text-lg font-bold text-ink">No active placement</h2>
+        <p className="text-sm text-ink-secondary">
           Your logbook opens once your placement is approved and started.
         </p>
       </div>
@@ -233,22 +233,22 @@ export default function LogbookEditor() {
   return (
     <div className="mx-auto max-w-5xl px-6 py-6">
       <header className="mb-5">
-        <h1 className="text-xl font-bold text-[var(--h-0b1c30)]">Logbook</h1>
-        <p className="mt-1 text-sm text-[var(--h-464652)]">
+        <h1 className="text-xl font-bold text-ink">Logbook</h1>
+        <p className="mt-1 text-sm text-ink-secondary">
           {placement.company?.name ?? 'Your placement'} · {fmtDate(calendar.chainStart)} – {fmtDate(calendar.chainEnd)}
           {' · '}{calendar.totalWeeks} weeks · {loggedCount} day{loggedCount === 1 ? '' : 's'} logged
-          {missingCount > 0 && <span className="text-[var(--h-b3261e)]"> · {missingCount} not logged</span>}
+          {missingCount > 0 && <span className="text-danger"> · {missingCount} not logged</span>}
         </p>
       </header>
 
       {/* Days you still owe. Silent when there are none. */}
       {missedDays.length > 0 && (
-        <div className="mb-4 rounded-xl border border-[var(--h-f3d690)] bg-[var(--h-fffaf0)] px-4 py-3">
-          <p className="flex items-center gap-2 text-sm font-semibold text-[var(--h-9a6700)]">
+        <div className="mb-4 rounded-xl border border-warn bg-warn-soft px-4 py-3">
+          <p className="flex items-center gap-2 text-sm font-semibold text-warn">
             <AlertCircle className="h-4 w-4" />
             {missedDays.length} day{missedDays.length === 1 ? '' : 's'} not logged yet
           </p>
-          <p className="mt-0.5 text-xs text-[var(--h-464652)]">
+          <p className="mt-0.5 text-xs text-ink-secondary">
             You can still log any of them. They will be marked late for your supervisor.
           </p>
           <div className="mt-2.5 flex flex-wrap gap-2">
@@ -257,7 +257,7 @@ export default function LogbookEditor() {
                 key={d.date}
                 type="button"
                 onClick={() => { setSelectedWeek(d.weekNumber); setSelectedDate(d.date); }}
-                className="inline-flex items-center gap-1.5 rounded-lg border border-[var(--h-f3d690)] bg-[var(--h-ffffff)] px-2.5 py-1 text-xs font-semibold text-[var(--h-9a6700)] hover:border-[var(--h-9a6700)]"
+                className="inline-flex items-center gap-1.5 rounded-lg border border-warn bg-surface px-2.5 py-1 text-xs font-semibold text-warn hover:border-warn"
               >
                 <CalendarDays className="h-3 w-3" />
                 {weekdayShort(d.date)} {fmtDate(d.date)}
@@ -267,7 +267,7 @@ export default function LogbookEditor() {
               <button
                 type="button"
                 onClick={() => setShowAllMissed((v) => !v)}
-                className="inline-flex items-center gap-1 rounded-lg px-2.5 py-1 text-xs font-semibold text-[var(--h-464652)] hover:text-[var(--h-0b1c30)]"
+                className="inline-flex items-center gap-1 rounded-lg px-2.5 py-1 text-xs font-semibold text-ink-secondary hover:text-ink"
               >
                 {showAllMissed
                   ? <>Show fewer <ChevronUp className="h-3 w-3" /></>
@@ -291,18 +291,18 @@ export default function LogbookEditor() {
               onClick={() => { setSelectedWeek(w.weekNumber); setSelectedDate(null); setConfirmGaps(false); }}
               className={`rounded-lg px-3 py-1.5 text-sm font-semibold transition-colors ${
                 selected
-                  ? 'bg-[var(--h-15157d)] text-[var(--h-ffffff)]'
+                  ? 'bg-brand text-ink-inverse'
                   : started
-                    ? 'bg-[var(--h-eef0f5)] text-[var(--h-0b1c30)] hover:bg-[var(--h-dce9ff)]'
-                    : 'bg-[var(--h-eef0f5)] text-[var(--h-94a3b8)]'
+                    ? 'bg-surface-sunken text-ink hover:bg-brand-soft'
+                    : 'bg-surface-sunken text-ink-muted'
               }`}
             >
               Week {w.weekNumber}
               {e?.status === 'acknowledged' && !selected && (
-                <CheckCircle2 className="ml-1.5 inline h-3 w-3 align-middle text-[var(--h-1b7a45)]" />
+                <CheckCircle2 className="ml-1.5 inline h-3 w-3 align-middle text-ok" />
               )}
               {attention && !selected && e?.status !== 'acknowledged' && (
-                <span className="ml-1.5 inline-block h-1.5 w-1.5 rounded-full bg-[var(--h-b3261e)] align-middle" />
+                <span className="ml-1.5 inline-block h-1.5 w-1.5 rounded-full bg-danger align-middle" />
               )}
             </button>
           );
@@ -313,8 +313,8 @@ export default function LogbookEditor() {
         <>
           <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
             <div>
-              <h2 className="text-lg font-bold text-[var(--h-0b1c30)]">Week {week.weekNumber}</h2>
-              <p className="text-sm text-[var(--h-464652)]">
+              <h2 className="text-lg font-bold text-ink">Week {week.weekNumber}</h2>
+              <p className="text-sm text-ink-secondary">
                 {fmtRange(week.bounds.start, week.bounds.end)}
                 {' · '}
                 {(detail?.days ?? []).filter((rec) =>
@@ -338,7 +338,7 @@ export default function LogbookEditor() {
                         await submitWeek.mutateAsync(detail.id);
                       } catch { /* surfaced below */ }
                     }}
-                    className="inline-flex items-center gap-1.5 rounded-lg bg-[var(--h-1b7a45)] px-3 py-1.5 text-sm font-semibold text-[var(--h-ffffff)] hover:opacity-90 disabled:opacity-50"
+                    className="inline-flex items-center gap-1.5 rounded-lg bg-ok px-3 py-1.5 text-sm font-semibold text-ink-inverse hover:opacity-90 disabled:opacity-50"
                   >
                     {submitWeek.isPending
                       ? <Loader2 className="h-4 w-4 animate-spin" />
@@ -353,12 +353,12 @@ export default function LogbookEditor() {
                   <button
                     type="button"
                     onClick={() => setConfirmGaps((v) => !v)}
-                    className="inline-flex items-center gap-1.5 rounded-lg border border-[var(--h-f3d690)] bg-[var(--h-fff4e0)] px-3 py-1.5 text-sm font-semibold text-[var(--h-9a6700)] hover:border-[var(--h-9a6700)]"
+                    className="inline-flex items-center gap-1.5 rounded-lg border border-warn bg-warn-soft px-3 py-1.5 text-sm font-semibold text-warn hover:border-warn"
                   >
                     <Send className="h-4 w-4" /> Submit week anyway
                   </button>
                 ) : (
-                  <span className="text-sm text-[var(--h-464652)]">
+                  <span className="text-sm text-ink-secondary">
                     {detail.completion.remaining} of {detail.completion.workingDays} days left
                   </span>
                 )
@@ -367,16 +367,16 @@ export default function LogbookEditor() {
             </div>
           </div>
           {submitWeek.isError && (
-            <p className="mb-3 text-sm text-[var(--h-b3261e)]">{errMessage(submitWeek.error)}</p>
+            <p className="mb-3 text-sm text-danger">{errMessage(submitWeek.error)}</p>
           )}
 
           {confirmGaps && weekStatus === 'draft' && detail?.completion && !detail.completion.complete && (
-            <div className="mb-3 rounded-lg border border-[var(--h-f3d690)] bg-[var(--h-fffaf0)] px-4 py-3">
-              <p className="text-sm font-semibold text-[var(--h-9a6700)]">
+            <div className="mb-3 rounded-lg border border-warn bg-warn-soft px-4 py-3">
+              <p className="text-sm font-semibold text-warn">
                 Send week {week.weekNumber} with {detail.completion.remaining} day
                 {detail.completion.remaining === 1 ? '' : 's'} still unlogged?
               </p>
-              <p className="mt-1 text-xs text-[var(--h-464652)]">
+              <p className="mt-1 text-xs text-ink-secondary">
                 Your supervisor will see {detail.completion.missingDates.length === 1 ? 'this day' : 'these days'} as
                 not logged:{' '}
                 <span className="font-semibold">
@@ -395,7 +395,7 @@ export default function LogbookEditor() {
                       setConfirmGaps(false);
                     } catch { /* surfaced below */ }
                   }}
-                  className="inline-flex items-center gap-1.5 rounded-lg bg-[var(--h-1b7a45)] px-3 py-1.5 text-xs font-semibold text-[var(--h-ffffff)] hover:opacity-90 disabled:opacity-50"
+                  className="inline-flex items-center gap-1.5 rounded-lg bg-ok px-3 py-1.5 text-xs font-semibold text-ink-inverse hover:opacity-90 disabled:opacity-50"
                 >
                   {submitWeek.isPending
                     ? <Loader2 className="h-3.5 w-3.5 animate-spin" />
@@ -405,7 +405,7 @@ export default function LogbookEditor() {
                 <button
                   type="button"
                   onClick={() => setConfirmGaps(false)}
-                  className="rounded-lg border border-[var(--h-d8dce6)] bg-[var(--h-ffffff)] px-3 py-1.5 text-xs font-semibold text-[var(--h-464652)] hover:border-[var(--h-b9c0d0)]"
+                  className="rounded-lg border border-line bg-surface px-3 py-1.5 text-xs font-semibold text-ink-secondary hover:border-line-strong"
                 >
                   Not yet
                 </button>
@@ -414,13 +414,13 @@ export default function LogbookEditor() {
           )}
 
           {weekStatus === 'acknowledged' && (
-            <div className="mb-4 flex items-start gap-2 rounded-lg border border-[var(--h-aee3c2)] bg-[var(--h-e9f9ef)] px-4 py-3 text-sm text-[var(--h-1b7a45)]">
+            <div className="mb-4 flex items-start gap-2 rounded-lg border border-ok bg-ok-soft px-4 py-3 text-sm text-ok">
               <ShieldCheck className="mt-0.5 h-4 w-4 shrink-0" />
               Your supervisor has acknowledged this week. It is locked — days can no longer be edited.
             </div>
           )}
           {weekStatus === 'returned' && (
-            <div className="mb-4 flex items-start gap-2 rounded-lg border border-[var(--h-f5b8ad)] bg-[var(--h-fff1ee)] px-4 py-3 text-sm text-[var(--h-b3261e)]">
+            <div className="mb-4 flex items-start gap-2 rounded-lg border border-danger bg-danger-soft px-4 py-3 text-sm text-danger">
               <RotateCcw className="mt-0.5 h-4 w-4 shrink-0" />
               This week was returned for revision — edit the days below and resubmit.
             </div>
@@ -442,13 +442,13 @@ export default function LogbookEditor() {
                     onClick={() => setSelectedDate(d.date)}
                     className={`flex w-full items-center gap-3 rounded-xl border px-3 py-2.5 text-left transition-colors ${
                       d.date === selectedDate
-                        ? 'border-[var(--h-8a4cfc)] bg-[var(--h-f6f1ff)]'
-                        : 'border-[var(--h-c4c5d5-40)] bg-[var(--h-ffffff)]'
-                    } ${selectable ? 'hover:border-[var(--h-8a4cfc)]' : 'cursor-default opacity-70'}`}
+                        ? 'border-brand bg-brand-soft'
+                        : 'border-line bg-surface'
+                    } ${selectable ? 'hover:border-brand' : 'cursor-default opacity-70'}`}
                   >
                     <span className="w-10 shrink-0 text-center">
-                      <span className="block text-[11px] font-semibold text-[var(--h-757684)]">{weekdayShort(d.date)}</span>
-                      <span className="block text-base font-bold text-[var(--h-0b1c30)]">{dayOfMonth(d.date)}</span>
+                      <span className="block text-[11px] font-semibold text-ink-muted">{weekdayShort(d.date)}</span>
+                      <span className="block text-base font-bold text-ink">{dayOfMonth(d.date)}</span>
                     </span>
                     <span className={`inline-flex flex-wrap items-center gap-1`}>
                       <span className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-semibold ${v.cls}`}>
@@ -464,9 +464,9 @@ export default function LogbookEditor() {
             {/* The selected day, then the week's own narrative */}
             <div className="space-y-4">
               {!day ? (
-                <div className="rounded-xl border border-[var(--h-c4c5d5-40)] bg-[var(--h-ffffff)] px-6 py-10 text-center">
-                  <CalendarDays className="mx-auto mb-3 h-8 w-8 text-[var(--h-8a4cfc)]" />
-                  <p className="text-sm text-[var(--h-464652)]">Select a day to log what you worked on.</p>
+                <div className="rounded-xl border border-line bg-surface px-6 py-10 text-center">
+                  <CalendarDays className="mx-auto mb-3 h-8 w-8 text-brand-ink" />
+                  <p className="text-sm text-ink-secondary">Select a day to log what you worked on.</p>
                 </div>
               ) : (
                 <DayPanel
@@ -656,20 +656,20 @@ function DayPanel({
   }
 
   const busy = saveDailyEntry.isPending || saveDay.isPending || submitDay.isPending;
-  const inputCls = 'w-full rounded-lg border border-[var(--h-c4c5d5-60)] bg-[var(--h-ffffff)] px-3 py-2 text-sm text-[var(--h-0b1c30)] placeholder:text-[var(--h-94a3b8)] focus:border-[var(--h-8a4cfc)] focus:outline-none disabled:bg-[var(--h-eef0f5)]';
+  const inputCls = 'w-full rounded-lg border border-line bg-surface px-3 py-2 text-sm text-ink placeholder:text-ink-muted focus:border-brand focus:outline-none disabled:bg-surface-sunken';
 
   return (
-    <div className="rounded-xl border border-[var(--h-c4c5d5-40)] bg-[var(--h-ffffff)] p-4">
+    <div className="rounded-xl border border-line bg-surface p-4">
       <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
-        <h2 className="text-sm font-bold text-[var(--h-0b1c30)]">{fmtDate(day.date)}</h2>
+        <h2 className="text-sm font-bold text-ink">{fmtDate(day.date)}</h2>
         <div className="flex items-center gap-2">
           {daySubmitted && (
-            <span className="inline-flex items-center gap-1 rounded-full bg-[var(--h-dcf5e6)] px-2 py-0.5 text-[11px] font-semibold text-[var(--h-1b7a45)]">
+            <span className="inline-flex items-center gap-1 rounded-full bg-ok-soft px-2 py-0.5 text-[11px] font-semibold text-ok">
               <CheckCircle2 className="h-3 w-3" /> Submitted{day.entry?.loggedLate ? ' · late' : ''}
             </span>
           )}
           {editWindowClosed && (
-            <span className="inline-flex items-center gap-1 rounded-full bg-[var(--h-eef0f5)] px-2 py-0.5 text-[11px] font-semibold text-[var(--h-64748b)]">
+            <span className="inline-flex items-center gap-1 rounded-full bg-surface-sunken px-2 py-0.5 text-[11px] font-semibold text-ink-secondary">
               <Lock className="h-3 w-3" /> Editing closed
             </span>
           )}
@@ -677,24 +677,24 @@ function DayPanel({
       </div>
 
       {day.absence ? (
-        <p className="text-sm text-[var(--h-464652)]">
+        <p className="text-sm text-ink-secondary">
           Recorded as {day.absence.kind === 'sick' ? 'sick leave' : `a ${day.absence.kind} absence`}
           {day.absence.reason && <> — {day.absence.reason}</>}.
         </p>
       ) : day.class === 'non_working' ? (
-        <p className="flex items-center gap-2 text-sm text-[var(--h-464652)]">
-          <Sun className="h-4 w-4 text-[var(--h-9a6700)]" /> Public holiday — nothing to log.
+        <p className="flex items-center gap-2 text-sm text-ink-secondary">
+          <Sun className="h-4 w-4 text-warn" /> Public holiday — nothing to log.
         </p>
       ) : (
         <>
           {future && (
-            <div className="mb-3 flex items-start gap-2 rounded-lg border border-[var(--h-bcc8ff)] bg-[var(--h-eef1ff)] px-3 py-2 text-xs text-[var(--h-15157d)]">
+            <div className="mb-3 flex items-start gap-2 rounded-lg border border-brand bg-surface-sunken px-3 py-2 text-xs text-brand-ink">
               <Clock className="mt-0.5 h-3.5 w-3.5 shrink-0" />
               This day hasn't arrived yet (Ghana time) — logging opens on the day itself.
             </div>
           )}
           {!future && !daySubmitted && lateBy > DAY_GRACE_DAYS && editable && (
-            <div className="mb-3 flex items-start gap-2 rounded-lg border border-[var(--h-f3d690)] bg-[var(--h-fff4e0)] px-3 py-2 text-xs text-[var(--h-9a6700)]">
+            <div className="mb-3 flex items-start gap-2 rounded-lg border border-warn bg-warn-soft px-3 py-2 text-xs text-warn">
               <AlertCircle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
               You're logging this {lateBy} day{lateBy === 1 ? '' : 's'} after the day itself. You can
               still submit it — your supervisor will see it marked
@@ -704,7 +704,7 @@ function DayPanel({
 
           <fieldset disabled={!editable} className="space-y-3 disabled:opacity-70">
             <div>
-              <label className="mb-1 block text-xs font-semibold text-[var(--h-464652)]" htmlFor="lb-work">
+              <label className="mb-1 block text-xs font-semibold text-ink-secondary" htmlFor="lb-work">
                 Description of work done
               </label>
               <textarea
@@ -718,7 +718,7 @@ function DayPanel({
             </div>
 
             <div>
-              <label className="mb-1 block text-xs font-semibold text-[var(--h-464652)]" htmlFor="lb-skills">
+              <label className="mb-1 block text-xs font-semibold text-ink-secondary" htmlFor="lb-skills">
                 New skills learnt
               </label>
               <textarea
@@ -733,21 +733,21 @@ function DayPanel({
 
             {/* Itemised activities — optional detail on the same day, folded away
                 by default so the day reads as one form rather than two. */}
-            <div className="rounded-lg border border-[var(--h-e8ebf2)] bg-[var(--h-fbfcfe)] p-3">
+            <div className="rounded-lg border border-line bg-surface-sunken p-3">
               <button
                 type="button"
                 onClick={() => setShowActivities((v) => !v)}
                 className="flex w-full items-center justify-between text-left"
               >
-                <span className="text-xs font-semibold text-[var(--h-464652)]">
+                <span className="text-xs font-semibold text-ink-secondary">
                   Break the day into activities
                   {activities.length > 0 && (
-                    <span className="ml-1.5 text-[var(--h-757684)]">({activities.length})</span>
+                    <span className="ml-1.5 text-ink-muted">({activities.length})</span>
                   )}
                 </span>
                 {showActivities
-                  ? <ChevronUp className="h-4 w-4 text-[var(--h-757684)]" />
-                  : <ChevronDown className="h-4 w-4 text-[var(--h-757684)]" />}
+                  ? <ChevronUp className="h-4 w-4 text-ink-muted" />
+                  : <ChevronDown className="h-4 w-4 text-ink-muted" />}
               </button>
 
               {showActivities && (
@@ -755,12 +755,12 @@ function DayPanel({
                   {activities.map((a, i) => {
                     const detected = detectCompetencies(a.description, a.competencyTags);
                     return (
-                      <div key={i} className="rounded-lg border border-[var(--h-e8ebf2)] bg-[var(--h-ffffff)] p-3">
+                      <div key={i} className="rounded-lg border border-line bg-surface p-3">
                         <div className="mb-2 flex justify-end">
                           <button
                             type="button"
                             onClick={() => setActivities((p) => p.filter((_, j) => j !== i))}
-                            className="rounded-md p-1 text-[var(--h-94a3b8)] hover:bg-[var(--h-ffe2dc)] hover:text-[var(--h-b3261e)]"
+                            className="rounded-md p-1 text-ink-muted hover:bg-danger-soft hover:text-danger"
                             aria-label="Remove activity"
                           >
                             <Trash2 className="h-3.5 w-3.5" />
@@ -774,7 +774,7 @@ function DayPanel({
                         />
                         <div className="mt-2 flex flex-wrap items-center gap-1.5">
                           {a.competencyTags.map((t) => (
-                            <span key={t} className="inline-flex items-center gap-1 rounded-full bg-[var(--h-e1e8ff)] px-2 py-0.5 text-xs font-medium text-[var(--h-15157d)]">
+                            <span key={t} className="inline-flex items-center gap-1 rounded-full bg-brand-soft px-2 py-0.5 text-xs font-medium text-brand-ink">
                               {t}
                               <button
                                 type="button"
@@ -790,18 +790,18 @@ function DayPanel({
                             onChange={(e) => setTagDrafts((d) => ({ ...d, [i]: e.target.value }))}
                             onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); addTag(i, tagDrafts[i] ?? ''); } }}
                             placeholder="+ competency"
-                            className="min-w-[120px] flex-1 rounded-md border border-transparent bg-transparent px-1.5 py-0.5 text-xs text-[var(--h-0b1c30)] placeholder-[var(--h-94a3b8)] focus:border-[var(--h-d8dce6)] focus:outline-none"
+                            className="min-w-[120px] flex-1 rounded-md border border-transparent bg-transparent px-1.5 py-0.5 text-xs text-ink placeholder:text-ink-muted focus:border-line focus:outline-none"
                           />
                         </div>
                         {detected.length > 0 && (
-                          <div className="mt-2 flex flex-wrap items-center gap-1.5 rounded-md bg-[var(--h-f1ecff)] px-2 py-1.5">
-                            <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-[var(--h-712ae2)]">
+                          <div className="mt-2 flex flex-wrap items-center gap-1.5 rounded-md bg-brand-soft px-2 py-1.5">
+                            <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-brand-ink">
                               <Sparkles className="h-3 w-3" /> Detected
                             </span>
                             {detected.map((sug) => (
                               <button
                                 key={sug} type="button" onClick={() => addTag(i, sug)}
-                                className="rounded-full border border-[var(--h-d3c4ff)] bg-[var(--h-ffffff)] px-2 py-0.5 text-[11px] font-medium text-[var(--h-712ae2)] hover:bg-[var(--h-e6dcff)]"
+                                className="rounded-full border border-brand bg-surface px-2 py-0.5 text-[11px] font-medium text-brand-ink hover:bg-brand-soft"
                               >
                                 + {sug}
                               </button>
@@ -815,7 +815,7 @@ function DayPanel({
                             .map((sug) => (
                               <button
                                 key={sug} type="button" onClick={() => addTag(i, sug)}
-                                className="rounded px-1.5 py-0.5 text-[11px] text-[var(--h-64748b)] hover:text-[var(--h-712ae2)]"
+                                className="rounded px-1.5 py-0.5 text-[11px] text-ink-secondary hover:text-brand-ink"
                               >
                                 + {sug}
                               </button>
@@ -827,7 +827,7 @@ function DayPanel({
                   <button
                     type="button"
                     onClick={() => setActivities((p) => [...p, { description: '', competencyTags: [] }])}
-                    className="inline-flex items-center gap-1 rounded-lg bg-[var(--h-f1ecff)] px-3 py-1.5 text-xs font-medium text-[var(--h-712ae2)] hover:bg-[var(--h-e6dcff)]"
+                    className="inline-flex items-center gap-1 rounded-lg bg-brand-soft px-3 py-1.5 text-xs font-medium text-brand-ink hover:bg-brand-soft"
                   >
                     <Plus className="h-3.5 w-3.5" /> Add activity
                   </button>
@@ -836,7 +836,7 @@ function DayPanel({
             </div>
 
             {/* Evidence for this day — the first upload opens the week draft. */}
-            <div className="rounded-lg border border-[var(--h-e8ebf2)] bg-[var(--h-fbfcfe)] p-3">
+            <div className="rounded-lg border border-line bg-surface-sunken p-3">
               <EntryAttachments
                 entryId={entryId}
                 ensureEntryId={async () => {
@@ -852,12 +852,12 @@ function DayPanel({
 
           {/* The week is finished. Ask — do not transition it under them. */}
           {weekComplete && !weekSubmitted && (
-            <div className="mt-3 rounded-lg border border-[var(--h-aee3c2)] bg-[var(--h-e9f9ef)] px-3 py-3">
-              <p className="flex items-start gap-2 text-xs font-semibold text-[var(--h-1b7a45)]">
+            <div className="mt-3 rounded-lg border border-ok bg-ok-soft px-3 py-3">
+              <p className="flex items-start gap-2 text-xs font-semibold text-ok">
                 <CheckCircle2 className="mt-0.5 h-3.5 w-3.5 shrink-0" />
                 That was the last day of this week — all {workingDaysInWeek || 5} days are logged.
               </p>
-              <p className="mt-1 text-xs text-[var(--h-464652)]">
+              <p className="mt-1 text-xs text-ink-secondary">
                 Send it to your supervisor now, or read it over first. Either way it will not be
                 counted late: a finished week you have not sent is submitted for you after the grace
                 window.
@@ -874,7 +874,7 @@ function DayPanel({
                       setWeekSubmitted(true);
                     } catch (e) { setFormErr(errMessage(e)); }
                   }}
-                  className="inline-flex items-center gap-1.5 rounded-lg bg-[var(--h-1b7a45)] px-3 py-1.5 text-xs font-semibold text-white hover:opacity-90 disabled:opacity-50"
+                  className="inline-flex items-center gap-1.5 rounded-lg bg-ok px-3 py-1.5 text-xs font-semibold text-white hover:opacity-90 disabled:opacity-50"
                 >
                   {submitWeek.isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Send className="h-3.5 w-3.5" />}
                   Submit the week now
@@ -882,7 +882,7 @@ function DayPanel({
                 <button
                   type="button"
                   onClick={() => setWeekComplete(false)}
-                  className="rounded-lg border border-[var(--h-d8dce6)] bg-[var(--h-ffffff)] px-3 py-1.5 text-xs font-semibold text-[var(--h-464652)] hover:border-[var(--h-b9c0d0)]"
+                  className="rounded-lg border border-line bg-surface px-3 py-1.5 text-xs font-semibold text-ink-secondary hover:border-line-strong"
                 >
                   I'll review it first
                 </button>
@@ -890,20 +890,20 @@ function DayPanel({
             </div>
           )}
           {weekSubmitted && (
-            <div className="mt-3 flex items-start gap-2 rounded-lg border border-[var(--h-bcc8ff)] bg-[var(--h-eef1ff)] px-3 py-2 text-xs text-[var(--h-15157d)]">
+            <div className="mt-3 flex items-start gap-2 rounded-lg border border-brand bg-surface-sunken px-3 py-2 text-xs text-brand-ink">
               <Send className="mt-0.5 h-3.5 w-3.5 shrink-0" />
               Week sent to your supervisor for review.
             </div>
           )}
           {!weekComplete && !weekSubmitted && daysLeftInWeek !== null && daysLeftInWeek > 0 && weekStatus === 'draft' && (
-            <div className="mt-3 flex items-start gap-2 rounded-lg border border-[var(--h-bcc8ff)] bg-[var(--h-eef1ff)] px-3 py-2 text-xs text-[var(--h-15157d)]">
+            <div className="mt-3 flex items-start gap-2 rounded-lg border border-brand bg-surface-sunken px-3 py-2 text-xs text-brand-ink">
               <CalendarDays className="mt-0.5 h-3.5 w-3.5 shrink-0" />
               {daysLeftInWeek} more day{daysLeftInWeek === 1 ? '' : 's'} to log and this week is ready to send.
             </div>
           )}
 
           {formErr && (
-            <div className="mt-3 flex items-start gap-2 rounded-lg border border-[var(--h-f5b8ad)] bg-[var(--h-fff1ee)] px-3 py-2 text-xs text-[var(--h-b3261e)]">
+            <div className="mt-3 flex items-start gap-2 rounded-lg border border-danger bg-danger-soft px-3 py-2 text-xs text-danger">
               <AlertCircle className="mt-0.5 h-3.5 w-3.5 shrink-0" /> {formErr}
             </div>
           )}
@@ -912,16 +912,16 @@ function DayPanel({
             <div className="mt-3 flex flex-wrap gap-2">
               <button
                 type="button" onClick={handleSave} disabled={busy}
-                className="inline-flex flex-1 items-center justify-center gap-2 rounded-lg border border-[var(--h-d8dce6)] bg-[var(--h-ffffff)] px-4 py-2 text-sm font-medium text-[var(--h-464652)] hover:border-[var(--h-b9c0d0)] hover:text-[var(--h-0b1c30)] disabled:opacity-60"
+                className="inline-flex flex-1 items-center justify-center gap-2 rounded-lg border border-line bg-surface px-4 py-2 text-sm font-medium text-ink-secondary hover:border-line-strong hover:text-ink disabled:opacity-60"
               >
-                {saved ? <><CheckCircle2 className="h-4 w-4 text-[var(--h-1b7a45)]" /> Saved</>
+                {saved ? <><CheckCircle2 className="h-4 w-4 text-ok" /> Saved</>
                   : busy ? <><Loader2 className="h-4 w-4 animate-spin" /> Saving…</>
                   : <><Save className="h-4 w-4" /> Save day</>}
               </button>
               <button
                 type="button" onClick={handleSubmit} disabled={busy || !hasContent}
                 title={!hasContent ? 'Fill in both fields to submit this day' : ''}
-                className="inline-flex flex-1 items-center justify-center gap-2 rounded-lg bg-[var(--h-15157d)] px-4 py-2 text-sm font-semibold text-white hover:bg-[var(--h-1f1fa0)] disabled:cursor-not-allowed disabled:opacity-60"
+                className="inline-flex flex-1 items-center justify-center gap-2 rounded-lg bg-brand px-4 py-2 text-sm font-semibold text-white hover:bg-brand-hover disabled:cursor-not-allowed disabled:opacity-60"
               >
                 <Send className="h-4 w-4" /> {daySubmitted ? 'Resubmit day' : 'Submit day'}
               </button>
@@ -932,18 +932,18 @@ function DayPanel({
           {canReportAbsence && !absenceOpen && (
             <button
               type="button" onClick={() => setAbsenceOpen(true)}
-              className="mt-3 inline-flex items-center gap-1.5 text-xs font-semibold text-[var(--h-757684)] hover:text-[var(--h-b3261e)]"
+              className="mt-3 inline-flex items-center gap-1.5 text-xs font-semibold text-ink-muted hover:text-danger"
             >
               <CircleSlash className="h-3.5 w-3.5" /> I was absent this day
             </button>
           )}
           {canReportAbsence && absenceOpen && (
-            <div className="mt-3 space-y-3 rounded-lg border border-[var(--h-c4c5d5-40)] bg-[var(--h-f8f9fc)] p-3">
+            <div className="mt-3 space-y-3 rounded-lg border border-line bg-surface-sunken p-3">
               <div className="flex items-center gap-3">
-                <label className="inline-flex items-center gap-1.5 text-sm text-[var(--h-0b1c30)]">
+                <label className="inline-flex items-center gap-1.5 text-sm text-ink">
                   <input type="radio" checked={absenceKind === 'sick'} onChange={() => setAbsenceKind('sick')} /> Sick
                 </label>
-                <label className="inline-flex items-center gap-1.5 text-sm text-[var(--h-0b1c30)]">
+                <label className="inline-flex items-center gap-1.5 text-sm text-ink">
                   <input type="radio" checked={absenceKind === 'permitted'} onChange={() => setAbsenceKind('permitted')} /> Permitted (with approval)
                 </label>
               </div>
@@ -955,7 +955,7 @@ function DayPanel({
                 className={inputCls}
               />
               {recordAbsence.isError && (
-                <p className="text-xs text-[var(--h-b3261e)]">{errMessage(recordAbsence.error)}</p>
+                <p className="text-xs text-danger">{errMessage(recordAbsence.error)}</p>
               )}
               <div className="flex gap-2">
                 <button
@@ -967,13 +967,13 @@ function DayPanel({
                     reason: absenceReason.trim() || undefined,
                   })}
                   disabled={recordAbsence.isPending || (absenceKind === 'permitted' && !absenceReason.trim())}
-                  className="rounded-lg bg-[var(--h-b3261e)] px-3 py-1.5 text-xs font-semibold text-[var(--h-ffffff)] disabled:opacity-50"
+                  className="rounded-lg bg-danger px-3 py-1.5 text-xs font-semibold text-ink-inverse disabled:opacity-50"
                 >
                   {recordAbsence.isPending ? 'Recording…' : 'Record absence'}
                 </button>
                 <button
                   type="button" onClick={() => setAbsenceOpen(false)}
-                  className="rounded-lg px-3 py-1.5 text-xs font-semibold text-[var(--h-757684)] hover:bg-[var(--h-eef0f5)]"
+                  className="rounded-lg px-3 py-1.5 text-xs font-semibold text-ink-muted hover:bg-surface-sunken"
                 >
                   Cancel
                 </button>
@@ -1010,11 +1010,11 @@ function WeeklyReportCard({
   const error = parsed && !parsed.success ? parsed.error.issues[0]?.message : undefined;
 
   return (
-    <div className="rounded-xl border border-[var(--h-c4c5d5-40)] bg-[var(--h-ffffff)] p-4">
+    <div className="rounded-xl border border-line bg-surface p-4">
       <div className="mb-2 flex items-center justify-between">
-        <h2 className="text-sm font-bold text-[var(--h-0b1c30)]">Weekly report</h2>
+        <h2 className="text-sm font-bold text-ink">Weekly report</h2>
         {summary && (
-          <span className="text-[11px] text-[var(--h-757684)]">
+          <span className="text-[11px] text-ink-muted">
             Week ending {fmtDate(summary.weekEnding.slice(0, 10))}
           </span>
         )}
@@ -1024,12 +1024,12 @@ function WeeklyReportCard({
         onChange={(e) => setText(e.target.value)}
         placeholder="Summarise the week's work in your own words"
         aria-invalid={!!error}
-        className="w-full rounded-lg border border-[var(--h-c4c5d5-60)] bg-[var(--h-ffffff)] px-3 py-2 text-sm text-[var(--h-0b1c30)] placeholder:text-[var(--h-94a3b8)] focus:border-[var(--h-8a4cfc)] focus:outline-none disabled:bg-[var(--h-eef0f5)]"
+        className="w-full rounded-lg border border-line bg-surface px-3 py-2 text-sm text-ink placeholder:text-ink-muted focus:border-brand focus:outline-none disabled:bg-surface-sunken"
       />
       <FieldError message={error} />
-      {lockReason && <p className="mt-1 text-xs text-[var(--h-757684)]">{lockReason}</p>}
+      {lockReason && <p className="mt-1 text-xs text-ink-muted">{lockReason}</p>}
       {saveSummary.isError && (
-        <p className="mt-1 text-xs text-[var(--h-b3261e)]">{errMessage(saveSummary.error)}</p>
+        <p className="mt-1 text-xs text-danger">{errMessage(saveSummary.error)}</p>
       )}
       {!locked && (
         <button
@@ -1042,7 +1042,7 @@ function WeeklyReportCard({
             } catch { /* surfaced above */ }
           }}
           disabled={!text.trim() || !!error || saveSummary.isPending}
-          className="mt-2 inline-flex items-center gap-1.5 rounded-lg bg-[var(--h-15157d)] px-4 py-2 text-sm font-semibold text-[var(--h-ffffff)] disabled:opacity-50"
+          className="mt-2 inline-flex items-center gap-1.5 rounded-lg bg-brand px-4 py-2 text-sm font-semibold text-ink-inverse disabled:opacity-50"
         >
           {saveSummary.isPending ? <Loader2 className="h-4 w-4 animate-spin" />
             : saved ? <CheckCircle2 className="h-4 w-4" /> : <Save className="h-4 w-4" />}

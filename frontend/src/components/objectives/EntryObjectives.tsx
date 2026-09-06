@@ -39,9 +39,9 @@ export function EntryObjectives({
   return (
     <div>
       <div className="mb-2 flex items-center gap-2">
-        <Target className="h-4 w-4 text-[var(--h-15157d)]" />
-        <p className="text-sm font-semibold text-[var(--h-0b1c30)]">Learning objectives</p>
-        {busy && <Loader2 className="h-3.5 w-3.5 animate-spin text-[var(--h-15157d)]" />}
+        <Target className="h-4 w-4 text-brand-ink" />
+        <p className="text-sm font-semibold text-ink">Learning objectives</p>
+        {busy && <Loader2 className="h-3.5 w-3.5 animate-spin text-brand-ink" />}
       </div>
       <div className="flex flex-wrap gap-2">
         {objectives.map((o) => {
@@ -50,10 +50,10 @@ export function EntryObjectives({
           const suggested = link?.status === 'suggested';
 
           const cls = confirmed
-            ? 'bg-[var(--h-15157d)] text-white border-[var(--h-15157d)]'
+            ? 'bg-brand text-white border-brand'
             : suggested
-              ? 'border-dashed border-[var(--h-9a6700)] bg-[var(--h-fff4e0)] text-[var(--h-9a6700)]'
-              : 'border-[var(--h-c4c5d5)] bg-[var(--h-ffffff)] text-[var(--h-444653)] hover:border-[var(--h-15157d)]';
+              ? 'border-dashed border-warn bg-warn-soft text-warn'
+              : 'border-line bg-surface text-ink-secondary hover:border-brand';
 
           return (
             <button
@@ -77,8 +77,8 @@ export function EntryObjectives({
         })}
       </div>
       {links.some((l) => l.status === 'suggested') && editable && (
-        <p className="mt-2 text-xs text-[var(--h-757684)]">
-          <Sparkles className="mr-1 inline h-3 w-3 text-[var(--h-9a6700)]" />
+        <p className="mt-2 text-xs text-ink-muted">
+          <Sparkles className="mr-1 inline h-3 w-3 text-warn" />
           AI-suggested objectives don't count until you confirm them.
         </p>
       )}

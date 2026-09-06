@@ -35,27 +35,27 @@ export default function InternsList() {
     <div className="p-6">
       <div className="mb-6 flex flex-wrap items-end justify-between gap-4">
         <div>
-          <p className="mb-1 text-xs font-semibold tracking-wide text-[var(--h-15157d)]">Coordinator</p>
-          <h2 className="text-3xl font-bold tracking-tight text-[var(--h-0b1c30)]">
+          <p className="mb-1 text-xs font-semibold tracking-wide text-brand-ink">Coordinator</p>
+          <h2 className="text-3xl font-bold tracking-tight text-ink">
             {view === 'oversight'
               ? 'Intern Oversight'
               : attentionOnly ? 'Interns needing attention' : 'All Interns'}
           </h2>
-          <p className="mt-1 text-sm text-[var(--h-757684)]">
+          <p className="mt-1 text-sm text-ink-muted">
             {view === 'oversight'
               ? 'Read-only at-risk monitoring across every active placement.'
               : 'Sort, filter, and drill into every active placement.'}
           </p>
         </div>
-        <div className="flex gap-1 rounded-lg border border-[var(--h-c4c5d5-60)] bg-[var(--h-ffffff)] p-1">
+        <div className="flex gap-1 rounded-lg border border-line bg-surface p-1">
           {VIEWS.map(({ key, label, Icon }) => (
             <button
               key={key}
               onClick={() => setView(key)}
               className={`flex cursor-pointer items-center gap-1.5 rounded-md px-3 py-1.5 text-sm font-medium transition-colors ${
                 view === key
-                  ? 'bg-[var(--h-15157d)] text-white'
-                  : 'text-[var(--h-757684)] hover:text-[var(--h-15157d)]'
+                  ? 'bg-brand text-white'
+                  : 'text-ink-muted hover:text-brand-ink'
               }`}
             >
               <Icon className="h-4 w-4" /> {label}

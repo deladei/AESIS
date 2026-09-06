@@ -98,12 +98,12 @@ export default function SupervisorUploadPanel() {
   };
 
   return (
-    <section className="rounded-xl border border-[var(--h-c4c5d5-60)] bg-[var(--h-ffffff)] p-6">
+    <section className="rounded-xl border border-line bg-surface p-6">
       <div className="mb-1 flex items-center gap-2">
-        <Users className="h-5 w-5 text-[var(--h-15157d)]" />
-        <h2 className="text-sm font-bold text-[var(--h-0b1c30)]">Upload supervisor roster</h2>
+        <Users className="h-5 w-5 text-brand-ink" />
+        <h2 className="text-sm font-bold text-ink">Upload supervisor roster</h2>
       </div>
-      <p className="mb-4 text-xs text-[var(--h-757684)]">
+      <p className="mb-4 text-xs text-ink-muted">
         Accepts CSV, Excel (.xlsx/.xls), TSV or plain text. Columns:{' '}
         <span className="font-mono">firstName, lastName, email, region</span>. Region accepts the name
         (e.g. "Greater Accra"). New supervisors are created for their region — interns who pick that region at
@@ -114,25 +114,25 @@ export default function SupervisorUploadPanel() {
         <input ref={fileInput} type="file" className="hidden" onChange={onPick} accept={UPLOAD_ACCEPT} />
         <button
           type="button" onClick={() => fileInput.current?.click()}
-          className="inline-flex items-center gap-2 rounded-lg bg-[var(--h-15157d)] px-4 py-2 text-sm font-semibold text-white hover:opacity-90"
+          className="inline-flex items-center gap-2 rounded-lg bg-brand px-4 py-2 text-sm font-semibold text-white hover:opacity-90"
         >
           <Upload className="h-4 w-4" /> Choose file
         </button>
         <button
           type="button" onClick={downloadTemplate}
-          className="inline-flex items-center gap-1.5 rounded-lg border border-[var(--h-c4c5d5)] px-3 py-2 text-sm font-medium text-[var(--h-0b1c30)] hover:bg-[var(--h-f3f3f7)]"
+          className="inline-flex items-center gap-1.5 rounded-lg border border-line px-3 py-2 text-sm font-medium text-ink hover:bg-surface-sunken"
         >
           <Download className="h-4 w-4" /> Template
         </button>
         {fileName && (
-          <span className="inline-flex items-center gap-1.5 text-xs text-[var(--h-757684)]">
+          <span className="inline-flex items-center gap-1.5 text-xs text-ink-muted">
             <FileText className="h-3.5 w-3.5" /> {fileName}
           </span>
         )}
       </div>
 
       {error && (
-        <p className="mt-3 inline-flex items-center gap-1.5 text-sm text-[var(--h-b3261e)]">
+        <p className="mt-3 inline-flex items-center gap-1.5 text-sm text-danger">
           <AlertCircle className="h-4 w-4" /> {error}
         </p>
       )}
@@ -141,31 +141,31 @@ export default function SupervisorUploadPanel() {
       {rows.length > 0 && (
         <div className="mt-4">
           <div className="mb-2 flex items-center justify-between text-xs">
-            <span className="font-semibold text-[var(--h-0b1c30)]">
-              {valid.length} ready{invalid > 0 && <span className="text-[var(--h-b3261e)]"> · {invalid} need fixing</span>}
+            <span className="font-semibold text-ink">
+              {valid.length} ready{invalid > 0 && <span className="text-danger"> · {invalid} need fixing</span>}
             </span>
             <button
               type="button" onClick={onUpload} disabled={valid.length === 0 || bulk.isPending}
-              className="inline-flex items-center gap-2 rounded-lg bg-[var(--h-1b7a45)] px-4 py-2 text-sm font-semibold text-white hover:opacity-90 disabled:cursor-not-allowed disabled:bg-[var(--h-c4c5d5)]"
+              className="inline-flex items-center gap-2 rounded-lg bg-ok px-4 py-2 text-sm font-semibold text-white hover:opacity-90 disabled:cursor-not-allowed disabled:bg-line-strong"
             >
               {bulk.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Check className="h-4 w-4" />}
               Create {valid.length} supervisor{valid.length === 1 ? '' : 's'}
             </button>
           </div>
-          <div className="max-h-64 overflow-y-auto rounded-lg border border-[var(--h-eef0f5)]">
+          <div className="max-h-64 overflow-y-auto rounded-lg border border-line">
             <table className="w-full text-sm">
               <tbody>
                 {rows.map((r, i) => (
-                  <tr key={i} className="border-b border-[var(--h-f5f6fa)] last:border-0">
+                  <tr key={i} className="border-b border-line last:border-0">
                     <td className="px-3 py-2">
                       {r.valid
-                        ? <Check className="h-4 w-4 text-[var(--h-1b7a45)]" />
-                        : <X className="h-4 w-4 text-[var(--h-b3261e)]" />}
+                        ? <Check className="h-4 w-4 text-ok" />
+                        : <X className="h-4 w-4 text-danger" />}
                     </td>
-                    <td className="px-3 py-2 font-medium text-[var(--h-0b1c30)]">{r.firstName} {r.lastName}</td>
-                    <td className="px-3 py-2 text-[var(--h-757684)]">{r.email}</td>
-                    <td className="px-3 py-2 text-[var(--h-757684)]">
-                      {r.region ? REGION_LABELS[r.region as keyof typeof REGION_LABELS] : <span className="text-[var(--h-b3261e)]">{r.problem}</span>}
+                    <td className="px-3 py-2 font-medium text-ink">{r.firstName} {r.lastName}</td>
+                    <td className="px-3 py-2 text-ink-muted">{r.email}</td>
+                    <td className="px-3 py-2 text-ink-muted">
+                      {r.region ? REGION_LABELS[r.region as keyof typeof REGION_LABELS] : <span className="text-danger">{r.problem}</span>}
                     </td>
                   </tr>
                 ))}
@@ -177,12 +177,12 @@ export default function SupervisorUploadPanel() {
 
       {/* Result summary */}
       {result && (
-        <div className="mt-4 rounded-lg border border-[var(--h-aee3c2)] bg-[var(--h-e9f9ef)] p-4 text-sm">
-          <p className="font-semibold text-[var(--h-1b7a45)]">
+        <div className="mt-4 rounded-lg border border-ok bg-ok-soft p-4 text-sm">
+          <p className="font-semibold text-ok">
             {result.created} created · {result.updated} updated{result.skipped > 0 && ` · ${result.skipped} skipped`}
           </p>
           {result.skipped > 0 && (
-            <ul className="mt-2 list-inside list-disc text-xs text-[var(--h-757684)]">
+            <ul className="mt-2 list-inside list-disc text-xs text-ink-muted">
               {result.results.filter((r) => r.status === 'skipped').map((r) => (
                 <li key={r.email}>{r.email} — {r.message}</li>
               ))}

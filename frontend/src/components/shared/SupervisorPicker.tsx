@@ -66,7 +66,7 @@ export default function SupervisorPicker({
 
   const optionClass = (isSelected: boolean) =>
     `flex w-full cursor-pointer items-center justify-between gap-2 px-3 py-2.5 text-left text-sm transition-colors duration-100 ${
-      isSelected ? 'bg-[var(--h-e5eeff)] text-[var(--h-15157d)]' : 'text-[var(--h-0b1c30)] hover:bg-[var(--h-eff4ff)]'
+      isSelected ? 'bg-brand-soft text-brand-ink' : 'text-ink hover:bg-brand-soft'
     }`;
 
   return (
@@ -77,17 +77,17 @@ export default function SupervisorPicker({
         onClick={() => { if (!open) computePlacement(); setOpen((o) => !o); }}
         aria-haspopup="listbox"
         aria-expanded={open}
-        className="flex w-full cursor-pointer items-center justify-between rounded-lg border border-[var(--h-c4c5d5)] bg-[var(--h-ffffff)] px-3 py-2.5 text-left text-sm transition-colors focus:border-[var(--h-15157d)] focus:outline-none focus:ring-1 focus:ring-[var(--h-15157d)]"
+        className="flex w-full cursor-pointer items-center justify-between rounded-lg border border-line bg-surface px-3 py-2.5 text-left text-sm transition-colors focus:border-brand focus:outline-none focus:ring-1 focus:ring-brand"
       >
-        <span className={selected ? 'text-[var(--h-0b1c30)]' : 'text-[var(--h-757684)]'}>
+        <span className={selected ? 'text-ink' : 'text-ink-muted'}>
           {selected ? `${selected.firstName} ${selected.lastName}` : placeholder}
         </span>
-        <ChevronDown className={`h-4 w-4 shrink-0 text-[var(--h-757684)] transition-transform duration-150 ${open ? 'rotate-180' : ''}`} />
+        <ChevronDown className={`h-4 w-4 shrink-0 text-ink-muted transition-transform duration-150 ${open ? 'rotate-180' : ''}`} />
       </button>
       {open && (
         <ul
           role="listbox"
-          className={`absolute z-20 max-h-60 w-full overflow-auto rounded-lg border border-[var(--h-c4c5d5)] bg-[var(--h-ffffff)] py-1 shadow-xl ${
+          className={`absolute z-20 max-h-60 w-full overflow-auto rounded-lg border border-line bg-surface py-1 shadow-xl ${
             placement === 'above' ? 'bottom-full mb-1.5' : 'top-full mt-1.5'
           }`}
         >
@@ -106,7 +106,7 @@ export default function SupervisorPicker({
                 <button type="button" onClick={() => { onChange(s.id); setOpen(false); }} className={optionClass(isSelected)}>
                   <span className="min-w-0">
                     <span className="block truncate font-medium">{s.firstName} {s.lastName}</span>
-                    <span className="block truncate text-xs text-[var(--h-757684)]">{s.email}</span>
+                    <span className="block truncate text-xs text-ink-muted">{s.email}</span>
                   </span>
                   {isSelected && <Check className="h-4 w-4 shrink-0" />}
                 </button>

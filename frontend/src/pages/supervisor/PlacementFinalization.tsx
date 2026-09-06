@@ -37,16 +37,16 @@ const FINAL_LABEL: Record<FinalizationStatus, string> = {
   finalized:          'Finalized',
 };
 const FINAL_PILL: Record<FinalizationStatus, string> = {
-  active:             'bg-[var(--h-eef0f5)] text-[var(--h-64748b)]',
-  assessment_pending: 'bg-[var(--h-fff4e0)] text-[var(--h-9a6700)]',
-  finalized:          'bg-[var(--h-dcf5e6)] text-[var(--h-1b7a45)]',
+  active:             'bg-surface-sunken text-ink-secondary',
+  assessment_pending: 'bg-warn-soft text-warn',
+  finalized:          'bg-ok-soft text-ok',
 };
 
 const WEEK_PILL: Record<EntryStatus, string> = {
-  draft:        'bg-[var(--h-eef0f5)] text-[var(--h-64748b)]',
-  submitted:    'bg-[var(--h-e1e8ff)] text-[var(--h-15157d)]',
-  returned:     'bg-[var(--h-fff1ee)] text-[var(--h-b3261e)]',
-  acknowledged: 'bg-[var(--h-dcf5e6)] text-[var(--h-1b7a45)]',
+  draft:        'bg-surface-sunken text-ink-secondary',
+  submitted:    'bg-brand-soft text-brand-ink',
+  returned:     'bg-danger-soft text-danger',
+  acknowledged: 'bg-ok-soft text-ok',
 };
 const WEEK_LABEL: Record<EntryStatus, string> = {
   draft: 'Draft', submitted: 'Submitted', returned: 'Returned',
@@ -58,7 +58,7 @@ const apiErr = (e: unknown) =>
   'Something went wrong. Please try again.';
 
 const inputCls =
-  'w-full rounded-lg border border-[var(--h-d8dce6)] bg-[var(--h-ffffff)] px-3 py-2.5 text-sm text-[var(--h-0b1c30)] placeholder-[var(--h-94a3b8)] transition-colors focus:border-[var(--h-8a4cfc)] focus:outline-none focus:ring-1 focus:ring-[var(--h-8a4cfc)]';
+  'w-full rounded-lg border border-line bg-surface px-3 py-2.5 text-sm text-ink placeholder:text-ink-muted transition-colors focus:border-brand focus:outline-none focus:ring-1 focus:ring-brand';
 
 /**
  * The rules `assessmentSchema` and `finalizeSchema` parse these bodies with.
@@ -93,7 +93,7 @@ export default function PlacementFinalization() {
   if (isLoading) {
     return (
       <div className="flex h-64 items-center justify-center">
-        <Loader2 className="h-6 w-6 animate-spin text-[var(--h-8a4cfc)]" />
+        <Loader2 className="h-6 w-6 animate-spin text-brand-ink" />
       </div>
     );
   }
@@ -101,8 +101,8 @@ export default function PlacementFinalization() {
   return (
     <div className="mx-auto max-w-7xl px-6 py-6">
       <div className="mb-6">
-        <h1 className="text-xl font-bold text-[var(--h-0b1c30)]">Finalize placements</h1>
-        <p className="mt-0.5 text-sm text-[var(--h-464652)]">
+        <h1 className="text-xl font-bold text-ink">Finalize placements</h1>
+        <p className="mt-0.5 text-sm text-ink-secondary">
           Record the final assessment, confirm every week is resolved, and close out the internship.
         </p>
       </div>
@@ -110,14 +110,14 @@ export default function PlacementFinalization() {
       <div className="grid gap-6 lg:grid-cols-[320px_1fr]">
         {/* Placement list */}
         <aside className="lg:sticky lg:top-6 lg:self-start">
-          <div className="overflow-hidden rounded-xl border border-[var(--h-e2e6ef)] bg-[var(--h-ffffff)]">
-            <div className="border-b border-[var(--h-e2e6ef)] px-4 py-3 text-xs font-semibold uppercase tracking-wide text-[var(--h-64748b)]">
+          <div className="overflow-hidden rounded-xl border border-line bg-surface">
+            <div className="border-b border-line px-4 py-3 text-xs font-semibold uppercase tracking-wide text-ink-secondary">
               Your interns
             </div>
             {placements.length === 0 ? (
               <div className="px-4 py-10 text-center">
-                <Inbox className="mx-auto mb-2 h-7 w-7 text-[var(--h-cbd2e0)]" />
-                <p className="text-sm text-[var(--h-94a3b8)]">No active placements assigned to you.</p>
+                <Inbox className="mx-auto mb-2 h-7 w-7 text-ink-muted" />
+                <p className="text-sm text-ink-muted">No active placements assigned to you.</p>
               </div>
             ) : (
               <div className="max-h-[68vh] overflow-y-auto">
@@ -128,14 +128,14 @@ export default function PlacementFinalization() {
                     <button
                       key={p.id}
                       onClick={() => setSelectedId(p.id)}
-                      className={`w-full border-b border-[var(--h-f0f2f7)] px-4 py-3 text-left transition-colors last:border-0 ${
-                        active ? 'bg-[var(--h-f1ecff)]' : 'hover:bg-[var(--h-f8f9ff)]'
+                      className={`w-full border-b border-line px-4 py-3 text-left transition-colors last:border-0 ${
+                        active ? 'bg-brand-soft' : 'hover:bg-surface-sunken'
                       }`}
                     >
-                      <p className={`truncate text-sm font-semibold ${active ? 'text-[var(--h-15157d)]' : 'text-[var(--h-0b1c30)]'}`}>
+                      <p className={`truncate text-sm font-semibold ${active ? 'text-brand-ink' : 'text-ink'}`}>
                         {placementName(p)}
                       </p>
-                      <p className="mt-0.5 truncate text-xs text-[var(--h-64748b)]">{p.company?.name ?? 'Placement'}</p>
+                      <p className="mt-0.5 truncate text-xs text-ink-secondary">{p.company?.name ?? 'Placement'}</p>
                       <span className={`mt-1.5 inline-block rounded-full px-2 py-0.5 text-[11px] font-semibold ${FINAL_PILL[fs]}`}>
                         {FINAL_LABEL[fs]}
                       </span>
@@ -150,10 +150,10 @@ export default function PlacementFinalization() {
         {/* Detail */}
         <section>
           {!selected ? (
-            <div className="rounded-xl border border-dashed border-[var(--h-d8dce6)] bg-[var(--h-ffffff)] py-24 text-center">
-              <Award className="mx-auto mb-3 h-10 w-10 text-[var(--h-cbd2e0)]" />
-              <h2 className="text-base font-semibold text-[var(--h-0b1c30)]">Nothing to finalize</h2>
-              <p className="mt-1 text-sm text-[var(--h-64748b)]">Your assigned placements will appear here.</p>
+            <div className="rounded-xl border border-dashed border-line bg-surface py-24 text-center">
+              <Award className="mx-auto mb-3 h-10 w-10 text-ink-muted" />
+              <h2 className="text-base font-semibold text-ink">Nothing to finalize</h2>
+              <p className="mt-1 text-sm text-ink-secondary">Your assigned placements will appear here.</p>
             </div>
           ) : (
             <FinalizationDetail key={selected.id} placement={selected} />
@@ -273,12 +273,12 @@ function FinalizationDetail({ placement }: { placement: Placement }) {
   return (
     <div className="space-y-5">
       {/* Header */}
-      <div className="rounded-xl border border-[var(--h-e2e6ef)] bg-[var(--h-ffffff)] p-5">
+      <div className="rounded-xl border border-line bg-surface p-5">
         <div className="flex flex-wrap items-start justify-between gap-2">
           <div>
-            <h2 className="text-lg font-bold text-[var(--h-0b1c30)]">{placementName(placement)}</h2>
-            <p className="text-sm text-[var(--h-464652)]">{placement.company?.name ?? '—'}</p>
-            <p className="mt-0.5 inline-flex items-center gap-1 text-xs text-[var(--h-64748b)]">
+            <h2 className="text-lg font-bold text-ink">{placementName(placement)}</h2>
+            <p className="text-sm text-ink-secondary">{placement.company?.name ?? '—'}</p>
+            <p className="mt-0.5 inline-flex items-center gap-1 text-xs text-ink-secondary">
               <CalendarDays className="h-3 w-3" /> {fmtRange(placement.startDate, placement.endDate)}
             </p>
           </div>
@@ -289,7 +289,7 @@ function FinalizationDetail({ placement }: { placement: Placement }) {
       </div>
 
       {isFinalized && (
-        <div className="flex items-start gap-2 rounded-xl border border-[var(--h-aee3c2)] bg-[var(--h-f0faf4)] p-4 text-sm text-[var(--h-1b7a45)]">
+        <div className="flex items-start gap-2 rounded-xl border border-ok bg-ok-soft p-4 text-sm text-ok">
           <Lock className="mt-0.5 h-4 w-4 shrink-0" />
           <span>This placement is finalized. Its assessment and attestation are locked and can no longer be changed.</span>
         </div>
@@ -311,29 +311,29 @@ function FinalizationDetail({ placement }: { placement: Placement }) {
       <SiwesCalendarPanel placementId={placement.id} />
 
       {/* Weekly resolution */}
-      <div className="rounded-xl border border-[var(--h-e2e6ef)] bg-[var(--h-ffffff)] p-5">
-        <h3 className="mb-3 flex items-center gap-2 text-sm font-semibold text-[var(--h-0b1c30)]">
-          <ClipboardCheck className="h-4 w-4 text-[var(--h-8a4cfc)]" /> Weekly entries
+      <div className="rounded-xl border border-line bg-surface p-5">
+        <h3 className="mb-3 flex items-center gap-2 text-sm font-semibold text-ink">
+          <ClipboardCheck className="h-4 w-4 text-brand-ink" /> Weekly entries
         </h3>
         {entriesLoading ? (
           <div className="flex h-20 items-center justify-center">
-            <Loader2 className="h-5 w-5 animate-spin text-[var(--h-cbd2e0)]" />
+            <Loader2 className="h-5 w-5 animate-spin text-ink-muted" />
           </div>
         ) : sortedEntries.length === 0 ? (
-          <p className="text-sm text-[var(--h-94a3b8)]">No logbook entries on this placement yet.</p>
+          <p className="text-sm text-ink-muted">No logbook entries on this placement yet.</p>
         ) : (
           <div className="space-y-2">
             {sortedEntries.map((e: LogbookEntry) => {
               const resolved = e.status === 'acknowledged';
               return (
-                <div key={e.id} className="rounded-lg border border-[var(--h-eef0f5)] bg-[var(--h-fbfcfe)] p-3">
+                <div key={e.id} className="rounded-lg border border-line bg-surface-sunken p-3">
                   <div className="flex items-center justify-between gap-2">
-                    <span className="text-sm font-medium text-[var(--h-0b1c30)]">Week {e.weekNumber}</span>
+                    <span className="text-sm font-medium text-ink">Week {e.weekNumber}</span>
                     <span className="flex items-center gap-1.5">
                       {!!e.lateDays && (
                         <span
                           title={`the latest by ${e.maxDaysLate} day(s)`}
-                          className="inline-flex items-center gap-1 rounded-full bg-[var(--h-fff4e0)] px-2 py-0.5 text-[11px] font-semibold text-[var(--h-9a6700)]"
+                          className="inline-flex items-center gap-1 rounded-full bg-warn-soft px-2 py-0.5 text-[11px] font-semibold text-warn"
                         >
                           <Clock className="h-3 w-3" /> {e.lateDays} logged late
                         </span>
@@ -345,7 +345,7 @@ function FinalizationDetail({ placement }: { placement: Placement }) {
                   </div>
                   {!resolved && !isFinalized && (
                     <div className="mt-2">
-                      <label className="mb-1 block text-xs font-medium text-[var(--h-9a6700)]">
+                      <label className="mb-1 block text-xs font-medium text-warn">
                         Not acknowledged — provide a waiver reason to finalize
                       </label>
                       <input
@@ -368,23 +368,23 @@ function FinalizationDetail({ placement }: { placement: Placement }) {
 
       {/* Assessment */}
       {!isFinalized && (
-        <div className="rounded-xl border border-[var(--h-e2e6ef)] bg-[var(--h-ffffff)] p-5">
-          <h3 className="mb-3 flex items-center gap-2 text-sm font-semibold text-[var(--h-0b1c30)]">
-            <Award className="h-4 w-4 text-[var(--h-8a4cfc)]" /> Final assessment
+        <div className="rounded-xl border border-line bg-surface p-5">
+          <h3 className="mb-3 flex items-center gap-2 text-sm font-semibold text-ink">
+            <Award className="h-4 w-4 text-brand-ink" /> Final assessment
           </h3>
           {hasAssessment && (
-            <p className="mb-3 text-xs text-[var(--h-9a6700)]">
+            <p className="mb-3 text-xs text-warn">
               An assessment is already on record. Submitting again updates the grade and narrative.
             </p>
           )}
           {assessMsg ? (
-            <div className="flex items-start gap-2 text-sm text-[var(--h-1b7a45)]">
+            <div className="flex items-start gap-2 text-sm text-ok">
               <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0" /> {assessMsg}
             </div>
           ) : (
             <>
-              <label htmlFor="grade" className="mb-1.5 block text-sm font-semibold text-[var(--h-0b1c30)]">
-                Grade <span className="ml-2 text-xs font-normal text-[var(--h-64748b)]">e.g. A, B+, Pass</span>
+              <label htmlFor="grade" className="mb-1.5 block text-sm font-semibold text-ink">
+                Grade <span className="ml-2 text-xs font-normal text-ink-secondary">e.g. A, B+, Pass</span>
               </label>
               <input
                 id="grade" type="text" value={grade}
@@ -394,8 +394,8 @@ function FinalizationDetail({ placement }: { placement: Placement }) {
                 className={inputCls}
               />
               <div className="mb-4"><FieldError message={gradeError} /></div>
-              <label htmlFor="narrative" className="mb-1.5 block text-sm font-semibold text-[var(--h-0b1c30)]">
-                Narrative <span className="ml-2 text-xs font-normal text-[var(--h-64748b)]">Optional</span>
+              <label htmlFor="narrative" className="mb-1.5 block text-sm font-semibold text-ink">
+                Narrative <span className="ml-2 text-xs font-normal text-ink-secondary">Optional</span>
               </label>
               <textarea
                 id="narrative" rows={4} value={narrative}
@@ -407,10 +407,10 @@ function FinalizationDetail({ placement }: { placement: Placement }) {
               <FieldError message={narrativeError} />
 
               {/* Structured end-of-placement evaluation (optional) */}
-              <div className="mt-4 rounded-lg border border-[var(--h-e2e6ef)] bg-[var(--h-fbfcfe)] p-4">
-                <p className="mb-2 text-sm font-semibold text-[var(--h-0b1c30)]">
+              <div className="mt-4 rounded-lg border border-line bg-surface-sunken p-4">
+                <p className="mb-2 text-sm font-semibold text-ink">
                   End-of-placement evaluation
-                  <span className="ml-2 text-xs font-normal text-[var(--h-64748b)]">Optional · rate 1–5</span>
+                  <span className="ml-2 text-xs font-normal text-ink-secondary">Optional · rate 1–5</span>
                 </p>
                 {criteria.map((c, i) => (
                   <div key={i} className="mb-2 flex items-center gap-2">
@@ -419,19 +419,19 @@ function FinalizationDetail({ placement }: { placement: Placement }) {
                       onChange={(e) => setCriteria((cs) => cs.map((x, j) => (j === i ? { ...x, criterion: e.target.value } : x)))}
                       placeholder="Criterion (e.g. Technical skill)"
                       maxLength={200}
-                      className="flex-1 rounded-lg border border-[var(--h-d8dce6)] px-3 py-2 text-sm outline-none focus:border-[var(--h-15157d)]"
+                      className="flex-1 rounded-lg border border-line px-3 py-2 text-sm outline-none focus:border-brand"
                     />
                     <select
                       value={c.rating}
                       onChange={(e) => setCriteria((cs) => cs.map((x, j) => (j === i ? { ...x, rating: Number(e.target.value) } : x)))}
-                      className="rounded-lg border border-[var(--h-d8dce6)] px-2 py-2 text-sm outline-none focus:border-[var(--h-15157d)]"
+                      className="rounded-lg border border-line px-2 py-2 text-sm outline-none focus:border-brand"
                     >
                       {[1, 2, 3, 4, 5].map((n) => <option key={n} value={n}>{n}</option>)}
                     </select>
                     <button
                       type="button" aria-label="Remove criterion"
                       onClick={() => setCriteria((cs) => cs.filter((_, j) => j !== i))}
-                      className="rounded p-1.5 text-[var(--h-94a3b8)] hover:bg-[var(--h-fde7e7)] hover:text-[var(--h-8a1c1c)]"
+                      className="rounded p-1.5 text-ink-muted hover:bg-danger-soft hover:text-danger"
                     >
                       <X className="h-4 w-4" />
                     </button>
@@ -440,16 +440,16 @@ function FinalizationDetail({ placement }: { placement: Placement }) {
                 <button
                   type="button"
                   onClick={() => setCriteria((cs) => [...cs, { criterion: '', rating: 3 }])}
-                  className="inline-flex items-center gap-1.5 text-xs font-semibold text-[var(--h-15157d)] hover:underline"
+                  className="inline-flex items-center gap-1.5 text-xs font-semibold text-brand-ink hover:underline"
                 >
                   <Plus className="h-3.5 w-3.5" /> Add criterion
                 </button>
                 <div className="mt-3">
-                  <label className="mb-1 block text-xs font-medium text-[var(--h-64748b)]">Overall recommendation</label>
+                  <label className="mb-1 block text-xs font-medium text-ink-secondary">Overall recommendation</label>
                   <select
                     value={recommendation}
                     onChange={(e) => setRecommendation(e.target.value as typeof recommendation)}
-                    className="rounded-lg border border-[var(--h-d8dce6)] px-3 py-2 text-sm outline-none focus:border-[var(--h-15157d)]"
+                    className="rounded-lg border border-line px-3 py-2 text-sm outline-none focus:border-brand"
                   >
                     <option value="">—</option>
                     <option value="pass">Pass</option>
@@ -461,13 +461,13 @@ function FinalizationDetail({ placement }: { placement: Placement }) {
               </div>
 
               {assessErr && (
-                <div className="mt-2 flex items-start gap-2 text-xs text-[var(--h-b3261e)]">
+                <div className="mt-2 flex items-start gap-2 text-xs text-danger">
                   <AlertCircle className="mt-0.5 h-3.5 w-3.5 shrink-0" /> {assessErr}
                 </div>
               )}
               <button
                 type="button" onClick={handleRecord} disabled={recordAssessment.isPending}
-                className="mt-3 inline-flex items-center justify-center gap-2 rounded-lg bg-[var(--h-15157d)] px-4 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-[var(--h-1f1fa0)] disabled:cursor-not-allowed disabled:opacity-60"
+                className="mt-3 inline-flex items-center justify-center gap-2 rounded-lg bg-brand px-4 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-brand-hover disabled:cursor-not-allowed disabled:opacity-60"
               >
                 {recordAssessment.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Award className="h-4 w-4" />}
                 {hasAssessment ? 'Update assessment' : 'Record assessment'}
@@ -479,39 +479,39 @@ function FinalizationDetail({ placement }: { placement: Placement }) {
 
       {/* Company attestation invite */}
       {!isFinalized && (
-        <div className="rounded-xl border border-[var(--h-e2e6ef)] bg-[var(--h-ffffff)] p-5">
-          <h3 className="mb-1 flex items-center gap-2 text-sm font-semibold text-[var(--h-0b1c30)]">
-            <Link2 className="h-4 w-4 text-[var(--h-8a4cfc)]" /> Company attestation
+        <div className="rounded-xl border border-line bg-surface p-5">
+          <h3 className="mb-1 flex items-center gap-2 text-sm font-semibold text-ink">
+            <Link2 className="h-4 w-4 text-brand-ink" /> Company attestation
           </h3>
-          <p className="mb-3 text-xs text-[var(--h-64748b)]">
+          <p className="mb-3 text-xs text-ink-secondary">
             Generate a single-use link for the company supervisor to confirm the placement. Send it to them by email.
           </p>
           {inviteData ? (
             <div className="space-y-2">
-              <div className="flex items-center gap-2 rounded-lg border border-[var(--h-e2e6ef)] bg-[var(--h-fbfcfe)] p-2.5">
-                <span className="flex-1 truncate font-mono text-xs text-[var(--h-0b1c30)]">{inviteData.url}</span>
+              <div className="flex items-center gap-2 rounded-lg border border-line bg-surface-sunken p-2.5">
+                <span className="flex-1 truncate font-mono text-xs text-ink">{inviteData.url}</span>
                 <button
                   type="button" onClick={handleCopy}
-                  className="inline-flex shrink-0 items-center gap-1 rounded-md bg-[var(--h-eff4ff)] px-2.5 py-1.5 text-xs font-semibold text-[var(--h-15157d)] transition-colors hover:bg-[var(--h-dce9ff)]"
+                  className="inline-flex shrink-0 items-center gap-1 rounded-md bg-brand-soft px-2.5 py-1.5 text-xs font-semibold text-brand-ink transition-colors hover:bg-brand-soft"
                 >
                   {copied ? <Check className="h-3.5 w-3.5" /> : <Copy className="h-3.5 w-3.5" />}
                   {copied ? 'Copied' : 'Copy'}
                 </button>
               </div>
-              <p className="text-[11px] text-[var(--h-94a3b8)]">
+              <p className="text-[11px] text-ink-muted">
                 Expires {new Date(inviteData.expiresAt).toLocaleString('en-GB')}. Generating a new link invalidates this one.
               </p>
             </div>
           ) : (
             <>
               {inviteErr && (
-                <div className="mb-2 flex items-start gap-2 text-xs text-[var(--h-b3261e)]">
+                <div className="mb-2 flex items-start gap-2 text-xs text-danger">
                   <AlertCircle className="mt-0.5 h-3.5 w-3.5 shrink-0" /> {inviteErr}
                 </div>
               )}
               <button
                 type="button" onClick={handleInvite} disabled={invite.isPending}
-                className="inline-flex items-center justify-center gap-2 rounded-lg border border-[var(--h-c7c5d4)] bg-[var(--h-ffffff)] px-4 py-2.5 text-sm font-semibold text-[var(--h-15157d)] transition-colors hover:bg-[var(--h-eff4ff)] disabled:cursor-not-allowed disabled:opacity-60"
+                className="inline-flex items-center justify-center gap-2 rounded-lg border border-line bg-surface px-4 py-2.5 text-sm font-semibold text-brand-ink transition-colors hover:bg-brand-soft disabled:cursor-not-allowed disabled:opacity-60"
               >
                 {invite.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Link2 className="h-4 w-4" />}
                 Generate attestation link
@@ -523,28 +523,28 @@ function FinalizationDetail({ placement }: { placement: Placement }) {
 
       {/* Finalize */}
       {!isFinalized && (
-        <div className="rounded-xl border border-[var(--h-e2e6ef)] bg-[var(--h-ffffff)] p-5">
-          <h3 className="mb-1 text-sm font-semibold text-[var(--h-0b1c30)]">Finalize placement</h3>
-          <p className="mb-3 text-xs text-[var(--h-64748b)]">
+        <div className="rounded-xl border border-line bg-surface p-5">
+          <h3 className="mb-1 text-sm font-semibold text-ink">Finalize placement</h3>
+          <p className="mb-3 text-xs text-ink-secondary">
             Closes the internship. This is permanent — the assessment locks and no further weeks can be reviewed.
           </p>
           {!hasAssessment && (
-            <p className="mb-2 text-xs text-[var(--h-9a6700)]">Record the final assessment above before finalizing.</p>
+            <p className="mb-2 text-xs text-warn">Record the final assessment above before finalizing.</p>
           )}
           {unresolved.length > 0 && (
-            <p className="mb-2 text-xs text-[var(--h-9a6700)]">
+            <p className="mb-2 text-xs text-warn">
               {unresolved.length} week{unresolved.length === 1 ? '' : 's'} not acknowledged — each needs a waiver reason above.
             </p>
           )}
           {finalizeErr && (
-            <div className="mb-2 flex items-start gap-2 text-xs text-[var(--h-b3261e)]">
+            <div className="mb-2 flex items-start gap-2 text-xs text-danger">
               <AlertCircle className="mt-0.5 h-3.5 w-3.5 shrink-0" /> {finalizeErr}
             </div>
           )}
           <button
             type="button" onClick={handleFinalize}
             disabled={finalize.isPending || !hasAssessment || !allWaived}
-            className="inline-flex items-center justify-center gap-2 rounded-lg bg-[var(--h-1b7a45)] px-4 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-[var(--h-15633a)] disabled:cursor-not-allowed disabled:opacity-50"
+            className="inline-flex items-center justify-center gap-2 rounded-lg bg-ok px-4 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-ok disabled:cursor-not-allowed disabled:opacity-50"
           >
             {finalize.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Lock className="h-4 w-4" />}
             Finalize placement

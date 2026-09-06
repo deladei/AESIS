@@ -29,7 +29,7 @@ export default function LatePill({
   return (
     <span
       title={`Logged ${days} day${days === 1 ? '' : 's'} after the work date`}
-      className={`inline-flex items-center gap-1 rounded-full bg-[var(--h-fff4e0)] font-semibold text-[var(--h-9a6700)] ${
+      className={`inline-flex items-center gap-1 rounded-full bg-warn-soft font-semibold text-warn ${
         compact ? 'px-1.5 py-0.5 text-[10px]' : 'px-2 py-0.5 text-[11px]'
       } ${className}`}
     >

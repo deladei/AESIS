@@ -89,7 +89,7 @@ function buildCards(r: Recap): Card[] {
           {r.themes.map((t) => (
             <span
               key={t.tag}
-              className="rounded-full bg-[var(--h-e1e8ff)] px-3 py-1 text-xs font-semibold text-[var(--h-15157d)]"
+              className="rounded-full bg-brand-soft px-3 py-1 text-xs font-semibold text-brand-ink"
             >
               {t.tag} · {t.count}
             </span>
@@ -110,7 +110,7 @@ function buildCards(r: Recap): Card[] {
       body: (
         <ul className="mt-3 space-y-2 text-left">
           {r.skills.map((s, i) => (
-            <li key={i} className="rounded-lg bg-[var(--h-f8f9fc)] px-3 py-2 text-sm text-[var(--h-464652)]">
+            <li key={i} className="rounded-lg bg-surface-sunken px-3 py-2 text-sm text-ink-secondary">
               {s}
             </li>
           ))}
@@ -131,7 +131,7 @@ function buildCards(r: Recap): Card[] {
           {r.challenges.map((c, i) => (
             <li
               key={i}
-              className="border-l-2 border-[var(--h-8a4cfc)] bg-[var(--h-f8f9fc)] px-3 py-2 text-sm italic text-[var(--h-464652)]"
+              className="border-l-2 border-brand bg-surface-sunken px-3 py-2 text-sm italic text-ink-secondary"
             >
               “{c}”
             </li>
@@ -197,14 +197,14 @@ export function InternshipRecap({ enabled, sample = false }: { enabled: boolean;
   const Icon = card.icon;
 
   return (
-    <section className="overflow-hidden rounded-2xl border border-[var(--h-d3c4ff)] bg-gradient-to-br from-[var(--h-f6f1ff)] to-[var(--h-eef1ff)] p-6 shadow-sm">
+    <section className="overflow-hidden rounded-2xl border border-brand bg-gradient-to-br from-brand-soft to-surface-sunken p-6 shadow-sm">
       <div className="mb-4 flex items-center gap-2">
-        <Sparkles className="h-4 w-4 text-[var(--h-712ae2)]" />
-        <h2 className="text-sm font-bold text-[var(--h-712ae2)]">
+        <Sparkles className="h-4 w-4 text-brand-ink" />
+        <h2 className="text-sm font-bold text-brand-ink">
           {sample ? 'Example — what your recap will look like' : 'Your internship, wrapped'}
         </h2>
         {sample && (
-          <span className="ml-auto rounded-full bg-[var(--h-fff4e0)] px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-[var(--h-9a6700)]">
+          <span className="ml-auto rounded-full bg-warn-soft px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-warn">
             Sample data
           </span>
         )}
@@ -212,15 +212,15 @@ export function InternshipRecap({ enabled, sample = false }: { enabled: boolean;
 
       {/* key on the card so remounting replays the CSS transition */}
       <div key={card.key} className="animate-[recapIn_320ms_ease-out] text-center">
-        <Icon className="mx-auto mb-3 h-8 w-8 text-[var(--h-8a4cfc)]" />
-        <p className="text-[11px] font-semibold uppercase tracking-wide text-[var(--h-757684)]">
+        <Icon className="mx-auto mb-3 h-8 w-8 text-brand-ink" />
+        <p className="text-[11px] font-semibold uppercase tracking-wide text-ink-muted">
           {card.eyebrow}
         </p>
-        <p className="mx-auto mt-1 max-w-lg text-lg font-bold leading-snug text-[var(--h-0b1c30)]">
+        <p className="mx-auto mt-1 max-w-lg text-lg font-bold leading-snug text-ink">
           {card.headline}
         </p>
         {card.body && (
-          <div className="mx-auto mt-2 max-w-lg text-sm text-[var(--h-464652)]">{card.body}</div>
+          <div className="mx-auto mt-2 max-w-lg text-sm text-ink-secondary">{card.body}</div>
         )}
       </div>
 
@@ -229,7 +229,7 @@ export function InternshipRecap({ enabled, sample = false }: { enabled: boolean;
           type="button"
           onClick={() => setIndex((i) => Math.max(0, i - 1))}
           disabled={index === 0}
-          className="inline-flex h-8 w-8 items-center justify-center rounded-full bg-[var(--h-ffffff)] text-[var(--h-15157d)] shadow-sm transition-opacity disabled:opacity-30"
+          className="inline-flex h-8 w-8 items-center justify-center rounded-full bg-surface text-brand-ink shadow-sm transition-opacity disabled:opacity-30"
           aria-label="Previous card"
         >
           <ChevronLeft className="h-4 w-4" />
@@ -245,7 +245,7 @@ export function InternshipRecap({ enabled, sample = false }: { enabled: boolean;
               aria-label={c.eyebrow}
               onClick={() => setIndex(i)}
               className={`h-1.5 rounded-full transition-all duration-200 ${
-                i === index ? 'w-6 bg-[var(--h-712ae2)]' : 'w-1.5 bg-[var(--h-d3c4ff)]'
+                i === index ? 'w-6 bg-brand' : 'w-1.5 bg-brand-soft'
               }`}
             />
           ))}
@@ -255,7 +255,7 @@ export function InternshipRecap({ enabled, sample = false }: { enabled: boolean;
           type="button"
           onClick={() => setIndex((i) => Math.min(cards.length - 1, i + 1))}
           disabled={index >= cards.length - 1}
-          className="inline-flex h-8 w-8 items-center justify-center rounded-full bg-[var(--h-ffffff)] text-[var(--h-15157d)] shadow-sm transition-opacity disabled:opacity-30"
+          className="inline-flex h-8 w-8 items-center justify-center rounded-full bg-surface text-brand-ink shadow-sm transition-opacity disabled:opacity-30"
           aria-label="Next card"
         >
           <ChevronRight className="h-4 w-4" />

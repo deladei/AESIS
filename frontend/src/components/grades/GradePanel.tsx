@@ -20,9 +20,9 @@ const STATUS_LABEL: Record<GradeStatus, string> = {
   draft: 'In progress', approved: 'Signed off', released: 'Released',
 };
 const STATUS_PILL: Record<GradeStatus, string> = {
-  draft:    'bg-[var(--h-eef0f5)] text-[var(--h-64748b)]',
-  approved: 'bg-[var(--h-e1e8ff)] text-[var(--h-15157d)]',
-  released: 'bg-[var(--h-dcf5e6)] text-[var(--h-1b7a45)]',
+  draft:    'bg-surface-sunken text-ink-secondary',
+  approved: 'bg-brand-soft text-brand-ink',
+  released: 'bg-ok-soft text-ok',
 };
 
 const COMPONENT_META: Record<GradeComponent, { label: string; hint: string }> = {
@@ -32,9 +32,9 @@ const COMPONENT_META: Record<GradeComponent, { label: string; hint: string }> = 
   logbook:    { label: 'Logbook',    hint: 'Weekly logbook' },
 };
 
-const card = 'rounded-xl border border-[var(--h-c4c5d5-60)] bg-[var(--h-ffffff)] p-5';
+const card = 'rounded-xl border border-line bg-surface p-5';
 const inputCls =
-  'w-24 rounded-lg border border-[var(--h-c4c5d5-60)] bg-[var(--h-ffffff)] px-2.5 py-1.5 text-sm text-[var(--h-0b1c30)] outline-none focus:border-[var(--h-15157d)]';
+  'w-24 rounded-lg border border-line bg-surface px-2.5 py-1.5 text-sm text-ink outline-none focus:border-brand';
 
 function StatusPill({ status }: { status: GradeStatus }) {
   return (
@@ -73,10 +73,10 @@ function ComponentRow({
   const inputId = `grade-${component}`;
 
   return (
-    <div className="flex items-center justify-between gap-3 border-b border-[var(--h-eef0f5)] py-2.5 last:border-0">
+    <div className="flex items-center justify-between gap-3 border-b border-line py-2.5 last:border-0">
       <div>
-        <label htmlFor={inputId} className="text-sm font-medium text-[var(--h-0b1c30)]">{meta.label}</label>
-        <p className="text-xs text-[var(--h-757684)]">
+        <label htmlFor={inputId} className="text-sm font-medium text-ink">{meta.label}</label>
+        <p className="text-xs text-ink-muted">
           {meta.hint}
           {weighted !== null && weighted !== undefined && (
             <span> · contributes {fmtScore(weighted)} to total</span>
@@ -98,7 +98,7 @@ function ComponentRow({
           type="button"
           disabled={locked || saving || !valid || !changed}
           onClick={() => onSave(num)}
-          className="inline-flex h-8 w-16 items-center justify-center rounded-lg bg-[var(--h-15157d)] text-xs font-semibold text-white hover:opacity-90 disabled:opacity-40"
+          className="inline-flex h-8 w-16 items-center justify-center rounded-lg bg-brand text-xs font-semibold text-white hover:opacity-90 disabled:opacity-40"
         >
           {saving ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : 'Save'}
         </button>
@@ -142,11 +142,11 @@ function GradeAuditTrail({ placementId }: { placementId: string }) {
   const { data: trail, isLoading, isError } = useGradeAudit(placementId, open);
 
   return (
-    <div className="mt-4 border-t border-[var(--h-eef0f5)] pt-3">
+    <div className="mt-4 border-t border-line pt-3">
       <button
         type="button"
         onClick={() => setOpen((o) => !o)}
-        className="flex w-full items-center justify-between text-xs font-semibold text-[var(--h-444653)] hover:text-[var(--h-0b1c30)]"
+        className="flex w-full items-center justify-between text-xs font-semibold text-ink-secondary hover:text-ink"
         aria-expanded={open}
       >
         <span className="inline-flex items-center gap-1.5">
@@ -159,12 +159,12 @@ function GradeAuditTrail({ placementId }: { placementId: string }) {
         <div className="mt-2.5">
           {isLoading && (
             <div className="flex justify-center py-3">
-              <Loader2 className="h-4 w-4 animate-spin text-[var(--h-15157d)]" />
+              <Loader2 className="h-4 w-4 animate-spin text-brand-ink" />
             </div>
           )}
-          {isError && <p className="py-2 text-xs text-[var(--h-b3261e)]">Could not load the history.</p>}
+          {isError && <p className="py-2 text-xs text-danger">Could not load the history.</p>}
           {trail && trail.length === 0 && (
-            <p className="py-2 text-xs text-[var(--h-757684)]">No recorded actions yet.</p>
+            <p className="py-2 text-xs text-ink-muted">No recorded actions yet.</p>
           )}
           {trail && trail.length > 0 && (
             <ol className="space-y-2.5">
@@ -172,13 +172,13 @@ function GradeAuditTrail({ placementId }: { placementId: string }) {
                 const detail = auditDetail(e);
                 return (
                   <li key={e.id} className="flex gap-2.5 text-xs">
-                    <span className="mt-1 h-1.5 w-1.5 shrink-0 rounded-full bg-[var(--h-15157d)]" />
+                    <span className="mt-1 h-1.5 w-1.5 shrink-0 rounded-full bg-brand" />
                     <div className="min-w-0">
-                      <p className="font-medium text-[var(--h-0b1c30)]">
+                      <p className="font-medium text-ink">
                         {AUDIT_LABEL[e.action] ?? e.action}
-                        {detail && <span className="font-normal text-[var(--h-757684)]"> · {detail}</span>}
+                        {detail && <span className="font-normal text-ink-muted"> · {detail}</span>}
                       </p>
-                      <p className="text-[var(--h-757684)]">
+                      <p className="text-ink-muted">
                         {e.actor ? e.actor.name : 'System'} · {fmtDateTime(e.at)}
                       </p>
                     </div>
@@ -235,14 +235,14 @@ function GradeConsole({ placementId, grade }: { placementId: string; grade: Grad
   return (
     <div className={card}>
       <div className="mb-3 flex items-center justify-between">
-        <h3 className="flex items-center gap-2 text-sm font-bold text-[var(--h-0b1c30)]">
-          <Award className="h-4 w-4 text-[var(--h-15157d)]" /> Final grade
+        <h3 className="flex items-center gap-2 text-sm font-bold text-ink">
+          <Award className="h-4 w-4 text-brand-ink" /> Final grade
         </h3>
         <StatusPill status={grade.status} />
       </div>
 
       {err && (
-        <div className="mb-3 flex items-start gap-2 rounded-lg bg-[var(--h-fff1ee)] p-2.5 text-xs text-[var(--h-b3261e)]">
+        <div className="mb-3 flex items-start gap-2 rounded-lg bg-danger-soft p-2.5 text-xs text-danger">
           <AlertCircle className="mt-0.5 h-3.5 w-3.5 shrink-0" /> {apiErr(err)}
         </div>
       )}
@@ -263,16 +263,16 @@ function GradeConsole({ placementId, grade }: { placementId: string; grade: Grad
 
       {/* Industry score delegation — request it from the company supervisor via magic link */}
       {!locked && (
-        <div className="mb-4 rounded-lg border border-dashed border-[var(--h-c4c5d5-60)] p-3">
+        <div className="mb-4 rounded-lg border border-dashed border-line p-3">
           <div className="flex items-center justify-between gap-2">
-            <p className="text-xs text-[var(--h-757684)]">
+            <p className="text-xs text-ink-muted">
               Enter the industry score above, or send the company supervisor a secure link to submit it themselves.
             </p>
             <button
               type="button"
               disabled={invite.isPending}
               onClick={onInvite}
-              className="inline-flex shrink-0 items-center gap-1.5 rounded-lg border border-[var(--h-c4c5d5-60)] px-2.5 py-1.5 text-xs font-semibold text-[var(--h-15157d)] hover:bg-[var(--h-f3f3f7)] disabled:opacity-40"
+              className="inline-flex shrink-0 items-center gap-1.5 rounded-lg border border-line px-2.5 py-1.5 text-xs font-semibold text-brand-ink hover:bg-surface-sunken disabled:opacity-40"
             >
               {invite.isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Link2 className="h-3.5 w-3.5" />}
               {inviteUrl ? 'New link' : 'Request via link'}
@@ -282,11 +282,11 @@ function GradeConsole({ placementId, grade }: { placementId: string; grade: Grad
             <div className="mt-2 flex items-center gap-2">
               <input
                 readOnly value={inviteUrl}
-                className="min-w-0 flex-1 rounded-lg border border-[var(--h-c4c5d5-60)] bg-[var(--h-f3f3f7)] px-2.5 py-1.5 text-xs text-[var(--h-444653)]"
+                className="min-w-0 flex-1 rounded-lg border border-line bg-surface-sunken px-2.5 py-1.5 text-xs text-ink-secondary"
               />
               <button
                 type="button" onClick={onCopy}
-                className="inline-flex shrink-0 items-center gap-1 rounded-lg bg-[var(--h-15157d)] px-2.5 py-1.5 text-xs font-semibold text-white hover:opacity-90"
+                className="inline-flex shrink-0 items-center gap-1 rounded-lg bg-brand px-2.5 py-1.5 text-xs font-semibold text-white hover:opacity-90"
               >
                 {copied ? <Check className="h-3.5 w-3.5" /> : <Copy className="h-3.5 w-3.5" />}
                 {copied ? 'Copied' : 'Copy'}
@@ -297,17 +297,17 @@ function GradeConsole({ placementId, grade }: { placementId: string; grade: Grad
       )}
 
       {/* Totals */}
-      <div className="mb-4 flex items-end justify-between rounded-lg bg-[var(--h-f3f3f7)] p-3">
+      <div className="mb-4 flex items-end justify-between rounded-lg bg-surface-sunken p-3">
         <div>
-          <p className="text-xs text-[var(--h-757684)]">Aggregated total</p>
-          <p className="text-2xl font-bold text-[var(--h-0b1c30)]">{fmtScore(grade.total)}<span className="text-sm font-normal text-[var(--h-757684)]">/100</span></p>
+          <p className="text-xs text-ink-muted">Aggregated total</p>
+          <p className="text-2xl font-bold text-ink">{fmtScore(grade.total)}<span className="text-sm font-normal text-ink-muted">/100</span></p>
           {grade.coordinatorOverride !== null && grade.coordinatorOverride !== undefined && (
-            <p className="mt-0.5 text-xs text-[var(--h-9a6700)]">Override: {fmtScore(grade.coordinatorOverride)} — {grade.overrideReason}</p>
+            <p className="mt-0.5 text-xs text-warn">Override: {fmtScore(grade.coordinatorOverride)} — {grade.overrideReason}</p>
           )}
         </div>
         <div className="text-right">
-          <p className="text-xs text-[var(--h-757684)]">Effective</p>
-          <p className="text-lg font-bold text-[var(--h-15157d)]">{fmtScore(grade.effectiveTotal)}</p>
+          <p className="text-xs text-ink-muted">Effective</p>
+          <p className="text-lg font-bold text-brand-ink">{fmtScore(grade.effectiveTotal)}</p>
         </div>
       </div>
 
@@ -318,7 +318,7 @@ function GradeConsole({ placementId, grade }: { placementId: string; grade: Grad
             type="button"
             disabled={!allEntered || aggregate.isPending}
             onClick={() => aggregate.mutate()}
-            className="inline-flex items-center gap-1.5 rounded-lg bg-[var(--h-15157d)] px-3 py-2 text-xs font-semibold text-white hover:opacity-90 disabled:opacity-40"
+            className="inline-flex items-center gap-1.5 rounded-lg bg-brand px-3 py-2 text-xs font-semibold text-white hover:opacity-90 disabled:opacity-40"
             title={allEntered ? '' : 'Enter all four component scores first'}
           >
             {aggregate.isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <ShieldCheck className="h-3.5 w-3.5" />}
@@ -330,7 +330,7 @@ function GradeConsole({ placementId, grade }: { placementId: string; grade: Grad
             <button
               type="button"
               onClick={() => setShowOverride((s) => !s)}
-              className="inline-flex items-center gap-1.5 rounded-lg border border-[var(--h-c4c5d5-60)] px-3 py-2 text-xs font-semibold text-[var(--h-0b1c30)] hover:bg-[var(--h-f3f3f7)]"
+              className="inline-flex items-center gap-1.5 rounded-lg border border-line px-3 py-2 text-xs font-semibold text-ink hover:bg-surface-sunken"
             >
               <Pencil className="h-3.5 w-3.5" /> Override
             </button>
@@ -338,7 +338,7 @@ function GradeConsole({ placementId, grade }: { placementId: string; grade: Grad
               type="button"
               disabled={release.isPending}
               onClick={() => release.mutate()}
-              className="inline-flex items-center gap-1.5 rounded-lg bg-[var(--h-1b7a45)] px-3 py-2 text-xs font-semibold text-white hover:opacity-90 disabled:opacity-40"
+              className="inline-flex items-center gap-1.5 rounded-lg bg-ok px-3 py-2 text-xs font-semibold text-white hover:opacity-90 disabled:opacity-40"
             >
               {release.isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Send className="h-3.5 w-3.5" />}
               Release to student
@@ -346,24 +346,24 @@ function GradeConsole({ placementId, grade }: { placementId: string; grade: Grad
           </>
         )}
         {grade.status === 'released' && (
-          <p className="inline-flex items-center gap-1.5 text-xs font-medium text-[var(--h-1b7a45)]">
+          <p className="inline-flex items-center gap-1.5 text-xs font-medium text-ok">
             <CheckCircle2 className="h-4 w-4" /> Released{grade.releasedAt ? ` on ${new Date(grade.releasedAt).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}` : ''}
           </p>
         )}
       </div>
 
       {showOverride && grade.status === 'approved' && (
-        <div className="mt-3 space-y-2 rounded-lg border border-[var(--h-c4c5d5-60)] p-3">
+        <div className="mt-3 space-y-2 rounded-lg border border-line p-3">
           <div className="flex items-center gap-2">
             <input
               type="number" min={0} max={100} step="0.5"
               className={inputCls} value={ovTotal}
               onChange={(e) => setOvTotal(e.target.value)} placeholder="New /100"
             />
-            <span className="text-xs text-[var(--h-757684)]">replaces the aggregated total</span>
+            <span className="text-xs text-ink-muted">replaces the aggregated total</span>
           </div>
           <textarea
-            className="w-full rounded-lg border border-[var(--h-c4c5d5-60)] bg-[var(--h-ffffff)] px-2.5 py-1.5 text-sm text-[var(--h-0b1c30)] outline-none focus:border-[var(--h-15157d)]"
+            className="w-full rounded-lg border border-line bg-surface px-2.5 py-1.5 text-sm text-ink outline-none focus:border-brand"
             rows={2} value={ovReason}
             onChange={(e) => setOvReason(e.target.value)}
             placeholder="Reason (required — recorded and audited)"
@@ -372,7 +372,7 @@ function GradeConsole({ placementId, grade }: { placementId: string; grade: Grad
             type="button"
             disabled={override.isPending || !ovReason.trim() || ovTotal === ''}
             onClick={onOverride}
-            className="rounded-lg bg-[var(--h-15157d)] px-3 py-2 text-xs font-semibold text-white hover:opacity-90 disabled:opacity-40"
+            className="rounded-lg bg-brand px-3 py-2 text-xs font-semibold text-white hover:opacity-90 disabled:opacity-40"
           >
             {override.isPending ? 'Saving…' : 'Save override'}
           </button>
@@ -394,13 +394,13 @@ function SupervisorComponents({ placementId, grade }: { placementId: string; gra
   return (
     <div className={card}>
       <div className="mb-3 flex items-center justify-between">
-        <h3 className="flex items-center gap-2 text-sm font-bold text-[var(--h-0b1c30)]">
-          <Award className="h-4 w-4 text-[var(--h-15157d)]" /> Assessment scores
+        <h3 className="flex items-center gap-2 text-sm font-bold text-ink">
+          <Award className="h-4 w-4 text-brand-ink" /> Assessment scores
         </h3>
         <StatusPill status={grade.status} />
       </div>
       {score.error && (
-        <div className="mb-3 flex items-start gap-2 rounded-lg bg-[var(--h-fff1ee)] p-2.5 text-xs text-[var(--h-b3261e)]">
+        <div className="mb-3 flex items-start gap-2 rounded-lg bg-danger-soft p-2.5 text-xs text-danger">
           <AlertCircle className="mt-0.5 h-3.5 w-3.5 shrink-0" /> {apiErr(score.error)}
         </div>
       )}
@@ -417,7 +417,7 @@ function SupervisorComponents({ placementId, grade }: { placementId: string; gra
           />
         ))}
       </div>
-      <p className="mt-3 flex items-start gap-1.5 text-xs text-[var(--h-757684)]">
+      <p className="mt-3 flex items-start gap-1.5 text-xs text-ink-muted">
         <Lock className="mt-0.5 h-3 w-3 shrink-0" />
         The industry score and the aggregated total are set and held by the coordinator.
       </p>
@@ -430,11 +430,11 @@ function StudentGrade({ grade }: { grade: GradeView }) {
   if (!grade.released) {
     return (
       <div className={card}>
-        <h3 className="mb-2 flex items-center gap-2 text-sm font-bold text-[var(--h-0b1c30)]">
-          <Award className="h-4 w-4 text-[var(--h-15157d)]" /> Final grade
+        <h3 className="mb-2 flex items-center gap-2 text-sm font-bold text-ink">
+          <Award className="h-4 w-4 text-brand-ink" /> Final grade
         </h3>
-        <p className="flex items-start gap-2 text-sm text-[var(--h-444653)]">
-          <Lock className="mt-0.5 h-4 w-4 shrink-0 text-[var(--h-15157d)]" />
+        <p className="flex items-start gap-2 text-sm text-ink-secondary">
+          <Lock className="mt-0.5 h-4 w-4 shrink-0 text-brand-ink" />
           Your final grade will appear here once it has been signed off and released.
         </p>
       </div>
@@ -442,14 +442,14 @@ function StudentGrade({ grade }: { grade: GradeView }) {
   }
   return (
     <div className={card}>
-      <h3 className="mb-2 flex items-center gap-2 text-sm font-bold text-[var(--h-0b1c30)]">
-        <Award className="h-4 w-4 text-[var(--h-15157d)]" /> Final grade
+      <h3 className="mb-2 flex items-center gap-2 text-sm font-bold text-ink">
+        <Award className="h-4 w-4 text-brand-ink" /> Final grade
       </h3>
-      <p className="text-4xl font-bold text-[var(--h-15157d)]">
-        {fmtScore(grade.total)}<span className="text-lg font-normal text-[var(--h-757684)]">/100</span>
+      <p className="text-4xl font-bold text-brand-ink">
+        {fmtScore(grade.total)}<span className="text-lg font-normal text-ink-muted">/100</span>
       </p>
       {grade.releasedAt && (
-        <p className="mt-1 text-xs text-[var(--h-757684)]">
+        <p className="mt-1 text-xs text-ink-muted">
           Released on {new Date(grade.releasedAt).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}
         </p>
       )}
@@ -477,7 +477,7 @@ export function GradePanel({ placementId }: { placementId: string }) {
   if (isLoading) {
     return (
       <div className={`${card} flex items-center justify-center`}>
-        <Loader2 className="h-5 w-5 animate-spin text-[var(--h-15157d)]" />
+        <Loader2 className="h-5 w-5 animate-spin text-brand-ink" />
       </div>
     );
   }
