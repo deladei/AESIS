@@ -11,7 +11,6 @@ import { buildSchedule, fmtRange, SCHEDULE_WEEKS } from '@/lib/schedule';
 import { Card, CardHeader } from '@/components/ui/Card';
 import { Badge, type BadgeTone } from '@/components/ui/Badge';
 import { ProgressBar } from '@/components/ui/Bits';
-import { DonutStat } from '@/components/ui/Charts';
 import { EmptyState, SkeletonRows } from '@/components/ui/Feedback';
 
 /**
@@ -252,17 +251,7 @@ export default function SubmissionHistory() {
               </div>
             </div>
 
-            <div className="sm:w-[190px]">
-              <DonutStat
-                data={[
-                  { label: 'Submitted', value: submitted, color: 'var(--brand)' },
-                  { label: 'Remaining', value: remaining, color: 'var(--line-strong)' },
-                ]}
-                centerValue={`${pct}%`}
-                centerCaption="Complete"
-                emptyHint="Your first submission starts this."
-              />
-            </div>
+            <ProgressRing pct={pct} />
           </div>
         </Card>
 
@@ -372,6 +361,33 @@ export default function SubmissionHistory() {
           )}
         </Card>
       </aside>
+    </div>
+  );
+}
+
+/**
+ * The completion ring.
+ *
+ * Deliberately not `DonutStat`: that component pairs its chart with its own
+ * legend at `sm:flex-row`, and a viewport breakpoint knows nothing about the
+ * 190px column it was being asked to sit in — the legend overflowed the card
+ * and collided with the rail. The dot legend beside the progress bar already
+ * names the three slices, so this draws the ring alone.
+ */
+function ProgressRing({ pct }: { pct: number }) {
+  return (
+    <div
+      className="grid h-[150px] w-[150px] shrink-0 place-items-center rounded-full"
+      style={{ background: `conic-gradient(var(--brand) ${pct * 3.6}deg, var(--surface-sunken) 0deg)` }}
+      role="img"
+      aria-label={`${pct}% of the programme submitted`}
+    >
+      <div className="grid h-[112px] w-[112px] place-items-center rounded-full bg-surface text-center">
+        <div>
+          <p className="text-2xl font-bold text-ink">{pct}%</p>
+          <p className="text-[11px] text-ink-muted">Complete</p>
+        </div>
+      </div>
     </div>
   );
 }

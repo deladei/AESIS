@@ -31,9 +31,12 @@ export default defineConfig(({ mode }) => ({
   server: {
     port: 5173,
     ...(mode === 'development' && {
+      // 127.0.0.1, never `localhost`: on a host where `localhost` resolves to
+      // ::1 first and the API is listening on IPv4 only, every proxied request
+      // fails with ECONNREFUSED and the SPA looks like a backend outage.
       proxy: {
-        '/api':       { target: 'http://localhost:3002', changeOrigin: true },
-        '/socket.io': { target: 'http://localhost:3002', changeOrigin: true, ws: true },
+        '/api':       { target: 'http://127.0.0.1:3002', changeOrigin: true },
+        '/socket.io': { target: 'http://127.0.0.1:3002', changeOrigin: true, ws: true },
       },
     }),
   },

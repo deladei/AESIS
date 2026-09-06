@@ -3,16 +3,21 @@ import { Link } from 'react-router-dom';
 import { Settings, LogOut, ShieldCheck, UserRound } from 'lucide-react';
 import { useClickOutside } from '@/hooks/useClickOutside';
 import { useAuth } from '@/contexts/AuthContext';
+import { ROLE_LABELS } from '@/lib/roles';
 import { UserAvatar } from './UserAvatar';
 
 /**
- * Account menu (item 21) — avatar/name button opening a dropdown with the
- * coordinator's identity + role, a link to Settings, and Sign out.
+ * Account menu — avatar/name button opening a dropdown with the signed-in
+ * user's identity + role, a link to Settings, and Sign out.
+ *
+ * The subtitle used to be the literal string "Head Coordinator" for everybody,
+ * so a student saw themselves labelled as the coordinator on every page.
  */
 export default function AccountMenu({ user }: { user: { name: string; email: string; initials: string; avatarUrl?: string | null } }) {
   const [open, setOpen] = useState(false);
   const ref = useClickOutside<HTMLDivElement>(() => setOpen(false));
-  const { logout } = useAuth();
+  const { logout, user: authUser } = useAuth();
+  const roleLabel = authUser?.role ? ROLE_LABELS[authUser.role] ?? 'Account' : 'Account';
 
   return (
     <div className="relative" ref={ref}>
@@ -23,7 +28,7 @@ export default function AccountMenu({ user }: { user: { name: string; email: str
       >
         <span className="hidden text-right lg:block">
           <span className="block text-sm font-bold text-brand-ink">{user.name}</span>
-          <span className="block text-xs text-ink-muted">Head Coordinator</span>
+          <span className="block text-xs text-ink-muted">{roleLabel}</span>
         </span>
         <UserAvatar avatarUrl={user.avatarUrl} initials={user.initials} name={user.name} />
       </button>
