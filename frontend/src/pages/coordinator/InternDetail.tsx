@@ -14,7 +14,7 @@ const STATUS_CLS: Record<string, string> = {
   draft:        'bg-warn-soft text-warn',
 };
 const RISK_CLS: Record<string, string> = {
-  low: 'bg-emerald-100 text-emerald-700', medium: 'bg-amber-100 text-amber-700', high: 'bg-red-100 text-red-700',
+  low: 'bg-ok-soft text-ok', medium: 'bg-warn-soft text-warn', high: 'bg-danger-soft text-danger',
 };
 
 function fmt(iso: string | null) {
@@ -34,7 +34,7 @@ export default function InternDetail() {
   if (isError || !data) {
     return (
       <div className="flex min-h-[60vh] flex-col items-center justify-center gap-3 p-6 text-center">
-        <AlertCircle className="h-8 w-8 text-red-500" />
+        <AlertCircle className="h-8 w-8 text-danger" />
         <p className="text-sm text-ink-secondary">Couldn't load this intern.</p>
         <button onClick={() => refetch()} className="rounded-lg bg-brand px-4 py-2 text-sm font-semibold text-white hover:opacity-90">Try again</button>
       </div>
@@ -70,8 +70,8 @@ export default function InternDetail() {
       </div>
 
       {placement.flagged && (
-        <div className="mb-4 flex items-start gap-2 rounded-lg border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-800">
-          <Flag className="mt-0.5 h-4 w-4 shrink-0 fill-amber-400 text-amber-500" />
+        <div className="mb-4 flex items-start gap-2 rounded-lg border border-warn bg-warn-soft px-4 py-3 text-sm text-warn">
+          <Flag className="mt-0.5 h-4 w-4 shrink-0 fill-warn text-warn" />
           <span><strong>Flagged for attention.</strong>{placement.flagReason ? ` ${placement.flagReason}` : ''}</span>
         </div>
       )}

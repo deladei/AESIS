@@ -3,11 +3,11 @@ import { ArrowLeft, Building2, Globe, Loader2, Users, Inbox } from 'lucide-react
 import { useCompanyInterns } from '@/hooks/usePlacements';
 
 const STATUS_STYLES: Record<string, string> = {
-  active:    'bg-emerald-50 text-emerald-700 border-emerald-200',
-  pending:   'bg-amber-50 text-amber-700 border-amber-200',
-  rejected:  'bg-red-50 text-red-700 border-red-200',
-  withdrawn: 'bg-red-50 text-red-700 border-red-200',
-  failed:    'bg-red-50 text-red-700 border-red-200',
+  active:    'bg-ok-soft text-ok border-ok',
+  pending:   'bg-warn-soft text-warn border-warn',
+  rejected:  'bg-danger-soft text-danger border-danger',
+  withdrawn: 'bg-danger-soft text-danger border-danger',
+  failed:    'bg-danger-soft text-danger border-danger',
   completed: 'bg-brand-soft text-brand-ink border-line',
 };
 
@@ -117,7 +117,7 @@ export default function CompanyDetail() {
                     <td className="px-5 py-4 text-ink-secondary">
                       {p.academicSupervisor
                         ? `${p.academicSupervisor.firstName} ${p.academicSupervisor.lastName}`
-                        : <span className="text-amber-600">Unassigned</span>}
+                        : <span className="text-warn">Unassigned</span>}
                     </td>
                     <td className="px-5 py-4 text-ink-secondary">
                       {fmtDate(p.startDate)} – {fmtDate(p.endDate)}

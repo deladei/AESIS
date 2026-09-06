@@ -7,7 +7,7 @@ import { newPassword } from '@/lib/validation';
 const inputClass = (hasError: boolean) =>
   `w-full px-4 py-2.5 pr-11 rounded-lg bg-surface border text-ink placeholder:text-ink-muted text-sm focus:outline-none focus:ring-1 transition-colors duration-150 ${
     hasError
-      ? 'border-red-400 focus:border-red-500 focus:ring-red-500'
+      ? 'border-danger focus:border-danger focus:ring-danger'
       : 'border-line focus:border-brand focus:ring-brand'
   }`;
 
@@ -73,8 +73,8 @@ export default function ResetPasswordConfirmPage() {
     return (
       <div className="min-h-screen bg-surface flex items-center justify-center p-8">
         <div className="text-center max-w-md">
-          <div className="w-16 h-16 rounded-full bg-emerald-50 border border-emerald-200 flex items-center justify-center mx-auto mb-6">
-            <CheckCircle2 className="w-8 h-8 text-emerald-600" />
+          <div className="w-16 h-16 rounded-full bg-ok-soft border border-ok flex items-center justify-center mx-auto mb-6">
+            <CheckCircle2 className="w-8 h-8 text-ok" />
           </div>
           <h2 className="text-2xl font-bold text-ink mb-3">Password updated</h2>
           <p className="text-ink-muted text-sm mb-8">
@@ -106,7 +106,7 @@ export default function ResetPasswordConfirmPage() {
         <p className="text-ink-muted text-sm mb-8">Minimum 8 characters.</p>
 
         {error && (
-          <div className="mb-6 px-4 py-3 rounded-lg bg-red-50 border border-red-200 text-red-700 text-sm">
+          <div className="mb-6 px-4 py-3 rounded-lg bg-danger-soft border border-danger text-danger text-sm">
             {error}{' '}
             <Link to="/auth/reset-password" className="font-medium underline underline-offset-2">
               Request a new link
@@ -155,7 +155,7 @@ export default function ResetPasswordConfirmPage() {
               placeholder="••••••••"
               className={inputClass(!!fieldError)}
             />
-            {fieldError && <p className="mt-1 text-xs text-red-600">{fieldError}</p>}
+            {fieldError && <p className="mt-1 text-xs text-danger">{fieldError}</p>}
           </div>
 
           <button

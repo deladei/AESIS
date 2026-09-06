@@ -21,7 +21,7 @@ export default function SupervisorWorkloadPanel({ scopeYearId }: { scopeYearId?:
         {data?.summary.imbalanced && (
           <span
             title={`Spread of ${data.summary.spread} interns between the busiest and quietest supervisor`}
-            className="inline-flex items-center gap-1 rounded-full bg-amber-50 px-2 py-0.5 text-[11px] font-semibold text-amber-700"
+            className="inline-flex items-center gap-1 rounded-full bg-warn-soft px-2 py-0.5 text-[11px] font-semibold text-warn"
           >
             <AlertTriangle className="h-3 w-3" /> Imbalanced
           </span>
@@ -48,11 +48,11 @@ export default function SupervisorWorkloadPanel({ scopeYearId }: { scopeYearId?:
                 </span>
                 <div className="h-2 flex-1 overflow-hidden rounded-full bg-surface-sunken">
                   <div
-                    className={`h-full rounded-full ${r.overloaded ? 'bg-amber-500' : 'bg-brand'}`}
+                    className={`h-full rounded-full ${r.overloaded ? 'bg-warn' : 'bg-brand'}`}
                     style={{ width: `${max > 0 ? Math.round((r.internCount / max) * 100) : 0}%` }}
                   />
                 </div>
-                <span className={`w-8 shrink-0 text-right text-sm font-semibold ${r.overloaded ? 'text-amber-600' : 'text-ink'}`}>
+                <span className={`w-8 shrink-0 text-right text-sm font-semibold ${r.overloaded ? 'text-warn' : 'text-ink'}`}>
                   {r.internCount}
                 </span>
               </li>

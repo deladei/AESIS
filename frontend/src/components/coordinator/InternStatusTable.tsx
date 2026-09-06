@@ -250,10 +250,10 @@ export default function InternStatusTable({ pageSize = 20, viewAllHref, scopeYea
             aria-pressed={live}
             title={live ? `Live — refreshing every ${LIVE_POLL_MS / 1000}s` : 'Paused — click for live updates'}
             className={`inline-flex items-center gap-1.5 rounded-lg border px-2.5 py-1.5 text-xs font-semibold transition-colors ${
-              live ? 'border-emerald-300 bg-emerald-50 text-emerald-700' : 'border-line text-ink-muted hover:text-brand-ink'
+              live ? 'border-ok bg-ok-soft text-ok' : 'border-line text-ink-muted hover:text-brand-ink'
             }`}
           >
-            <span className={`h-2 w-2 rounded-full ${live ? `bg-emerald-500 ${isFetching ? 'animate-ping' : 'animate-pulse'}` : 'bg-line-strong'}`} />
+            <span className={`h-2 w-2 rounded-full ${live ? `bg-ok ${isFetching ? 'animate-ping' : 'animate-pulse'}` : 'bg-line-strong'}`} />
             {live ? 'Live' : 'Paused'}
           </button>
           <button

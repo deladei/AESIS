@@ -200,10 +200,10 @@ export default function RegisterPage() {
   };
 
   const fieldClass = (hasError: boolean) =>
-    `w-full px-4 py-2.5 rounded-lg bg-slate-800 border text-slate-100 placeholder-slate-500 text-sm focus:outline-none focus:ring-1 transition-colors duration-150 ${
+    `w-full px-4 py-2.5 rounded-lg bg-ink border text-ink-muted placeholder:text-ink-muted text-sm focus:outline-none focus:ring-1 transition-colors duration-150 ${
       hasError
-        ? 'border-red-500 focus:border-red-500 focus:ring-red-500'
-        : 'border-slate-700 focus:border-blue-500 focus:ring-blue-500'
+        ? 'border-danger focus:border-danger focus:ring-danger'
+        : 'border-line-strong focus:border-brand focus:ring-brand'
     }`;
 
   const setField = <K extends keyof FormState>(key: K, value: FormState[K]) =>
@@ -211,24 +211,24 @@ export default function RegisterPage() {
 
   if (success) {
     return (
-      <div className="min-h-screen bg-slate-950 flex items-center justify-center p-8">
+      <div className="min-h-screen bg-ink flex items-center justify-center p-8">
         <div className="text-center max-w-md">
-          <div className="w-16 h-16 rounded-full bg-emerald-500/10 border border-emerald-500/30 flex items-center justify-center mx-auto mb-6">
-            <CheckCircle2 className="w-8 h-8 text-emerald-400" />
+          <div className="w-16 h-16 rounded-full bg-ok/10 border border-ok/30 flex items-center justify-center mx-auto mb-6">
+            <CheckCircle2 className="w-8 h-8 text-ok" />
           </div>
           <h2 className="text-2xl font-bold text-white mb-3">Account created!</h2>
-          <p className="text-slate-400 text-sm mb-8">
+          <p className="text-ink-secondary text-sm mb-8">
             {requiresVerification ? (
-              <>We sent a verification link to <span className="text-slate-200 font-medium">{form.email}</span>.
+              <>We sent a verification link to <span className="text-ink-muted font-medium">{form.email}</span>.
               Check your inbox to activate your account before signing in.</>
             ) : (
-              <>Your account for <span className="text-slate-200 font-medium">{form.email}</span> is ready.
+              <>Your account for <span className="text-ink-muted font-medium">{form.email}</span> is ready.
               You can now sign in.</>
             )}
           </p>
           <Link
             to="/auth/login"
-            className="inline-flex px-6 py-2.5 rounded-lg bg-blue-600 hover:bg-blue-500 text-white font-semibold text-sm transition-colors duration-150 cursor-pointer"
+            className="inline-flex px-6 py-2.5 rounded-lg bg-brand hover:bg-brand text-white font-semibold text-sm transition-colors duration-150 cursor-pointer"
           >
             Back to sign in
           </Link>
@@ -238,22 +238,22 @@ export default function RegisterPage() {
   }
 
   return (
-    <div className="min-h-screen bg-slate-950 flex items-center justify-center p-4 sm:p-8">
+    <div className="min-h-screen bg-ink flex items-center justify-center p-4 sm:p-8">
       <div className="w-full max-w-lg">
         <div className="flex items-center gap-3 mb-8 sm:mb-10">
-          <div className="w-9 h-9 rounded-xl bg-blue-600 flex items-center justify-center">
+          <div className="w-9 h-9 rounded-xl bg-brand flex items-center justify-center">
             <span className="text-white font-bold font-mono">A</span>
           </div>
           <p className="text-white font-bold text-lg">AESIS</p>
         </div>
 
         <h2 className="text-2xl font-bold text-white mb-1">Create account</h2>
-        <p className="text-slate-400 text-sm mb-6 sm:mb-8">Create your AESIS account to participate in the internship programme.</p>
+        <p className="text-ink-secondary text-sm mb-6 sm:mb-8">Create your AESIS account to participate in the internship programme.</p>
 
         <form onSubmit={handleSubmit} className="space-y-5">
           {/* Role selector */}
           <div>
-            <label className="block text-sm font-medium text-slate-300 mb-2">I am a…</label>
+            <label className="block text-sm font-medium text-ink-muted mb-2">I am a…</label>
             <div className="grid gap-2">
               {ROLE_CHOICES.map(({ value, label, description, icon: Icon }) => {
                 const selected = form.role === value;
@@ -262,8 +262,8 @@ export default function RegisterPage() {
                     key={value}
                     className={`flex items-start gap-3 p-3 rounded-lg border cursor-pointer transition-colors duration-150 ${
                       selected
-                        ? 'bg-blue-600/10 border-blue-500'
-                        : 'bg-slate-800 border-slate-700 hover:border-slate-600'
+                        ? 'bg-brand/10 border-brand'
+                        : 'bg-ink border-line-strong hover:border-line'
                     }`}
                   >
                     <input
@@ -274,10 +274,10 @@ export default function RegisterPage() {
                       onChange={() => setField('role', value)}
                       className="sr-only"
                     />
-                    <Icon className={`w-5 h-5 mt-0.5 shrink-0 ${selected ? 'text-blue-400' : 'text-slate-400'}`} />
+                    <Icon className={`w-5 h-5 mt-0.5 shrink-0 ${selected ? 'text-brand' : 'text-ink-secondary'}`} />
                     <div className="min-w-0">
-                      <p className={`text-sm font-medium ${selected ? 'text-white' : 'text-slate-200'}`}>{label}</p>
-                      <p className="text-xs text-slate-400 mt-0.5">{description}</p>
+                      <p className={`text-sm font-medium ${selected ? 'text-white' : 'text-ink-muted'}`}>{label}</p>
+                      <p className="text-xs text-ink-secondary mt-0.5">{description}</p>
                     </div>
                   </label>
                 );
@@ -287,7 +287,7 @@ export default function RegisterPage() {
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
-              <label htmlFor="firstName" className="block text-sm font-medium text-slate-300 mb-1.5">First name</label>
+              <label htmlFor="firstName" className="block text-sm font-medium text-ink-muted mb-1.5">First name</label>
               <input
                 id="firstName"
                 type="text"
@@ -297,10 +297,10 @@ export default function RegisterPage() {
                 onChange={(e) => setField('firstName', e.target.value)}
                 className={fieldClass(!!errors.firstName)}
               />
-              {errors.firstName && <p className="mt-1 text-xs text-red-400">{errors.firstName}</p>}
+              {errors.firstName && <p className="mt-1 text-xs text-danger">{errors.firstName}</p>}
             </div>
             <div>
-              <label htmlFor="lastName" className="block text-sm font-medium text-slate-300 mb-1.5">Last name</label>
+              <label htmlFor="lastName" className="block text-sm font-medium text-ink-muted mb-1.5">Last name</label>
               <input
                 id="lastName"
                 type="text"
@@ -310,12 +310,12 @@ export default function RegisterPage() {
                 onChange={(e) => setField('lastName', e.target.value)}
                 className={fieldClass(!!errors.lastName)}
               />
-              {errors.lastName && <p className="mt-1 text-xs text-red-400">{errors.lastName}</p>}
+              {errors.lastName && <p className="mt-1 text-xs text-danger">{errors.lastName}</p>}
             </div>
           </div>
 
           <div>
-            <label htmlFor="email" className="block text-sm font-medium text-slate-300 mb-1.5">Email address</label>
+            <label htmlFor="email" className="block text-sm font-medium text-ink-muted mb-1.5">Email address</label>
             <input
               id="email"
               type="email"
@@ -325,11 +325,11 @@ export default function RegisterPage() {
               onChange={(e) => setField('email', e.target.value)}
               className={fieldClass(!!errors.email)}
             />
-            {errors.email && <p className="mt-1 text-xs text-red-400">{errors.email}</p>}
+            {errors.email && <p className="mt-1 text-xs text-danger">{errors.email}</p>}
           </div>
 
           <div>
-            <label htmlFor="password" className="block text-sm font-medium text-slate-300 mb-1.5">Password</label>
+            <label htmlFor="password" className="block text-sm font-medium text-ink-muted mb-1.5">Password</label>
             <div className="relative">
               <input
                 id="password"
@@ -343,50 +343,50 @@ export default function RegisterPage() {
               <button
                 type="button"
                 onClick={() => setShowPassword(!showPassword)}
-                className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-200 transition-colors cursor-pointer"
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-ink-secondary hover:text-ink-muted transition-colors cursor-pointer"
                 aria-label="Toggle password visibility"
               >
                 {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
               </button>
             </div>
-            {errors.password && <p className="mt-1 text-xs text-red-400">{errors.password}</p>}
+            {errors.password && <p className="mt-1 text-xs text-danger">{errors.password}</p>}
           </div>
 
           <div>
-            <label htmlFor="gender" className="block text-sm font-medium text-slate-300 mb-1.5">Gender</label>
+            <label htmlFor="gender" className="block text-sm font-medium text-ink-muted mb-1.5">Gender</label>
             <select
               id="gender"
               value={form.gender}
               onChange={(e) => setField('gender', e.target.value as FormState['gender'])}
-              className={`${fieldClass(!!errors.gender)} cursor-pointer ${form.gender ? 'text-slate-100' : 'text-slate-500'}`}
+              className={`${fieldClass(!!errors.gender)} cursor-pointer ${form.gender ? 'text-ink-muted' : 'text-ink-secondary'}`}
             >
               <option value="" disabled>Select gender</option>
-              <option value="female" className="text-slate-100">Female</option>
-              <option value="male" className="text-slate-100">Male</option>
-              <option value="other" className="text-slate-100">Other</option>
+              <option value="female" className="text-ink-muted">Female</option>
+              <option value="male" className="text-ink-muted">Male</option>
+              <option value="other" className="text-ink-muted">Other</option>
             </select>
-            {errors.gender && <p className="mt-1 text-xs text-red-400">{errors.gender}</p>}
+            {errors.gender && <p className="mt-1 text-xs text-danger">{errors.gender}</p>}
           </div>
 
           {form.role === 'academic_supervisor' && (
             <div className="grid grid-cols-1 sm:grid-cols-[8rem_1fr] gap-4">
               <div>
-                <label htmlFor="title" className="block text-sm font-medium text-slate-300 mb-1.5">Title</label>
+                <label htmlFor="title" className="block text-sm font-medium text-ink-muted mb-1.5">Title</label>
                 <select
                   id="title"
                   value={form.title}
                   onChange={(e) => setField('title', e.target.value)}
-                  className={`${fieldClass(!!errors.title)} cursor-pointer ${form.title ? 'text-slate-100' : 'text-slate-500'}`}
+                  className={`${fieldClass(!!errors.title)} cursor-pointer ${form.title ? 'text-ink-muted' : 'text-ink-secondary'}`}
                 >
                   <option value="" disabled>Select</option>
                   {['Prof.', 'Dr.', 'Mr.', 'Mrs.', 'Ms.'].map((t) => (
-                    <option key={t} value={t} className="text-slate-100">{t}</option>
+                    <option key={t} value={t} className="text-ink-muted">{t}</option>
                   ))}
                 </select>
-                {errors.title && <p className="mt-1 text-xs text-red-400">{errors.title}</p>}
+                {errors.title && <p className="mt-1 text-xs text-danger">{errors.title}</p>}
               </div>
               <div>
-                <label htmlFor="staffId" className="block text-sm font-medium text-slate-300 mb-1.5">Staff ID</label>
+                <label htmlFor="staffId" className="block text-sm font-medium text-ink-muted mb-1.5">Staff ID</label>
                 <input
                   id="staffId"
                   type="text"
@@ -395,14 +395,14 @@ export default function RegisterPage() {
                   onChange={(e) => setField('staffId', e.target.value)}
                   className={fieldClass(!!errors.staffId)}
                 />
-                {errors.staffId && <p className="mt-1 text-xs text-red-400">{errors.staffId}</p>}
+                {errors.staffId && <p className="mt-1 text-xs text-danger">{errors.staffId}</p>}
               </div>
             </div>
           )}
 
           {form.role === 'student' && (
             <div>
-              <label htmlFor="indexNumber" className="block text-sm font-medium text-slate-300 mb-1.5">Index number</label>
+              <label htmlFor="indexNumber" className="block text-sm font-medium text-ink-muted mb-1.5">Index number</label>
               <input
                 id="indexNumber"
                 type="text"
@@ -411,13 +411,13 @@ export default function RegisterPage() {
                 onChange={(e) => setField('indexNumber', e.target.value)}
                 className={fieldClass(!!errors.indexNumber)}
               />
-              {errors.indexNumber && <p className="mt-1 text-xs text-red-400">{errors.indexNumber}</p>}
+              {errors.indexNumber && <p className="mt-1 text-xs text-danger">{errors.indexNumber}</p>}
             </div>
           )}
 
           {form.role === 'student' && (
             <div ref={programmeRef}>
-              <label className="block text-sm font-medium text-slate-300 mb-1.5">Programme</label>
+              <label className="block text-sm font-medium text-ink-muted mb-1.5">Programme</label>
               <div className="relative">
                 <button
                   ref={programmeButtonRef}
@@ -430,35 +430,35 @@ export default function RegisterPage() {
                   aria-expanded={programmeOpen}
                   className={`${fieldClass(!!errors.programmeId)} flex items-center justify-between text-left cursor-pointer`}
                 >
-                  <span className={form.programmeId ? 'text-slate-100' : 'text-slate-500'}>
+                  <span className={form.programmeId ? 'text-ink-muted' : 'text-ink-secondary'}>
                     {programmes.find((p) => p.id === form.programmeId)?.name ?? 'Select programme'}
                   </span>
-                  <ChevronDown className={`w-4 h-4 text-slate-400 shrink-0 transition-transform duration-150 ${programmeOpen ? 'rotate-180' : ''}`} />
+                  <ChevronDown className={`w-4 h-4 text-ink-secondary shrink-0 transition-transform duration-150 ${programmeOpen ? 'rotate-180' : ''}`} />
                 </button>
                 {programmeOpen && (
                   <ul
                     role="listbox"
-                    className={`absolute z-20 w-full max-h-60 overflow-auto rounded-lg bg-slate-800 border border-slate-700 shadow-xl scrollbar-thin py-1 ${
+                    className={`absolute z-20 w-full max-h-60 overflow-auto rounded-lg bg-ink border border-line-strong shadow-xl scrollbar-thin py-1 ${
                       programmePlacement === 'above' ? 'bottom-full mb-1.5' : 'top-full mt-1.5'
                     }`}
                   >
                     {programmesLoading ? (
-                      <li className="flex items-center gap-2 px-4 py-2.5 text-sm text-slate-400">
+                      <li className="flex items-center gap-2 px-4 py-2.5 text-sm text-ink-secondary">
                         <Loader2 className="w-3.5 h-3.5 animate-spin" /> Loading programmes…
                       </li>
                     ) : programmeLoadError ? (
                       <li className="px-4 py-2.5 text-sm">
-                        <p className="text-red-400 mb-1.5">Couldn't load programmes.</p>
+                        <p className="text-danger mb-1.5">Couldn't load programmes.</p>
                         <button
                           type="button"
                           onClick={(e) => { e.stopPropagation(); loadProgrammes(); }}
-                          className="text-blue-400 hover:text-blue-300 underline underline-offset-2 cursor-pointer"
+                          className="text-brand hover:text-brand underline underline-offset-2 cursor-pointer"
                         >
                           Try again
                         </button>
                       </li>
                     ) : programmes.length === 0 ? (
-                      <li className="px-4 py-2.5 text-sm text-slate-500">No programmes available</li>
+                      <li className="px-4 py-2.5 text-sm text-ink-secondary">No programmes available</li>
                     ) : (
                       programmes.map((p) => {
                         const selected = p.id === form.programmeId;
@@ -468,7 +468,7 @@ export default function RegisterPage() {
                               type="button"
                               onClick={() => { setField('programmeId', p.id); setProgrammeOpen(false); }}
                               className={`w-full flex items-center justify-between gap-2 text-left px-4 py-2.5 text-sm cursor-pointer transition-colors duration-100 ${
-                                selected ? 'bg-blue-600/15 text-blue-300' : 'text-slate-200 hover:bg-slate-700/60'
+                                selected ? 'bg-brand/15 text-brand' : 'text-ink-muted hover:bg-ink/60'
                               }`}
                             >
                               <span className="truncate">{p.name}</span>
@@ -481,32 +481,32 @@ export default function RegisterPage() {
                   </ul>
                 )}
               </div>
-              {errors.programmeId && <p className="mt-1 text-xs text-red-400">{errors.programmeId}</p>}
+              {errors.programmeId && <p className="mt-1 text-xs text-danger">{errors.programmeId}</p>}
             </div>
           )}
 
           {form.role === 'student' && (
-            <div className="space-y-4 rounded-lg border border-slate-800 bg-slate-900/40 p-4">
-              <p className="text-sm font-medium text-slate-200">Your placement</p>
+            <div className="space-y-4 rounded-lg border border-line-strong bg-ink/40 p-4">
+              <p className="text-sm font-medium text-ink-muted">Your placement</p>
 
               <div>
-                <label htmlFor="region" className="block text-sm font-medium text-slate-300 mb-1.5">Region</label>
+                <label htmlFor="region" className="block text-sm font-medium text-ink-muted mb-1.5">Region</label>
                 <select
                   id="region"
                   value={form.region}
                   onChange={(e) => setField('region', e.target.value)}
-                  className={`${fieldClass(!!errors.region)} cursor-pointer ${form.region ? 'text-slate-100' : 'text-slate-500'}`}
+                  className={`${fieldClass(!!errors.region)} cursor-pointer ${form.region ? 'text-ink-muted' : 'text-ink-secondary'}`}
                 >
                   <option value="" disabled>Select region</option>
                   {REGION_VALUES.map((r) => (
-                    <option key={r} value={r} className="text-slate-100">{REGION_LABELS[r]}</option>
+                    <option key={r} value={r} className="text-ink-muted">{REGION_LABELS[r]}</option>
                   ))}
                 </select>
-                {errors.region && <p className="mt-1 text-xs text-red-400">{errors.region}</p>}
+                {errors.region && <p className="mt-1 text-xs text-danger">{errors.region}</p>}
               </div>
 
               <div>
-                <label htmlFor="companyName" className="block text-sm font-medium text-slate-300 mb-1.5">Company name</label>
+                <label htmlFor="companyName" className="block text-sm font-medium text-ink-muted mb-1.5">Company name</label>
                 <input
                   id="companyName"
                   type="text"
@@ -515,11 +515,11 @@ export default function RegisterPage() {
                   onChange={(e) => setField('companyName', e.target.value)}
                   className={fieldClass(!!errors.companyName)}
                 />
-                {errors.companyName && <p className="mt-1 text-xs text-red-400">{errors.companyName}</p>}
+                {errors.companyName && <p className="mt-1 text-xs text-danger">{errors.companyName}</p>}
               </div>
 
               <div>
-                <label htmlFor="companyAddress" className="block text-sm font-medium text-slate-300 mb-1.5">Company address</label>
+                <label htmlFor="companyAddress" className="block text-sm font-medium text-ink-muted mb-1.5">Company address</label>
                 <input
                   id="companyAddress"
                   type="text"
@@ -528,12 +528,12 @@ export default function RegisterPage() {
                   onChange={(e) => setField('companyAddress', e.target.value)}
                   className={fieldClass(!!errors.companyAddress)}
                 />
-                {errors.companyAddress && <p className="mt-1 text-xs text-red-400">{errors.companyAddress}</p>}
+                {errors.companyAddress && <p className="mt-1 text-xs text-danger">{errors.companyAddress}</p>}
               </div>
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
-                  <label htmlFor="companySupervisorName" className="block text-sm font-medium text-slate-300 mb-1.5">Company supervisor</label>
+                  <label htmlFor="companySupervisorName" className="block text-sm font-medium text-ink-muted mb-1.5">Company supervisor</label>
                   <input
                     id="companySupervisorName"
                     type="text"
@@ -542,10 +542,10 @@ export default function RegisterPage() {
                     onChange={(e) => setField('companySupervisorName', e.target.value)}
                     className={fieldClass(!!errors.companySupervisorName)}
                   />
-                  {errors.companySupervisorName && <p className="mt-1 text-xs text-red-400">{errors.companySupervisorName}</p>}
+                  {errors.companySupervisorName && <p className="mt-1 text-xs text-danger">{errors.companySupervisorName}</p>}
                 </div>
                 <div>
-                  <label htmlFor="companySupervisorEmail" className="block text-sm font-medium text-slate-300 mb-1.5">Supervisor email</label>
+                  <label htmlFor="companySupervisorEmail" className="block text-sm font-medium text-ink-muted mb-1.5">Supervisor email</label>
                   <input
                     id="companySupervisorEmail"
                     type="email"
@@ -554,13 +554,13 @@ export default function RegisterPage() {
                     onChange={(e) => setField('companySupervisorEmail', e.target.value)}
                     className={fieldClass(!!errors.companySupervisorEmail)}
                   />
-                  {errors.companySupervisorEmail && <p className="mt-1 text-xs text-red-400">{errors.companySupervisorEmail}</p>}
+                  {errors.companySupervisorEmail && <p className="mt-1 text-xs text-danger">{errors.companySupervisorEmail}</p>}
                 </div>
               </div>
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
-                  <label htmlFor="startDate" className="block text-sm font-medium text-slate-300 mb-1.5">Start date</label>
+                  <label htmlFor="startDate" className="block text-sm font-medium text-ink-muted mb-1.5">Start date</label>
                   <input
                     id="startDate"
                     type="date"
@@ -568,10 +568,10 @@ export default function RegisterPage() {
                     onChange={(e) => setField('startDate', e.target.value)}
                     className={`${fieldClass(!!errors.startDate)} cursor-pointer [color-scheme:dark]`}
                   />
-                  {errors.startDate && <p className="mt-1 text-xs text-red-400">{errors.startDate}</p>}
+                  {errors.startDate && <p className="mt-1 text-xs text-danger">{errors.startDate}</p>}
                 </div>
                 <div>
-                  <label htmlFor="endDate" className="block text-sm font-medium text-slate-300 mb-1.5">End date</label>
+                  <label htmlFor="endDate" className="block text-sm font-medium text-ink-muted mb-1.5">End date</label>
                   <input
                     id="endDate"
                     type="date"
@@ -579,7 +579,7 @@ export default function RegisterPage() {
                     onChange={(e) => setField('endDate', e.target.value)}
                     className={`${fieldClass(!!errors.endDate)} cursor-pointer [color-scheme:dark]`}
                   />
-                  {errors.endDate && <p className="mt-1 text-xs text-red-400">{errors.endDate}</p>}
+                  {errors.endDate && <p className="mt-1 text-xs text-danger">{errors.endDate}</p>}
                 </div>
               </div>
             </div>
@@ -588,7 +588,7 @@ export default function RegisterPage() {
           <button
             type="submit"
             disabled={loading}
-            className="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg bg-blue-600 hover:bg-blue-500 text-white font-semibold text-sm transition-colors duration-150 cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 focus:ring-offset-slate-950"
+            className="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg bg-brand hover:bg-brand text-white font-semibold text-sm transition-colors duration-150 cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed focus:outline-none focus:ring-2 focus:ring-brand focus:ring-offset-2 focus:ring-offset-slate-950"
           >
             {loading ? (
               <><Loader2 className="w-4 h-4 animate-spin" /> Creating account…</>
@@ -598,9 +598,9 @@ export default function RegisterPage() {
           </button>
         </form>
 
-        <p className="mt-6 text-center text-sm text-slate-500">
+        <p className="mt-6 text-center text-sm text-ink-secondary">
           Already have an account?{' '}
-          <Link to="/auth/login" className="text-blue-400 hover:text-blue-300 font-medium transition-colors">
+          <Link to="/auth/login" className="text-brand hover:text-brand font-medium transition-colors">
             Sign in
           </Link>
         </p>

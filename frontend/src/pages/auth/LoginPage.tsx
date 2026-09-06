@@ -124,7 +124,7 @@ export default function LoginPage() {
           <p className="text-ink-muted text-sm mb-8">Use your institutional email address</p>
 
           {error && (
-            <div className="mb-6 px-4 py-3 rounded-lg bg-red-50 border border-red-200 text-red-700 text-sm">
+            <div className="mb-6 px-4 py-3 rounded-lg bg-danger-soft border border-danger text-danger text-sm">
               {error}
             </div>
           )}

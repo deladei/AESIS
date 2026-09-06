@@ -49,8 +49,8 @@ export default function ResetPasswordPage() {
 
         {sent ? (
           <div>
-            <div className="w-14 h-14 rounded-full bg-emerald-50 border border-emerald-200 flex items-center justify-center mb-6">
-              <MailCheck className="w-7 h-7 text-emerald-600" />
+            <div className="w-14 h-14 rounded-full bg-ok-soft border border-ok flex items-center justify-center mb-6">
+              <MailCheck className="w-7 h-7 text-ok" />
             </div>
             <h2 className="text-2xl font-bold text-ink mb-2">Check your inbox</h2>
             <p className="text-ink-muted text-sm leading-relaxed mb-8">
@@ -72,7 +72,7 @@ export default function ResetPasswordPage() {
             </p>
 
             {error && (
-              <div className="mb-6 px-4 py-3 rounded-lg bg-red-50 border border-red-200 text-red-700 text-sm">
+              <div className="mb-6 px-4 py-3 rounded-lg bg-danger-soft border border-danger text-danger text-sm">
                 {error}
               </div>
             )}

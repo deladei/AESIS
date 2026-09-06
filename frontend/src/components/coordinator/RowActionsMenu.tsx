@@ -85,7 +85,7 @@ export default function RowActionsMenu({ placementId, internName, flagged = fals
               </button>
               {flagged ? (
                 <button className={item} onClick={doUnflag} disabled={setFlag.isPending}>
-                  <Flag className="h-4 w-4 text-amber-500" /> Remove flag
+                  <Flag className="h-4 w-4 text-warn" /> Remove flag
                 </button>
               ) : (
                 <button className={item} onClick={() => { setOpen(false); setModal('flag'); }}>
@@ -113,7 +113,7 @@ export default function RowActionsMenu({ placementId, internName, flagged = fals
                 <textarea value={reason} onChange={(e) => setReason(e.target.value)} rows={3} maxLength={500} placeholder="Why are you flagging this intern for attention?" className="w-full resize-none rounded-lg border border-line px-3 py-2 text-sm text-ink focus:border-brand focus:outline-none" />
                 <div className="mt-4 flex justify-end gap-2">
                   <button onClick={() => setModal(null)} className="rounded-lg border border-line px-4 py-2 text-sm font-medium text-ink-secondary hover:bg-brand-soft">Cancel</button>
-                  <button onClick={doFlag} disabled={setFlag.isPending} className="inline-flex items-center gap-2 rounded-lg bg-amber-500 px-4 py-2 text-sm font-semibold text-white hover:bg-amber-600 disabled:opacity-50">
+                  <button onClick={doFlag} disabled={setFlag.isPending} className="inline-flex items-center gap-2 rounded-lg bg-warn px-4 py-2 text-sm font-semibold text-white hover:bg-warn disabled:opacity-50">
                     {setFlag.isPending && <Loader2 className="h-4 w-4 animate-spin" />} Flag
                   </button>
                 </div>

@@ -42,7 +42,7 @@ type UserRole = 'student' | 'academic_supervisor' | 'coordinator' | 'admin' | 'h
 function RequireAuth({ roles, bare }: { roles?: UserRole[]; bare?: boolean }) {
   const { isAuthenticated, isLoading, user } = useAuth();
   const location = useLocation();
-  if (isLoading) return <div className="min-h-screen bg-slate-950 flex items-center justify-center"><div className="w-6 h-6 border-2 border-blue-500 border-t-transparent rounded-full animate-spin" /></div>;
+  if (isLoading) return <div className="min-h-screen bg-ink flex items-center justify-center"><div className="w-6 h-6 border-2 border-brand border-t-transparent rounded-full animate-spin" /></div>;
   if (!isAuthenticated || !user) return <Navigate to="/auth/login" replace />;
   if (roles && !roles.includes(user.role as UserRole)) return <Navigate to="/" replace />;
 

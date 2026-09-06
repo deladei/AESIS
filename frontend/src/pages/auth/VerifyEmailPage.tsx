@@ -54,8 +54,8 @@ export default function VerifyEmailPage() {
 
         {status === 'success' && (
           <>
-            <div className="w-16 h-16 rounded-full bg-emerald-50 border border-emerald-200 flex items-center justify-center mx-auto mb-6">
-              <CheckCircle2 className="w-8 h-8 text-emerald-600" />
+            <div className="w-16 h-16 rounded-full bg-ok-soft border border-ok flex items-center justify-center mx-auto mb-6">
+              <CheckCircle2 className="w-8 h-8 text-ok" />
             </div>
             <h2 className="text-2xl font-bold text-ink mb-3">Email verified</h2>
             <p className="text-ink-muted text-sm mb-8">
@@ -72,8 +72,8 @@ export default function VerifyEmailPage() {
 
         {status === 'error' && (
           <>
-            <div className="w-16 h-16 rounded-full bg-red-50 border border-red-200 flex items-center justify-center mx-auto mb-6">
-              <XCircle className="w-8 h-8 text-red-500" />
+            <div className="w-16 h-16 rounded-full bg-danger-soft border border-danger flex items-center justify-center mx-auto mb-6">
+              <XCircle className="w-8 h-8 text-danger" />
             </div>
             <h2 className="text-2xl font-bold text-ink mb-3">Verification failed</h2>
             <p className="text-ink-muted text-sm mb-8">{message}</p>
