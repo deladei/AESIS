@@ -11,7 +11,6 @@ import { logger } from './config/logger';
 import authRouter          from './modules/auth/auth.router';
 import placementsRouter    from './modules/placements/placements.router';
 import companiesRouter     from './modules/placements/companies.router';
-import logbookRouter       from './modules/logbook/logbook.router';
 import entriesRouter       from './modules/entries/entries.router';
 import objectivesPlacementRouter from './modules/objectives/objectives.placement.router';
 import messagesRouter      from './modules/messages/messages.router';
@@ -118,7 +117,6 @@ export function createApp() {
   app.use('/api/v1/placements',    messagesRouter); // two-way mentorship messaging thread
   app.use('/api/v1/placements',    industryPlacementRouter); // industry supervisor records (list/add)
   app.use('/api/v1/companies',     companiesRouter);
-  app.use('/api/v1/logbook',       logbookRouter);
   app.use('/api/v1/entries',       entriesRouter);
   app.use('/api/v1/entries',       objectivesEntryRouter); // entry <-> objective links
   app.use('/api/v1/siwes',         siwesRouter); // SIWES daily logbook (daily entries / weekly reports / absences)

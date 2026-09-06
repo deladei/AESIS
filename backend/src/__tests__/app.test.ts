@@ -14,7 +14,6 @@ jest.mock('../config/prisma', () => ({
 jest.mock('../modules/auth/auth.router',                  () => { const r = require('express').Router(); return r; });
 jest.mock('../modules/placements/placements.router',      () => { const r = require('express').Router(); return r; });
 jest.mock('../modules/placements/companies.router',       () => { const r = require('express').Router(); return r; });
-jest.mock('../modules/logbook/logbook.router',            () => { const r = require('express').Router(); return r; });
 jest.mock('../modules/notifications/notifications.router',() => { const r = require('express').Router(); return r; });
 jest.mock('../modules/coordinator/coordinator.router',    () => { const r = require('express').Router(); return r; });
 jest.mock('../modules/supervisor/supervisor.router',      () => { const r = require('express').Router(); return r; });

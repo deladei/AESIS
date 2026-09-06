@@ -60,7 +60,7 @@ continuous and matches the chain-aware calendar built in S84.
 | 1 | Schema + migration | **done** — S89, migration `20260726000000`, applied to prod 2026-07-27 |
 | 2 | Backend: fold `siwes` service into the entries spine | **done** — S89 (`d0fa556`) |
 | 3 | Frontend: one logbook UI | **done** — S89 (`e84665d`); `/student/daily-logbook` now redirects |
-| 4 | Retire legacy `logbook/` | todo — `logbook_submissions` is still the third source of truth |
+| 4 | Retire legacy `logbook/` | **done** — S96; module deleted, `/api/v1/logbook` unwired, last readers ported |
 
 ### Phase 1 — Schema + migration
 
@@ -103,11 +103,27 @@ Merge `/student/daily-logbook` and the weekly entry UI into one page: the week i
 field on that same week. Reviewer side: `SiwesCalendarPanel` and the weekly review panel become one
 component. Keep surfacing backend 422/409 messages verbatim.
 
-### Phase 4 — Retire legacy `logbook/`
+### Phase 4 — Retire legacy `logbook/` — **done (S96)**
 
-`logbook_submissions` shares the `(placement, week)` key with `logbook_entry` and is the third
-source of truth. Freeze writes, migrate anything still referenced by coordinator dashboards, unwire
-`/api/v1/logbook`, then drop the module. Historical `logbook_analyses` rows stay (S82 precedent).
+`logbook_submissions` shared the `(placement, week)` key with `logbook_entry` and was the third
+source of truth. Done in S96:
+
+- **Module deleted.** `backend/src/modules/logbook/` (router, controller, service, schema, tests)
+  is gone and `/api/v1/logbook` is unwired from `app.ts`. Nothing consumed it — no frontend call
+  site, no AI-engine call site.
+- **Last writers removed.** The two demo seeds (`seed-supervisor-demo`, `seed-real-students-demo`)
+  wrote weeks to `logbook_submission` and scores to `logbook_analyses`; they now write
+  `logbook_entry` + `ai_assessment`, so seeded demo data is visible to the app that reads it.
+  Legacy statuses map as `under_review → submitted`, `flagged → returned`.
+- **Last dead readers ported.** `coordinator.getCoordinatorDashboard` (compliance rate + weekly
+  trend), `jobs/weeklyReport` (both compliance counts) and `jobs/deadlineReminder` (the whole
+  query) were grouped/counted off the dead table and therefore reported nothing. All three read
+  `logbook_entry` now.
+- **What deliberately stays.** The `LogbookSubmission` / `LogbookAnalysis` models and their rows:
+  they carry the frozen pre-S82 quality scores and the written supervisor feedback, which are the
+  only scores older cohorts have. Every remaining read of them is a *quality-history merge* via
+  `mergedQualityScores`, never row data. No table is dropped, so there is no migration in this
+  phase.
 
 ## Verification
 

@@ -8,7 +8,7 @@
  * Idempotent: re-running updates the same interns/placements/weeks in place.
  * Run with:  npx ts-node src/config/seed-supervisor-demo.ts
  */
-import { PrismaClient, SubmissionStatus, RiskTier } from '@prisma/client';
+import { PrismaClient, EntryStatus, RiskTier } from '@prisma/client';
 import bcrypt from 'bcryptjs';
 import dotenv from 'dotenv';
 
@@ -21,15 +21,17 @@ interface InternSpec {
   email: string;
   programmeCode: string;
   // per-week quality (length = weeks); status derived below
-  weeks: { status: SubmissionStatus; quality: number | null }[];
+  weeks: { status: EntryStatus; quality: number | null }[];
   risk: { tier: RiskTier; score: number; factors: string[] };
 }
 
-const A = SubmissionStatus.approved;
-const S = SubmissionStatus.submitted;
-const U = SubmissionStatus.under_review;
-const F = SubmissionStatus.flagged;
-const D = SubmissionStatus.draft;
+// The live week states. `under_review` and `flagged` were legacy submission
+// statuses with no equivalent on `logbook_entry`: a week under review is simply
+// `submitted`, and a flagged one is `returned`.
+const A = EntryStatus.acknowledged;
+const S = EntryStatus.submitted;
+const R = EntryStatus.returned;
+const D = EntryStatus.draft;
 
 const INTERNS: InternSpec[] = [
   {
@@ -37,7 +39,7 @@ const INTERNS: InternSpec[] = [
     programmeCode: 'BSC-CS',
     weeks: [
       { status: A, quality: 90 }, { status: A, quality: 93 }, { status: A, quality: 91 },
-      { status: A, quality: 95 }, { status: A, quality: 94 }, { status: U, quality: 92 },
+      { status: A, quality: 95 }, { status: A, quality: 94 }, { status: S, quality: 92 },
     ],
     risk: { tier: RiskTier.low, score: 0.12, factors: ['Consistent submissions', 'High reflection quality'] },
   },
@@ -63,7 +65,7 @@ const INTERNS: InternSpec[] = [
     first: 'Yaw', last: 'Asante', email: 'yaw.asante@student.aesis.cs.edu',
     programmeCode: 'BSC-CY',
     weeks: [
-      { status: A, quality: 52 }, { status: A, quality: 48 }, { status: F, quality: 41 },
+      { status: A, quality: 52 }, { status: A, quality: 48 }, { status: R, quality: 41 },
       { status: D, quality: null }, { status: D, quality: null }, { status: D, quality: null },
     ],
     risk: { tier: RiskTier.high, score: 0.82, factors: ['Missed 3 submissions', 'Quality below threshold', 'Engagement dropping 45%'] },
@@ -138,34 +140,44 @@ async function main() {
       });
     }
 
-    // Logbook weeks (+ analysis where scored).
+    // Logbook weeks (+ AI assessment where scored).
+    //
+    // These used to be written to `logbook_submission`, which is retired — the
+    // seed produced rows no screen in the app could see. Weeks now go to
+    // `logbook_entry` and scores to `ai_assessment`, the tables the dashboards
+    // actually read.
     for (let i = 0; i < spec.weeks.length; i++) {
       const week = i + 1;
       const { status, quality } = spec.weeks[i];
-      const deadline = new Date(startDate.getTime() + week * 7 * 86_400_000);
-      const submitted = status !== D;
-      const submittedAt = submitted ? new Date(deadline.getTime() - 86_400_000) : null;
+      const periodStart = new Date(startDate.getTime() + i * 7 * 86_400_000);
+      const periodEnd   = new Date(periodStart.getTime() + 6 * 86_400_000);
+      const submittedAt = status === D ? null : new Date(periodEnd.getTime() - 86_400_000);
 
-      const sub = await prisma.logbookSubmission.upsert({
-        where: { placementId_weekNumber: { placementId: placement.id, weekNumber: week } },
-        update: { submissionStatus: status, submittedAt, deadline, studentId: student.id },
+      const entry = await prisma.logbookEntry.upsert({
+        where:  { studentId_weekNumber: { studentId: student.id, weekNumber: week } },
+        update: { placementId: placement.id, status, submittedAt, periodStart, periodEnd },
         create: {
           placementId: placement.id,
-          studentId: student.id,
-          weekNumber: week,
-          submissionStatus: status,
-          aiAnalysisStatus: quality != null ? 'completed' : 'pending',
+          studentId:   student.id,
+          weekNumber:  week,
+          status,
           submittedAt,
-          deadline,
-          isLate: false,
+          periodStart,
+          periodEnd,
+          hoursLogged: 40,
         },
       });
 
+      // ai_assessment has no unique key on entryId, so re-running replaces
+      // rather than upserts — keeps the seed idempotent.
+      await prisma.aiAssessment.deleteMany({ where: { entryId: entry.id } });
       if (quality != null) {
-        await prisma.logbookAnalysis.upsert({
-          where: { submissionId: sub.id },
-          update: { qualityScore: quality, computedAt: new Date() },
-          create: { submissionId: sub.id, qualityScore: quality, computedAt: new Date() },
+        await prisma.aiAssessment.create({
+          data: {
+            entryId:   entry.id,
+            modelName: 'seed/demo',
+            quality:   { overall: quality },
+          },
         });
       }
     }
