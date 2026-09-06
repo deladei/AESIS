@@ -284,10 +284,18 @@ export default function CompaniesList() {
 function CompanyCard({ company, dense }: { company: Company; dense: boolean }) {
   const c = company;
   return (
-    <Link
-      to={`/coordinator/companies/${c.id}`}
-      className="group flex flex-col rounded-card border border-line bg-surface p-5 shadow-card transition-colors hover:border-brand"
-    >
+    // The whole card is the link, but the Website link has to sit INSIDE it —
+    // and an <a> inside an <a> is invalid HTML that browsers silently unnest.
+    // The stretched-link pattern keeps one anchor for the card and lets the
+    // website anchor sit above it on its own stacking context.
+    <div className="group relative flex flex-col rounded-card border border-line bg-surface p-5 shadow-card transition-colors hover:border-brand">
+      <Link
+        to={`/coordinator/companies/${c.id}`}
+        className="absolute inset-0 rounded-card focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand"
+      >
+        <span className="sr-only">Open {c.name}</span>
+      </Link>
+
       <div className="flex items-start gap-3">
         {/* A monogram is not fake data; an unlicensed logo is a legal problem. */}
         {c.logoUrl
@@ -320,11 +328,10 @@ function CompanyCard({ company, dense }: { company: Company; dense: boolean }) {
             ? <><MapPin className="h-3.5 w-3.5 shrink-0" /> <span className="truncate">{regionLabel(c.region)}</span></>
             : <span className="truncate">No placements located yet</span>}
         </span>
-        <span className="inline-flex shrink-0 items-center gap-2">
+        <span className="relative z-10 inline-flex shrink-0 items-center gap-2">
           {c.website && (
             <a
               href={c.website} target="_blank" rel="noopener noreferrer"
-              onClick={(e) => e.stopPropagation()}
               className="inline-flex items-center gap-1 font-semibold text-brand-ink hover:underline"
             >
               <Globe className="h-3.5 w-3.5" /> Website
@@ -333,7 +340,7 @@ function CompanyCard({ company, dense }: { company: Company; dense: boolean }) {
           <ChevronRight className="h-4 w-4 text-ink-muted transition-colors group-hover:text-brand" />
         </span>
       </div>
-    </Link>
+    </div>
   );
 }
 
