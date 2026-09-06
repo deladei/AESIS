@@ -1,6 +1,11 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
-import { Send, Loader2, Bot, User, Sparkles } from 'lucide-react';
+import {
+  Send, Loader2, Bot, User, Sparkles, Trash2, Zap, ShieldCheck, Target,
+  Clock, FileCheck2, CalendarClock, Building2, GraduationCap, Lightbulb,
+} from 'lucide-react';
 import { getAccessToken, API_BASE } from '@/lib/api';
+import { Card, CardHeader } from '@/components/ui/Card';
+import { Badge } from '@/components/ui/Badge';
 
 interface Message {
   id: string;
@@ -10,20 +15,41 @@ interface Message {
   streaming?: boolean;
 }
 
-const SUGGESTED_QUESTIONS = [
-  'What is the minimum weekly hours for my placement?',
-  'When is the mid-term report due?',
-  'What happens if I miss a logbook submission?',
-  'How is my quality score calculated?',
+const SUGGESTED_QUESTIONS: { q: string; icon: React.ElementType }[] = [
+  { q: 'What is the minimum weekly hours for my placement?', icon: Clock },
+  { q: 'When is the mid-term report due?',                   icon: CalendarClock },
+  { q: 'What happens if I miss a logbook submission?',       icon: FileCheck2 },
+  { q: 'How is my quality score calculated?',                icon: Target },
 ];
+
+/**
+ * The rail's topic list. Each row is a real question the assistant is asked on
+ * click — the reference shows these as navigation into topic pages, but there
+ * are no topic pages, and a link to nothing is worse than a link that works.
+ */
+const POPULAR_TOPICS: { label: string; q: string; icon: React.ElementType }[] = [
+  { label: 'CS internship regulations', icon: ShieldCheck,   q: 'Summarise the CS internship regulations.' },
+  { label: 'Logbook requirements',      icon: FileCheck2,    q: 'What are the logbook requirements?' },
+  { label: 'Reporting & deadlines',     icon: CalendarClock, q: 'What reports are due, and when?' },
+  { label: 'Placements & companies',    icon: Building2,     q: 'How are placements and host companies approved?' },
+  { label: 'Grading & evaluation',      icon: GraduationCap, q: 'How is my final grade worked out?' },
+];
+
+const CAPABILITIES = [
+  { icon: Zap,         title: 'Instant answers',       body: 'Accurate answers drawn from CS Department regulations.' },
+  { icon: ShieldCheck, title: 'Up-to-date information', body: 'Grounded in the current policies and guidelines.' },
+  { icon: Target,      title: 'Actionable guidance',    body: 'Step-by-step help for processes and requirements.' },
+];
+
+const GREETING = 'Hello! I\'m the AESIS Assistant. I can answer questions about CS internship '
+  + 'regulations, logbook requirements, deadlines, and programme procedures. How can I help you today?';
 
 export default function ChatbotPanel() {
   const [messages, setMessages] = useState<Message[]>([
     {
       id: '0',
       role: 'assistant',
-      content:
-        'Hello! I\'m the AESIS Assistant. I can answer questions about CS internship regulations, logbook requirements, deadlines, and programme procedures. How can I help you today?',
+      content: GREETING,
       timestamp: new Date(),
     },
   ]);
@@ -136,108 +162,209 @@ export default function ChatbotPanel() {
     }
   };
 
+  const cleared = messages.length === 1;
+
   return (
-    <div className="flex h-[calc(100vh-0px)] flex-col bg-surface-sunken">
-      {/* Header */}
-      <div className="flex shrink-0 items-center gap-3 border-b border-line bg-surface px-6 py-4">
-        <div className="flex h-9 w-9 items-center justify-center rounded-lg border border-brand bg-brand-soft">
-          <Sparkles className="h-[18px] w-[18px] text-brand-ink" />
-        </div>
-        <div>
-          <h1 className="text-sm font-semibold text-ink">AESIS Assistant</h1>
-          <p className="text-xs text-ink-secondary">CS Internship Knowledge Base · regulation-grounded</p>
-        </div>
-        <div className="ml-auto flex items-center gap-1.5" title={
-          engineStatus === 'limited' ? 'AI engine unreachable — answering from the built-in knowledge base' : undefined
-        }>
-          <span className={`h-2 w-2 rounded-full ${
-            engineStatus === 'online' ? 'bg-ok'
-            : engineStatus === 'limited' ? 'bg-warn'
-            : 'animate-pulse bg-ink-muted'
-          }`} />
-          <span className="text-xs text-ink-secondary">
-            {engineStatus === 'online' ? 'Online' : engineStatus === 'limited' ? 'Limited' : 'Checking…'}
-          </span>
-        </div>
-      </div>
-
-      {/* Messages */}
-      <div className="scrollbar-thin flex-1 space-y-5 overflow-y-auto px-6 py-4">
-        {messages.map((msg) => (
-          <div key={msg.id} className={`flex gap-3 ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
-            {msg.role === 'assistant' && (
-              <div className="mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-full border border-brand bg-brand-soft">
-                <Bot className="h-3.5 w-3.5 text-brand-ink" />
-              </div>
-            )}
-            <div className={`max-w-[75%] rounded-xl px-4 py-3 text-sm leading-relaxed ${
-              msg.role === 'user'
-                ? 'rounded-tr-sm bg-brand text-white'
-                : 'rounded-tl-sm border border-line bg-surface text-ink'
-            }`}>
-              {msg.content}
-              {msg.streaming && (
-                <span className="ml-0.5 inline-block h-3.5 w-0.5 animate-pulse bg-brand" />
-              )}
+    <div className="mx-auto grid max-w-[1500px] gap-5 p-4 sm:p-6 xl:grid-cols-[minmax(0,1fr)_340px]">
+      <div className="flex min-w-0 flex-col gap-5">
+        <header className="flex flex-wrap items-start justify-between gap-3">
+          <div className="flex items-start gap-3">
+            <span className="grid h-11 w-11 shrink-0 place-items-center rounded-card bg-brand-soft text-brand-ink">
+              <Sparkles className="h-5 w-5" />
+            </span>
+            <div className="min-w-0">
+              <h1 className="flex items-center gap-2 text-2xl font-bold tracking-tight text-ink">
+                AESIS Assistant <Badge tone="brand">AI</Badge>
+              </h1>
+              <p className="mt-1 text-sm text-ink-secondary">
+                Your assistant for CS internship management
+              </p>
             </div>
-            {msg.role === 'user' && (
-              <div className="mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-full border border-line bg-surface-sunken">
-                <User className="h-3.5 w-3.5 text-ink-secondary" />
+          </div>
+
+          <button
+            type="button"
+            onClick={() => setMessages([{ id: '0', role: 'assistant', content: GREETING, timestamp: new Date() }])}
+            disabled={cleared}
+            className="inline-flex items-center gap-2 rounded-lg border border-line px-3 py-2 text-xs font-semibold text-ink-secondary transition-colors enabled:hover:border-brand enabled:hover:text-brand-ink disabled:opacity-40"
+          >
+            <Trash2 className="h-3.5 w-3.5" /> Clear chat
+          </button>
+        </header>
+
+        {/* ── Conversation ─────────────────────────────────── */}
+        <Card className="flex min-h-[26rem] flex-col p-0" padded={false}>
+          <div className="scrollbar-thin flex-1 space-y-5 overflow-y-auto p-5">
+            {cleared && (
+              <div className="mb-2">
+                <p className="text-lg font-bold text-ink">Hello! I&rsquo;m the AESIS Assistant.</p>
+                <p className="mt-1 max-w-xl text-sm leading-relaxed text-ink-secondary">
+                  I can help with CS internship regulations, logbook requirements, deadlines,
+                  programme procedures and more.
+                </p>
+                <div className="mt-4 grid gap-3 sm:grid-cols-3">
+                  {CAPABILITIES.map(({ icon: Icon, title, body }) => (
+                    <div key={title} className="rounded-card border border-line bg-surface-sunken p-3">
+                      <span className="mb-2 grid h-7 w-7 place-items-center rounded-lg bg-brand-soft text-brand-ink">
+                        <Icon className="h-3.5 w-3.5" />
+                      </span>
+                      <p className="text-sm font-semibold text-ink">{title}</p>
+                      <p className="mt-0.5 text-xs leading-relaxed text-ink-muted">{body}</p>
+                    </div>
+                  ))}
+                </div>
               </div>
             )}
-          </div>
-        ))}
-        <div ref={bottomRef} />
-      </div>
 
-      {/* Suggested questions */}
-      {messages.length === 1 && (
-        <div className="shrink-0 px-6 pb-3">
-          <p className="mb-2 text-xs text-ink-secondary">Suggested questions</p>
-          <div className="flex flex-wrap gap-2">
-            {SUGGESTED_QUESTIONS.map((q) => (
-              <button
-                key={q}
-                onClick={() => sendMessage(q)}
-                className="cursor-pointer rounded-full border border-line bg-surface px-3 py-1.5 text-xs text-ink-secondary transition-colors hover:border-brand hover:bg-brand-soft hover:text-brand-ink"
-              >
-                {q}
-              </button>
+            {messages.map((msg) => (
+              <div key={msg.id} className={`flex gap-3 ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
+                {msg.role === 'assistant' && (
+                  <span className="mt-0.5 grid h-7 w-7 shrink-0 place-items-center rounded-full border border-brand bg-brand-soft">
+                    <Bot className="h-3.5 w-3.5 text-brand-ink" />
+                  </span>
+                )}
+                <div className={`max-w-[75%] whitespace-pre-wrap rounded-xl px-4 py-3 text-sm leading-relaxed ${
+                  msg.role === 'user'
+                    ? 'rounded-tr-sm bg-brand text-ink-inverse'
+                    : 'rounded-tl-sm border border-line bg-surface-sunken text-ink'
+                }`}>
+                  {msg.content}
+                  {msg.streaming && <span className="ml-0.5 inline-block h-3.5 w-0.5 animate-pulse bg-brand" />}
+                </div>
+                {msg.role === 'user' && (
+                  <span className="mt-0.5 grid h-7 w-7 shrink-0 place-items-center rounded-full border border-line bg-surface-sunken">
+                    <User className="h-3.5 w-3.5 text-ink-secondary" />
+                  </span>
+                )}
+              </div>
             ))}
+            <div ref={bottomRef} />
           </div>
-        </div>
-      )}
 
-      {/* Input */}
-      <div className="shrink-0 border-t border-line bg-surface px-6 pb-6 pt-3">
-        <div className="flex items-end gap-3 rounded-xl border border-line bg-surface p-3 transition-colors focus-within:border-brand focus-within:ring-1 focus-within:ring-brand">
-          <textarea
-            ref={inputRef}
-            rows={1}
-            value={input}
-            onChange={(e) => setInput(e.target.value)}
-            onKeyDown={handleKeyDown}
-            placeholder="Ask about regulations, deadlines, or procedures…"
-            className="scrollbar-thin max-h-32 flex-1 resize-none bg-transparent text-sm text-ink placeholder:text-ink-muted focus:outline-none"
-            style={{ minHeight: '24px' }}
-          />
-          <button
-            onClick={() => sendMessage(input)}
-            disabled={!input.trim() || loading}
-            className="flex h-8 w-8 shrink-0 cursor-pointer items-center justify-center rounded-lg bg-brand transition-colors hover:bg-brand-hover disabled:cursor-not-allowed disabled:opacity-40"
-            aria-label="Send message"
-          >
-            {loading ? (
-              <Loader2 className="h-3.5 w-3.5 animate-spin text-white" />
-            ) : (
-              <Send className="h-3.5 w-3.5 text-white" />
-            )}
-          </button>
-        </div>
-        <p className="mt-2 text-center text-xs text-ink-muted">
-          Answers are grounded in CS Department regulations only. Not general web knowledge.
-        </p>
+          {/* ── Composer ───────────────────────────────────── */}
+          <div className="border-t border-line p-5">
+            <div className="flex items-end gap-3 rounded-xl border border-line bg-surface p-3 transition-colors focus-within:border-brand">
+              <textarea
+                ref={inputRef}
+                rows={1}
+                value={input}
+                onChange={(e) => setInput(e.target.value)}
+                onKeyDown={handleKeyDown}
+                placeholder="Ask about regulations, deadlines, or procedures…"
+                className="scrollbar-thin max-h-32 min-h-[24px] flex-1 resize-none bg-transparent text-sm text-ink placeholder:text-ink-muted focus:outline-none"
+              />
+              <button
+                type="button"
+                onClick={() => sendMessage(input)}
+                disabled={!input.trim() || loading}
+                className="grid h-8 w-8 shrink-0 place-items-center rounded-lg bg-brand text-ink-inverse transition-colors hover:bg-brand-hover disabled:cursor-not-allowed disabled:opacity-40"
+                aria-label="Send message"
+              >
+                {loading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Send className="h-3.5 w-3.5" />}
+              </button>
+            </div>
+            {/*
+              The reference puts "Attach file", "Search documents" and a
+              grounding toggle along this bar. None of the three has an
+              endpoint, and grounding is not optional — every answer is
+              regulation-only — so the line below states that rather than
+              offering a switch that changes nothing.
+            */}
+            <p className="mt-2 flex items-center justify-center gap-1.5 text-xs text-ink-muted">
+              <ShieldCheck className="h-3.5 w-3.5" />
+              Answers are grounded in CS Department regulations only. Not general web knowledge.
+            </p>
+          </div>
+        </Card>
+
+        {/* ── Suggested questions ──────────────────────────── */}
+        {cleared && (
+          <section>
+            <h2 className="mb-3 text-[15px] font-semibold text-ink">Suggested questions</h2>
+            <div className="grid gap-3 sm:grid-cols-2">
+              {SUGGESTED_QUESTIONS.map(({ q, icon: Icon }) => (
+                <button
+                  key={q}
+                  type="button"
+                  onClick={() => sendMessage(q)}
+                  className="flex items-center gap-3 rounded-card border border-line bg-surface p-4 text-left shadow-card transition-colors hover:border-brand"
+                >
+                  <span className="grid h-9 w-9 shrink-0 place-items-center rounded-lg bg-brand-soft text-brand-ink">
+                    <Icon className="h-4 w-4" />
+                  </span>
+                  <span className="text-sm font-medium text-ink">{q}</span>
+                </button>
+              ))}
+            </div>
+          </section>
+        )}
       </div>
+
+      {/* ── Right rail ─────────────────────────────────────── */}
+      <aside className="space-y-5">
+        <Card>
+          <CardHeader title="Popular topics" subtitle="Asks the assistant on your behalf" />
+          <ul className="space-y-1">
+            {POPULAR_TOPICS.map(({ label, q, icon: Icon }) => (
+              <li key={label}>
+                <button
+                  type="button"
+                  onClick={() => sendMessage(q)}
+                  disabled={loading}
+                  className="flex w-full items-center gap-2.5 rounded-lg px-2 py-2 text-left transition-colors enabled:hover:bg-surface-sunken disabled:opacity-50"
+                >
+                  <span className="grid h-7 w-7 shrink-0 place-items-center rounded-lg bg-surface-sunken text-ink-secondary">
+                    <Icon className="h-3.5 w-3.5" />
+                  </span>
+                  <span className="min-w-0 flex-1 truncate text-sm text-ink">{label}</span>
+                </button>
+              </li>
+            ))}
+          </ul>
+        </Card>
+
+        <Card>
+          <CardHeader title="Assistant status" />
+          <div className="flex items-center gap-2">
+            <span className={`h-2 w-2 rounded-full ${
+              engineStatus === 'online' ? 'bg-ok'
+              : engineStatus === 'limited' ? 'bg-warn'
+              : 'animate-pulse bg-ink-muted'
+            }`} />
+            <span className="text-sm font-semibold text-ink">
+              {engineStatus === 'online' ? 'Online'
+                : engineStatus === 'limited' ? 'Limited'
+                : 'Checking…'}
+            </span>
+          </div>
+          {/*
+            The reference shows an "AI confidence: High" badge. Nothing here
+            measures confidence, so this reports the one thing that IS known —
+            whether the engine answered the health probe.
+          */}
+          <p className="mt-2 text-xs leading-relaxed text-ink-muted">
+            {engineStatus === 'limited'
+              ? 'The AI engine is unreachable, so answers come from the built-in regulation knowledge base only.'
+              : 'Answers are drawn from CS Department regulations and verified documents.'}
+          </p>
+        </Card>
+
+        <Card>
+          <CardHeader title="Tips" />
+          <ul className="space-y-2.5">
+            {[
+              'Be specific — name the week, report or rule you mean.',
+              'Include dates, your company, or the context.',
+              'Follow-up questions keep the thread.',
+            ].map((t) => (
+              <li key={t} className="flex items-start gap-2.5">
+                <Lightbulb className="mt-0.5 h-3.5 w-3.5 shrink-0 text-brand-ink" />
+                <span className="text-xs leading-relaxed text-ink-secondary">{t}</span>
+              </li>
+            ))}
+          </ul>
+        </Card>
+      </aside>
     </div>
   );
 }

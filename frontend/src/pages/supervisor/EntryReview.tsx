@@ -216,7 +216,7 @@ export default function EntryReview() {
           footnote="Weeks awaiting your decision"
         />
         <StatCard
-          label="Flagged by enrichment" value={stats?.flagged ?? 0}
+          label="AI flagged" value={stats?.flagged ?? 0}
           icon={Flag} tone="warn" loading={statsQuery.isLoading}
           footnote="Weeks carrying at least one advisory flag"
         />
@@ -229,7 +229,7 @@ export default function EntryReview() {
           footnote="Advisory rubric mean — never a grade"
         />
         <StatCard
-          label="Submitted on time"
+          label="On track"
           value={stats?.onTrackPct != null
             ? `${stats.onTrackPct}%`
             : <NoValue title="No week has come due yet" />}
