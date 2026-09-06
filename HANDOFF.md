@@ -3603,3 +3603,88 @@ test runner.
 editable via any API; consolidation Phase 4; `deadlineReminder` still queries the dead table;
 validation sweep; S87 prod smokes; Render env nits. The two Docker containers stopped to free
 memory (`aesis_celery`, `aesis_ai`) need `docker start` before chatbot or enrichment work.
+
+---
+
+## S96 — 2026-09-06 · The rest of the screens, and the dead table finally buried
+
+Two calendar days in one entry: the six commits of 2026-09-05 that never got written
+up (`02d5ce9` → `eebbeaa`), then today's four (`95d8739`, `a1dbf8b`, `98cc0cd`, `98b80d9`).
+
+### Carried over from 2026-09-05 (already in prod, undocumented until now)
+
+| Commit | What |
+|---|---|
+| `02d5ce9` | Supervisor assignments laid out to the design |
+| `7832b19` | Cohort settings laid out to the design |
+| `5056b86` | Admin All Interns — headline counts + real risk signals |
+| `d1293e4` | Logbook review board built on real enrichment signals |
+| `8d6da98` | AI Insights laid out to the design, on data it already had |
+| `eebbeaa` | Feedback Centre pointed at the live logbook pipeline |
+
+### Profile page finished (`95d8739`)
+
+Left column was hand-rolled `var(--h-*)` panels; there was no right rail. Both halves are
+now built out of the shared kit, so the page works in dark mode — the raw-hex version did
+not. Rail: profile completion (derived at read time from the fields THAT role can fill —
+a student is never asked for a supervised region), cohort activity summary + audit feed
+(coordinator/admin only, matching the endpoints' own authorization), roles & permissions
+stated from the authorization rules, and quick actions that only ever link where the role
+can actually go. **The design's "+18% this month" chips are still not drawn** — one month
+of history, no prior period. A figure whose endpoint failed shows "—", not 0.
+
+### FOUR MORE dead-table bugs — bringing the running total to EIGHT
+
+S95 found four reads still pointed at `logbook_submissions`. There were four more:
+
+1. **`jobs/deadlineReminder`** — the whole query. Keyed off a `deadline` column on the dead
+   table, so **no student has ever been reminded of anything.** There is no `deadline`
+   column on `logbook_entry` and there needn't be: a week's deadline IS its `periodEnd`.
+   The job now runs DAILY and finds who is 48 h / 24 h from their own week end, rather than
+   firing Wed+Thu and assuming the cohort shares a Friday.
+2. **`jobs/weeklyReport`** — both halves of its compliance rate. **Every coordinator has been
+   emailed "0 of 0 — 100% compliant" every Monday.** Now counts weeks handed in vs weeks
+   that closed, off `logbook_entry`.
+3. **`coordinator.getCoordinatorDashboard`** — `scheduledByWeek` + `submittedByWeek`. The
+   submission-trend chart was permanently blank while compliance read a flattering 100%.
+4. **Both demo seeds** — wrote weeks to `logbook_submission` and scores to `logbook_analyses`,
+   i.e. seeding produced demo data no screen could see. Now `logbook_entry` + `ai_assessment`.
+
+On #3: "scheduled" is deliberately NOT a row count. A week nobody has opened has no row, so
+counting rows makes compliance 100% by construction. It is weeks that have come DUE per
+placement — the same `weeksDue` the intern table already uses — and an early submission is
+clamped so it cannot push the rate over 100%.
+
+**Also:** all three cron jobs ran on `Africa/Lagos` (UTC+1) for a Ghanaian programme. The
+"Monday 08:00" report was landing at 07:00. Now `Africa/Accra`.
+
+### Consolidation Phase 4 DONE (`98b80d9`) — the doc is closed
+
+`backend/src/modules/logbook/` deleted, `/api/v1/logbook` unwired. Nothing consumed it: no
+frontend call site, no AI-engine call site. **No table is dropped and this phase ships no
+migration.** `LogbookSubmission`/`LogbookAnalysis` and all their rows stay — they carry the
+frozen pre-S82 quality scores and the written supervisor feedback, the only scores older
+cohorts have. Every remaining read of them is a quality-history merge through
+`mergedQualityScores`, never row data. `docs/logbook-consolidation.md` marks all four phases
+done.
+
+### State
+
+**830 tests green, 58/58 suites** (was 854/60 — the two deleted `logbook/` suites took 24
+tests with them). Both typechecks clean. Production build green (main bundle 829 kB,
+Recharts 575 kB and xlsx 500 kB in their own chunks).
+
+### ⚠️ Still not visually verified
+
+No browser has rendered any of this. There is still no frontend test runner. Box limits from
+S95 still apply: never run the full Jest suite while dev servers are up, launch dev servers
+detached (`setsid nohup …`), and use `127.0.0.1` — `localhost` resolves to `::1` here with no
+listener.
+
+### Carried
+
+Supabase password rotation; Neon deletion; `durationWeeks`/`totalWeeks` still not editable via
+any API; validation sweep; S87 prod smokes; Render env nits. The two stopped Docker containers
+(`aesis_celery`, `aesis_ai`) need `docker start` before chatbot or enrichment work.
+**Grep before trusting any panel — eight instances of the dead-table bug is not a coincidence,
+it is a pattern.**
