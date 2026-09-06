@@ -1,11 +1,17 @@
 import { useState } from 'react';
 // Mirrors finalization.schema's `comment: max(2000)`.
-const ATTESTATION_COMMENT_MAX = 2000;
+// Matches finalization.schema.attestSchema — the form used to stop at 2000 and
+// silently truncate the paste, so a supervisor writing a long remark lost the
+// tail with no message and no way to know.
+const ATTESTATION_COMMENT_MAX = 5000;
+const commentRule = optionalFreeText(ATTESTATION_COMMENT_MAX, 'Comment');
 import { useParams } from 'react-router-dom';
 import {
   Loader2, GraduationCap, CheckCircle2, AlertCircle, ShieldCheck, CalendarDays,
 } from 'lucide-react';
 import { useAttestationContext, useSubmitAttestation } from '@/hooks/useFinalization';
+import { optionalFreeText } from '@/lib/validation';
+import { FieldError } from '@/components/shared/FieldError';
 
 function fmtDate(iso: string | null): string {
   if (!iso) return '—';
@@ -48,10 +54,14 @@ export default function Attestation() {
   const [formErr, setFormErr] = useState<string | null>(null);
   const [done, setDone] = useState<{ confirmed: boolean } | null>(null);
 
+  const commentCheck = commentRule.safeParse(comment);
+  const commentError = commentCheck.success ? undefined : commentCheck.error.issues[0]?.message;
+
   const handleSubmit = async () => {
     setFormErr(null);
+    if (!commentCheck.success) return;
     try {
-      const res = await submit.mutateAsync({ confirmed, comment: comment.trim() || undefined });
+      const res = await submit.mutateAsync({ confirmed, comment: commentCheck.data });
       setDone({ confirmed: res.confirmed });
     } catch (e) {
       setFormErr(
@@ -146,12 +156,13 @@ export default function Attestation() {
         Comment <span className="ml-2 text-xs font-normal text-[var(--h-64748b)]">Optional</span>
       </label>
       <textarea
-        maxLength={ATTESTATION_COMMENT_MAX}
         id="comment" rows={3} value={comment}
+        aria-invalid={!!commentError}
         onChange={(e) => setComment(e.target.value)}
         placeholder="Any remarks on the intern's performance…"
         className="mb-1 w-full resize-none rounded-lg border border-[var(--h-d8dce6)] bg-[var(--h-ffffff)] px-3 py-2.5 text-sm text-[var(--h-0b1c30)] placeholder-[var(--h-94a3b8)] focus:border-[var(--h-8a4cfc)] focus:outline-none focus:ring-1 focus:ring-[var(--h-8a4cfc)]"
       />
+      <FieldError message={commentError} />
       <p className="mb-4 text-right text-[11px] text-[var(--h-94a3b8)]">
         {comment.length}/{ATTESTATION_COMMENT_MAX}
       </p>
@@ -163,7 +174,7 @@ export default function Attestation() {
       )}
 
       <button
-        type="button" onClick={handleSubmit} disabled={submit.isPending}
+        type="button" onClick={handleSubmit} disabled={submit.isPending || !!commentError}
         className="inline-flex w-full items-center justify-center gap-2 rounded-lg bg-[var(--h-15157d)] px-4 py-3 text-sm font-semibold text-white transition-colors hover:bg-[var(--h-1f1fa0)] disabled:cursor-not-allowed disabled:opacity-60"
       >
         {submit.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <ShieldCheck className="h-4 w-4" />}

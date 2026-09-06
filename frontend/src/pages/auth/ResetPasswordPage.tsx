@@ -2,6 +2,8 @@ import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { Loader2, MailCheck, ArrowLeft } from 'lucide-react';
 import { api } from '@/lib/api';
+import { FieldError } from '@/components/shared/FieldError';
+import { useFieldErrors, resetPasswordInitSchema } from '@/lib/validation';
 
 const inputClass =
   'w-full px-4 py-2.5 rounded-lg bg-[var(--h-ffffff)] border border-[var(--h-c4c5d5-60)] text-[var(--h-0b1c30)] placeholder-[var(--h-757684)] text-sm focus:outline-none focus:border-[var(--h-15157d)] focus:ring-1 focus:ring-[var(--h-15157d)] transition-colors duration-150';
@@ -11,11 +13,13 @@ export default function ResetPasswordPage() {
   const [loading, setLoading] = useState(false);
   const [sent, setSent]       = useState(false);
   const [error, setError]     = useState('');
+  const { errors, check, validate, clear } = useFieldErrors(resetPasswordInitSchema);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    setLoading(true);
     setError('');
+    if (!validate({ email })) return;
+    setLoading(true);
     try {
       await api.post('/auth/reset-password', { email });
       setSent(true);
@@ -83,11 +87,14 @@ export default function ResetPasswordPage() {
                   type="email"
                   autoComplete="email"
                   required
+                  aria-invalid={!!errors.email}
                   value={email}
-                  onChange={(e) => setEmail(e.target.value)}
+                  onChange={(e) => { setEmail(e.target.value); clear('email'); }}
+                  onBlur={() => check('email', email)}
                   placeholder="you@cs.edu.gh"
                   className={inputClass}
                 />
+                <FieldError message={errors.email} />
               </div>
 
               <button

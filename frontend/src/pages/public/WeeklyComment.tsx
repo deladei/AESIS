@@ -4,8 +4,14 @@ import {
   Loader2, GraduationCap, CheckCircle2, AlertCircle, MessageSquareText,
 } from 'lucide-react';
 import { useWeeklyCommentContext, useSubmitWeeklyComment } from '@/hooks/useWeeklyComment';
+import { freeText } from '@/lib/validation';
 
 const MAX_LEN = 2000;
+
+// The rule the API parses this body with (industry.schema.digitalWeeklyCommentSchema),
+// rebuilt from the same shared primitives so the message under the box is the
+// message the server would have sent back.
+const commentRule = freeText(MAX_LEN, 'Comment').min(3, 'Comment is too short');
 
 function statusOf(err: unknown): number | undefined {
   return (err as { response?: { status?: number } })?.response?.status;
@@ -41,11 +47,12 @@ export default function WeeklyComment() {
   const [done, setDone] = useState(false);
 
   const trimmed = comment.trim();
-  const valid = trimmed.length >= 3 && trimmed.length <= MAX_LEN;
+  const parsed = commentRule.safeParse(comment);
+  const valid = parsed.success;
 
   const handleSubmit = async () => {
     setFormErr(null);
-    if (!valid) { setFormErr('Please write a short comment (at least a few words).'); return; }
+    if (!parsed.success) { setFormErr(parsed.error.issues[0]?.message ?? 'Please write a short comment.'); return; }
     try {
       await submit.mutateAsync(trimmed);
       setDone(true);
@@ -141,7 +148,7 @@ export default function WeeklyComment() {
       )}
 
       <button
-        type="button" onClick={handleSubmit} disabled={submit.isPending}
+        type="button" onClick={handleSubmit} disabled={submit.isPending || !valid}
         className="inline-flex w-full items-center justify-center gap-2 rounded-lg bg-[var(--h-15157d)] px-4 py-3 text-sm font-semibold text-white transition-colors hover:bg-[var(--h-1f1fa0)] disabled:cursor-not-allowed disabled:opacity-60"
       >
         {submit.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <MessageSquareText className="h-4 w-4" />}

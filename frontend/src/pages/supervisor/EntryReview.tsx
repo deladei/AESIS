@@ -18,6 +18,8 @@ import { InitialsAvatar, NoValue } from '@/components/ui/Bits';
 import { LineTrend } from '@/components/ui/Charts';
 import { EmptyState, SkeletonRows } from '@/components/ui/Feedback';
 import { FileCheck2, Flag, Star, TrendingUp } from 'lucide-react';
+import { freeText, optionalFreeText, score as scoreRule } from '@/lib/validation';
+import { FieldError } from '@/components/shared/FieldError';
 
 function studentName(e: LogbookEntry): string {
   const s = e.placement?.student;
@@ -145,27 +147,43 @@ export default function EntryReview() {
     ((e as { response?: { data?: { message?: string } } })?.response?.data?.message) ??
     'Something went wrong. Please try again.';
 
+  // The rules `acknowledgeSchema` / `returnSchema` parse these bodies with. The
+  // page carried its own hand-written copies with no upper bound at all, so a
+  // long piece of feedback came back as a bare 400 with nothing under the box.
+  const scoreCheck = score.trim() === '' ? null : scoreRule(100, 'Score').safeParse(Number(score));
+  const scoreError = scoreCheck && !scoreCheck.success ? scoreCheck.error.issues[0]?.message : undefined;
+
+  const ackCommentCheck    = optionalFreeText(5000, 'Feedback').safeParse(comment);
+  const returnCommentCheck = freeText(5000, 'Feedback').safeParse(comment);
+  // Only report a length problem while typing — "required to return" is said by
+  // the label, and shouting it at an untouched box would be noise.
+  const commentError = comment.trim() !== '' && !ackCommentCheck.success
+    ? ackCommentCheck.error.issues[0]?.message
+    : undefined;
+
   const handleAcknowledge = async () => {
     if (!selectedId) return;
     setError(null);
-    const raw = score.trim();
-    if (raw === '') { setError('A score (0–100) is required to acknowledge a week.'); return; }
-    const n = Number(raw);
-    if (!Number.isFinite(n) || n < 0 || n > 100) {
-      setError('Score must be a number between 0 and 100.'); return;
-    }
+    if (score.trim() === '') { setError('A score (0–100) is required to acknowledge a week.'); return; }
+    if (!scoreCheck?.success) { setError(scoreError ?? 'Score must be a number between 0 and 100.'); return; }
+    if (!ackCommentCheck.success) { setError(ackCommentCheck.error.issues[0]?.message ?? null); return; }
     try {
-      await acknowledge.mutateAsync({ entryId: selectedId, comment: comment.trim() || undefined, score: n });
+      await acknowledge.mutateAsync({
+        entryId: selectedId, comment: ackCommentCheck.data, score: scoreCheck.data,
+      });
       setDoneMsg('Week acknowledged and scored. The student has been notified.');
     } catch (e) { setError(apiErr(e)); }
   };
 
   const handleReturn = async () => {
     if (!selectedId) return;
-    if (!comment.trim()) { setError('A comment is required to return a week for revision.'); return; }
     setError(null);
+    if (!returnCommentCheck.success) {
+      setError(returnCommentCheck.error.issues[0]?.message ?? 'A comment is required to return a week for revision.');
+      return;
+    }
     try {
-      await returnEntry.mutateAsync({ entryId: selectedId, comment: comment.trim() });
+      await returnEntry.mutateAsync({ entryId: selectedId, comment: returnCommentCheck.data });
       setDoneMsg('Week returned for revision. The student has been notified.');
     } catch (e) { setError(apiErr(e)); }
   };
@@ -678,10 +696,12 @@ export default function EntryReview() {
                       </label>
                       <input
                         id="score" type="number" min={0} max={100} step={1} value={score}
+                        aria-invalid={!!scoreError}
                         onChange={(e) => setScore(e.target.value)}
                         placeholder="0–100"
-                        className={`${inputCls} mb-4`}
+                        className={inputCls}
                       />
+                      <div className="mb-4"><FieldError message={scoreError} /></div>
                       <label htmlFor="comment" className="mb-1.5 block text-sm font-semibold text-[var(--h-0b1c30)]">
                         Feedback
                         <span className="ml-2 text-xs font-normal text-[var(--h-64748b)]">Required to return</span>
@@ -708,10 +728,12 @@ export default function EntryReview() {
                       )}
                       <textarea
                         id="comment" rows={5} value={comment}
+                        aria-invalid={!!commentError}
                         onChange={(e) => setComment(e.target.value)}
                         placeholder="Share specific, constructive feedback for this week…"
                         className={`${inputCls} resize-none`}
                       />
+                      <FieldError message={commentError} />
                       {error && (
                         <div className="mt-2 flex items-start gap-2 text-xs text-[var(--h-b3261e)]">
                           <AlertCircle className="mt-0.5 h-3.5 w-3.5 shrink-0" /> {error}

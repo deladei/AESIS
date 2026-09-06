@@ -1,21 +1,29 @@
 import { useState } from 'react';
 import { Target, Plus, Loader2 } from 'lucide-react';
 import { useObjectives, useDefineObjective } from '@/hooks/useObjectives';
+import { freeText } from '@/lib/validation';
+import { FieldError } from '@/components/shared/FieldError';
 
 /**
  * Per-placement learning-objectives panel. Lists each objective with its
  * confirmed-entry progress; when `canDefine`, the academic supervisor can add
  * new objectives. Read-only otherwise.
  */
+// `defineObjectiveSchema` — trimmed, non-empty, 200 max. `maxLength` alone
+// truncated a long objective silently as it was typed.
+const objectiveTitleRule = freeText(200, 'Objective');
+
 export function ObjectivesPanel({ placementId, canDefine = false }: { placementId: string; canDefine?: boolean }) {
   const { data: objectives = [], isLoading } = useObjectives(placementId);
   const define = useDefineObjective(placementId);
   const [title, setTitle] = useState('');
 
+  const titleCheck = title.trim() === '' ? null : objectiveTitleRule.safeParse(title);
+  const titleError = titleCheck && !titleCheck.success ? titleCheck.error.issues[0]?.message : undefined;
+
   function add() {
-    const t = title.trim();
-    if (!t || define.isPending) return;
-    define.mutate({ title: t }, { onSuccess: () => setTitle('') });
+    if (!titleCheck?.success || define.isPending) return;
+    define.mutate({ title: titleCheck.data }, { onSuccess: () => setTitle('') });
   }
 
   return (
@@ -53,23 +61,26 @@ export function ObjectivesPanel({ placementId, canDefine = false }: { placementI
       )}
 
       {canDefine && (
-        <div className="mt-5 flex gap-2 border-t border-[var(--h-eef1ff)] pt-4">
+        <div className="mt-5 border-t border-[var(--h-eef1ff)] pt-4">
+          <div className="flex gap-2">
           <input
             value={title}
+            aria-invalid={!!titleError}
             onChange={(e) => setTitle(e.target.value)}
             onKeyDown={(e) => e.key === 'Enter' && add()}
             placeholder="Add an objective…"
-            maxLength={200}
             className="flex-1 rounded-lg border border-[var(--h-c4c5d5)] px-3 py-2 text-sm outline-none focus:border-[var(--h-15157d)] focus:ring-2 focus:ring-[var(--h-e1e0ff)]"
           />
           <button
             onClick={add}
-            disabled={!title.trim() || define.isPending}
+            disabled={titleCheck?.success !== true || define.isPending}
             className="inline-flex items-center gap-1.5 rounded-lg bg-[var(--h-15157d)] px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-[var(--h-1f1fa0)] disabled:cursor-not-allowed disabled:bg-[var(--h-c4c5d5)]"
           >
             {define.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />}
             Add
           </button>
+          </div>
+          <FieldError message={titleError} />
         </div>
       )}
       {define.isError && (

@@ -14,6 +14,8 @@ import { Badge, type BadgeTone } from '@/components/ui/Badge';
 import { InitialsAvatar, NoValue } from '@/components/ui/Bits';
 import { EmptyState, ErrorState, SkeletonRows } from '@/components/ui/Feedback';
 import { cn } from '@/lib/utils';
+import { freeText } from '@/lib/validation';
+import { FieldError } from '@/components/shared/FieldError';
 
 type Tab = 'pending' | 'reviewed' | 'all';
 
@@ -324,6 +326,14 @@ function PlacementTable({ rows }: { rows: Placement[] }) {
   );
 }
 
+/**
+ * The rule `updatePlacementStatusSchema` parses a rejection reason with. The
+ * button used to unlock on ANY non-empty text, so a three-word refusal was
+ * accepted by the form and thrown out by the API as a bare 400.
+ */
+const rejectionReasonRule = freeText(1000, 'Reason')
+  .min(10, 'Give the student at least a sentence — 10 characters or more');
+
 /** The pending-placement decision card — approve, or reject with a reason. */
 function ReviewCard({
   placement: p, supervisors,
@@ -335,6 +345,11 @@ function ReviewCard({
   const [done, setDone]         = useState<'approved' | 'rejected' | null>(null);
   const [supervisorId, setSupervisorId] = useState('');
   const [error, setError]       = useState<string | null>(null);
+
+  const reasonCheck = reason.trim() === '' ? null : rejectionReasonRule.safeParse(reason);
+  const reasonError = reasonCheck && !reasonCheck.success
+    ? reasonCheck.error.issues[0]?.message
+    : undefined;
 
   const name = p.student ? `${p.student.firstName} ${p.student.lastName}` : p.studentId;
 
@@ -420,13 +435,14 @@ function ReviewCard({
                 <div className="space-y-2">
                   <textarea
                     rows={3} value={reason} onChange={(e) => setReason(e.target.value)}
-                    aria-label="Reason for rejection"
+                    aria-label="Reason for rejection" aria-invalid={!!reasonError}
                     placeholder="Why is this placement being refused? The student is told, so write it for them…"
                     className="w-full resize-none rounded-lg border border-line bg-surface px-4 py-3 text-sm text-ink placeholder:text-ink-muted focus:border-danger focus:outline-none"
                   />
+                  <FieldError message={reasonError} />
                   <button
                     type="button" onClick={() => decide('rejected')}
-                    disabled={!reason.trim() || updateStatus.isPending}
+                    disabled={reasonCheck?.success !== true || updateStatus.isPending}
                     className="inline-flex w-full items-center justify-center gap-2 rounded-lg bg-danger px-4 py-2.5 text-sm font-semibold text-ink-inverse transition-opacity hover:opacity-90 disabled:opacity-50"
                   >
                     {updateStatus.isPending && <Loader2 className="h-4 w-4 animate-spin" />}

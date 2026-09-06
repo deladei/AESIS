@@ -56,6 +56,43 @@ export const email = (label = 'Email') =>
     .toLowerCase()
     .pipe(z.string().email(`Enter a valid ${label.toLowerCase()} address`));
 
+// ── Passwords ───────────────────────────────────────────────────
+/**
+ * A password being SET. 8 characters is the floor the API has always enforced;
+ * the 128 ceiling exists because bcrypt silently truncates past 72 bytes, so a
+ * longer secret would be a false promise.
+ */
+export const newPassword = (label = 'Password') =>
+  z
+    .string()
+    .min(8, `${label} must be at least 8 characters`)
+    .max(128, `${label} must be 128 characters or fewer`);
+
+/**
+ * A password being OFFERED at sign-in. Deliberately only "not empty": telling
+ * an unauthenticated visitor that their attempt is too short to be one of our
+ * passwords is a hint we should not give, and a legacy account could predate
+ * any rule we add later.
+ */
+export const offeredPassword = (label = 'Password') =>
+  z.string().min(1, `${label} is required`);
+
+// ── URLs ────────────────────────────────────────────────────────
+/**
+ * A link a human pasted. Constrained to http(s) — `javascript:` and `data:`
+ * parse as perfectly valid URLs, and these values are rendered as anchors.
+ */
+export const httpUrl = (label = 'Link', max = 2000) =>
+  z
+    .string()
+    .trim()
+    .max(max, `${label} must be ${max.toLocaleString()} characters or fewer`)
+    .url(`Enter a valid ${label.toLowerCase()} starting with http:// or https://`)
+    .refine(
+      (v) => /^https?:\/\//i.test(v),
+      `${label} must start with http:// or https://`,
+    );
+
 // ── Phone (Ghana) ───────────────────────────────────────────────
 // Accepts 0XXXXXXXXX and +233XXXXXXXXX (and 233XXXXXXXXX, which people paste
 // out of WhatsApp), tolerating spaces/dashes as typed. Stored in one form:

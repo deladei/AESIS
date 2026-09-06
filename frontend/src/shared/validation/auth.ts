@@ -6,6 +6,7 @@ import { REGION_VALUES } from '../constants/regions';
 import {
   personName, organisationName, email as emailOf, ghanaPhone,
   indexNumber as indexNumberField, staffId as staffIdField, freeText,
+  newPassword, offeredPassword,
 } from './fields';
 
 // Registration + profile shapes live here, not in the auth module, because the
@@ -31,7 +32,7 @@ export const registerSchema = z.object({
   firstName:   personName('First name'),
   lastName:    personName('Last name'),
   email:       emailField,
-  password:    z.string().min(8, 'Password must be at least 8 characters').max(128),
+  password:    newPassword(),
   role:        z.enum(SELF_REGISTERABLE_ROLES),
   gender:      z.enum(['male', 'female', 'other']),
   programmeId: z.string().uuid('Invalid programme ID').optional(),
@@ -88,5 +89,25 @@ export const updateProfileSchema = z.object({
 );
 
 
+// Sign-in and password recovery. These live here rather than in the auth
+// module for the same reason registerSchema does: the SPA parses them too, so
+// the message under a field is the message the API would have returned.
+export const loginSchema = z.object({
+  email:    emailField,
+  password: offeredPassword(),
+});
+
+export const resetPasswordInitSchema = z.object({
+  email: emailField,
+});
+
+export const resetPasswordConfirmSchema = z.object({
+  token:    z.string().min(1, 'This reset link is missing its token'),
+  password: newPassword('New password'),
+});
+
 export type RegisterInput      = z.infer<typeof registerSchema>;
 export type UpdateProfileInput = z.infer<typeof updateProfileSchema>;
+export type LoginInput                = z.infer<typeof loginSchema>;
+export type ResetPasswordInitInput    = z.infer<typeof resetPasswordInitSchema>;
+export type ResetPasswordConfirmInput = z.infer<typeof resetPasswordConfirmSchema>;

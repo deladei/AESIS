@@ -15,6 +15,8 @@ import {
   useRecordAssessment, useFinalizePlacement, useInviteAttestation,
   type AttestationInvite, type WeekWaiver,
 } from '@/hooks/useFinalization';
+import { freeText, optionalFreeText } from '@/lib/validation';
+import { FieldError } from '@/components/shared/FieldError';
 
 function placementName(p: Placement): string {
   const s = p.student;
@@ -57,6 +59,23 @@ const apiErr = (e: unknown) =>
 
 const inputCls =
   'w-full rounded-lg border border-[var(--h-d8dce6)] bg-[var(--h-ffffff)] px-3 py-2.5 text-sm text-[var(--h-0b1c30)] placeholder-[var(--h-94a3b8)] transition-colors focus:border-[var(--h-8a4cfc)] focus:outline-none focus:ring-1 focus:ring-[var(--h-8a4cfc)]';
+
+/**
+ * The rules `assessmentSchema` and `finalizeSchema` parse these bodies with.
+ * The page previously bounded none of them — `maxLength={20}` truncated a grade
+ * as it was typed, and a narrative or waiver reason over the limit came back as
+ * a bare 400 with nothing under the field that caused it.
+ */
+const gradeRule     = freeText(20, 'Grade');
+const narrativeRule = optionalFreeText(10000, 'Narrative');
+const waiverReasonRule = freeText(2000, 'Waiver reason');
+
+/** Message for one waiver box — silent until something has been typed in it. */
+function waiverError(value: string | undefined): string | undefined {
+  if (!value || value.trim() === '') return undefined;
+  const r = waiverReasonRule.safeParse(value);
+  return r.success ? undefined : r.error.issues[0]?.message;
+}
 
 export default function PlacementFinalization() {
   const { data: placements = [], isLoading } = useAssignedPlacements();
@@ -162,6 +181,13 @@ function FinalizationDetail({ placement }: { placement: Placement }) {
   const [assessMsg, setAssessMsg] = useState<string | null>(null);
   const [assessErr, setAssessErr] = useState<string | null>(null);
 
+  const gradeCheck = grade.trim() === '' ? null : gradeRule.safeParse(grade);
+  const gradeError = gradeCheck && !gradeCheck.success ? gradeCheck.error.issues[0]?.message : undefined;
+  const narrativeCheck = narrativeRule.safeParse(narrative);
+  const narrativeError = narrative.trim() !== '' && !narrativeCheck.success
+    ? narrativeCheck.error.issues[0]?.message
+    : undefined;
+
   const [waivers, setWaivers] = useState<Record<number, string>>({});
   const [finalizeErr, setFinalizeErr] = useState<string | null>(null);
 
@@ -181,7 +207,12 @@ function FinalizationDetail({ placement }: { placement: Placement }) {
 
   const handleRecord = async () => {
     setAssessErr(null); setAssessMsg(null);
-    if (!grade.trim()) { setAssessErr('A grade is required.'); return; }
+    if (!gradeCheck?.success) {
+      setAssessErr(gradeError ?? 'A grade is required.'); return;
+    }
+    if (!narrativeCheck.success) {
+      setAssessErr(narrativeCheck.error.issues[0]?.message ?? null); return;
+    }
     const validCriteria = criteria
       .filter((c) => c.criterion.trim())
       .map((c) => ({ criterion: c.criterion.trim(), rating: c.rating }));
@@ -192,8 +223,8 @@ function FinalizationDetail({ placement }: { placement: Placement }) {
     try {
       await recordAssessment.mutateAsync({
         placementId: placement.id,
-        grade: grade.trim(),
-        narrative: narrative.trim() || undefined,
+        grade: gradeCheck.data,
+        narrative: narrativeCheck.data,
         evaluation,
       });
       setAssessMsg('Assessment recorded. You can now finalize once every week is resolved.');
@@ -223,8 +254,14 @@ function FinalizationDetail({ placement }: { placement: Placement }) {
       weekNumber: e.weekNumber,
       reason: (waivers[e.weekNumber] ?? '').trim(),
     }));
-    if (payload.some((w) => !w.reason)) {
-      setFinalizeErr('Every unacknowledged week needs a waiver reason before you can finalize.');
+    const bad = payload.find((w) => !waiverReasonRule.safeParse(w.reason).success);
+    if (bad) {
+      const issue = waiverReasonRule.safeParse(bad.reason);
+      setFinalizeErr(
+        bad.reason === ''
+          ? 'Every unacknowledged week needs a waiver reason before you can finalize.'
+          : `Week ${bad.weekNumber}: ${issue.success ? '' : issue.error.issues[0]?.message}`,
+      );
       return;
     }
     try {
@@ -314,10 +351,12 @@ function FinalizationDetail({ placement }: { placement: Placement }) {
                       <input
                         type="text"
                         value={waivers[e.weekNumber] ?? ''}
+                        aria-invalid={!!waiverError(waivers[e.weekNumber])}
                         onChange={(ev) => setWaivers((w) => ({ ...w, [e.weekNumber]: ev.target.value }))}
                         placeholder="Reason for waiving this week…"
                         className={inputCls}
                       />
+                      <FieldError message={waiverError(waivers[e.weekNumber])} />
                     </div>
                   )}
                 </div>
@@ -348,20 +387,24 @@ function FinalizationDetail({ placement }: { placement: Placement }) {
                 Grade <span className="ml-2 text-xs font-normal text-[var(--h-64748b)]">e.g. A, B+, Pass</span>
               </label>
               <input
-                id="grade" type="text" value={grade} maxLength={20}
+                id="grade" type="text" value={grade}
+                aria-invalid={!!gradeError}
                 onChange={(e) => setGrade(e.target.value)}
                 placeholder="Final grade"
-                className={`${inputCls} mb-4`}
+                className={inputCls}
               />
+              <div className="mb-4"><FieldError message={gradeError} /></div>
               <label htmlFor="narrative" className="mb-1.5 block text-sm font-semibold text-[var(--h-0b1c30)]">
                 Narrative <span className="ml-2 text-xs font-normal text-[var(--h-64748b)]">Optional</span>
               </label>
               <textarea
                 id="narrative" rows={4} value={narrative}
+                aria-invalid={!!narrativeError}
                 onChange={(e) => setNarrative(e.target.value)}
                 placeholder="Summarise the intern's overall performance…"
                 className={`${inputCls} resize-none`}
               />
+              <FieldError message={narrativeError} />
 
               {/* Structured end-of-placement evaluation (optional) */}
               <div className="mt-4 rounded-lg border border-[var(--h-e2e6ef)] bg-[var(--h-fbfcfe)] p-4">

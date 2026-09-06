@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { Eye, EyeOff, Loader2, CheckCircle2 } from 'lucide-react';
 import { api } from '@/lib/api';
+import { newPassword } from '@/lib/validation';
 
 const inputClass = (hasError: boolean) =>
   `w-full px-4 py-2.5 pr-11 rounded-lg bg-[var(--h-ffffff)] border text-[var(--h-0b1c30)] placeholder-[var(--h-757684)] text-sm focus:outline-none focus:ring-1 transition-colors duration-150 ${
@@ -27,7 +28,10 @@ export default function ResetPasswordConfirmPage() {
     e.preventDefault();
     setFieldError('');
     setError('');
-    if (password.length < 8) { setFieldError('Password must be at least 8 characters'); return; }
+    // The shared rule, not a hand-copied "length < 8" — the message under the
+    // field is then the one the API would have returned for the same value.
+    const parsed = newPassword('New password').safeParse(password);
+    if (!parsed.success) { setFieldError(parsed.error.issues[0]?.message ?? 'Invalid password'); return; }
     if (password !== confirm) { setFieldError('Passwords do not match'); return; }
     setLoading(true);
     try {

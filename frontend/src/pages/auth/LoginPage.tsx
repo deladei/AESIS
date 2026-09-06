@@ -2,6 +2,8 @@ import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { Eye, EyeOff, Loader2, ShieldCheck, NotebookPen, MessageSquareText, LineChart } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
+import { FieldError } from '@/components/shared/FieldError';
+import { useFieldErrors, loginSchema } from '@/lib/validation';
 
 const ROLE_POINTS = [
   { icon: NotebookPen,       label: 'Students log their week', desc: 'A simple weekly logbook that takes minutes to fill in.' },
@@ -16,11 +18,15 @@ export default function LoginPage() {
   const [loading, setLoading] = useState(false);
   const [form, setForm] = useState({ email: '', password: '' });
   const [error, setError] = useState('');
+  // Same object the API parses this body with, so a malformed address reads
+  // identically here and there.
+  const { errors, check, validate, clear } = useFieldErrors(loginSchema);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    setLoading(true);
     setError('');
+    if (!validate(form)) return;
+    setLoading(true);
     try {
       const loggedInUser = await login(form.email, form.password);
       const redirects: Record<string, string> = {
@@ -133,11 +139,14 @@ export default function LoginPage() {
                 type="email"
                 autoComplete="email"
                 required
+                aria-invalid={!!errors.email}
                 value={form.email}
-                onChange={(e) => setForm({ ...form, email: e.target.value })}
+                onChange={(e) => { setForm({ ...form, email: e.target.value }); clear('email'); }}
+                onBlur={() => check('email', form.email)}
                 placeholder="you@cs.edu.gh"
                 className="w-full px-4 py-2.5 rounded-lg bg-[var(--h-ffffff)] border border-[var(--h-c4c5d5-60)] text-[var(--h-0b1c30)] placeholder-[var(--h-757684)] text-sm focus:outline-none focus:border-[var(--h-15157d)] focus:ring-1 focus:ring-[var(--h-15157d)] transition-colors duration-150"
               />
+              <FieldError message={errors.email} />
             </div>
 
             <div>
@@ -150,8 +159,9 @@ export default function LoginPage() {
                   type={showPassword ? 'text' : 'password'}
                   autoComplete="current-password"
                   required
+                  aria-invalid={!!errors.password}
                   value={form.password}
-                  onChange={(e) => setForm({ ...form, password: e.target.value })}
+                  onChange={(e) => { setForm({ ...form, password: e.target.value }); clear('password'); }}
                   placeholder="••••••••"
                   className="w-full px-4 py-2.5 pr-11 rounded-lg bg-[var(--h-ffffff)] border border-[var(--h-c4c5d5-60)] text-[var(--h-0b1c30)] placeholder-[var(--h-757684)] text-sm focus:outline-none focus:border-[var(--h-15157d)] focus:ring-1 focus:ring-[var(--h-15157d)] transition-colors duration-150"
                 />
@@ -164,6 +174,7 @@ export default function LoginPage() {
                   {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                 </button>
               </div>
+              <FieldError message={errors.password} />
               <div className="flex justify-end mt-1.5">
                 <Link to="/auth/reset-password" className="text-xs text-[var(--h-15157d)] hover:opacity-80 transition-opacity duration-150">
                   Forgot password?
