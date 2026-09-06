@@ -34,7 +34,10 @@ router.get(
 // ── Supervisor ────────────────────────────────────────────────
 router.get(
   '/assigned',
-  authorize('academic_supervisor'),
+  // Admin is break-glass on every surface (CLAUDE.md), and `/admin/finalize`
+  // renders the supervisor's own finalization page — without admin here that
+  // page 403s on its first request and shows an empty intern list.
+  authorize('academic_supervisor', 'admin'),
   asyncHandler(ctrl.getSupervisorPlacementsHandler),
 );
 

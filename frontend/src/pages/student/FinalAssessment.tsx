@@ -4,7 +4,7 @@ import {
   Award, Lock, FileText, Building2, Star, CheckCircle2, Sparkles,
   GraduationCap, Info, ArrowRight, EyeOff, Eye,
 } from 'lucide-react';
-import { useMyPlacements } from '@/hooks/usePlacements';
+import { useMyPlacement } from '@/hooks/usePlacements';
 import { useFinalAssessment } from '@/hooks/useFinalization';
 import { useGrade } from '@/hooks/useGrade';
 import { GradePanel } from '@/components/grades/GradePanel';
@@ -115,8 +115,7 @@ function GradeStateCard({ placementId }: { placementId: string }) {
  */
 export default function FinalAssessment() {
   const [showSample, setShowSample] = useState(false);
-  const { data: placements, isLoading: placementsLoading } = useMyPlacements();
-  const placement = placements?.find((p) => p.placementStatus === 'active') ?? placements?.[0];
+  const { placement, isLoading: placementsLoading } = useMyPlacement();
   const { data, isLoading, isError } = useFinalAssessment(placement?.id);
 
   if (placementsLoading || (placement && isLoading)) {

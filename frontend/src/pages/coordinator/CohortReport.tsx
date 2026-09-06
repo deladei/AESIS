@@ -13,6 +13,12 @@ import { regionLabel } from '@/lib/regions';
  * records. Scoped to the cohort passed via `?academicYearId=`. No new
  * dependency — the browser's print dialog produces the PDF.
  */
+/**
+ * The API caps `limit` at 100. This asked for 500 and got a 400 back, so the
+ * printable report rendered with an empty intern table and no error anywhere.
+ */
+const REPORT_ROW_CAP = 100;
+
 export default function CohortReport() {
   const [params] = useSearchParams();
   const yearId = params.get('academicYearId') || undefined;
@@ -20,7 +26,7 @@ export default function CohortReport() {
   const { data: dash, isLoading: l1 } = useCoordinatorDashboard(yearId);
   const { data: workload, isLoading: l2 } = useSupervisorWorkload(yearId);
   const { data: dist, isLoading: l3 } = usePerformanceDistribution(yearId);
-  const { data: studentsPage, isLoading: l4 } = useCoordinatorStudents({ page: 1, limit: 500, academicYearId: yearId });
+  const { data: studentsPage, isLoading: l4 } = useCoordinatorStudents({ page: 1, limit: REPORT_ROW_CAP, academicYearId: yearId });
   const { data: cohorts = [] } = useCoordinatorCohorts();
   const { data: gradeStats } = useCohortStats(yearId);
   const { data: regions } = useCohortRegions(yearId);

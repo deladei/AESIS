@@ -8,7 +8,7 @@ import {
 import { cn } from '@/lib/utils';
 import type { DashboardSupervisor } from '@/hooks/useStudentDashboard';
 import { useAuth } from '@/contexts/AuthContext';
-import { useMyPlacements } from '@/hooks/usePlacements';
+import { useMyPlacement } from '@/hooks/usePlacements';
 import { useEntries, useEntry } from '@/hooks/useEntries';
 import { useStudentDashboard } from '@/hooks/useStudentDashboard';
 import { useNotifications } from '@/hooks/useNotifications';
@@ -132,8 +132,7 @@ function SupervisorRow({
  */
 export default function StudentDashboard() {
   const { user } = useAuth();
-  const { data: placements, isLoading: placementsLoading } = useMyPlacements();
-  const active = placements?.find((p) => p.placementStatus === 'active') ?? placements?.[0];
+  const { placement: active, isLoading: placementsLoading } = useMyPlacement();
   // The weekly pipeline, not the retired `logbook_submissions` table: nothing
   // writes that any more, so reading it showed every student an empty logbook
   // and no supervisor feedback however much of either they actually had.
@@ -160,6 +159,12 @@ export default function StudentDashboard() {
   const fb0 = useEntry(decidedIds[0]);
   const fb1 = useEntry(decidedIds[1]);
   const fb2 = useEntry(decidedIds[2]);
+  // MUST stay above the early returns below. This used to sit after them, so
+  // the loading render called three fewer hooks than the loaded one and React
+  // threw "Rendered more hooks than during the previous render" — the crash
+  // behind the "This page hit a snag" screen that a refresh appeared to fix.
+  // The hook already no-ops on an undefined id.
+  const documentsQuery = useDocuments(active?.id);
 
   if (placementsLoading || entriesLoading) {
     return (
@@ -186,7 +191,6 @@ export default function StudentDashboard() {
     );
   }
 
-  const documentsQuery = useDocuments(active.id);
   const documents = documentsQuery.data ?? [];
 
   const weekTotal = stats?.week?.total ?? null;

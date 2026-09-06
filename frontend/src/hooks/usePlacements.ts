@@ -24,6 +24,10 @@ export interface Placement {
   startDate:            string | null;
   endDate:              string | null;
   createdAt:            string;
+  /** The placement the student is actually on. A student accumulates rows —
+   *  a superseded transfer, an administratively closed one, a stray pending
+   *  from registration — and only one of them is current. */
+  isCurrent?:           boolean;
   /** Coordinator board columns, resolved server-side (see listPlacements). */
   role?:                string | null;
   department?:          string | null;
@@ -90,6 +94,31 @@ export function useMyPlacements() {
       return [] as Placement[];
     },
   });
+}
+
+/**
+ * THE placement — the one every student screen should be talking about.
+ *
+ * The rule was copy-pasted into four pages as
+ * `placements.find(p => p.placementStatus === 'active') ?? placements[0]`,
+ * which ignores `isCurrent` entirely. That is wrong twice over: a student whose
+ * old placement was completed and who has a stray pending row reads
+ * "Awaiting approval" though they were approved months ago, and a student
+ * carrying a superseded `active` row can be looking at a different placement
+ * from the one their supervisor is updating.
+ *
+ * `isCurrent` wins, then an active one, then the most recent. The API already
+ * returns them in that order; this re-applies it so the rule survives a caller
+ * that sorts or filters the list first.
+ */
+export function useMyPlacement() {
+  const query = useMyPlacements();
+  const placements = query.data;
+  const placement =
+    placements?.find((p) => p.isCurrent) ??
+    placements?.find((p) => p.placementStatus === 'active') ??
+    placements?.[0];
+  return { ...query, placement, placements };
 }
 
 /** Placements assigned to the logged-in academic supervisor. */

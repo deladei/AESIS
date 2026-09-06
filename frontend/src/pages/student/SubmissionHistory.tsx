@@ -4,7 +4,7 @@ import {
   ChevronRight, CheckCircle2, AlertCircle, Clock, Send, RotateCcw, Sparkles,
   CalendarDays, ListChecks, CircleDashed,
 } from 'lucide-react';
-import { useMyPlacements } from '@/hooks/usePlacements';
+import { useMyPlacement } from '@/hooks/usePlacements';
 import { useEntries, useEntry, type EntryStatus } from '@/hooks/useEntries';
 import { useSiwesCalendar } from '@/hooks/useSiwes';
 import { buildSchedule, fmtRange, SCHEDULE_WEEKS } from '@/lib/schedule';
@@ -165,8 +165,7 @@ function EntryDetail({ entryId, state }: { entryId: string; state: WeekState }) 
 }
 
 export default function SubmissionHistory() {
-  const { data: placements, isLoading: placementsLoading } = useMyPlacements();
-  const activePlacement = placements?.find((p) => p.placementStatus === 'active') ?? placements?.[0];
+  const { placement: activePlacement, isLoading: placementsLoading } = useMyPlacement();
   const { data: entries = [], isLoading: entriesLoading } = useEntries(activePlacement?.id);
   const { data: calendar } = useSiwesCalendar(activePlacement?.id);
   const [openId, setOpenId] = useState<string | null>(null);

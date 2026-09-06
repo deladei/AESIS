@@ -310,9 +310,10 @@ export interface CoordinatorFeatureFlags {
   aiInsights:      boolean;
 }
 
-export function useCoordinatorFeatureFlags() {
+export function useCoordinatorFeatureFlags(enabled = true) {
   return useQuery({
     queryKey: ['coordinator', 'feature-flags'],
+    enabled,
     staleTime: 5 * 60_000,
     queryFn:  async () => {
       const r = await api.get<{ data: CoordinatorFeatureFlags }>('/coordinator/feature-flags');

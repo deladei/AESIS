@@ -5,7 +5,7 @@ import {
   Calendar, CalendarDays, AlertCircle, BookOpen, Sparkles, ShieldCheck, Lock,
   Sun, Stethoscope, CircleSlash, ChevronDown, ChevronUp,
 } from 'lucide-react';
-import { useMyPlacements } from '@/hooks/usePlacements';
+import { useMyPlacement } from '@/hooks/usePlacements';
 import {
   useEntries, useEntry, useSaveDay, useSubmitDay, useSubmitEntry, dayKey, type EntryStatus,
 } from '@/hooks/useEntries';
@@ -130,8 +130,7 @@ type LocalActivity = { description: string; competencyTags: string[] };
 
 export default function LogbookEditor() {
   const today = ghanaYMD();
-  const { data: placements, isLoading: placementsLoading } = useMyPlacements();
-  const placement = placements?.find((p) => p.placementStatus === 'active') ?? placements?.[0];
+  const { placement, isLoading: placementsLoading } = useMyPlacement();
 
   const { data: calendar, isLoading: calendarLoading } = useSiwesCalendar(placement?.id);
   const { data: entries = [], isLoading: entriesLoading } = useEntries(placement?.id);

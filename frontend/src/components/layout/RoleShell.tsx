@@ -40,7 +40,10 @@ export function RoleShell({ role, user, children, topbarSlot }: RoleShellProps) 
   const { logout } = useAuth();
   const { pathname } = useLocation();
   const { data: unreadCount = 0 } = useUnreadCount();
-  const { data: flags } = useCoordinatorFeatureFlags();
+  // Coordinator-only endpoint: asking as a student or supervisor 403s on
+  // every page load. The flags only gate coordinator nav items anyway.
+  const canReadFlags = role === 'coordinator' || role === 'admin';
+  const { data: flags } = useCoordinatorFeatureFlags(canReadFlags);
   // The sidebar's profile-completion meter. Same cached query the student
   // dashboard uses, so this costs no extra request.
   const { data: studentStats } = useStudentDashboard(role === 'student');

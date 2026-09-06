@@ -158,6 +158,20 @@ export async function getPlacement(placementId: string, requesterId: string, req
   return placement;
 }
 
+/**
+ * Every placement this student has ever had, **current one first**.
+ *
+ * A student accumulates rows: registration creates a pending placement, a
+ * transfer supersedes one, an administrative close leaves a stale row behind.
+ * `isCurrent` is the flag that says which of them the student is actually on —
+ * but this used to order by `createdAt desc` alone, so the newest row won.
+ * A student approved months ago who acquired a newer pending row was shown
+ * "Awaiting approval", and one carrying a superseded `active` row could be
+ * reading a different placement from the one their supervisor was updating.
+ *
+ * Ordering it here rather than in each caller means the client's "first one"
+ * is right by construction.
+ */
 export async function getMyPlacements(studentId: string) {
   return prisma.placement.findMany({
     where:   { studentId },
@@ -165,7 +179,7 @@ export async function getMyPlacements(studentId: string) {
       company:      { select: { id: true, name: true } },
       academicYear: { select: { label: true } },
     },
-    orderBy: { createdAt: 'desc' },
+    orderBy: [{ isCurrent: 'desc' }, { createdAt: 'desc' }],
   });
 }
 
