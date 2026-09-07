@@ -24,4 +24,22 @@ export function aiEngineUrl(path: string): string {
 // after a wake can take 30–60s. A short timeout aborts the wake and the job
 // fails/abandons before the engine ever answers. Give cold starts room — the
 // worker still retries with backoff, so a genuine outage isn't held hostage.
+//
+// This one is for the INTERACTIVE paths (chat, writing assist), where a person
+// is watching a cursor blink. It stays short deliberately.
 export const AI_ENGINE_TIMEOUT_MS = 45_000;
+
+/**
+ * Budget for one enrichment pass, which is a different problem to a chat turn.
+ *
+ * Enrichment runs three model calls concurrently (competency, summary, quality)
+ * and then a fourth — the feedback draft — which cannot join them because it is
+ * written FROM the other two's output. That is two sequential rounds of Groq
+ * latency, roughly 25s + 20s at the per-call timeouts, on top of a possible
+ * cold start. At 45s a slow-but-healthy engine reads as a failure and the job
+ * burns a retry.
+ *
+ * Nobody waits on this: it is a background queue with backoff, and the entry is
+ * reviewable by a human throughout. Latency here costs nothing but freshness.
+ */
+export const AI_ENRICHMENT_TIMEOUT_MS = 90_000;

@@ -252,3 +252,49 @@ class TestEnrichPlacement:
         recs = " ".join(s["recommendations"])
         assert "narrow" in recs  # single theme
         assert "testing/QA" in recs  # no testing evidence
+
+
+class TestStagesDegradeIndependently:
+    """One model stage failing must not take the others down with it.
+
+    The three model calls now run concurrently, so a raised exception in any of
+    them arrives through `asyncio.gather` rather than through the service's own
+    try/except. If that escape were not contained, a single bad Groq response
+    would fail the whole enrichment pass instead of degrading one stage — and
+    the entry would go to the supervisor with no assessment at all.
+    """
+
+    @staticmethod
+    def _boom(*_a, **_k):
+        async def _raise():
+            raise RuntimeError("groq exploded")
+        return _raise()
+
+    def test_a_raising_classifier_falls_back_to_the_word_list(self, monkeypatch):
+        monkeypatch.setattr(enrich.competency, "classify", self._boom)
+        data = client.post("/ai/enrich/entry", json=entry_body(), headers=HEADERS).json()
+        assert data["classifier"] == "keywords"
+        assert len(data["summary"]["activity_relevance"]) == 2
+
+    def test_a_raising_summarizer_falls_back_to_the_template(self, monkeypatch):
+        monkeypatch.setattr(enrich.summary_service, "summarize_week", self._boom)
+        data = client.post("/ai/enrich/entry", json=entry_body(), headers=HEADERS).json()
+        assert data["summarizer"] == "template"
+        assert data["summary"]["headline"]
+
+    def test_a_raising_assessor_falls_back_to_the_rubric(self, monkeypatch):
+        monkeypatch.setattr(enrich.quality_service, "assess", self._boom)
+        data = client.post("/ai/enrich/entry", json=entry_body(), headers=HEADERS).json()
+        assert data["scorer"] == "rubric"
+        assert 0.0 <= data["quality"]["overall"] <= 100.0
+
+    def test_all_three_failing_still_returns_a_complete_response(self, monkeypatch):
+        monkeypatch.setattr(enrich.competency, "classify", self._boom)
+        monkeypatch.setattr(enrich.summary_service, "summarize_week", self._boom)
+        monkeypatch.setattr(enrich.quality_service, "assess", self._boom)
+        r = client.post("/ai/enrich/entry", json=entry_body(), headers=HEADERS)
+        assert r.status_code == 200
+        data = r.json()
+        assert (data["classifier"], data["summarizer"], data["scorer"]) == (
+            "keywords", "template", "rubric",
+        )

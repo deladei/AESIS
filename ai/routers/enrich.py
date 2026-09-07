@@ -18,6 +18,7 @@ This is advisory only. It must never imply a grade or a pass/fail.
 """
 from __future__ import annotations
 
+import asyncio
 import re
 from fastapi import APIRouter, Header, HTTPException
 from pydantic import BaseModel, Field
@@ -245,9 +246,10 @@ RUBRIC_WEIGHTS = {
 LOW_RELEVANCE = 0.15
 
 
-async def _build_quality(
+def _assemble_quality(
     req: EnrichEntryRequest,
     relevance: float,
+    judged: quality_service.ModelQuality | None,
 ) -> tuple[QualityBreakdown, str]:
     """The quality breakdown, model-assessed where possible.
 
@@ -258,12 +260,6 @@ async def _build_quality(
     disagreed. There is now one.
     """
     rubric = _score_quality(req)
-
-    judged = await quality_service.assess(
-        activities=[a.description for a in req.activities],
-        learning=req.reflection.learning if req.reflection else "",
-        challenges=req.reflection.challenges if req.reflection else "",
-    )
     if judged is None:
         return rubric, "rubric"
 
@@ -329,9 +325,10 @@ def _summarize(req: EnrichEntryRequest, scored: list[ActivityRelevance]) -> Entr
     )
 
 
-async def _build_summary(
+def _assemble_summary(
     req: EnrichEntryRequest,
     scored: list[ActivityRelevance],
+    narrative: summary_service.WeekNarrative | None,
 ) -> tuple[EntrySummary, str]:
     """The week's summary, model-narrated where possible.
 
@@ -341,12 +338,6 @@ async def _build_summary(
     make, and losing it because Groq answered would be a regression.
     """
     computed = _summarize(req, scored)
-
-    narrative = await summary_service.summarize_week(
-        activities=[a.description for a in req.activities],
-        learning=req.reflection.learning if req.reflection else "",
-        challenges=req.reflection.challenges if req.reflection else "",
-    )
     if narrative is None:
         return computed, "template"
 
@@ -366,8 +357,9 @@ async def _build_summary(
     )
 
 
-async def _classify_activities(
+def _assemble_activities(
     activities: list[ActivityIn],
+    judged: list[competency.ClassifiedActivity] | None,
 ) -> tuple[list[ActivityRelevance], str]:
     """Classify a week's activities, model first and word list as the floor.
 
@@ -378,7 +370,6 @@ async def _classify_activities(
     if not activities:
         return [], "keywords"
 
-    judged = await competency.classify([a.description for a in activities])
     if judged is None:
         return (
             [_classify_activity(a.description, a.competency_tags) for a in activities],
@@ -413,15 +404,38 @@ async def enrich_entry(
 ) -> EnrichEntryResponse:
     _require_internal(x_api_key)
 
-    scored, classifier = await _classify_activities(body.activities)
+    descriptions = [a.description for a in body.activities]
+    learning = body.reflection.learning if body.reflection else ""
+    challenges = body.reflection.challenges if body.reflection else ""
+
+    # The three model calls read the same entry and depend on nothing but it, so
+    # they run together. Sequentially they are ~75s of worst-case Groq latency
+    # against the Node worker's 90s budget, and that is before the feedback
+    # draft — which cannot join them, since it is written FROM the quality
+    # feedback and the summary's concerns. Two rounds, not four.
+    #
+    # `return_exceptions` is belt-and-braces: each service already swallows its
+    # own failures and returns None, but one unexpected escape must degrade that
+    # stage rather than fail the whole enrichment pass.
+    judged, narrative, assessed = await asyncio.gather(
+        competency.classify(descriptions),
+        summary_service.summarize_week(descriptions, learning, challenges),
+        quality_service.assess(descriptions, learning, challenges),
+        return_exceptions=True,
+    )
+    judged = judged if isinstance(judged, list) else None
+    narrative = narrative if isinstance(narrative, summary_service.WeekNarrative) else None
+    assessed = assessed if isinstance(assessed, quality_service.ModelQuality) else None
+
+    scored, classifier = _assemble_activities(body.activities, judged)
     overall = round(sum(a.relevance for a in scored) / len(scored), 3) if scored else 0.0
-    summary, summarizer = await _build_summary(body, scored)
-    quality, scorer = await _build_quality(body, overall)
+    summary, summarizer = _assemble_summary(body, scored, narrative)
+    quality, scorer = _assemble_quality(body, overall, assessed)
     plagiarism = check_entry(_entry_text(body.activities, body.reflection), body.corpus)
     feedback = await draft_feedback(
-        activities=[a.description for a in body.activities],
-        learning=body.reflection.learning if body.reflection else "",
-        challenges=body.reflection.challenges if body.reflection else "",
+        activities=descriptions,
+        learning=learning,
+        challenges=challenges,
         rubric_feedback=quality.feedback,
         concerns=summary.concerns,
     )

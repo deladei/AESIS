@@ -1,6 +1,6 @@
 import { z } from 'zod';
 import { env } from '../../config/env';
-import { aiEngineUrl, AI_ENGINE_TIMEOUT_MS } from '../../shared/utils/aiEngine';
+import { aiEngineUrl, AI_ENRICHMENT_TIMEOUT_MS } from '../../shared/utils/aiEngine';
 
 /**
  * FastAPI client for Path 2 (AI enrichment). Deliberately thin and defensive:
@@ -129,7 +129,7 @@ export const enrichEntryViaFastApi: EnrichFn = async (payload) => {
       'x-api-key': env.AI_ENGINE_API_KEY,
     },
     body: JSON.stringify(payload),
-    signal: AbortSignal.timeout(AI_ENGINE_TIMEOUT_MS),
+    signal: AbortSignal.timeout(AI_ENRICHMENT_TIMEOUT_MS),
   });
 
   if (!res.ok) {
