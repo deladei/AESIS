@@ -114,6 +114,41 @@ async function buildCorpus(entryId: string, studentId: string) {
     .filter((d) => d.text.length > 0);
 }
 
+// How many of the student's own earlier weeks to send. Enough to see a
+// direction of travel and catch a week copied from the last one; short enough
+// that the prompt stays about THIS week.
+const HISTORY_WEEKS = 4;
+const HISTORY_ACTIVITIES_PER_WEEK = 8;
+
+async function buildHistory(studentId: string, weekNumber: number) {
+  const prior = await prisma.logbookEntry.findMany({
+    where: {
+      placement: { studentId },
+      weekNumber: { lt: weekNumber },
+      status: { in: ['submitted', 'acknowledged'] },
+    },
+    orderBy: { weekNumber: 'desc' },
+    take: HISTORY_WEEKS,
+    include: {
+      activities: {
+        orderBy: { activityDate: 'asc' },
+        take: HISTORY_ACTIVITIES_PER_WEEK,
+        select: { description: true },
+      },
+    },
+  });
+
+  // Oldest first: the model is being asked to read a direction of travel, and
+  // handing it the weeks backwards inverts exactly that.
+  return prior
+    .reverse()
+    .map((e) => ({
+      week_number: e.weekNumber,
+      activities: e.activities.map((a) => a.description).filter((d) => d.trim().length > 0),
+    }))
+    .filter((w) => w.activities.length > 0);
+}
+
 async function buildPayload(entryId: string): Promise<EnrichmentPayload | null> {
   const entry = await prisma.logbookEntry.findUnique({
     where: { id: entryId },
@@ -137,6 +172,7 @@ async function buildPayload(entryId: string): Promise<EnrichmentPayload | null> 
       ? { learning: entry.reflection.learning, challenges: entry.reflection.challenges }
       : null,
     corpus: await buildCorpus(entry.id, entry.placement.studentId),
+    history: await buildHistory(entry.placement.studentId, entry.weekNumber),
   };
 }
 

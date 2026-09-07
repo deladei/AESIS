@@ -827,6 +827,36 @@ describe('AI enrichment (Path 2)', () => {
     // studentA's own earlier submitted weeks appear tagged same_student.
     expect(mine!.corpus.some((d) => d.same_student)).toBe(true);
   });
+
+  itdb("payload history carries this student's own earlier weeks, oldest first", async () => {
+    // Two of the quality dimensions are unanswerable without this: the
+    // `repetitive` flag is defined as repeating an earlier week, and
+    // `temporal_consistency` asks whether the week progresses from the ones
+    // before it. The engine was judging each week alone.
+    const otherDraft = await saveDraft(studentB, { ...week(24), placementId: placementB });
+    await submitEntry(studentB, otherDraft.id);
+    await submitFreshWeek(23);
+    const entryId = await submitFreshWeek(25);
+
+    const payloads: EnrichmentPayload[] = [];
+    const capture: EnrichFn = async (p) => {
+      payloads.push(p);
+      return goodResult;
+    };
+    for (let i = 0; i < 3; i += 1) await processOne(capture);
+
+    const mine = payloads.find((p) => p.entry_id === entryId);
+    expect(mine).toBeDefined();
+
+    const weeks = mine!.history.map((h) => h.week_number);
+    // Only weeks BEFORE this one, and only this student's.
+    expect(weeks).toContain(23);
+    expect(weeks).not.toContain(25);
+    expect(weeks).not.toContain(24); // studentB's week, not ours
+    // Oldest first — handed over backwards, "progression" inverts.
+    expect([...weeks]).toEqual([...weeks].sort((a, b) => a - b));
+    expect(mine!.history.every((h) => h.activities.length > 0)).toBe(true);
+  });
 });
 
 // ── Stage 5 — Placement finalization ──────────────────────────

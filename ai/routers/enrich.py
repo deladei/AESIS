@@ -72,6 +72,12 @@ class ReflectionIn(BaseModel):
     challenges: str = ""
 
 
+class PriorWeekIn(BaseModel):
+    """One of the student's own earlier weeks, for context."""
+    week_number: int
+    activities: list[str] = Field(default_factory=list)
+
+
 class EnrichEntryRequest(BaseModel):
     entry_id: str
     week_number: int | None = None
@@ -82,6 +88,12 @@ class EnrichEntryRequest(BaseModel):
     # stale). Each doc's text must be composed the same way _entry_text()
     # composes the candidate. Empty list ⇒ plagiarism stage reports unchecked.
     corpus: list[CorpusDoc] = Field(default_factory=list)
+    # This student's own earlier weeks, oldest first. Distinct from `corpus`,
+    # which mixes students and carries no week numbers: this is one student's
+    # sequence, and it is what makes "does this week progress from the last
+    # one" and "is this last week again" answerable at all. Defaulted, so an
+    # older Node deploy that sends no history still enriches.
+    history: list[PriorWeekIn] = Field(default_factory=list)
 
 
 class ActivityRelevance(BaseModel):
@@ -417,10 +429,12 @@ async def enrich_entry(
     # `return_exceptions` is belt-and-braces: each service already swallows its
     # own failures and returns None, but one unexpected escape must degrade that
     # stage rather than fail the whole enrichment pass.
+    history = [(w.week_number, w.activities) for w in body.history]
+
     judged, narrative, assessed = await asyncio.gather(
         competency.classify(descriptions),
-        summary_service.summarize_week(descriptions, learning, challenges),
-        quality_service.assess(descriptions, learning, challenges),
+        summary_service.summarize_week(descriptions, learning, challenges, history),
+        quality_service.assess(descriptions, learning, challenges, history),
         return_exceptions=True,
     )
     judged = judged if isinstance(judged, list) else None

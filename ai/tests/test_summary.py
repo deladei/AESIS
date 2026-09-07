@@ -160,6 +160,35 @@ class TestSummarizePlacement:
         assert await summary.summarize_placement([(1, ["Wrote the refund handler"])]) is None
 
 
+class TestHistoryContext:
+    def test_renders_earlier_weeks_oldest_first(self):
+        block = summary._history_block([(1, ["Set up the environment"]),
+                                        (2, ["Wrote the refund handler"])])
+        assert block.index("Week 1") < block.index("Week 2")
+
+    def test_empty_without_history(self):
+        assert summary._history_block(None) == ""
+        assert summary._history_block([(1, ["  "])]) == ""
+
+    @pytest.mark.asyncio
+    async def test_history_reaches_the_model(self, monkeypatch):
+        sent = {}
+        _stub(monkeypatch, {"headline": "Continued the exporter work.", "concerns": []})
+        real = summary._ask
+
+        async def spy(system, user):
+            sent["user"] = user
+            return await real(system, user)
+
+        monkeypatch.setattr(summary, "_ask", spy)
+        await summary.summarize_week(["Finished the exporter"], history=[(4, ["Started the exporter"])])
+        assert "Week 4: Started the exporter" in sent["user"]
+        assert "context only" in sent["user"].lower()
+
+    def test_the_prompt_forbids_describing_earlier_work_as_this_week(self):
+        assert "CONTEXT ONLY" in summary.WEEK_PROMPT
+
+
 def _stub(monkeypatch, payload) -> None:
     """Pretend Groq answered with `payload`, without a network call."""
     import json

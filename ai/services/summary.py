@@ -42,6 +42,9 @@ MAX_REFLECTION_CHARS = 1_500
 MAX_HEADLINE_CHARS = 320
 MAX_ITEM_CHARS = 200
 MAX_ITEMS = 3
+MAX_HISTORY_WEEKS = 3
+MAX_HISTORY_ACTIVITIES = 6
+MAX_HISTORY_ACTIVITY_CHARS = 200
 
 # Assessment vocabulary. Narrow on purpose: only terms that are unambiguously a
 # mark or a verdict. Ordinary evaluative adjectives are left alone — banning
@@ -87,6 +90,10 @@ elsewhere and shown beside your text; inventing your own would contradict them.
 a description, not an assessment.
 - Do not invent anything the entry does not say. If the entry is too thin to \
 describe, say exactly that.
+- Where earlier weeks are given they are CONTEXT ONLY, so you can say whether \
+this week continues or departs from them. Summarise THIS week. Never describe \
+work from an earlier week as if it happened in this one, and do not assume \
+continuity the entries do not show.
 - `concerns`: at most 3 things the supervisor should look into, each one short \
 clause, each grounded in what is written. An empty list is correct when there \
 is nothing to raise. Do not pad it.
@@ -176,6 +183,19 @@ async def _ask(system_prompt: str, user_content: str) -> dict | None:
         return None
 
 
+def _history_block(history: list[tuple[int, list[str]]] | None) -> str:
+    """The student's earlier weeks, oldest first, trimmed hard — enough to say
+    whether this week continues from them, not enough to become the subject."""
+    if not history:
+        return ""
+    lines: list[str] = []
+    for week_number, activities in history[-MAX_HISTORY_WEEKS:]:
+        items = [a.strip()[:MAX_HISTORY_ACTIVITY_CHARS] for a in activities if a.strip()]
+        if items:
+            lines.append(f"Week {week_number}: " + "; ".join(items[:MAX_HISTORY_ACTIVITIES]))
+    return "\n".join(lines)
+
+
 def _activity_listing(descriptions: list[str]) -> str:
     trimmed = [d.strip()[:MAX_ACTIVITY_CHARS] for d in descriptions if d.strip()]
     return "\n".join(f"- {d}" for d in trimmed[:MAX_ACTIVITIES])
@@ -185,6 +205,7 @@ async def summarize_week(
     activities: list[str],
     learning: str = "",
     challenges: str = "",
+    history: list[tuple[int, list[str]]] | None = None,
 ) -> WeekNarrative | None:
     """Narrate one week. `None` whenever the template should be used instead."""
     listing = _activity_listing(activities)
@@ -196,6 +217,10 @@ async def summarize_week(
         parts.append(f"\nWhat the student says they learned:\n{learning.strip()[:MAX_REFLECTION_CHARS]}")
     if challenges.strip():
         parts.append(f"\nChallenges the student describes:\n{challenges.strip()[:MAX_REFLECTION_CHARS]}")
+
+    prior = _history_block(history)
+    if prior:
+        parts.append(f"\n\nFor context only — this student's earlier weeks:\n{prior}")
 
     raw = await _ask(WEEK_PROMPT, "\n".join(parts))
     if raw is None:

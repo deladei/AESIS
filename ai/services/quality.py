@@ -50,6 +50,9 @@ MAX_ACTIVITY_CHARS = 600
 MAX_REFLECTION_CHARS = 1_500
 MAX_EVIDENCE_CHARS = 200
 MAX_FEEDBACK_CHARS = 600
+MAX_HISTORY_WEEKS = 4
+MAX_HISTORY_ACTIVITIES = 8
+MAX_HISTORY_ACTIVITY_CHARS = 200
 
 DIMENSIONS = ("task_depth", "tech_vocab", "reflection", "temporal_consistency")
 
@@ -79,7 +82,8 @@ list of technology names with no work attached is not.
 something failed, what they would do differently, what they now understand? \
 Restating the tasks in the past tense is not reflection.
 - `temporal_consistency`: does the week read as coherent, plausible progression \
-of work? Not whether it uses words like "Monday" or "then".
+of work? Not whether it uses words like "Monday" or "then". Where earlier weeks \
+are given, judge whether this week follows on from them sensibly.
 
 Rules:
 - Do NOT reward length. A precise sixty-word account of real work scores higher \
@@ -87,6 +91,9 @@ than three hundred words of padding. Do not reward keyword lists, and do not \
 penalise an entry for naming no technologies if the work itself is technical.
 - `evidence` is one short clause per dimension quoting or pointing at what in \
 the entry drove the score. A supervisor must be able to disagree with it.
+- Where earlier weeks are given they are CONTEXT ONLY. Score THIS week. Use \
+them to judge progression and to notice repetition; never credit or penalise \
+this week for what an earlier one contained.
 - `flags` may ONLY be drawn from: {", ".join(FLAGS)}. Use only what applies; an \
 empty list is correct for a solid entry.
 - `feedback` is at most three sentences addressed to the supervisor about this \
@@ -109,6 +116,22 @@ class ModelQuality(BaseModel):
     evidence: dict[str, str] = Field(default_factory=dict)
     flags: list[str] = Field(default_factory=list)
     feedback: str = ""
+
+
+def _history_block(history: list[tuple[int, list[str]]] | None) -> str:
+    """The student's earlier weeks, oldest first, trimmed hard.
+
+    Context, not subject matter: the budget stays small on purpose so the
+    prompt remains about the week being assessed.
+    """
+    if not history:
+        return ""
+    lines: list[str] = []
+    for week_number, activities in history[-MAX_HISTORY_WEEKS:]:
+        items = [a.strip()[:MAX_HISTORY_ACTIVITY_CHARS] for a in activities if a.strip()]
+        if items:
+            lines.append(f"Week {week_number}: " + "; ".join(items[:MAX_HISTORY_ACTIVITIES]))
+    return "\n".join(lines)
 
 
 def _clean(text: object, limit: int) -> str:
@@ -163,6 +186,7 @@ async def assess(
     activities: list[str],
     learning: str = "",
     challenges: str = "",
+    history: list[tuple[int, list[str]]] | None = None,
 ) -> ModelQuality | None:
     """Assess one week. `None` on any failure — the caller falls back to the
     rubric scorer rather than losing the enrichment pass."""
@@ -177,6 +201,13 @@ async def assess(
         parts.append(f"\nChallenges the student describes:\n{challenges.strip()[:MAX_REFLECTION_CHARS]}")
     else:
         parts.append("\n(The student recorded no challenges.)")
+
+    # Earlier weeks last, and clearly fenced. Two of the four dimensions are
+    # unanswerable without them — `repetitive` is defined as repeating an
+    # earlier week, and progression needs something to progress from.
+    prior = _history_block(history)
+    if prior:
+        parts.append(f"\n\nFor context only — this student's earlier weeks:\n{prior}")
 
     try:
         async with httpx.AsyncClient(timeout=ASSESS_TIMEOUT_S) as client:

@@ -111,6 +111,47 @@ class TestAssess:
         assert await quality.assess(["Built the exporter"]) is None
 
 
+class TestHistoryBlock:
+    """The student's earlier weeks, which is what makes two of the four
+    dimensions answerable at all.
+
+    `repetitive` is defined as repeating an earlier week, and progression needs
+    something to progress from; without history the model was being asked both
+    questions with only one week in front of it.
+    """
+
+    def test_renders_weeks_oldest_first(self):
+        block = quality._history_block([(1, ["Set up the dev environment"]),
+                                        (2, ["Wrote the refund handler"])])
+        assert block.index("Week 1") < block.index("Week 2")
+
+    def test_empty_for_no_history(self):
+        assert quality._history_block(None) == ""
+        assert quality._history_block([]) == ""
+
+    def test_skips_a_week_with_no_usable_activities(self):
+        assert quality._history_block([(1, []), (2, ["   "])]) == ""
+
+    def test_caps_weeks_activities_and_length(self):
+        many = [(w, [f"activity {i}" for i in range(20)]) for w in range(1, 10)]
+        block = quality._history_block(many)
+        assert len(block.splitlines()) == quality.MAX_HISTORY_WEEKS
+        # The most recent weeks are the ones kept.
+        assert "Week 9" in block and "Week 1:" not in block
+        assert block.splitlines()[0].count(";") == quality.MAX_HISTORY_ACTIVITIES - 1
+
+    def test_truncates_a_long_activity(self):
+        block = quality._history_block([(1, ["z" * 900])])
+        assert "z" * quality.MAX_HISTORY_ACTIVITY_CHARS in block
+        assert "z" * (quality.MAX_HISTORY_ACTIVITY_CHARS + 1) not in block
+
+
+def test_the_prompt_says_history_is_context_only():
+    # Without this the model credits the week being assessed for work that
+    # happened in an earlier one.
+    assert "CONTEXT ONLY" in quality.SYSTEM_PROMPT
+
+
 def test_every_prompt_flag_is_in_the_vocabulary():
     # The prompt lists the allowed flags; if the two drift, the model is asked
     # for flags that _coerce then silently drops.

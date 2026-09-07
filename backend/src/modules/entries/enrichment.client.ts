@@ -116,6 +116,20 @@ export interface EnrichmentPayload {
   // Postgres per check (the AI engine keeps no index). Empty ⇒ stage reports
   // unchecked. Text composition must mirror the AI side's _entry_text().
   corpus: { entry_id: string; text: string; same_student: boolean }[];
+  /**
+   * This student's own earlier weeks, oldest first — what they did before this
+   * one.
+   *
+   * The engine was judging each week in complete isolation while two of its
+   * four quality dimensions asked questions that need more than one week to
+   * answer: `temporal_consistency` asks whether the week reads as coherent
+   * progression, and the `repetitive` flag is defined as repeating itself "or
+   * an earlier week almost verbatim". Neither was answerable.
+   *
+   * Distinct from `corpus`, which is the plagiarism side: that mixes students,
+   * is unordered, and carries no week numbers. This is one student's sequence.
+   */
+  history: { week_number: number; activities: string[] }[];
 }
 
 /** How the worker calls the model. Injectable so tests need no live FastAPI. */
