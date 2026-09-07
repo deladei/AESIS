@@ -4186,18 +4186,75 @@ Rotate Supabase → Settings → Database → Reset password, then update `DATAB
 on `aesis-backend` **and** `POSTGRES_DSN` on `aesis-ai-engine` (or just the backend,
 once the blueprint's `fromService` link is live).
 
+### The corpus fix landed — and uncovered that the AI had never run at all
+
+`POSTGRES_DSN` was repointed to Supabase and the corpus ingested itself on boot:
+15 passages, `error: null`. The assistant now answers from the regulations and
+cites the section, and refuses what is not in them:
+
+> **Can I still log a day I missed last week?** — "Yes, you can still log a missed
+> day from last week. It will be recorded as a late entry (showing how many days
+> late) but will not be refused or affect your grade on its own. **(Logging a day
+> late)**"
+>
+> **What is the capital of Brazil?** — "I don't have that information in the
+> department's regulations. Please refer to your academic supervisor..."
+
+Getting there took three more failures, each hidden behind the one in front of it,
+and each one a thing that reported itself as healthy:
+
+1. **Mongo is unreachable** (`OperationFailure` — an auth failure, so `MONGO_URI` on
+   the engine is stale, exactly like `POSTGRES_DSN` was). The chat endpoint loaded
+   history *before* opening the stream, unguarded, so an unreachable history store
+   returned 500 and the student was told the assistant was unavailable — with a
+   working model and a full corpus behind it. Now fail-soft: history degrades to
+   "first turn", the save is guarded, and Motor's server-selection timeout is 5s
+   rather than 30s. **`MONGO_URI` still needs fixing — chat transcripts are not
+   being saved.**
+2. **The chat handler discarded the reason.** `ConnectError`, `TimeoutException` and
+   `HTTPStatusError` all collapsed into one vague sentence, so a rate limit, a
+   rejected payload and a dead network were indistinguishable. It now reads Groq's
+   body and reports the last failure on `/health`. That is what produced the 404.
+3. **🔴 `llama-3.1-8b-instant` had been decommissioned by Groq.** Every completion
+   was returning 404. Because every caller here fails open by design, chat,
+   competency classification, summaries, quality assessment and the feedback drafts
+   *all* ran on their heuristic fallbacks and nothing surfaced anywhere. `/health`
+   said `groq: connected` throughout, because it only ever checked that Groq
+   answered — not that the model existed.
+
+   **This means #1, #2 and #3 have never actually run in production.** The code is
+   right; the model id was dead. Now `openai/gpt-oss-120b` (chosen over the 20b:
+   four of five paths ask for structured JSON judgements a supervisor acts on, and
+   only chat is interactive). `/health` now reports `modelStatus` and lists the ids
+   Groq currently serves, so the next retirement is a one-line diagnosis.
+
+**The pattern across all four:** every one of these was a dashboard-set value that
+had gone stale, and every one of them was concealed by a health check that asked an
+easier question than the one that mattered. "Is Groq reachable" instead of "does the
+model exist". "Is the engine up" instead of "can it cite anything". Each check now
+asks the real question.
+
+### Still broken / still to do in the dashboard
+
+- **`MONGO_URI` on `aesis-ai-engine`** — `OperationFailure`. Chat works but no
+  transcript is saved. Same stale-credential class as `POSTGRES_DSN`.
+- **`POSTGRES_DSN` has leading/trailing whitespace** — it connects, so this is
+  cosmetic, but `/health` names it and it is one edit to tidy.
+- Drop the dead `CELERY_BROKER_URL` / `REDIS_URL` from `aesis-ai-engine` (S82).
+
 ### Stopped here — next session should
 
-1. **Do the `POSTGRES_DSN` dashboard edit above**, then confirm the assistant cites a
-   section. Until then the corpus half of the RAG is still empty in prod. Confirmed
-   still outstanding as of the end of this session: the engine reports
-   `"database": "neon.tech"`.
+1. **DONE this session** — `POSTGRES_DSN` moved to Supabase, corpus live at 15
+   passages, assistant answering with citations.
 2. **Rotate the Supabase password** (see above), then delete the Neon project — in
    that order, since the engine is still pointed at Neon right now.
-2. **Verify the model paths are actually running in prod**, not silently falling back.
-   Submit an entry and read the persisted `summary.provenance` — it should say
-   `{classifier: "model", summarizer: "model", scorer: "model"}`. Anything `keywords`
-   / `template` / `rubric` means Groq is not answering.
+2. **Verify the enrichment paths now that the model id is fixed.** This is the one
+   piece still unproven: chat is confirmed working, but nothing has exercised
+   `/ai/enrich/entry` since the model changed. Submit an entry and read the persisted
+   `summary.provenance` — it should say `{classifier: "model", summarizer: "model",
+   scorer: "model"}`. Anything `keywords` / `template` / `rubric` means that path is
+   still on its floor. Every assessment written before 2026-09-07 17:00 UTC was
+   produced by the fallbacks.
 3. The four S100 migrations still want a prod `_prisma_migrations` check (S87 blind
    spot; see `RUNBOOK.md`).
 4. Carried and still open: rotate the Supabase DB password (burned since S88), delete
