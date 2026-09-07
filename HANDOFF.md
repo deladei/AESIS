@@ -4234,6 +4234,47 @@ easier question than the one that mattered. "Is Groq reachable" instead of "does
 model exist". "Is the engine up" instead of "can it cite anything". Each check now
 asks the real question.
 
+### Admin overview rebuilt to the supplied design — ⚠️ FRONTEND NOT DEPLOYED
+
+`874732e`. Greeting banner, four headline cards, six-week trend beside a
+week-states ring, submissions table, progress by programme, right rail of quick
+actions and activity.
+
+Four datasets did not exist and were added to `GET /admin/dashboard`: the
+six-week series, the week-state mix, per-programme progress, and a
+recent-activity feed off the append-only `entry_event` log. **The backend half
+is deployed and verified against prod:**
+
+```
+overview: activeInterns 10, pendingReviews 0, avgEngagement 6,
+          newInternsThisWeek 1, activeProgrammes 5
+trend:    weeks 1-6; avgQuality null on unscored weeks (not 0)
+statusMix: draft 3, submitted 0, acknowledged 2, returned 1
+programmeProgress: 5 programmes   recentActivity: 6 items
+```
+
+Three deliberate departures from the design, all the same rule — no metric may
+render an impossible state. Sparklines only where a real weekly series exists
+(the design puts one under every card; a line under a headcount would be
+invented). One delta, not four. And gaps rather than zeros: a week nobody
+reached is not 0% engagement and a week with no assessments did not score zero,
+so the trend denominator counts placements that had actually reached that week.
+
+**⚠️ Vercel has not deployed this.** `874732e` is on `origin/main` (both refs
+verified), and Vercel's exact build command — `sync-shared && tsc -b && vite
+build` — passes locally in 31s. But the served bundle is unchanged
+(`index-Dzko_0Co.js`) and still contains "Admin Overview" and "Pulse Check"
+with none of the new panel names, ~15 minutes after the push. So this is not a
+cache or a screenshot artefact: no deployment ran. **Check Vercel →
+Deployments for `874732e`** — either the Git integration is disconnected (hit
+Redeploy) or the build failed, in which case the log will say why. This box has
+no Vercel CLI or token.
+
+A screenshot harness for this page is ready at
+`scratchpad/shot-admin.mjs` (prod, admin login, light + dark, asserts each
+panel rendered and reports console errors and 4xx/5xx). It logs in fine and
+currently photographs the old page.
+
 ### Still broken / still to do in the dashboard
 
 - **`MONGO_URI` on `aesis-ai-engine`** — `OperationFailure`. Chat works but no
