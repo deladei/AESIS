@@ -14,7 +14,7 @@ class Settings(BaseSettings):
     # Get a key at https://console.groq.com → leave blank to force fallback responses.
     GROQ_API_KEY: str = ""
     GROQ_BASE_URL: str = "https://api.groq.com/openai/v1"
-    GROQ_MODEL: str = "llama-3.1-8b-instant"
+    GROQ_MODEL: str = "openai/gpt-oss-120b"
 
     EMBEDDING_MODEL: str = "all-MiniLM-L6-v2"
 

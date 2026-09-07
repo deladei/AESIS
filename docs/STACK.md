@@ -124,7 +124,7 @@ re-validated by Zod on the backend before storage.
 
 ### External API
 
-**Groq** — `llama-3.1-8b-instant`, OpenAI-compatible, at `api.groq.com/openai/v1`.
+**Groq** — `openai/gpt-oss-120b` (set by `GROQ_MODEL`), OpenAI-compatible, at `api.groq.com/openai/v1`. Groq retires model ids; the predecessor was decommissioned and every call 404'd for weeks without surfacing, so the engine's `/health` now reports whether the configured id still exists.
 The only external LLM in the system. There is **no OpenAI and no Gemini anywhere**.
 Called from five places:
 

@@ -31,7 +31,7 @@ def pinned_settings(monkeypatch):
     monkeypatch.setattr(settings, "PLAGIARISM_THRESHOLD", 0.35)
     monkeypatch.setattr(settings, "GROQ_API_KEY", "")  # tests opt in explicitly
     monkeypatch.setattr(settings, "GROQ_BASE_URL", "https://groq.test/openai/v1")
-    monkeypatch.setattr(settings, "GROQ_MODEL", "llama-3.1-8b-instant")
+    monkeypatch.setattr(settings, "GROQ_MODEL", "openai/gpt-oss-120b")
 
 
 @pytest.fixture(autouse=True)

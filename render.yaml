@@ -139,8 +139,17 @@ services:
         sync: false
       - key: GROQ_API_KEY
         sync: false
+      # llama-3.1-8b-instant was decommissioned by Groq. Every completion
+      # returned 404 and every caller here fails open, so chat, competency
+      # classification, summaries, quality assessment and the feedback drafts
+      # all quietly ran on their heuristic fallbacks instead — and /health said
+      # "connected" throughout, because it only checked that Groq answered, not
+      # that the model existed. It checks both now.
+      #
+      # A model id is not forever. When this one goes the same way, GET
+      # /health reports `modelStatus` and lists the ids Groq currently serves.
       - key: GROQ_MODEL
-        value: llama-3.1-8b-instant
+        value: openai/gpt-oss-120b
 
 # ── Celery worker — RETIRED (S82, 2026-07-09) ────────────────────────────────
 # The legacy analyze_logbook pipeline was UI-unreachable dead code; the v2
