@@ -19,6 +19,17 @@ import { logger } from '../../config/logger';
  * nothing about the caller is taken from the request body.
  */
 
+/**
+ * How long the record may take before the assistant answers without it.
+ *
+ * This runs BEFORE the SSE headers go out, so a slow build does not degrade the
+ * answer — it delays the whole reply, and the caller gives up and shows
+ * "assistant unavailable" for what is really a slow dashboard query. The record
+ * is an enhancement; the regulations answer is the product. Two seconds, then
+ * proceed without it.
+ */
+const CONTEXT_TIMEOUT_MS = 2_000;
+
 function line(label: string, value: string | number | null | undefined): string | null {
   if (value === null || value === undefined || value === '') return null;
   return `${label}: ${value}`;
@@ -32,7 +43,30 @@ function formatDate(value: Date | string | null | undefined): string | null {
     : d.toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
 }
 
+/**
+ * The record, or an empty string if it cannot be produced quickly. Never
+ * rejects, never blocks the reply for more than `CONTEXT_TIMEOUT_MS`.
+ */
 export async function buildStudentContext(studentId: string): Promise<string> {
+  let timer: NodeJS.Timeout | undefined;
+  try {
+    return await Promise.race([
+      buildRecord(studentId),
+      new Promise<string>((resolve) => {
+        timer = setTimeout(() => {
+          logger.warn('Chat: student record timed out; answering without it', { studentId });
+          resolve('');
+        }, CONTEXT_TIMEOUT_MS);
+      }),
+    ]);
+  } finally {
+    // The losing promise keeps running otherwise, and the handle keeps the
+    // process alive in tests.
+    if (timer) clearTimeout(timer);
+  }
+}
+
+async function buildRecord(studentId: string): Promise<string> {
   let d: Awaited<ReturnType<typeof getStudentDashboard>>;
   try {
     d = await getStudentDashboard(studentId);
