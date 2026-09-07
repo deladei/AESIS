@@ -62,6 +62,15 @@ interface Props {
   /** Seed the filter panel (e.g. the dashboard "Needs attention" card deep-links
    *  here with attention pre-applied). */
   initialFilters?: Filters;
+  /**
+   * Where an intern row drills into. Defaults to the coordinator's detail page.
+   *
+   * The admin's own Interns screen used to link here too, so an admin drilling
+   * into a student left `/admin/*` entirely and landed on a page whose eyebrow
+   * reads "Coordinator". Admin is allowed on that route, but it should not have
+   * to leave its own namespace to use its own table.
+   */
+  internBasePath?: string;
 }
 
 function SortHeader({
@@ -84,7 +93,9 @@ function SortHeader({
   );
 }
 
-function InternRow({ s, selected, onToggle }: { s: CoordinatorStudent; selected: boolean; onToggle: (id: string) => void }) {
+function InternRow({ s, selected, onToggle, internBasePath }: {
+  s: CoordinatorStudent; selected: boolean; onToggle: (id: string) => void; internBasePath: string;
+}) {
   const name = `${s.student.firstName} ${s.student.lastName}`;
   const status = STATUS_META[s.lastStatus ?? 'not_started'] ?? STATUS_META.not_started;
   const lastEntry = s.lastSubmittedAt
@@ -97,7 +108,7 @@ function InternRow({ s, selected, onToggle }: { s: CoordinatorStudent; selected:
           className="h-4 w-4 cursor-pointer rounded border-line-strong text-brand-ink focus:ring-brand" />
       </td>
       <td className="px-6 py-3">
-        <Link to={`/coordinator/interns/${s.placementId}`} className="flex items-center gap-3">
+        <Link to={`${internBasePath}/${s.placementId}`} className="flex items-center gap-3">
           <div className="flex h-8 w-8 items-center justify-center rounded-full bg-brand-soft text-[11px] font-bold text-brand-ink">{initials(name)}</div>
           <div>
             <p className="flex items-center gap-1 text-sm font-bold leading-tight text-ink">
@@ -139,7 +150,7 @@ function InternRow({ s, selected, onToggle }: { s: CoordinatorStudent; selected:
             a 24-week cohort in its third week is not 12% behind. Null means
             nothing is due yet, which renders "—", never 0%. */}
         <Link
-          to={`/coordinator/interns/${s.placementId}`}
+          to={`${internBasePath}/${s.placementId}`}
           className="block w-40"
           title={`${s.submittedWeeks} of ${s.weeksDue} week${s.weeksDue === 1 ? '' : 's'} due`
             + `${s.progressPct != null ? ` · ${s.progressPct}%` : ''} · last entry ${lastEntry}`}
@@ -160,7 +171,10 @@ function InternRow({ s, selected, onToggle }: { s: CoordinatorStudent; selected:
   );
 }
 
-export default function InternStatusTable({ pageSize = 20, viewAllHref, scopeYearId, initialFilters }: Props) {
+export default function InternStatusTable({
+  pageSize = 20, viewAllHref, scopeYearId, initialFilters,
+  internBasePath = '/coordinator/interns',
+}: Props) {
   const [sortBy, setSortBy]     = useState<StudentSortKey | undefined>(undefined);
   const [sortDir, setSortDir]   = useState<'asc' | 'desc'>('asc');
   const [page, setPage]         = useState(1);
@@ -360,7 +374,12 @@ export default function InternStatusTable({ pageSize = 20, viewAllHref, scopeYea
             ) : students.length === 0 ? (
               <tr><td colSpan={9} className="px-6 py-10 text-center text-sm text-ink-muted">{activeFilters > 0 ? 'No interns match these filters.' : 'No active interns yet.'}</td></tr>
             ) : (
-              students.map((s) => <InternRow key={s.placementId} s={s} selected={selected.has(s.placementId)} onToggle={toggle} />)
+              students.map((s) => (
+                <InternRow
+                  key={s.placementId} s={s} selected={selected.has(s.placementId)}
+                  onToggle={toggle} internBasePath={internBasePath}
+                />
+              ))
             )}
           </tbody>
         </table>

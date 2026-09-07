@@ -160,13 +160,17 @@ export async function getInsights({ supervisorId }: InsightsScope) {
   const skillProfile = { hasData: competencies.length > 0, competencies };
 
   // ── Derived actionable summaries (all grounded in the above) ─
-  const summaries: { title: string; body: string }[] = [];
+  // `placementId` is what makes these rows ACT rather than merely inform — the
+  // panel rendered them as flat text with no id, so "Schedule a check-in" was
+  // advice with nowhere to click.
+  const summaries: { title: string; body: string; placementId?: string }[] = [];
 
   const lowest = [...performanceMonitoring]
     .filter((r): r is typeof r & { engagementPct: number } => r.flagged && r.engagementPct != null)
     .sort((a, b) => a.engagementPct - b.engagementPct)[0];
   if (lowest) {
     summaries.push({
+      placementId: lowest.placementId,
       title: 'Re-engage At-Risk Intern',
       body:  `${lowest.name} has submitted ${lowest.submittedCount} of the ${lowest.weeksDue} week`
            + `${lowest.weeksDue === 1 ? '' : 's'} due so far `
@@ -180,6 +184,7 @@ export async function getInsights({ supervisorId }: InsightsScope) {
     .sort((a, b) => b.relevanceScore! - a.relevanceScore!)[0];
   if (topRel && topRel.relevanceScore! >= 80) {
     summaries.push({
+      placementId: topRel.placementId,
       title: 'Strong Logbook Signal',
       body:  `${topRel.name} leads on advisory AI relevance (${topRel.relevanceScore}/100) across submitted entries.`,
     });

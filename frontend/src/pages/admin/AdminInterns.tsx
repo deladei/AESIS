@@ -82,14 +82,15 @@ export default function AdminInterns() {
       </div>
 
       {/* ── The monitor ──────────────────────────────────────── */}
-      <InternStatusTable pageSize={20} initialFilters={attentionOnly ? { attention: true } : undefined} />
+      <InternStatusTable
+          internBasePath="/admin/interns" pageSize={20} initialFilters={attentionOnly ? { attention: true } : undefined} />
 
       {/* ── Risk signals ─────────────────────────────────────── */}
       <Card>
         <CardHeader
           title="Where attention is needed"
           subtitle="From the latest risk snapshots — every row here is a real signal, not a forecast"
-          action={{ label: 'Open oversight', to: '/coordinator/interns?view=oversight' }}
+          action={{ label: 'Filter to these interns', to: '/admin/interns?attention=1' }}
         />
         {oversightQuery.isLoading ? (
           <SkeletonRows rows={3} />
@@ -112,7 +113,7 @@ export default function AdminInterns() {
               return (
                 <li key={r.placementId}>
                   <Link
-                    to={`/coordinator/interns/${r.placementId}`}
+                    to={`/admin/interns/${r.placementId}`}
                     className="flex h-full flex-col rounded-lg border border-line p-3 transition-colors hover:border-brand"
                   >
                     <span className="flex items-start gap-2">

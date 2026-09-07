@@ -164,6 +164,10 @@ export const router = createBrowserRouter([
     children: [
       { path: '/admin/dashboard', element: <AdminDashboard /> },
       { path: '/admin/interns',   element: <AdminInterns /> },
+      // Admin keeps its own namespace when drilling in. These render the same
+      // components the coordinator uses — an admin was previously bounced into
+      // /coordinator/* and landed on pages captioned "Coordinator".
+      { path: '/admin/interns/:placementId', element: <InternDetail /> },
       // Messaging + call scheduling folded into the Feedback Center
       { path: '/admin/messages',  element: <Navigate to="/feedback" replace /> },
       { path: '/admin/review',    element: <EntryReview /> },
@@ -171,9 +175,12 @@ export const router = createBrowserRouter([
     ],
   },
 
-  // Feedback Center — shared screen, rendered inside each role's own shell
+  // Feedback Center — shared screen, rendered inside each role's own shell.
+  // The coordinator is a READER here (messages.service::canRead admits them,
+  // canPost does not), and FeedbackCenter already counts them as a reviewer —
+  // but the route locked them out, so oversight had no way in.
   {
-    element: <RequireAuth roles={['student', 'academic_supervisor', 'admin']} />,
+    element: <RequireAuth roles={['student', 'academic_supervisor', 'coordinator', 'admin']} />,
     children: [
       { path: '/feedback', element: <FeedbackCenter /> },
     ],

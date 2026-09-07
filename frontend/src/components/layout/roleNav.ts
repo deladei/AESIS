@@ -78,8 +78,10 @@ export const ROLE_NAV: Record<ShellRole, RoleNav> = {
       { label: 'Companies',       href: '/coordinator/companies',   icon: Building2 },
       { label: 'Assignments',     href: '/coordinator/assignments', icon: UserCheck },
       { label: 'AI Insights',     href: '/ai-insights',             icon: Sparkles, flag: 'aiInsights' },
+      { label: 'Feedback Centre', href: '/feedback',                icon: MessageSquare },
       { label: 'Settings',        href: '/coordinator/settings',    icon: Settings },
     ],
+    messagesHref: '/feedback',
   },
 
   admin: {

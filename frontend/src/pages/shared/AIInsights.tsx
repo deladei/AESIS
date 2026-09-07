@@ -3,6 +3,7 @@ import {
   Sparkles, Users, AlertTriangle, Clock, Gauge, ArrowRight,
 } from 'lucide-react';
 import { useInsights } from '@/hooks/useDashboard';
+import { useAuth } from '@/contexts/AuthContext';
 import { Card, CardHeader } from '@/components/ui/Card';
 import { StatCard } from '@/components/ui/StatCard';
 import { Badge } from '@/components/ui/Badge';
@@ -25,6 +26,16 @@ import { EmptyState, ErrorState, SkeletonRows } from '@/components/ui/Feedback';
  */
 export default function AIInsights() {
   const { data, isLoading, isError, refetch } = useInsights();
+  const { user } = useAuth();
+  // This page is shared by supervisor, coordinator and admin, and each should
+  // drill into an intern inside its OWN namespace. The supervisor has no
+  // intern-detail route at all (`/coordinator/interns/:id` is coordinator+admin
+  // only), so for them the summary stays as text — a link that 403s is worse
+  // than no link.
+  const internBase =
+    user?.role === 'admin' ? '/admin/interns'
+    : user?.role === 'coordinator' ? '/coordinator/interns'
+    : null;
 
   if (isLoading) return <div className="p-6"><SkeletonRows rows={6} /></div>;
 
@@ -185,12 +196,32 @@ export default function AIInsights() {
             />
           ) : (
             <ul className="space-y-3">
-              {actionableSummaries.items.map(r => (
-                <li key={r.title} className="rounded-lg border border-line bg-surface-sunken p-3">
-                  <p className="text-sm font-semibold text-ink">{r.title}</p>
-                  <p className="mt-1 text-xs leading-relaxed text-ink-secondary">{r.body}</p>
-                </li>
-              ))}
+              {actionableSummaries.items.map(r => {
+                const body = (
+                  <>
+                    <p className="text-sm font-semibold text-ink">{r.title}</p>
+                    <p className="mt-1 text-xs leading-relaxed text-ink-secondary">{r.body}</p>
+                  </>
+                );
+                // A row that names an intern now opens that intern. One that
+                // describes the cohort has nobody to open and stays as text —
+                // a link to nowhere is worse than no link.
+                return (
+                  <li key={r.title}>
+                    {r.placementId && internBase ? (
+                      <Link
+                        to={`${internBase}/${r.placementId}`}
+                        className="flex items-start justify-between gap-3 rounded-lg border border-line bg-surface-sunken p-3 transition-colors hover:border-brand"
+                      >
+                        <span className="min-w-0">{body}</span>
+                        <ArrowRight className="mt-0.5 h-4 w-4 shrink-0 text-ink-muted" />
+                      </Link>
+                    ) : (
+                      <div className="rounded-lg border border-line bg-surface-sunken p-3">{body}</div>
+                    )}
+                  </li>
+                );
+              })}
             </ul>
           )}
         </Card>

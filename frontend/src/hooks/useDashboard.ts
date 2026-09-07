@@ -498,7 +498,10 @@ export interface InsightsData {
   relevanceTrend: { week: number; avgRelevance: number }[];
   hours: { hasData: boolean; weeks: { week: number; totalHours: number; avgHours: number }[] };
   skillProfile: { hasData: boolean; competencies: { tag: string; count: number; pct: number }[] };
-  actionableSummaries: { hasData: boolean; items: { title: string; body: string }[] };
+  actionableSummaries: {
+    hasData: boolean;
+    items: { title: string; body: string; placementId?: string }[];
+  };
 }
 
 export function useInsights() {
