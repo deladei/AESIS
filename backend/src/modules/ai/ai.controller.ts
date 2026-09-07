@@ -7,58 +7,28 @@ import { aiEngineUrl, AI_ENGINE_TIMEOUT_MS } from '../../shared/utils/aiEngine';
 
 const chatSchema = z.object({ message: z.string().min(1).max(1000) });
 
-// Contextual responses keyed by keyword match
-const KB: { keywords: string[]; answer: string }[] = [
-  {
-    keywords: ['minimum', 'hours', 'weekly', 'per week'],
-    answer: 'Students are required to complete a minimum of 40 hours of placement activity per week. This equates to a standard full-time working schedule aligned with the host company\'s working hours. Any deviation must be agreed in writing with the academic supervisor and reported to the coordinator.',
-  },
-  {
-    keywords: ['logbook', 'submit', 'submission', 'deadline', 'due'],
-    answer: 'Logbook entries must be submitted every Friday by 23:59 WAT for the preceding week. Late submissions are flagged in the system and affect your compliance score. If you anticipate a late submission, notify your academic supervisor before the deadline.',
-  },
-  {
-    keywords: ['miss', 'missed', 'skip', 'skipped', 'not submit'],
-    answer: 'Missing a logbook submission triggers an automatic risk flag. Your academic supervisor is notified immediately. Two consecutive missed submissions escalate your risk tier to High, which may result in a formal intervention meeting with the programme coordinator. Always communicate with your supervisor if you are unable to submit on time.',
-  },
-  {
-    keywords: ['quality', 'score', 'calculated', 'scored', 'nlp', 'rubric'],
-    answer: 'Quality scores are computed by our NLP analysis engine using four rubric dimensions: Task Description Depth (30 pts), Technical Vocabulary (25 pts), Reflection Quality (25 pts), and Temporal Consistency (20 pts). The engine also checks CS-domain relevance and plagiarism similarity against the cohort index. Scores above 75 are considered Good; 50–74 is Satisfactory; below 50 requires revision.',
-  },
-  {
-    keywords: ['mid-term', 'midterm', 'report', 'mid term'],
-    answer: 'The mid-term placement report is due at the end of Week 12. It must be submitted as a PDF through the AESIS portal and should cover your role, key responsibilities, technical contributions, and a self-assessment against your learning objectives. Your academic supervisor will review and grade it within 5 working days.',
-  },
-  {
-    keywords: ['risk', 'tier', 'high risk', 'low risk', 'medium'],
-    answer: 'Risk tiers are advisory signals computed from your logbook behaviour: missed weekly submissions, days without any logbook activity, late day logs, and returned weeks awaiting rework. Low (score < 0.3): on track. Medium (0.3–0.6): your supervisor keeps an eye on things. High (≥ 0.6): your supervisor is notified to check in with you. Tiers never affect your grade — they exist to start a conversation early, and they clear as soon as you catch up.',
-  },
-  {
-    keywords: ['plagiarism', 'similarity', 'flagged', 'flag'],
-    answer: 'Plagiarism is detected by comparing your submission against all prior submissions in the cohort index using cosine similarity on TF-IDF vectors. A similarity score above 0.35 triggers a plagiarism flag. Flagged submissions are reviewed by your supervisor and may result in a zero score for that entry. Always write your own original entries.',
-  },
-  {
-    keywords: ['supervisor', 'feedback', 'feedback received'],
-    answer: 'Your academic supervisor reviews each submitted logbook entry and provides written feedback within 3 working days. Feedback can result in an Approved or Flagged outcome. Flagged entries must be revised and resubmitted. You will receive a notification in AESIS as soon as feedback is posted.',
-  },
-  {
-    keywords: ['extension', 'extend', 'extra time'],
-    answer: 'Extensions for logbook submissions are granted only in documented exceptional circumstances such as medical emergencies or bereavement. Requests must be submitted to your academic supervisor at least 24 hours before the deadline where possible. The supervisor forwards approved extensions to the coordinator for recording in AESIS.',
-  },
-  {
-    keywords: ['placement letter', 'approval', 'approve', 'pending'],
-    answer: 'Your placement letter must be uploaded to AESIS for coordinator approval before you begin your internship. The coordinator typically reviews submissions within 3–5 working days. You will receive an email notification once your placement is approved. You cannot submit logbook entries until your placement is marked Active.',
-  },
-];
-
-function findAnswer(message: string): string {
-  const lower = message.toLowerCase();
-  for (const entry of KB) {
-    if (entry.keywords.some((kw) => lower.includes(kw))) {
-      return entry.answer;
-    }
-  }
-  return 'I can help with questions about CS internship regulations, logbook requirements, deadlines, quality scoring, risk tiers, and programme procedures. Could you rephrase your question or ask about one of those topics? For urgent matters not covered here, contact your academic supervisor directly.';
+/**
+ * What the student is told when the AI engine cannot be reached.
+ *
+ * This used to be a keyword→answer lookup table of ten "regulation" answers.
+ * They were hardcoded, they duplicated the real corpus, and by this point
+ * several were simply WRONG about the system they described: a 40-hour weekly
+ * minimum that is actually coordinator-configured and defaults to none, a
+ * Friday 23:59 deadline the scheduler does not use, a mid-term report due in
+ * "week 12" of a six-week programme, and an "Approved" status the state machine
+ * does not have.
+ *
+ * An assistant that answers confidently from stale rules is worse than one that
+ * says it is unavailable, so it says that. The regulations now live in one
+ * place — `docs/knowledge/` — and are retrieved by the engine.
+ */
+function unavailableMessage(): string {
+  return (
+    'The assistant is temporarily unavailable, so I can\'t answer from the '
+    + 'regulations right now. Please try again in a moment. For anything urgent — '
+    + 'a deadline, a placement problem, or a question about your marks — contact '
+    + 'your academic supervisor, or the programme coordinator if it is unresolved.'
+  );
 }
 
 // Each SSE event carries a JSON-encoded chunk so any content — spaces, newlines,
@@ -72,8 +42,9 @@ function sse(res: Response, chunk: string): void {
 const HEALTH_TIMEOUT_MS = 8_000;
 
 /**
- * Reports whether the Groq-backed AI engine is reachable. The chat itself never
- * dies (KB fallback), so `engine:false` means degraded — KB-only answers.
+ * Reports whether the Groq-backed AI engine is reachable. `engine:false` means
+ * the assistant cannot answer at all — it no longer has a local fallback corpus
+ * to pretend with.
  */
 export async function healthHandler(_req: Request, res: Response) {
   let engine = false;
@@ -85,7 +56,35 @@ export async function healthHandler(_req: Request, res: Response) {
   } catch {
     engine = false;
   }
-  res.json({ engine });
+
+  // How many regulation passages the assistant can actually retrieve from.
+  //
+  // "Grounded in CS Department regulations" was a claim with nothing behind it
+  // for months — the retrieval index was built from a dozen hardcoded strings
+  // in a `/tmp` file that Render wiped on every restart. Reporting the corpus
+  // size here makes the claim checkable by anyone who can read this endpoint,
+  // instead of something we simply assert in the UI.
+  let knowledge: { passages: number; sources: number } | null = null;
+  if (engine) {
+    try {
+      const r = await fetch(aiEngineUrl('/ai/knowledge/status'), {
+        headers: { 'x-api-key': env.AI_ENGINE_API_KEY },
+        signal: AbortSignal.timeout(HEALTH_TIMEOUT_MS),
+      });
+      if (r.ok) {
+        const body = (await r.json()) as { passages?: number; sources?: unknown[] };
+        knowledge = {
+          passages: body.passages ?? 0,
+          sources:  Array.isArray(body.sources) ? body.sources.length : 0,
+        };
+      }
+    } catch {
+      // A corpus that cannot be counted is not an engine that is down.
+      knowledge = null;
+    }
+  }
+
+  res.json({ engine, knowledge });
 }
 
 /**
@@ -125,10 +124,10 @@ export async function chatHandler(req: Request, res: Response) {
       if (chunk) { sse(res, chunk); streamed = true; }
     }
     // Engine answered empty → use the KB so the user still gets a reply.
-    if (!streamed) sse(res, findAnswer(message));
+    if (!streamed) sse(res, unavailableMessage());
   } catch (err) {
     logger.warn('Chat: AI engine unavailable, using local fallback', { err: err instanceof Error ? err.message : String(err) });
-    sse(res, findAnswer(message));
+    sse(res, unavailableMessage());
   }
 
   res.write('data: [DONE]\n\n');

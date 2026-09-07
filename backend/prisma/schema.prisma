@@ -1679,3 +1679,40 @@ model ApplicationEvent {
   @@index([type, createdAt])
   @@map("application_event")
 }
+
+// ─────────────────────────────────────────────
+// ASSISTANT KNOWLEDGE BASE
+// ─────────────────────────────────────────────
+
+/// One retrievable chunk of the department's own documents.
+///
+/// The assistant's whole claim is that it answers from CS Department
+/// regulations. Before this it loaded a FAISS index from `/tmp` that nothing
+/// ever built — wiped on every Render restart — so "grounded in regulations"
+/// was true of the prompt and of nothing else. The corpus lives in Postgres so
+/// it survives a restart, and the AI service rebuilds its index from here.
+///
+/// The embedding is stored rather than recomputed at boot so a cold start does
+/// not pay for the whole corpus; `embeddingModel` records which model produced
+/// it, so changing models invalidates the rows rather than silently mixing
+/// vector spaces.
+model KnowledgePassage {
+  id             String   @id @default(uuid())
+  /// The document this came from, e.g. "cs-internship-regulations".
+  source         String
+  /// Heading path within the document, for citation back to the reader.
+  section        String
+  /// Position within the source, so passages can be re-assembled in order.
+  ordinal        Int
+  content        String
+  /// Hash of `content` — lets ingestion skip unchanged passages.
+  checksum       String
+  embedding      Float[]
+  embeddingModel String   @map("embedding_model")
+  createdAt      DateTime @default(now()) @map("created_at")
+  updatedAt      DateTime @updatedAt @map("updated_at")
+
+  @@unique([source, ordinal])
+  @@index([source])
+  @@map("knowledge_passage")
+}

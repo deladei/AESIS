@@ -89,23 +89,32 @@ describe('POST /ai/chat', () => {
     expect(res.status).toBe(401);
   });
 
-  it('matches logbook deadline keywords', async () => {
+  it('says it is unavailable rather than answering from a stale local copy', async () => {
+    // The fallback used to be a keyword lookup table that asserted a Friday
+    // 23:59 deadline, a 40-hour weekly minimum and a "week 12" mid-term report
+    // — none of which this system enforces, and the last of which is longer
+    // than the whole programme. Regulations now live in one place and are
+    // retrieved by the engine; when the engine is down the honest answer is
+    // that we cannot answer.
     const res = await request(app)
       .post('/ai/chat')
       .set('Authorization', `Bearer ${token()}`)
       .send({ message: 'When is the logbook submission deadline?' });
 
-    expect(res.text).toContain('Friday');
+    expect(res.text).toContain('temporarily unavailable');
+    expect(res.text).toContain('academic supervisor');
+    expect(res.text).not.toContain('Friday');
   }, 15000);
 
-  it('matches risk tier keywords', async () => {
+  it('never invents a rule for a question it cannot reach the engine for', async () => {
     const res = await request(app)
       .post('/ai/chat')
       .set('Authorization', `Bearer ${token()}`)
       .send({ message: 'What does high risk tier mean for a student?' });
 
-    expect(res.text).toContain('advisory');
-    expect(res.text).toContain('never affect your grade');
+    expect(res.text).toContain('temporarily unavailable');
+    // No percentages, thresholds or tier rules invented locally.
+    expect(res.text).not.toMatch(/\d+\s*%|0\.\d+/);
   }, 15000);
 });
 
@@ -120,7 +129,10 @@ describe('GET /ai/health', () => {
       .set('Authorization', `Bearer ${token()}`);
 
     expect(res.status).toBe(200);
-    expect(res.body).toEqual({ engine: true });
+    // `knowledge` is null here because this test stubs only /health; the
+    // corpus lookup is a second call. What matters is that a failed corpus
+    // count never reads as an engine that is down.
+    expect(res.body).toEqual({ engine: true, knowledge: null });
   });
 
   it('reports engine down when the AI engine is unreachable', async () => {
@@ -131,7 +143,7 @@ describe('GET /ai/health', () => {
       .set('Authorization', `Bearer ${token()}`);
 
     expect(res.status).toBe(200);
-    expect(res.body).toEqual({ engine: false });
+    expect(res.body).toEqual({ engine: false, knowledge: null });
   });
 
   it('returns 401 without auth', async () => {

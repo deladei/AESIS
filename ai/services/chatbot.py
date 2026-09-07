@@ -1,40 +1,49 @@
 """
 RAG chatbot — AESIS Assistant.
-Embeddings via sentence-transformers + retrieval via FAISS + generation via Groq
-(OpenAI-compatible HTTP API). Falls back to a static response if Groq is unreachable
-or no API key is configured.
+
+Retrieval comes from the `knowledge_passage` corpus in Postgres (see
+`services/knowledge.py`); generation is Groq over an OpenAI-compatible API.
+
+It used to retrieve from a FAISS index in `/tmp`, seeded with a dozen hardcoded
+strings — which was worse than having no corpus at all, because several of them
+were WRONG: they described a Friday 23:59 deadline this system does not enforce
+and an "approved" status the state machine does not have. A grounded assistant
+citing stale rules is more dangerous than one that says it does not know.
+
+Now: the corpus is the department's own document, the passages carry the heading
+they came from so an answer can cite it, and retrieving nothing means the model
+is told to say so rather than to improvise.
 """
-import os
 import json
-import pickle
-import threading
 from typing import AsyncIterator
-import numpy as np
-import faiss
 import httpx
 from sentence_transformers import SentenceTransformer
 
 from config.settings import settings
 
-KNOWLEDGE_INDEX_PATH = "/tmp/aesis_kb.index"
-KNOWLEDGE_META_PATH  = "/tmp/aesis_kb_meta.pkl"
-LOCK = threading.Lock()
+SYSTEM_PROMPT = """You are AESIS Assistant, the internship support assistant for a Computer Science department in Ghana.
 
-SYSTEM_PROMPT = """You are AESIS Assistant, an academic internship support chatbot for a Computer Science department. You help students with:
-- Understanding logbook requirements and submission guidelines
-- Reflective writing techniques for CS internship logbooks
-- General questions about their placement and academic expectations
+Answer ONLY from the regulation extracts provided to you. They are the department's own document and they are authoritative.
 
-Be concise, supportive, and academic in tone. If asked about specific marks or grades, explain you don't have access to that information. Never fabricate technical facts."""
+- If the extracts answer the question, answer plainly and name the section you used, e.g. "(Submission deadlines)".
+- If they do NOT, say you do not have that in the regulations and point the student at their academic supervisor or the programme coordinator. Do not improvise a rule, a deadline, a percentage or a penalty.
+- You have no access to any individual's marks, grades or logbook. Say so if asked.
+- Never state a rule that is not in the extracts, even if it sounds plausible.
+
+Be concise, supportive and academic in tone."""
 
 
 class ChatbotService:
+    """Holds the one embedding model.
+
+    There is no index to load any more: the corpus lives in Postgres and
+    `services.knowledge` does the retrieval, so this class owns exactly one
+    thing — the SentenceTransformer, which is expensive and shared.
+    """
+
     def __init__(self):
         self.embedder: SentenceTransformer | None = None
-        self.index:    faiss.IndexFlatIP | None   = None
-        self.passages: list[str]                  = []
         self._load_model()
-        self._load_index()
 
     def _load_model(self):
         try:
@@ -42,73 +51,31 @@ class ChatbotService:
         except Exception as e:
             print(f"[chatbot] Failed to load embedding model: {e}")
 
-    def _load_index(self):
-        if os.path.exists(KNOWLEDGE_INDEX_PATH) and os.path.exists(KNOWLEDGE_META_PATH):
-            try:
-                self.index = faiss.read_index(KNOWLEDGE_INDEX_PATH)
-                with open(KNOWLEDGE_META_PATH, "rb") as f:
-                    self.passages = pickle.load(f)
-            except Exception:
-                pass
-
-        # Seed with built-in knowledge base if index is empty
-        if not self.passages:
-            self._seed_knowledge_base()
-
-    def _seed_knowledge_base(self):
-        built_in = [
-            "Logbook entries must be submitted every week by Friday 23:59. Late submissions are flagged.",
-            "A good logbook entry describes specific tasks completed, technologies used, challenges encountered, and personal reflection on learning.",
-            "The reflection section should explain what you learned, how you overcame challenges, and what you would do differently.",
-            "Technical vocabulary improves your logbook quality score. Name specific tools, languages, frameworks, and methods you used.",
-            "Task descriptions should be specific: instead of 'fixed bugs', write 'resolved a null pointer exception in the authentication middleware by adding input validation'.",
-            "Temporal language helps: use phrases like 'On Monday I...', 'By midweek...', 'After reviewing the requirements...'",
-            "If you are struggling with your placement, contact your academic supervisor immediately — don't wait until your next submission.",
-            "Plagiarism detection runs on all submissions. Write in your own words and describe your personal experience.",
-            "Your academic supervisor reviews your logbook and provides weekly feedback. Aim for 'approved' status each week.",
-            "The quality score is based on four dimensions: task depth (30%), technical vocabulary (25%), reflection (25%), and temporal consistency (20%).",
-            "You can upload supporting documents (PDFs, screenshots) as attachments to any logbook submission.",
-            "If a submission is flagged, review the AI feedback and your supervisor's comments, then discuss with your supervisor.",
-        ]
-        self.add_passages(built_in)
-
-    def add_passages(self, texts: list[str]):
-        """Add new knowledge passages to the retrieval index."""
-        if not self.embedder or not texts:
-            return
-        with LOCK:
-            embeddings = self.embedder.encode(texts, normalize_embeddings=True, show_progress_bar=False)
-            embeddings = embeddings.astype("float32")
-            if self.index is None:
-                self.index = faiss.IndexFlatIP(embeddings.shape[1])
-            self.index.add(embeddings)
-            self.passages.extend(texts)
-            faiss.write_index(self.index, KNOWLEDGE_INDEX_PATH)
-            with open(KNOWLEDGE_META_PATH, "wb") as f:
-                pickle.dump(self.passages, f)
-
-    def _retrieve(self, query: str, k: int = 5) -> list[str]:
-        """Return top-k relevant passages for the query."""
-        if not self.embedder or self.index is None or self.index.ntotal == 0:
-            return []
-        q_vec = self.embedder.encode([query], normalize_embeddings=True, show_progress_bar=False).astype("float32")
-        k     = min(k, self.index.ntotal)
-        distances, indices = self.index.search(q_vec, k)
-        return [self.passages[i] for i in indices[0] if i >= 0 and distances[0][list(indices[0]).index(i)] > 0.2]
-
     async def chat(self, session_id: str, user_message: str, history: list[dict]) -> AsyncIterator[str]:
         """
         Stream a response token-by-token from Groq's OpenAI-compatible chat completions
         endpoint. Falls back to a static message if no API key is set or the request fails.
         """
-        context_passages = self._retrieve(user_message, k=5)
-        context = "\n".join(f"- {p}" for p in context_passages)
+        # Retrieval is the whole point: what comes back here is what the model
+        # is allowed to say. Nothing back means "not in the regulations".
+        from services import knowledge  # imported here to avoid a circular import
+        passages = await knowledge.retrieve(user_message)
 
         messages = [{"role": "system", "content": SYSTEM_PROMPT}]
-        if context:
+        if passages:
+            context = "\n\n".join(f"### {p.section}\n{p.content}" for p in passages)
             messages.append({
                 "role": "system",
-                "content": f"Relevant knowledge:\n{context}",
+                "content": f"Regulation extracts:\n\n{context}",
+            })
+        else:
+            messages.append({
+                "role": "system",
+                "content": (
+                    "No regulation extract matched this question. Tell the student you "
+                    "do not have it in the regulations and point them at their academic "
+                    "supervisor or the programme coordinator. Do not answer from memory."
+                ),
             })
         # Include last 6 turns of history for context
         for turn in history[-6:]:
