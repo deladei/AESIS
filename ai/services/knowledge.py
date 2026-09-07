@@ -26,6 +26,7 @@ from __future__ import annotations
 import hashlib
 import re
 from dataclasses import dataclass
+from urllib.parse import urlparse
 
 import numpy as np
 
@@ -37,6 +38,31 @@ MIN_SIMILARITY = 0.25
 DEFAULT_TOP_K = 4
 # Long enough to carry a whole rule, short enough that retrieval stays precise.
 MAX_CHUNK_CHARS = 1_200
+
+# What happened to the corpus at boot, and the last read failure. Kept in memory
+# purely so `/health` can say WHY the assistant has nothing to cite — a corpus
+# that is silently empty is indistinguishable from one that is silently broken,
+# and the difference is the whole diagnosis.
+_BOOT: dict[str, str] = {}
+
+
+def note(key: str, message: str) -> None:
+    _BOOT[key] = message
+
+
+def _database_target() -> str:
+    """Which database this service is pointed at, as a provider suffix.
+
+    Enough to catch the failure mode that actually happens — this service and
+    the backend drifting onto two different databases after a provider move —
+    without publishing a connectable host on an endpoint that needs no key.
+    """
+    try:
+        host = urlparse(settings.POSTGRES_DSN).hostname or ""
+    except Exception:
+        return "unknown"
+    parts = host.split(".")
+    return ".".join(parts[-2:]) if len(parts) >= 2 else (host or "unknown")
 
 
 @dataclass
@@ -203,13 +229,22 @@ async def retrieve(question: str, top_k: int = DEFAULT_TOP_K) -> list[Passage]:
     if query is None:
         return []
 
-    pool = await _pool()
-    async with pool.acquire() as conn:
-        rows = await conn.fetch(
-            "SELECT source, section, content, embedding FROM knowledge_passage "
-            "WHERE embedding_model = $1",
-            settings.EMBEDDING_MODEL,
-        )
+    try:
+        pool = await _pool()
+        async with pool.acquire() as conn:
+            rows = await conn.fetch(
+                "SELECT source, section, content, embedding FROM knowledge_passage "
+                "WHERE embedding_model = $1",
+                settings.EMBEDDING_MODEL,
+            )
+    except Exception as e:  # noqa: BLE001
+        # A corpus that cannot be read is "I don't know", not an outage. The
+        # caller already turns an empty result into an honest refusal, and that
+        # is a far better failure than a missing table taking the entire
+        # assistant offline — which is exactly what it did.
+        note("retrieve", f"{type(e).__name__}: {e}")
+        return []
+
     if not rows:
         return []
 
@@ -231,20 +266,35 @@ async def retrieve(question: str, top_k: int = DEFAULT_TOP_K) -> list[Passage]:
 
 
 async def status() -> dict:
-    """What the assistant actually knows — so "grounded" is a checkable claim."""
-    pool = await _pool()
-    async with pool.acquire() as conn:
-        rows = await conn.fetch(
-            "SELECT source, COUNT(*) AS n, MAX(updated_at) AS updated "
-            "FROM knowledge_passage WHERE embedding_model = $1 GROUP BY source",
-            settings.EMBEDDING_MODEL,
-        )
-    return {
+    """What the assistant actually knows — so "grounded" is a checkable claim.
+
+    Reports a failure rather than raising one. A caller asking "how big is the
+    corpus" needs the answer "none, because X", not a 500 that reduces to "no
+    idea" by the time it reaches a status dot.
+    """
+    state: dict = {
         "embeddingModel": settings.EMBEDDING_MODEL,
-        "passages": sum(r["n"] for r in rows),
-        "sources": [
-            {"source": r["source"], "passages": r["n"],
-             "updatedAt": r["updated"].isoformat() if r["updated"] else None}
-            for r in rows
-        ],
+        "database": _database_target(),
+        "passages": 0,
+        "sources": [],
+        "boot": _BOOT.get("ingest"),
     }
+    try:
+        pool = await _pool()
+        async with pool.acquire() as conn:
+            rows = await conn.fetch(
+                "SELECT source, COUNT(*) AS n, MAX(updated_at) AS updated "
+                "FROM knowledge_passage WHERE embedding_model = $1 GROUP BY source",
+                settings.EMBEDDING_MODEL,
+            )
+    except Exception as e:  # noqa: BLE001
+        state["error"] = f"{type(e).__name__}: {e}"
+        return state
+
+    state["passages"] = sum(r["n"] for r in rows)
+    state["sources"] = [
+        {"source": r["source"], "passages": r["n"],
+         "updatedAt": r["updated"].isoformat() if r["updated"] else None}
+        for r in rows
+    ]
+    return state

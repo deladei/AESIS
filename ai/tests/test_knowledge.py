@@ -104,5 +104,47 @@ class TestRetrievalThreshold:
         assert [h.section for h in hits] == ["Relevant"]
 
 
+class TestFailSoft:
+    """A corpus that cannot be read must degrade, not cascade.
+
+    The first version of this raised straight out of `retrieve`, so a missing
+    table did not make the assistant say "I don't know" — it made the whole
+    chat stream 500 and the student saw the engine reported as unavailable. The
+    honest refusal only works if the read failure is caught here.
+    """
+
+    @pytest.mark.asyncio
+    async def test_retrieve_returns_nothing_when_the_corpus_cannot_be_read(self, monkeypatch):
+        monkeypatch.setattr(knowledge, "_embed", lambda _t: np.asarray([[1.0, 0.0]], dtype=np.float32))
+
+        async def _broken():
+            raise RuntimeError("relation \"knowledge_passage\" does not exist")
+
+        monkeypatch.setattr(knowledge, "_pool", _broken)
+        assert await knowledge.retrieve("when is my report due?") == []
+
+    @pytest.mark.asyncio
+    async def test_status_reports_the_failure_instead_of_raising(self, monkeypatch):
+        async def _broken():
+            raise RuntimeError("connection refused")
+
+        monkeypatch.setattr(knowledge, "_pool", _broken)
+        state = await knowledge.status()
+        assert state["passages"] == 0
+        assert "connection refused" in state["error"]
+        # The provider suffix is what tells an operator this service and the
+        # backend are pointed at two different databases.
+        assert state["database"]
+
+    def test_database_target_never_exposes_credentials(self, monkeypatch):
+        monkeypatch.setattr(
+            knowledge.settings, "POSTGRES_DSN",
+            "postgresql://postgres.abc:sup3rsecret@aws-0-eu-west-2.pooler.supabase.com:5432/postgres",
+        )
+        target = knowledge._database_target()
+        assert target == "supabase.com"
+        assert "sup3rsecret" not in target and "postgres.abc" not in target
+
+
 async def _async(value):
     return value

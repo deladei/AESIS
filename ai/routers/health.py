@@ -1,6 +1,7 @@
 from fastapi import APIRouter
 import httpx
 from config.settings import settings
+from services import knowledge
 
 router = APIRouter()
 
@@ -24,10 +25,25 @@ async def health():
         except Exception:
             pass
 
+    # The corpus is reported here, on the endpoint that needs no key, because
+    # this is the question an operator actually has to answer at 2am: the
+    # assistant said it could not help — is Groq down, or does it simply have
+    # nothing to cite, and if so why? `database` is the provider suffix only
+    # (e.g. "supabase.com"), which is what catches this service and the backend
+    # drifting onto two different databases after a provider move.
+    corpus = await knowledge.status()
+
     return {
         "status":      "ok",
         "service":     "aesis-ai",
         "groq":        groq_status,
         "model":       settings.GROQ_MODEL,
         "environment": settings.ENVIRONMENT,
+        "knowledge": {
+            "passages": corpus["passages"],
+            "sources":  [s["source"] for s in corpus["sources"]],
+            "database": corpus["database"],
+            "boot":     corpus.get("boot"),
+            "error":    corpus.get("error"),
+        },
     }

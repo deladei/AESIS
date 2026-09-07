@@ -8,8 +8,16 @@ from routers import health, chat, enrich, assist, knowledge
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    # Startup — warm up DB pool
-    await get_pg_pool()
+    # Startup — warm up the DB pool. Fail-soft: enrichment, the writing assist
+    # and the feedback drafts are stateless Groq calls that need no database, so
+    # a Postgres blip must not turn into "the AI engine is down". The paths that
+    # do need it degrade individually.
+    from services import knowledge
+    try:
+        await get_pg_pool()
+    except Exception as e:  # noqa: BLE001
+        knowledge.note("pool", f"{type(e).__name__}: {e}")
+        print(f"[startup] Postgres unavailable: {e}")
     await _ingest_bundled_knowledge()
     yield
     # Shutdown
@@ -40,11 +48,16 @@ async def _ingest_bundled_knowledge() -> None:
     for path in sorted(docs_dir.glob("*.md")):
         try:
             result = await knowledge.ingest(path.stem, path.read_text(encoding="utf-8"))
-            print(
-                f"[knowledge] {result['source']}: {result['passages']} passages "
+            summary = (
+                f"{result['source']}: {result['passages']} passages "
                 f"({result['written']} written, {result['skipped']} unchanged)"
             )
+            knowledge.note("ingest", summary)
+            print(f"[knowledge] {summary}")
         except Exception as e:  # noqa: BLE001 — boot must not depend on this
+            # Recorded as well as printed: Render's logs roll, and the question
+            # "why is the assistant citing nothing?" is asked long afterwards.
+            knowledge.note("ingest", f"failed: {type(e).__name__}: {e}")
             print(f"[knowledge] failed to ingest {path.name}: {e}")
 
 
