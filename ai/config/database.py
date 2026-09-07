@@ -8,10 +8,20 @@ _motor_client: AsyncIOMotorClient | None = None
 _pg_pool: asyncpg.Pool | None = None
 
 
+# Fail fast rather than hang. Motor's default server-selection timeout is 30s,
+# which on an unreachable Mongo turns every chat turn into a half-minute stall
+# before it fails — and the caller's own timeout usually fires first, so the
+# real cause never surfaces.
+MONGO_SELECTION_TIMEOUT_MS = 5_000
+
+
 async def get_motor_db():
     global _motor_client
     if _motor_client is None:
-        _motor_client = AsyncIOMotorClient(settings.MONGO_URI)
+        _motor_client = AsyncIOMotorClient(
+            settings.MONGO_URI,
+            serverSelectionTimeoutMS=MONGO_SELECTION_TIMEOUT_MS,
+        )
     return _motor_client.get_default_database()
 
 

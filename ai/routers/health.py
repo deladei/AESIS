@@ -3,6 +3,7 @@ from datetime import datetime, timezone
 from fastapi import APIRouter
 import httpx
 from config.settings import settings
+from config.database import get_motor_db
 from services import knowledge
 
 # When this process started. An env-var change on Render is supposed to restart
@@ -42,10 +43,21 @@ async def health():
     # drifting onto two different databases after a provider move.
     corpus = await knowledge.status()
 
+    # Chat history lives in Mongo. It is not needed to answer a question — the
+    # chat endpoint degrades to "first turn" without it — but an unreachable
+    # history store silently loses every transcript, so it is worth seeing.
+    try:
+        db = await get_motor_db()
+        await db.command("ping")
+        mongo = "connected"
+    except Exception as e:
+        mongo = f"unavailable: {type(e).__name__}"
+
     return {
         "status":      "ok",
         "service":     "aesis-ai",
         "groq":        groq_status,
+        "mongo":       mongo,
         "model":       settings.GROQ_MODEL,
         "environment": settings.ENVIRONMENT,
         "startedAt": _STARTED_AT.isoformat(),
