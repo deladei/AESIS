@@ -392,6 +392,9 @@ export interface AdminDashboard {
     activeInterns:  number;
     pendingReviews: number;
     avgEngagement:  number | null;
+    /** Placements that started in the last seven days — a count, not a trend. */
+    newInternsThisWeek: number;
+    activeProgrammes:   number;
   };
   pulseBoard: {
     placementId:   string;
@@ -417,6 +420,28 @@ export interface AdminDashboard {
     status:      string;
   }[];
   submissionCounts: { pending: number; reviewed: number };
+  /**
+   * Six-week series. Both figures are null where there is nothing to average —
+   * a week nobody has reached is not 0% engagement, and a week with no
+   * assessments did not score zero. The chart draws those as gaps.
+   */
+  trend: {
+    weekNumber:     number;
+    submissionRate: number | null;
+    avgQuality:     number | null;
+  }[];
+  statusMix: { draft: number; submitted: number; acknowledged: number; returned: number };
+  /** Programmes where something is actually due; the rest are omitted, not 0%. */
+  programmeProgress: { programme: string; pct: number }[];
+  recentActivity: {
+    id:         string;
+    eventType:  string | null;
+    toStatus:   string | null;
+    actorName:  string;
+    actorRole:  string | null;
+    weekNumber: number;
+    at:         string;
+  }[];
 }
 
 export function useAdminDashboard() {

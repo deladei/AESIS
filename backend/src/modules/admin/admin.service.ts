@@ -15,6 +15,10 @@ const REVIEWED_ENTRY_STATUSES = ['acknowledged', 'returned'] as const;
 
 const PULSE_LIMIT  = 6;
 const RECENT_LIMIT = 6;
+const ACTIVITY_LIMIT = 6;
+// Six points is what the trend chart plots; more would compress the recent
+// weeks, which are the ones anyone is actually looking at.
+const TREND_WEEKS  = 6;
 
 /**
  * Headline counts for the All Interns board.
@@ -214,6 +218,80 @@ export async function getAdminDashboard() {
     for (const p of pulseBoard) p.feedbackCount = fbMap.get(p.placementId) ?? 0;
   }
 
+  // ── Six-week trend ────────────────────────────────────────
+  //
+  // Submission rate and mean writing quality per week number, across every
+  // active placement. Both are honest nulls where there is nothing to average:
+  // a week nobody has reached yet is not 0% engagement and not a quality score
+  // of zero, and drawing either as a point on a line says something false.
+  const trend = await buildWeeklyTrend(placementIds, dueByPlacement);
+
+  // ── Week states ───────────────────────────────────────────
+  const statusRows = placementIds.length
+    ? await prisma.logbookEntry.groupBy({
+        by:     ['status'],
+        _count: { _all: true },
+        where:  { placementId: { in: placementIds } },
+      })
+    : [];
+  const statusMix = {
+    draft:        0,
+    submitted:    0,
+    acknowledged: 0,
+    returned:     0,
+  };
+  for (const r of statusRows) {
+    if (r.status in statusMix) statusMix[r.status as keyof typeof statusMix] = r._count._all;
+  }
+
+  // ── Progress by programme ─────────────────────────────────
+  //
+  // Aggregated from the same per-placement figures the pulse board uses, so the
+  // bars and the cards cannot disagree. A programme where nothing is due yet is
+  // omitted rather than drawn at 0%.
+  const byProgramme = new Map<string, { submitted: number; due: number }>();
+  for (const p of ranked) {
+    const key = p.department ?? 'Unassigned programme';
+    const acc = byProgramme.get(key) ?? { submitted: 0, due: 0 };
+    acc.submitted += p.submittedWeeks;
+    acc.due       += p.weeksDue;
+    byProgramme.set(key, acc);
+  }
+  const programmeProgress = [...byProgramme.entries()]
+    .map(([programme, v]) => ({ programme, pct: engagementPercent(v.submitted, v.due) }))
+    .filter((r): r is { programme: string; pct: number } => r.pct !== null)
+    .sort((a, b) => b.pct - a.pct);
+
+  // ── Recent activity ───────────────────────────────────────
+  //
+  // Straight off the append-only entry_event log, which is the only record of
+  // what actually happened rather than what the tables currently say.
+  const activityRows = await prisma.entryEvent.findMany({
+    orderBy: { createdAt: 'desc' },
+    take:    ACTIVITY_LIMIT,
+    select: {
+      id: true, eventType: true, toStatus: true, createdAt: true, actorRole: true,
+      actor: { select: { firstName: true, lastName: true } },
+      entry: { select: { weekNumber: true } },
+    },
+  });
+  const recentActivity = activityRows.map(e => ({
+    id:        e.id,
+    eventType: e.eventType,
+    toStatus:  e.toStatus,
+    actorName: `${e.actor.firstName} ${e.actor.lastName}`.trim(),
+    actorRole: e.actorRole,
+    weekNumber: e.entry.weekNumber,
+    at:        e.createdAt,
+  }));
+
+  // Placements that started in the last seven days — the "+N this week" delta.
+  // A real count, not a trend line: there is no historical series behind it.
+  const since = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
+  const newInternsThisWeek = await prisma.placement.count({
+    where: { placementStatus: 'active', createdAt: { gte: since } },
+  });
+
   const recentSubmissions = recentRows.map(s => ({
     id:          s.id,
     internName:  `${s.placement.student.firstName} ${s.placement.student.lastName}`,
@@ -223,12 +301,84 @@ export async function getAdminDashboard() {
   }));
 
   return {
-    overview:          { activeInterns, pendingReviews, avgEngagement },
+    overview: {
+      activeInterns,
+      pendingReviews,
+      avgEngagement,
+      newInternsThisWeek,
+      activeProgrammes: byProgramme.size,
+    },
     pulseBoard,
     riskAlerts,
     recentSubmissions,
     submissionCounts:  { pending: pendingReviews, reviewed: reviewedCount },
+    trend,
+    statusMix,
+    programmeProgress,
+    recentActivity,
   };
+}
+
+/**
+ * Submission rate and mean writing quality for the last `TREND_WEEKS` week
+ * numbers that have actually come due.
+ *
+ * The denominator is how many placements had reached that week, not how many
+ * exist — otherwise week 6 reads as a collapse in engagement purely because
+ * most of the cohort has not got there yet.
+ */
+async function buildWeeklyTrend(
+  placementIds: string[],
+  dueByPlacement: Map<string, number>,
+) {
+  const maxDue = Math.max(0, ...dueByPlacement.values());
+  if (!placementIds.length || maxDue === 0) return [];
+
+  const first = Math.max(1, maxDue - TREND_WEEKS + 1);
+  const weekNumbers = Array.from({ length: maxDue - first + 1 }, (_, i) => first + i);
+
+  const entries = await prisma.logbookEntry.findMany({
+    where:  { placementId: { in: placementIds }, weekNumber: { in: weekNumbers } },
+    select: {
+      weekNumber: true,
+      submittedAt: true,
+      assessments: {
+        orderBy: { createdAt: 'desc' },
+        take: 1,
+        select: { quality: true },
+      },
+    },
+  });
+
+  return weekNumbers.map(weekNumber => {
+    // How many placements had this week due at all.
+    let due = 0;
+    for (const d of dueByPlacement.values()) if (d >= weekNumber) due += 1;
+
+    const forWeek = entries.filter(e => e.weekNumber === weekNumber);
+    const submitted = forWeek.filter(e => e.submittedAt !== null).length;
+
+    const scores = forWeek
+      .map(e => (e.assessments[0]?.quality as { overall?: unknown } | null)?.overall)
+      .map(v => clampQuality(v))
+      .filter((v): v is number => v !== null);
+
+    return {
+      weekNumber,
+      submissionRate: engagementPercent(submitted, due),
+      // Advisory only, and null rather than 0 when nothing was scored — a week
+      // with no assessments is not a week that scored badly.
+      avgQuality: scores.length
+        ? Math.round((scores.reduce((a, b) => a + b, 0) / scores.length) * 10) / 10
+        : null,
+    };
+  });
+}
+
+/** AI quality is untrusted input even on the way out of our own table. */
+function clampQuality(raw: unknown): number | null {
+  const n = Number(raw);
+  return Number.isFinite(n) && n >= 0 && n <= 100 ? n : null;
 }
 
 // ── Admin ↔ intern messaging + scheduled calls ────────────────

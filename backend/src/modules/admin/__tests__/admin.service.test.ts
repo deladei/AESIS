@@ -13,6 +13,9 @@ jest.mock('../../../config/prisma', () => ({
     supervisorFeedback: {
       findMany: jest.fn(),
     },
+    entryEvent: {
+      findMany: jest.fn(),
+    },
   },
 }));
 
@@ -58,7 +61,12 @@ function queueCounts(totalSubmitted: number, pending: number, reviewed: number) 
 }
 
 describe('getAdminDashboard', () => {
-  beforeEach(() => jest.clearAllMocks());
+  beforeEach(() => {
+    jest.clearAllMocks();
+    // The activity feed is read on every dashboard build; tests that do not
+    // care about it still need it to resolve.
+    (mp.entryEvent.findMany as jest.Mock).mockResolvedValue([]);
+  });
 
   it('builds overview counts and avgEngagement = submitted / weeks actually due', async () => {
     (mp.placement.count        as jest.Mock).mockResolvedValue(12);
@@ -80,6 +88,68 @@ describe('getAdminDashboard', () => {
     expect(result.overview.pendingReviews).toBe(8);
     expect(result.overview.avgEngagement).toBe(90); // round(54/60*100) — 5-week cohorts
     expect(result.submissionCounts).toEqual({ pending: 8, reviewed: 24 });
+  });
+
+  it('reports a null trend point rather than a zero for a week nobody scored', async () => {
+    // A week with no assessments is not a week that scored zero, and a week
+    // nobody has reached is not a collapse in engagement. Both draw as gaps.
+    (mp.placement.count       as jest.Mock).mockResolvedValue(2);
+    queueCounts(2, 0, 2);
+    (mp.placement.findMany    as jest.Mock).mockResolvedValue([
+      makePlacement({ id: 'p-1', startDate: new Date('2026-01-05') }),
+      makePlacement({ id: 'p-2', startDate: new Date('2026-01-05') }),
+    ]);
+    (mp.logbookEntry.groupBy  as jest.Mock).mockResolvedValue([]);
+    // Keyed on the query rather than on call order: `getAdminDashboard` reads
+    // logbookEntry.findMany twice and only one of them asks for assessments.
+    (mp.logbookEntry.findMany as jest.Mock).mockImplementation((args: { select?: Record<string, unknown> }) =>
+      Promise.resolve(args?.select?.assessments
+        // Week 1 submitted, with no assessment at all.
+        ? [{ weekNumber: 1, submittedAt: new Date(), assessments: [] }]
+        : []));
+    (mp.supervisorFeedback.findMany as jest.Mock).mockResolvedValue([]);
+
+    const result = await getAdminDashboard();
+    const week1 = result.trend.find(t => t.weekNumber === 1);
+
+    expect(week1?.avgQuality).toBeNull();
+    expect(week1?.submissionRate).not.toBeNull();
+  });
+
+  it('drops an out-of-range quality score instead of averaging it in', async () => {
+    // AI values are untrusted even coming back out of our own table.
+    (mp.placement.count       as jest.Mock).mockResolvedValue(1);
+    queueCounts(1, 0, 1);
+    (mp.placement.findMany    as jest.Mock).mockResolvedValue([
+      makePlacement({ id: 'p-1', startDate: new Date('2026-01-05') }),
+    ]);
+    (mp.logbookEntry.groupBy  as jest.Mock).mockResolvedValue([]);
+    (mp.logbookEntry.findMany as jest.Mock).mockImplementation((args: { select?: Record<string, unknown> }) =>
+      Promise.resolve(args?.select?.assessments
+        ? [
+            { weekNumber: 1, submittedAt: new Date(), assessments: [{ quality: { overall: 730 } }] },
+            { weekNumber: 1, submittedAt: new Date(), assessments: [{ quality: { overall: 60 } }] },
+          ]
+        : []));
+    (mp.supervisorFeedback.findMany as jest.Mock).mockResolvedValue([]);
+
+    const result = await getAdminDashboard();
+    expect(result.trend.find(t => t.weekNumber === 1)?.avgQuality).toBe(60);
+  });
+
+  it('omits a programme from the progress bars when nothing is due for it yet', async () => {
+    // Drawing it at 0% would read as a programme that has fallen behind.
+    (mp.placement.count       as jest.Mock).mockResolvedValue(1);
+    queueCounts(0, 0, 0);
+    (mp.placement.findMany    as jest.Mock).mockResolvedValue([
+      makePlacement({ id: 'p-1', startDate: new Date(Date.now() + 30 * 864e5) }),
+    ]);
+    (mp.logbookEntry.groupBy  as jest.Mock).mockResolvedValue([]);
+    (mp.logbookEntry.findMany as jest.Mock).mockResolvedValue([]);
+    (mp.supervisorFeedback.findMany as jest.Mock).mockResolvedValue([]);
+
+    const result = await getAdminDashboard();
+    expect(result.programmeProgress).toEqual([]);
   });
 
   it('reports avgEngagement as null — not 100 — when no interns are active', async () => {
