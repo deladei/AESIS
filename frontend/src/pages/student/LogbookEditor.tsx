@@ -1,21 +1,24 @@
 import { useEffect, useMemo, useState } from 'react';
-import { useSearchParams } from 'react-router-dom';
+import { Link, useSearchParams } from 'react-router-dom';
 import {
   Loader2, Plus, X, Trash2, CheckCircle2, Clock, RotateCcw, Send, Save,
   Calendar, CalendarDays, AlertCircle, BookOpen, Sparkles, ShieldCheck, Lock,
-  Sun, Stethoscope, CircleSlash, ChevronDown, ChevronUp,
+  Sun, Stethoscope, CircleSlash, ArrowRight, ChevronDown, ChevronUp,
 } from 'lucide-react';
 import { useMyPlacement } from '@/hooks/usePlacements';
 import {
-  useEntries, useEntry, useSaveDay, useSubmitDay, useSubmitEntry, dayKey, type EntryStatus,
+  useEntries, useEntry, useSaveDay, useSubmitDay, useSubmitEntry, useAssistDayEntry,
+  dayKey, type EntryStatus,
 } from '@/hooks/useEntries';
 import {
   useSiwesCalendar, useSaveDailyEntry, useSaveWeeklySummary, useRecordAbsence,
   type SiwesCalendarDay,
 } from '@/hooks/useSiwes';
 import { EntryAttachments } from '@/components/attachments/EntryAttachments';
+import { Card, CardHeader } from '@/components/ui/Card';
+import { ProgressBar } from '@/components/ui/Bits';
+import { EmptyState } from '@/components/ui/Feedback';
 import { FieldError } from '@/components/shared/FieldError';
-import LatePill from '@/components/shared/LatePill';
 import { freeText } from '@/lib/validation';
 import { ghanaYMD, fmtDate, fmtRange } from '@/lib/schedule';
 
@@ -72,7 +75,6 @@ function detectCompetencies(text: string, already: string[]): string[] {
 
 const WEEKDAY_SHORT = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 const weekdayShort = (ymd: string) => WEEKDAY_SHORT[new Date(`${ymd}T00:00:00Z`).getUTCDay()];
-const dayOfMonth = (ymd: string) => new Date(`${ymd}T00:00:00Z`).getUTCDate();
 
 const errMessage = (err: unknown): string =>
   (err as { response?: { data?: { message?: string } } })?.response?.data?.message
@@ -93,8 +95,8 @@ const WEEK_STATUS_META: Record<WeekState, { label: string; cls: string; Icon: Re
 function WeekStatusPill({ status }: { status: WeekState }) {
   const { label, cls, Icon } = WEEK_STATUS_META[status] ?? WEEK_STATUS_META.not_started;
   return (
-    <span className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-semibold ${cls}`}>
-      <Icon className="h-3 w-3" /> {label}
+    <span className={`inline-flex shrink-0 items-center gap-1 whitespace-nowrap rounded-full px-2 py-0.5 text-[11px] font-semibold ${cls}`}>
+      <Icon className="h-3 w-3 shrink-0" /> {label}
     </span>
   );
 }
@@ -102,28 +104,28 @@ function WeekStatusPill({ status }: { status: WeekState }) {
 // ── Day status ──────────────────────────────────────────────────
 function dayVisual(day: SiwesCalendarDay, today: string, submitted: boolean) {
   if (submitted) {
-    return { label: 'Submitted', cls: 'bg-ok-soft text-ok', Icon: CheckCircle2 };
+    return { label: 'Submitted', cls: 'bg-ok-soft text-ok', iconCls: 'text-ok', Icon: CheckCircle2 };
   }
   // Lateness is its own pill beside this one (one shared label app-wide), so
   // this only says whether the day has been written up.
   if (day.entry) {
-    return { label: 'Logged', cls: 'bg-warn-soft text-warn', Icon: Clock };
+    return { label: 'Logged', cls: 'bg-warn-soft text-warn', iconCls: 'text-warn', Icon: Clock };
   }
   if (day.absence) {
     const kind = day.absence.kind === 'sick' ? 'Sick'
       : day.absence.kind === 'permitted' ? 'Permitted absence' : 'Unexcused absence';
-    return { label: kind, cls: 'bg-surface-sunken text-ink-secondary', Icon: Stethoscope };
+    return { label: kind, cls: 'bg-surface-sunken text-ink-secondary', iconCls: 'text-ink-secondary', Icon: Stethoscope };
   }
   if (day.class === 'non_working') {
-    return { label: 'Public holiday', cls: 'bg-surface-sunken text-ink-muted', Icon: Sun };
+    return { label: 'Public holiday', cls: 'bg-surface-sunken text-ink-muted', iconCls: 'text-ink-muted', Icon: Sun };
   }
   if (day.date > today) {
-    return { label: 'Upcoming', cls: 'bg-surface-sunken text-ink-muted', Icon: Clock };
+    return { label: 'Upcoming', cls: 'bg-surface-sunken text-ink-muted', iconCls: 'text-ink-muted', Icon: Clock };
   }
   if (day.missing) {
-    return { label: 'Not logged', cls: 'bg-danger-soft text-danger', Icon: AlertCircle };
+    return { label: 'Not logged', cls: 'bg-danger-soft text-danger', iconCls: 'text-danger', Icon: AlertCircle };
   }
-  return { label: 'Open', cls: 'bg-surface-sunken text-ink-secondary', Icon: CalendarDays };
+  return { label: 'Open', cls: 'bg-surface-sunken text-ink-secondary', iconCls: 'text-ink-secondary', Icon: CalendarDays };
 }
 
 type LocalActivity = { description: string; competencyTags: string[] };
@@ -212,7 +214,6 @@ export default function LogbookEditor() {
   }
 
   const loggedCount = calendar.days.filter((d) => d.entry).length;
-  const missingCount = calendar.days.filter((d) => d.missing).length;
   // Days you owe. They were only reachable by walking the week rail and reading
   // every day's pill; the backlog gathers them so a forgotten day is one click
   // away for as long as the attachment is open. Most recent first — that is the
@@ -229,56 +230,129 @@ export default function LogbookEditor() {
     (weekEntry?.status as EntryStatus | undefined)
     ?? (week?.days.every((d) => d.date > today) ? 'upcoming' : 'not_started');
 
-  return (
-    <div className="mx-auto max-w-5xl px-6 py-6">
-      <header className="mb-5">
-        <h1 className="text-xl font-bold text-ink">Logbook</h1>
-        <p className="mt-1 text-sm text-ink-secondary">
-          {placement.company?.name ?? 'Your placement'} · {fmtDate(calendar.chainStart)} – {fmtDate(calendar.chainEnd)}
-          {' · '}{calendar.totalWeeks} weeks · {loggedCount} day{loggedCount === 1 ? '' : 's'} logged
-          {missingCount > 0 && <span className="text-danger"> · {missingCount} not logged</span>}
-        </p>
-      </header>
+  // ── Derived figures for the rail ────────────────────────────
+  const workingThisWeek = week ? week.days.filter((d) => d.class === 'working').length : 0;
+  const daysWrittenThisWeek = week
+    ? week.days.filter((d) => (d.entry?.descriptionOfWork ?? '').trim() !== '').length
+    : 0;
+  const submittedThisWeek = (detail?.days ?? []).filter(
+    (rec) => rec.status === 'submitted' && week?.days.some((d) => d.date === dayKey(rec)),
+  ).length;
+  // Average words per written day — a real measure of how much the student is
+  // actually saying, not a target.
+  const writtenTexts = (week?.days ?? [])
+    .map((d) => (d.entry?.descriptionOfWork ?? '').trim())
+    .filter(Boolean);
+  const avgWords = writtenTexts.length
+    ? Math.round(writtenTexts.reduce((n, t) => n + t.split(/\s+/).length, 0) / writtenTexts.length)
+    : null;
+  // The competency this week's activities carry most often.
+  const topActivity = (() => {
+    const counts = new Map<string, number>();
+    for (const a of detail?.activities ?? []) {
+      for (const t of a.competencyTags ?? []) counts.set(t, (counts.get(t) ?? 0) + 1);
+    }
+    return [...counts.entries()].sort((a, b) => b[1] - a[1])[0]?.[0] ?? null;
+  })();
+  // The model's own summary of this week, when the enrichment pass has run.
+  const aiSummary = (() => {
+    const raw = detail?.assessments?.find((a) => a.summary != null)?.summary;
+    return typeof raw === 'string' && raw.trim() ? raw : null;
+  })();
 
-      {/* Days you still owe. Silent when there are none. */}
+  return (
+    <div className="mx-auto max-w-[1500px] space-y-5 p-4 sm:p-6">
+      {/* ── Header ───────────────────────────────────────────── */}
+      <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_auto]">
+        <div className="min-w-0 rounded-card border border-line bg-surface p-5 shadow-card">
+          <div className="flex items-start gap-3">
+            <span className="grid h-11 w-11 shrink-0 place-items-center rounded-card bg-brand-soft text-brand-ink">
+              <BookOpen className="h-5 w-5" />
+            </span>
+            <div className="min-w-0">
+              <h1 className="text-2xl font-bold tracking-tight text-ink">Logbook</h1>
+              <p className="mt-1 text-sm text-ink-secondary">
+                Track your weekly activities, reflect on your progress, and build your
+                professional journey.
+              </p>
+            </div>
+          </div>
+          <p className="mt-4 truncate text-xs text-ink-muted">
+            {placement.company?.name ?? 'Your placement'} · {fmtDate(calendar.chainStart)} – {fmtDate(calendar.chainEnd)}
+            {' · '}{calendar.totalWeeks} week{calendar.totalWeeks === 1 ? '' : 's'}
+            {' · '}{loggedCount} day{loggedCount === 1 ? '' : 's'} logged
+          </p>
+        </div>
+
+        {/*
+          The reference shows an in-page assistant here. The one assistant that
+          exists is grounded in the department's regulations and lives on its own
+          page, so this points at that rather than at a model that isn't wired.
+        */}
+        <Link
+          to="/student/chatbot"
+          className="group flex max-w-sm items-start gap-3 rounded-card bg-brand p-5 text-ink-inverse transition-colors hover:bg-brand-hover"
+        >
+          <Sparkles className="mt-0.5 h-5 w-5 shrink-0" />
+          <span className="min-w-0">
+            <span className="block text-sm font-semibold">Need help with your logbook?</span>
+            <span className="mt-0.5 block text-xs opacity-80">
+              Ask the assistant about deadlines, what a week should contain, or how quality is scored.
+            </span>
+            <span className="mt-3 inline-flex items-center gap-1.5 rounded-lg bg-surface px-3 py-1.5 text-xs font-semibold text-brand-ink">
+              Ask AI <ArrowRight className="h-3.5 w-3.5 transition-transform group-hover:translate-x-0.5" />
+            </span>
+          </span>
+        </Link>
+      </div>
+
+      {/* ── Days you still owe ───────────────────────────────── */}
       {missedDays.length > 0 && (
-        <div className="mb-4 rounded-xl border border-warn bg-warn-soft px-4 py-3">
-          <p className="flex items-center gap-2 text-sm font-semibold text-warn">
-            <AlertCircle className="h-4 w-4" />
-            {missedDays.length} day{missedDays.length === 1 ? '' : 's'} not logged yet
-          </p>
-          <p className="mt-0.5 text-xs text-ink-secondary">
-            You can still log any of them. They will be marked late for your supervisor.
-          </p>
-          <div className="mt-2.5 flex flex-wrap gap-2">
+        <div className="rounded-card border border-warn bg-warn-soft px-5 py-4">
+          <div className="flex flex-wrap items-start justify-between gap-3">
+            <div className="min-w-0">
+              <p className="flex items-center gap-2 text-sm font-semibold text-warn">
+                <AlertCircle className="h-4 w-4" />
+                {missedDays.length} day{missedDays.length === 1 ? '' : 's'} not logged yet
+              </p>
+              <p className="mt-0.5 text-xs text-ink-secondary">
+                You can still log any of them. They will be marked late for your supervisor.
+              </p>
+            </div>
+            {missedDays.length > MISSED_PREVIEW && (
+              <button
+                type="button"
+                onClick={() => setShowAllMissed((v) => !v)}
+                className="inline-flex shrink-0 items-center gap-1.5 rounded-lg border border-warn bg-surface px-3 py-1.5 text-xs font-semibold text-warn"
+              >
+                <CalendarDays className="h-3.5 w-3.5" />
+                {showAllMissed ? 'Show fewer' : 'View all dates'}
+              </button>
+            )}
+          </div>
+
+          <div className="mt-3 flex flex-wrap gap-2">
             {missedShown.map((d) => (
               <button
                 key={d.date}
                 type="button"
                 onClick={() => { setSelectedWeek(d.weekNumber); setSelectedDate(d.date); }}
-                className="inline-flex items-center gap-1.5 rounded-lg border border-warn bg-surface px-2.5 py-1 text-xs font-semibold text-warn hover:border-warn"
+                className={`inline-flex items-center gap-1.5 rounded-lg border px-2.5 py-1.5 text-xs font-semibold transition-colors ${
+                  d.date === selectedDate
+                    ? 'border-brand bg-brand text-ink-inverse'
+                    : 'border-warn bg-surface text-warn hover:border-brand hover:text-brand-ink'
+                }`}
               >
                 <CalendarDays className="h-3 w-3" />
                 {weekdayShort(d.date)} {fmtDate(d.date)}
               </button>
             ))}
-            {missedDays.length > MISSED_PREVIEW && (
-              <button
-                type="button"
-                onClick={() => setShowAllMissed((v) => !v)}
-                className="inline-flex items-center gap-1 rounded-lg px-2.5 py-1 text-xs font-semibold text-ink-secondary hover:text-ink"
-              >
-                {showAllMissed
-                  ? <>Show fewer <ChevronUp className="h-3 w-3" /></>
-                  : <>{missedDays.length - MISSED_PREVIEW} more <ChevronDown className="h-3 w-3" /></>}
-              </button>
-            )}
           </div>
         </div>
       )}
 
-      {/* Week rail — the container you are working inside */}
-      <div className="mb-4 flex flex-wrap gap-2">
+      {/* ── Week rail ────────────────────────────────────────── */}
+      <div className="flex flex-wrap gap-2">
         {weeks.map((w) => {
           const e = entryByWeek.get(w.weekNumber);
           const attention = w.days.some((d) => d.missing);
@@ -288,216 +362,300 @@ export default function LogbookEditor() {
             <button
               key={w.weekNumber}
               onClick={() => { setSelectedWeek(w.weekNumber); setSelectedDate(null); setConfirmGaps(false); }}
-              className={`rounded-lg px-3 py-1.5 text-sm font-semibold transition-colors ${
+              className={`inline-flex items-center gap-1.5 rounded-lg px-3.5 py-2 text-sm font-semibold transition-colors ${
                 selected
                   ? 'bg-brand text-ink-inverse'
                   : started
-                    ? 'bg-surface-sunken text-ink hover:bg-brand-soft'
-                    : 'bg-surface-sunken text-ink-muted'
+                    ? 'border border-line bg-surface text-ink hover:border-brand'
+                    : 'border border-line bg-surface-sunken text-ink-muted'
               }`}
             >
               Week {w.weekNumber}
-              {e?.status === 'acknowledged' && !selected && (
-                <CheckCircle2 className="ml-1.5 inline h-3 w-3 align-middle text-ok" />
-              )}
+              {e?.status === 'acknowledged' && !selected && <CheckCircle2 className="h-3.5 w-3.5 text-ok" />}
               {attention && !selected && e?.status !== 'acknowledged' && (
-                <span className="ml-1.5 inline-block h-1.5 w-1.5 rounded-full bg-danger align-middle" />
+                <span className="h-1.5 w-1.5 rounded-full bg-danger" />
               )}
+              {selected && <span className="h-1.5 w-1.5 rounded-full bg-ink-inverse/70" />}
             </button>
           );
         })}
       </div>
 
       {week && (
-        <>
-          <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
-            <div>
-              <h2 className="text-lg font-bold text-ink">Week {week.weekNumber}</h2>
-              <p className="text-sm text-ink-secondary">
-                {fmtRange(week.bounds.start, week.bounds.end)}
-                {' · '}
-                {(detail?.days ?? []).filter((rec) =>
-                  rec.status === 'submitted'
-                  && week.days.some((d) => d.date === dayKey(rec)),
-                ).length}
-                /{week.days.filter((d) => d.class === 'working').length} days submitted
-              </p>
-            </div>
-            {/* The week is the student's to send. Completing it does not submit
-                it, so the offer has to live here — durable across a reload —
-                not only in the banner on the save that finished it. */}
-            <div className="flex items-center gap-3">
-              {weekStatus === 'draft' && detail?.completion && (
-                detail.completion.complete ? (
-                  <button
-                    type="button"
-                    disabled={submitWeek.isPending}
-                    onClick={async () => {
-                      try {
-                        await submitWeek.mutateAsync(detail.id);
-                      } catch { /* surfaced below */ }
-                    }}
-                    className="inline-flex items-center gap-1.5 rounded-lg bg-ok px-3 py-1.5 text-sm font-semibold text-ink-inverse hover:opacity-90 disabled:opacity-50"
-                  >
-                    {submitWeek.isPending
-                      ? <Loader2 className="h-4 w-4 animate-spin" />
-                      : <Send className="h-4 w-4" />}
-                    Submit week
-                  </button>
-                ) : weekIsOver ? (
-                  // A week that has ended with days missing used to be
-                  // unsubmittable forever — no button was ever rendered, so it
-                  // sat in draft for the rest of the attachment. The API always
-                  // accepted it; only this screen refused to ask.
-                  <button
-                    type="button"
-                    onClick={() => setConfirmGaps((v) => !v)}
-                    className="inline-flex items-center gap-1.5 rounded-lg border border-warn bg-warn-soft px-3 py-1.5 text-sm font-semibold text-warn hover:border-warn"
-                  >
-                    <Send className="h-4 w-4" /> Submit week anyway
-                  </button>
-                ) : (
-                  <span className="text-sm text-ink-secondary">
-                    {detail.completion.remaining} of {detail.completion.workingDays} days left
-                  </span>
-                )
-              )}
-              <WeekStatusPill status={weekStatus} />
-            </div>
-          </div>
-          {submitWeek.isError && (
-            <p className="mb-3 text-sm text-danger">{errMessage(submitWeek.error)}</p>
-          )}
-
-          {confirmGaps && weekStatus === 'draft' && detail?.completion && !detail.completion.complete && (
-            <div className="mb-3 rounded-lg border border-warn bg-warn-soft px-4 py-3">
-              <p className="text-sm font-semibold text-warn">
-                Send week {week.weekNumber} with {detail.completion.remaining} day
-                {detail.completion.remaining === 1 ? '' : 's'} still unlogged?
-              </p>
-              <p className="mt-1 text-xs text-ink-secondary">
-                Your supervisor will see {detail.completion.missingDates.length === 1 ? 'this day' : 'these days'} as
-                not logged:{' '}
-                <span className="font-semibold">
-                  {detail.completion.missingDates.map((d) => fmtDate(d)).join(', ')}
-                </span>
-                . Once sent, the week is locked until your supervisor returns it — so log what you
-                can first if you still can.
-              </p>
-              <div className="mt-2.5 flex flex-wrap gap-2">
-                <button
-                  type="button"
-                  disabled={submitWeek.isPending}
-                  onClick={async () => {
-                    try {
-                      await submitWeek.mutateAsync(detail.id);
-                      setConfirmGaps(false);
-                    } catch { /* surfaced below */ }
-                  }}
-                  className="inline-flex items-center gap-1.5 rounded-lg bg-ok px-3 py-1.5 text-xs font-semibold text-ink-inverse hover:opacity-90 disabled:opacity-50"
-                >
-                  {submitWeek.isPending
-                    ? <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                    : <Send className="h-3.5 w-3.5" />}
-                  Send it
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setConfirmGaps(false)}
-                  className="rounded-lg border border-line bg-surface px-3 py-1.5 text-xs font-semibold text-ink-secondary hover:border-line-strong"
-                >
-                  Not yet
-                </button>
+        <div className="grid gap-5 xl:grid-cols-[300px_minmax(0,1fr)_320px]">
+          {/* ── This week ──────────────────────────────────── */}
+          <div className="space-y-5">
+            <Card>
+              <div className="mb-3 flex items-start justify-between gap-2">
+                <div className="min-w-0">
+                  <h2 className="flex items-center gap-2 text-[15px] font-semibold text-ink">
+                    <Calendar className="h-4 w-4 text-brand-ink" /> Week {week.weekNumber}
+                  </h2>
+                  <p className="mt-0.5 text-xs text-ink-muted">
+                    {fmtRange(week.bounds.start, week.bounds.end)}
+                    {' · '}{submittedThisWeek}/{workingThisWeek} days submitted
+                  </p>
+                </div>
+                <WeekStatusPill status={weekStatus} />
               </div>
-            </div>
-          )}
 
-          {weekStatus === 'acknowledged' && (
-            <div className="mb-4 flex items-start gap-2 rounded-lg border border-ok bg-ok-soft px-4 py-3 text-sm text-ok">
-              <ShieldCheck className="mt-0.5 h-4 w-4 shrink-0" />
-              Your supervisor has acknowledged this week. It is locked — days can no longer be edited.
-            </div>
-          )}
-          {weekStatus === 'returned' && (
-            <div className="mb-4 flex items-start gap-2 rounded-lg border border-danger bg-danger-soft px-4 py-3 text-sm text-danger">
-              <RotateCcw className="mt-0.5 h-4 w-4 shrink-0" />
-              This week was returned for revision — edit the days below and resubmit.
-            </div>
-          )}
+              <ProgressBar
+                value={workingThisWeek > 0 ? Math.round((submittedThisWeek / workingThisWeek) * 100) : null}
+                tone={submittedThisWeek === workingThisWeek && workingThisWeek > 0 ? 'ok' : 'brand'}
+                label={`${submittedThisWeek} of ${workingThisWeek} days submitted`}
+              />
 
-          <div className="grid gap-4 lg:grid-cols-[260px_1fr]">
-            {/* Days of this week */}
-            <div className="space-y-2">
-              {week.days.map((d) => {
-                const submitted = (detail?.days ?? []).some(
-                  (rec) => dayKey(rec) === d.date && rec.status === 'submitted',
+              <ul className="mt-4 space-y-1">
+                {week.days.map((d) => {
+                  const submitted = (detail?.days ?? []).some(
+                    (rec) => dayKey(rec) === d.date && rec.status === 'submitted',
+                  );
+                  const v = dayVisual(d, today, submitted);
+                  const selectable = d.class === 'working';
+                  return (
+                    <li key={d.date}>
+                      <button
+                        type="button"
+                        disabled={!selectable}
+                        onClick={() => setSelectedDate(d.date)}
+                        className={`flex w-full items-center gap-2 rounded-lg px-2 py-2 text-left text-sm transition-colors ${
+                          d.date === selectedDate ? 'bg-brand-soft' : 'enabled:hover:bg-surface-sunken'
+                        } ${selectable ? '' : 'cursor-default opacity-60'}`}
+                      >
+                        <v.Icon className={`h-3.5 w-3.5 shrink-0 ${v.iconCls}`} />
+                        <span className="min-w-0 flex-1 truncate text-ink">
+                          {weekdayShort(d.date)} {fmtDate(d.date)}
+                        </span>
+                        <span className={`shrink-0 text-xs font-semibold ${v.iconCls}`}>{v.label}</span>
+                      </button>
+                    </li>
+                  );
+                })}
+              </ul>
+
+              {/* Jumps to the oldest day of this week that still has no entry. */}
+              {(() => {
+                const next = week.days.find(
+                  (d) => d.class === 'working' && d.date <= today && !(d.entry?.descriptionOfWork ?? '').trim(),
                 );
-                const v = dayVisual(d, today, submitted);
-                const selectable = d.class === 'working';
+                if (!next) return null;
                 return (
                   <button
-                    key={d.date}
-                    disabled={!selectable}
-                    onClick={() => setSelectedDate(d.date)}
-                    className={`flex w-full items-center gap-3 rounded-xl border px-3 py-2.5 text-left transition-colors ${
-                      d.date === selectedDate
-                        ? 'border-brand bg-brand-soft'
-                        : 'border-line bg-surface'
-                    } ${selectable ? 'hover:border-brand' : 'cursor-default opacity-70'}`}
+                    type="button"
+                    onClick={() => setSelectedDate(next.date)}
+                    className="mt-4 flex w-full items-center justify-center gap-2 rounded-lg bg-surface-sunken px-3 py-2.5 text-sm font-semibold text-brand-ink transition-colors hover:bg-brand-soft"
                   >
-                    <span className="w-10 shrink-0 text-center">
-                      <span className="block text-[11px] font-semibold text-ink-muted">{weekdayShort(d.date)}</span>
-                      <span className="block text-base font-bold text-ink">{dayOfMonth(d.date)}</span>
-                    </span>
-                    <span className={`inline-flex flex-wrap items-center gap-1`}>
-                      <span className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-semibold ${v.cls}`}>
-                        <v.Icon className="h-3 w-3" /> {v.label}
-                      </span>
-                      <LatePill compact days={d.entry?.lateByDays ?? 0} />
-                    </span>
+                    <Plus className="h-4 w-4" /> Quick log entry
+                    <ArrowRight className="h-3.5 w-3.5" />
                   </button>
                 );
-              })}
-            </div>
+              })()}
+            </Card>
+          </div>
 
-            {/* The selected day, then the week's own narrative */}
-            <div className="space-y-4">
-              {!day ? (
-                <div className="rounded-card border border-line bg-surface px-6 py-10 text-center">
-                  <CalendarDays className="mx-auto mb-3 h-8 w-8 text-brand-ink" />
-                  <p className="text-sm text-ink-secondary">Select a day to log what you worked on.</p>
-                </div>
-              ) : (
-                <DayPanel
-                  key={day.date}
-                  placementId={placement.id}
-                  weekNumber={week.weekNumber}
-                  bounds={week.bounds}
-                  day={day}
-                  today={today}
-                  weekStatus={weekStatus}
-                  entryId={weekEntry?.id ?? detail?.id}
-                  daySubmitted={(detail?.days ?? []).some(
-                    (rec) => dayKey(rec) === day.date && rec.status === 'submitted',
-                  )}
-                  activities={(detail?.activities ?? [])
-                    .filter((a) => a.activityDate.slice(0, 10) === day.date)
-                    .map((a) => ({ description: a.description, competencyTags: a.competencyTags ?? [] }))}
+          {/* ── The selected day + the week's narrative ─────── */}
+          <div className="min-w-0 space-y-5">
+            {weekStatus === 'draft' && detail?.completion && (
+              <SubmitWeekBar
+                completion={detail.completion}
+                weekNumber={week.weekNumber}
+                weekIsOver={weekIsOver}
+                pending={submitWeek.isPending}
+                error={submitWeek.isError ? errMessage(submitWeek.error) : null}
+                confirmGaps={confirmGaps}
+                onToggleConfirm={() => setConfirmGaps((v) => !v)}
+                onSubmit={async () => {
+                  try { await submitWeek.mutateAsync(detail.id); setConfirmGaps(false); } catch { /* shown above */ }
+                }}
+              />
+            )}
+
+            {weekStatus === 'acknowledged' && (
+              <div className="flex items-start gap-2 rounded-card border border-ok bg-ok-soft px-4 py-3 text-sm text-ok">
+                <ShieldCheck className="mt-0.5 h-4 w-4 shrink-0" />
+                Your supervisor has acknowledged this week. It is locked — days can no longer be edited.
+              </div>
+            )}
+            {weekStatus === 'returned' && (
+              <div className="flex items-start gap-2 rounded-card border border-danger bg-danger-soft px-4 py-3 text-sm text-danger">
+                <RotateCcw className="mt-0.5 h-4 w-4 shrink-0" />
+                This week was returned for revision — edit the days below and resubmit.
+              </div>
+            )}
+
+            {!day ? (
+              <Card>
+                <EmptyState
+                  icon={CalendarDays}
+                  title="Pick a day to log"
+                  hint="Choose a day from this week to record what you worked on."
                 />
-              )}
-
-              <WeeklyReportCard
+              </Card>
+            ) : (
+              <DayPanel
+                key={day.date}
                 placementId={placement.id}
                 weekNumber={week.weekNumber}
-                // A week that has not started cannot be reported on — the API
-                // rejects it (422), so do not offer the form and earn an error.
-                locked={weekStatus === 'acknowledged' || weekStatus === 'upcoming'}
-                lockReason={weekStatus === 'upcoming' ? 'This week has not started yet.' : undefined}
-                summary={calendar.weeklySummaries.find((s) => s.weekNumber === week.weekNumber)}
+                bounds={week.bounds}
+                day={day}
+                today={today}
+                weekStatus={weekStatus}
+                entryId={weekEntry?.id ?? detail?.id}
+                daySubmitted={(detail?.days ?? []).some(
+                  (rec) => dayKey(rec) === day.date && rec.status === 'submitted',
+                )}
+                activities={(detail?.activities ?? [])
+                  .filter((a) => a.activityDate.slice(0, 10) === day.date)
+                  .map((a) => ({ description: a.description, competencyTags: a.competencyTags ?? [] }))}
               />
-            </div>
+            )}
+
+            <WeeklyReportCard
+              placementId={placement.id}
+              weekNumber={week.weekNumber}
+              locked={weekStatus === 'acknowledged' || weekStatus === 'upcoming'}
+              lockReason={weekStatus === 'upcoming' ? 'This week has not started yet.' : undefined}
+              summary={calendar.weeklySummaries.find((s) => s.weekNumber === week.weekNumber)}
+            />
           </div>
-        </>
+
+          {/* ── Rail ───────────────────────────────────────── */}
+          <aside className="space-y-5">
+            <Card>
+              <CardHeader
+                title={<span className="flex items-center gap-2"><Sparkles className="h-4 w-4 text-brand-ink" /> Insights</span>}
+                subtitle={aiSummary ? 'From this week\'s assessment' : 'Derived from your own logging'}
+              />
+              {aiSummary ? (
+                <p className="text-sm leading-relaxed text-ink-secondary">{aiSummary}</p>
+              ) : workingThisWeek > 0 ? (
+                <p className="text-sm leading-relaxed text-ink-secondary">
+                  You have written up <span className="font-semibold text-ink">{daysWrittenThisWeek} of {workingThisWeek}</span>{' '}
+                  working day{workingThisWeek === 1 ? '' : 's'} this week.
+                  {daysWrittenThisWeek === workingThisWeek
+                    ? ' Every day is accounted for — send the week when you are ready.'
+                    : ' Logging the same day you work it keeps the detail sharp.'}
+                </p>
+              ) : (
+                <p className="text-sm text-ink-secondary">This week has no working days.</p>
+              )}
+            </Card>
+
+            <Card>
+              <CardHeader title="This week" />
+              <div className="mb-1.5 flex items-center justify-between text-sm">
+                <span className="text-ink-secondary">Days logged</span>
+                <span className="font-semibold text-ink">{daysWrittenThisWeek} / {workingThisWeek}</span>
+              </div>
+              <ProgressBar
+                value={workingThisWeek > 0 ? Math.round((daysWrittenThisWeek / workingThisWeek) * 100) : null}
+                tone="ok"
+                label={`${daysWrittenThisWeek} of ${workingThisWeek} days logged`}
+              />
+              <ul className="mt-4 space-y-3">
+                <RailRow icon={BookOpen} label="Average entry length"
+                  value={avgWords != null ? `${avgWords} words` : '—'} />
+                <RailRow icon={Sparkles} label="Most-tagged competency"
+                  value={topActivity ?? '—'} />
+                <RailRow icon={Clock} label="Days still owed (all weeks)"
+                  value={String(missedDays.length)} />
+              </ul>
+            </Card>
+          </aside>
+        </div>
+      )}
+    </div>
+  );
+}
+
+/** One label/value row in the logbook rail. */
+function RailRow({ icon: Icon, label, value }: { icon: React.ElementType; label: string; value: string }) {
+  return (
+    <li className="flex items-start gap-2.5">
+      <Icon className="mt-0.5 h-3.5 w-3.5 shrink-0 text-brand-ink" />
+      <span className="min-w-0 flex-1 text-xs text-ink-secondary">{label}</span>
+      <span className="shrink-0 text-xs font-semibold text-ink">{value}</span>
+    </li>
+  );
+}
+
+/**
+ * The week's own submit affordance.
+ *
+ * Completing a week does not submit it, so the offer has to be durable across a
+ * reload rather than living only in the banner shown on the save that finished
+ * it. A week that ended with gaps used to be unsubmittable forever — no button
+ * was ever rendered, so it sat in draft for the rest of the attachment, even
+ * though the API always accepted it.
+ */
+function SubmitWeekBar({
+  completion, weekNumber, weekIsOver, pending, error, confirmGaps, onToggleConfirm, onSubmit,
+}: {
+  completion: { complete: boolean; remaining: number; workingDays: number; missingDates: string[] };
+  weekNumber: number;
+  weekIsOver: boolean;
+  pending: boolean;
+  error: string | null;
+  confirmGaps: boolean;
+  onToggleConfirm: () => void;
+  onSubmit: () => void;
+}) {
+  return (
+    <div className="rounded-card border border-line bg-surface p-4 shadow-card">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <p className="text-sm text-ink-secondary">
+          {completion.complete
+            ? 'Every working day of this week is accounted for.'
+            : `${completion.remaining} of ${completion.workingDays} days still to log.`}
+        </p>
+        {completion.complete ? (
+          <button
+            type="button" disabled={pending} onClick={onSubmit}
+            className="inline-flex items-center gap-1.5 rounded-lg bg-ok px-3.5 py-2 text-sm font-semibold text-ink-inverse hover:opacity-90 disabled:opacity-50"
+          >
+            {pending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
+            Submit week
+          </button>
+        ) : weekIsOver ? (
+          <button
+            type="button" onClick={onToggleConfirm}
+            className="inline-flex items-center gap-1.5 rounded-lg border border-warn bg-warn-soft px-3.5 py-2 text-sm font-semibold text-warn"
+          >
+            <Send className="h-4 w-4" /> Submit week anyway
+          </button>
+        ) : null}
+      </div>
+
+      {error && <p className="mt-2 text-sm text-danger">{error}</p>}
+
+      {confirmGaps && !completion.complete && (
+        <div className="mt-3 rounded-lg border border-warn bg-warn-soft px-4 py-3">
+          <p className="text-sm font-semibold text-warn">
+            Send week {weekNumber} with {completion.remaining} day
+            {completion.remaining === 1 ? '' : 's'} still unlogged?
+          </p>
+          <p className="mt-1 text-xs text-ink-secondary">
+            Your supervisor will see {completion.missingDates.length === 1 ? 'this day' : 'these days'} as not
+            logged: <span className="font-semibold">{completion.missingDates.map((d) => fmtDate(d)).join(', ')}</span>.
+            Once sent, the week is locked until your supervisor returns it — so log what you can first
+            if you still can.
+          </p>
+          <div className="mt-2.5 flex flex-wrap gap-2">
+            <button
+              type="button" disabled={pending} onClick={onSubmit}
+              className="inline-flex items-center gap-1.5 rounded-lg bg-ok px-3 py-1.5 text-xs font-semibold text-ink-inverse hover:opacity-90 disabled:opacity-50"
+            >
+              {pending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Send className="h-3.5 w-3.5" />}
+              Send it
+            </button>
+            <button
+              type="button" onClick={onToggleConfirm}
+              className="rounded-lg border border-line bg-surface px-3 py-1.5 text-xs font-semibold text-ink-secondary hover:border-line-strong"
+            >
+              Not yet
+            </button>
+          </div>
+        </div>
       )}
     </div>
   );
@@ -542,6 +700,9 @@ function DayPanel({
   const [weekComplete, setWeekComplete] = useState(false);
   const [weekSubmitted, setWeekSubmitted] = useState(false);
   const [formErr, setFormErr] = useState<string | null>(null);
+  const assist = useAssistDayEntry();
+  const [assistQuestions, setAssistQuestions] = useState<string[] | null>(null);
+  const [assistNote, setAssistNote] = useState<string | null>(null);
 
   useEffect(() => { setActivities(seeded); }, [seeded]);
 
@@ -713,7 +874,63 @@ function DayPanel({
                 aria-invalid={!!descError}
                 className={inputCls}
               />
-              <FieldError message={descError} />
+              <div className="flex items-start justify-between gap-3">
+                <FieldError message={descError} />
+                <span className="ml-auto shrink-0 pt-1 text-[11px] text-ink-muted">
+                  {description.length}/{WORK_MAX}
+                </span>
+              </div>
+
+              {/* ── Writing help ──────────────────────────────
+                  It expands what the student has ALREADY written and adds
+                  nothing else — the log is evidence a supervisor reads and the
+                  quality score is derived from, so generating a day's work
+                  would be fabricating the record. With an empty box it asks
+                  questions instead of inventing prose. */}
+              <div className="mt-2 rounded-lg border border-line bg-surface-sunken p-3">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <span className="min-w-0">
+                    <span className="flex items-center gap-1.5 text-xs font-semibold text-ink">
+                      <Sparkles className="h-3.5 w-3.5 text-brand-ink" /> Let AI help you write
+                    </span>
+                    <span className="mt-0.5 block text-[11px] text-ink-muted">
+                      Tidies up your own notes. It never adds work you did not log.
+                    </span>
+                  </span>
+                  <button
+                    type="button"
+                    disabled={assist.isPending}
+                    onClick={async () => {
+                      setAssistNote(null);
+                      setAssistQuestions(null);
+                      const out = await assist.mutateAsync({
+                        notes: description, skills, weekNumber,
+                      }).catch(() => null);
+                      if (!out || !out.available) {
+                        setAssistNote('The assistant is unavailable right now — write the entry in your own words.');
+                        return;
+                      }
+                      if (out.text) setDescription(out.text);
+                      else if (out.questions.length) setAssistQuestions(out.questions);
+                    }}
+                    className="inline-flex shrink-0 items-center gap-1.5 rounded-lg bg-brand px-3 py-1.5 text-xs font-semibold text-ink-inverse transition-colors hover:bg-brand-hover disabled:opacity-50"
+                  >
+                    {assist.isPending
+                      ? <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                      : <Sparkles className="h-3.5 w-3.5" />}
+                    {description.trim() ? 'Expand my notes' : 'What should I write?'}
+                  </button>
+                </div>
+
+                {assistQuestions && (
+                  <ul className="mt-2.5 space-y-1">
+                    {assistQuestions.map((q) => (
+                      <li key={q} className="text-[11px] leading-relaxed text-ink-secondary">· {q}</li>
+                    ))}
+                  </ul>
+                )}
+                {assistNote && <p className="mt-2 text-[11px] text-warn">{assistNote}</p>}
+              </div>
             </div>
 
             <div>

@@ -317,3 +317,30 @@ export function useReturnEntry() {
     },
   });
 }
+
+// ── Writing assistance ────────────────────────────────────────
+
+export interface DayAssist {
+  available: boolean;
+  /** Prose to insert — the student's own notes, expanded. */
+  text: string | null;
+  /** Asked instead when there is too little to expand honestly. */
+  questions: string[];
+}
+
+/**
+ * Expand the student's own rough notes for a day.
+ *
+ * Deliberately a mutation, not a query: it costs a model call and must only run
+ * when the student asks for it. Fail-open — an unreachable engine answers
+ * `{ available: false }` rather than throwing, so the button never blocks
+ * writing the entry by hand.
+ */
+export function useAssistDayEntry() {
+  return useMutation({
+    mutationFn: async (input: { notes: string; skills?: string; weekNumber?: number }) => {
+      const r = await api.post<{ data: DayAssist }>('/ai/assist/day-entry', input);
+      return r.data.data;
+    },
+  });
+}

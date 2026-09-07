@@ -3,7 +3,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from config.database import get_pg_pool, close_connections
-from routers import health, chat, enrich
+from routers import health, chat, enrich, assist
 
 
 @asynccontextmanager
@@ -32,3 +32,4 @@ app.add_middleware(
 app.include_router(health.router)
 app.include_router(chat.router)
 app.include_router(enrich.router)
+app.include_router(assist.router)

@@ -134,3 +134,63 @@ export async function chatHandler(req: Request, res: Response) {
   res.write('data: [DONE]\n\n');
   res.end();
 }
+
+// ── Student writing assistance ────────────────────────────────
+
+const assistSchema = z.object({
+  notes:      z.string().max(8_000).default(''),
+  skills:     z.string().max(8_000).default(''),
+  weekNumber: z.coerce.number().int().min(1).max(52).optional(),
+});
+
+/**
+ * Expand a student's OWN rough notes into a logbook entry.
+ *
+ * Not a generator: the log is evidence a supervisor reads and the quality score
+ * is derived from, so the engine is instructed to add nothing the notes do not
+ * already contain, and to answer with prompting questions rather than prose
+ * when there is too little to expand.
+ *
+ * Fail-open. If the engine is unreachable the response is
+ * `{ available: false }` and the UI simply offers nothing — the student can
+ * always write the entry themselves, which is the point.
+ */
+export async function assistDayEntryHandler(req: Request, res: Response) {
+  const input = assistSchema.parse(req.body);
+
+  try {
+    const r = await fetch(aiEngineUrl('/ai/assist/day-entry'), {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-api-key': env.AI_ENGINE_API_KEY,
+      },
+      body: JSON.stringify({
+        notes: input.notes,
+        skills: input.skills,
+        week_number: input.weekNumber ?? null,
+      }),
+      signal: AbortSignal.timeout(AI_ENGINE_TIMEOUT_MS),
+    });
+
+    if (!r.ok) {
+      logger.warn('AI assist: engine returned a non-2xx', { status: r.status });
+      return res.json({ status: 'success', data: { available: false } });
+    }
+
+    const body = (await r.json()) as {
+      available: boolean; text?: string | null; questions?: string[]; model?: string | null;
+    };
+    return res.json({
+      status: 'success',
+      data: {
+        available: !!body.available,
+        text:      body.text ?? null,
+        questions: body.questions ?? [],
+      },
+    });
+  } catch (err) {
+    logger.warn('AI assist: engine unreachable', { err: (err as Error).message });
+    return res.json({ status: 'success', data: { available: false } });
+  }
+}
