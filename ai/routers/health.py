@@ -19,18 +19,34 @@ router = APIRouter()
 
 @router.get("/health")
 async def health():
+    # "Connected" was never the question worth answering. This probe hit
+    # /models and reported success while every actual completion returned 404,
+    # because a reachable Groq with a valid key still refuses a model that no
+    # longer exists — and every caller fails open, so nothing surfaced. The
+    # configured model is now checked against the list, and the available ids
+    # are reported so the fix does not require guessing.
+    model_status = "unknown"
+    available: list[str] = []
+
     if not settings.GROQ_API_KEY:
         groq_status = "not configured — chatbot in fallback mode"
     else:
         groq_status = "unreachable — chatbot in fallback mode"
         try:
-            async with httpx.AsyncClient(timeout=3.0) as client:
+            async with httpx.AsyncClient(timeout=8.0) as client:
                 r = await client.get(
                     f"{settings.GROQ_BASE_URL}/models",
                     headers={"Authorization": f"Bearer {settings.GROQ_API_KEY}"},
                 )
                 if r.status_code == 200:
                     groq_status = "connected"
+                    available = sorted(
+                        m.get("id", "") for m in (r.json().get("data") or []) if m.get("id")
+                    )
+                    model_status = (
+                        "available" if settings.GROQ_MODEL in available
+                        else f"NOT AVAILABLE — set GROQ_MODEL to one of the listed ids"
+                    )
                 elif r.status_code == 401:
                     groq_status = "invalid GROQ_API_KEY — chatbot in fallback mode"
         except Exception:
@@ -60,6 +76,8 @@ async def health():
         "groq":        groq_status,
         "mongo":       mongo,
         "model":       settings.GROQ_MODEL,
+        "modelStatus": model_status,
+        "modelsAvailable": available,
         "environment": settings.ENVIRONMENT,
         "startedAt": _STARTED_AT.isoformat(),
         "uptimeSeconds": int((datetime.now(timezone.utc) - _STARTED_AT).total_seconds()),
