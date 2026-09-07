@@ -54,6 +54,8 @@ async def health():
             "passages": corpus["passages"],
             "sources":  [s["source"] for s in corpus["sources"]],
             "database": corpus["database"],
+            # Names a mis-pasted connection string, without printing any of it.
+            "dsn": corpus.get("dsn"),
             "boot":     corpus.get("boot"),
             "error":    corpus.get("error"),
         },

@@ -65,6 +65,30 @@ def _database_target() -> str:
     return ".".join(parts[-2:]) if len(parts) >= 2 else (host or "unknown")
 
 
+def _dsn_problem() -> str | None:
+    """Name a malformed DSN without printing it.
+
+    Both this and the backend's DATABASE_URL are pasted into a dashboard by
+    hand, and the failure that actually happens is a paste that carried
+    something extra — a trailing newline, or a second connection string copied
+    along with the first. asyncpg then reports it as a bewildering complaint
+    about `sslmode`, which is not the parameter anybody typed wrong.
+
+    Returns a short description, or None when nothing obvious is wrong. Never
+    returns any part of the credential.
+    """
+    dsn = settings.POSTGRES_DSN
+    if not dsn:
+        return "POSTGRES_DSN is empty"
+    if dsn != dsn.strip():
+        return "POSTGRES_DSN has leading or trailing whitespace"
+    if len(re.findall(r"postgres(?:ql)?://", dsn)) > 1:
+        return "POSTGRES_DSN contains more than one connection string"
+    if re.search(r"\s", dsn):
+        return "POSTGRES_DSN contains whitespace in the middle"
+    return None
+
+
 @dataclass
 class Passage:
     section: str
@@ -275,6 +299,7 @@ async def status() -> dict:
     state: dict = {
         "embeddingModel": settings.EMBEDDING_MODEL,
         "database": _database_target(),
+        "dsn": _dsn_problem(),
         "passages": 0,
         "sources": [],
         "boot": _BOOT.get("ingest"),

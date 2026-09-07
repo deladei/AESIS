@@ -146,5 +146,41 @@ class TestFailSoft:
         assert "sup3rsecret" not in target and "postgres.abc" not in target
 
 
+class TestDsnDiagnostics:
+    """Name the paste mistake, never print the credential.
+
+    asyncpg reports a DSN with a second connection string glued onto it as a
+    complaint that `sslmode` is not one of its allowed values, which sends
+    whoever is debugging it to the one parameter that was typed correctly.
+    """
+
+    def test_clean_dsn_reports_no_problem(self, monkeypatch):
+        monkeypatch.setattr(
+            knowledge.settings, "POSTGRES_DSN",
+            "postgresql://u:p@aws-1-us-west-2.pooler.supabase.com:5432/postgres?sslmode=require",
+        )
+        assert knowledge._dsn_problem() is None
+
+    @pytest.mark.parametrize("dsn,expected", [
+        ("", "empty"),
+        ("  postgresql://u:p@h:5432/db\n", "whitespace"),
+        ("postgresql://u:p@h:5432/db?sslmode=require postgresql://u2:p2@h2/db2",
+         "more than one connection string"),
+        ("postgresql://u:p@h:5432/db?sslmode=require extra", "whitespace"),
+    ])
+    def test_names_a_mispasted_dsn(self, monkeypatch, dsn, expected):
+        monkeypatch.setattr(knowledge.settings, "POSTGRES_DSN", dsn)
+        problem = knowledge._dsn_problem()
+        assert problem is not None and expected in problem
+
+    def test_never_echoes_the_credential(self, monkeypatch):
+        monkeypatch.setattr(
+            knowledge.settings, "POSTGRES_DSN",
+            "  postgresql://postgres.abc:sup3rsecret@host.supabase.com:5432/postgres  ",
+        )
+        problem = knowledge._dsn_problem()
+        assert "sup3rsecret" not in problem and "postgres.abc" not in problem
+
+
 async def _async(value):
     return value
