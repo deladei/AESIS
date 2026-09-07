@@ -15,6 +15,14 @@ jest.mock('../../../config/prisma', () => ({
   },
 }));
 
+jest.mock('../../../config/cloudinary', () => ({
+  isCloudinaryConfigured: jest.fn(() => true),
+  uploadBuffer: jest.fn(async () => ({
+    url: 'https://cdn.test/doc', publicId: 'aesis/placements/pl-1/doc', bytes: 500,
+  })),
+  deleteAsset: jest.fn(async () => undefined),
+}));
+
 jest.mock('../../../shared/utils/crypto', () => ({
   encryptPII: jest.fn((v: string) => `enc:${v}`),
   decryptPII: jest.fn((v: string) => v.replace('enc:', '')),
@@ -31,6 +39,7 @@ jest.mock('../../../config/env', () => ({
 
 import { prisma } from '../../../config/prisma';
 import * as service from '../placements.service';
+import { uploadBuffer } from '../../../config/cloudinary';
 
 const mp = prisma as jest.Mocked<typeof prisma>;
 
@@ -523,13 +532,13 @@ describe('service.getCompaniesOverview', () => {
 describe('service.addPlacementDocument', () => {
   it('throws 404 if placement not found', async () => {
     (mp.placement.findUnique as jest.Mock).mockResolvedValue(null);
-    await expect(service.addPlacementDocument('bad-id', 'stu-1', { url: 'u', name: 'n', size: 100, mimeType: 'application/pdf' }, 'placement_letter'))
+    await expect(service.addPlacementDocument('bad-id', 'stu-1', { buffer: Buffer.from('x'), name: 'n', size: 100, mimeType: 'application/pdf' }, 'placement_letter'))
       .rejects.toMatchObject({ statusCode: 404 });
   });
 
   it('throws 403 if student is not the placement owner', async () => {
     (mp.placement.findUnique as jest.Mock).mockResolvedValue({ ...fakePlacement, studentId: 'other-student' });
-    await expect(service.addPlacementDocument('pl-1', 'stu-1', { url: 'u', name: 'n', size: 100, mimeType: 'application/pdf' }, 'placement_letter'))
+    await expect(service.addPlacementDocument('pl-1', 'stu-1', { buffer: Buffer.from('x'), name: 'n', size: 100, mimeType: 'application/pdf' }, 'placement_letter'))
       .rejects.toMatchObject({ statusCode: 403 });
   });
 
@@ -537,8 +546,15 @@ describe('service.addPlacementDocument', () => {
     (mp.placement.findUnique as jest.Mock).mockResolvedValue(fakePlacement);
     (mp.placementDocument.create as jest.Mock).mockResolvedValue({ id: 'doc-1' });
 
-    const result = await service.addPlacementDocument('pl-1', 'student-1', { url: 'u', name: 'report.pdf', size: 500, mimeType: 'application/pdf' }, 'final_report');
+    const result = await service.addPlacementDocument('pl-1', 'student-1', { buffer: Buffer.from('pdf'), name: 'report.pdf', size: 500, mimeType: 'application/pdf' }, 'final_report');
     expect(result).toHaveProperty('id', 'doc-1');
+    // The buffer really is uploaded, and the row records where it went and who
+    // owns it — the old path wrote `local://report.pdf` and neither column.
+    expect(uploadBuffer).toHaveBeenCalled();
+    const written = (mp.placementDocument.create as jest.Mock).mock.calls[0][0].data;
+    expect(written.fileUrl).toBe('https://cdn.test/doc');
+    expect(written.storagePublicId).toBe('aesis/placements/pl-1/doc');
+    expect(written.ownerUserId).toBe('student-1');
   });
 });
 
@@ -562,6 +578,28 @@ describe('service.getPlacementDocuments', () => {
 
     const result = await service.getPlacementDocuments('pl-1', 'student-1', 'student');
     expect(result).toHaveLength(1);
+    // Soft-deleted documents are not somebody else's business either.
+    expect((mp.placementDocument.findMany as jest.Mock).mock.calls[0][0].where)
+      .toMatchObject({ deletedAt: null });
+  });
+
+  it('refuses a supervisor who is not assigned to this placement', async () => {
+    // The old check tested ownership for STUDENTS only, so any supervisor,
+    // coordinator or admin could read any student's documents.
+    (mp.placement.findUnique as jest.Mock).mockResolvedValue({
+      ...fakePlacement, academicSupervisorId: 'sup-assigned',
+    });
+    await expect(service.getPlacementDocuments('pl-1', 'sup-someone-else', 'academic_supervisor'))
+      .rejects.toMatchObject({ statusCode: 403 });
+  });
+
+  it('allows the supervisor who IS assigned to it', async () => {
+    (mp.placement.findUnique as jest.Mock).mockResolvedValue({
+      ...fakePlacement, academicSupervisorId: 'sup-assigned',
+    });
+    (mp.placementDocument.findMany as jest.Mock).mockResolvedValue([{ id: 'doc-1' }]);
+    await expect(service.getPlacementDocuments('pl-1', 'sup-assigned', 'academic_supervisor'))
+      .resolves.toHaveLength(1);
   });
 
   it('allows coordinator to access any placement documents', async () => {

@@ -1,8 +1,11 @@
 import { Link, useParams } from 'react-router-dom';
 import {
-  ArrowLeft, Loader2, AlertCircle, Mail, Building2, CalendarDays, GraduationCap, MessageSquare, Shield, Flag,
+  ArrowLeft, Loader2, AlertCircle, Mail, Building2, CalendarDays, GraduationCap, MessageSquare, Shield, Flag, FileText,
 } from 'lucide-react';
 import { useInternDetail } from '@/hooks/useDashboard';
+import { useDocuments, formatFileSize } from '@/hooks/useDocuments';
+import { Card, CardHeader } from '@/components/ui/Card';
+import { EmptyState, SkeletonRows } from '@/components/ui/Feedback';
 import { GradePanel } from '@/components/grades/GradePanel';
 import { WeeklyLinkPanel } from '@/components/industry/WeeklyLinkPanel';
 import { SiwesCalendarPanel } from '@/components/shared/SiwesCalendarPanel';
@@ -159,6 +162,10 @@ export default function InternDetail() {
       {/* SIWES daily logbook — read-only chain-aware calendar (coordinator oversight) */}
       {placementId && <div className="mt-4"><SiwesCalendarPanel placementId={placementId} /></div>}
 
+      {/* The intern's own uploads. Reads go through `assertPlacementAccess`, so
+          a supervisor only ever sees the files of interns assigned to them. */}
+      {placementId && <div className="mt-4"><InternDocuments placementId={placementId} /></div>}
+
       <div className="mt-4 grid grid-cols-1 gap-4 lg:grid-cols-2">
         {/* Feedback */}
         <div className="overflow-hidden rounded-card border border-line bg-surface">
@@ -187,5 +194,48 @@ export default function InternDetail() {
         </div>
       </div>
     </div>
+  );
+}
+
+/** The documents this intern has uploaded against their placement. */
+function InternDocuments({ placementId }: { placementId: string }) {
+  const { data: documents = [], isLoading } = useDocuments(placementId);
+
+  return (
+    <Card>
+      <CardHeader title="Documents" subtitle="Uploaded by the intern" />
+      {isLoading ? (
+        <SkeletonRows rows={2} />
+      ) : documents.length === 0 ? (
+        <EmptyState
+          icon={FileText}
+          title="No documents yet"
+          hint="Placement letters, acceptance letters and the final report appear here once the intern uploads them."
+          className="py-6"
+        />
+      ) : (
+        <ul className="space-y-3">
+          {documents.map((d) => (
+            <li key={d.id} className="flex items-center gap-3">
+              <span className="grid h-9 w-9 shrink-0 place-items-center rounded-lg bg-brand-soft text-brand-ink">
+                <FileText className="h-4 w-4" />
+              </span>
+              <div className="min-w-0 flex-1">
+                <a
+                  href={d.fileUrl} target="_blank" rel="noopener noreferrer"
+                  className="block truncate text-sm font-medium text-ink hover:text-brand-ink hover:underline"
+                >
+                  {d.title ?? d.fileName}
+                </a>
+                <p className="text-xs text-ink-muted">
+                  {d.docType.replace(/_/g, ' ')}
+                  {d.fileSize ? ` · ${formatFileSize(d.fileSize)}` : ''}
+                </p>
+              </div>
+            </li>
+          ))}
+        </ul>
+      )}
+    </Card>
   );
 }

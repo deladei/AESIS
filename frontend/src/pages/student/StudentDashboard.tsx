@@ -1,9 +1,9 @@
 import { Link } from 'react-router-dom';
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import {
   Activity, Bell, BookOpen, Briefcase, Building2, CalendarDays, CheckSquare,
   ClipboardCheck, Clock, FileText, GraduationCap, Loader2, Mail, MessageSquare,
-  Phone, Plus, Sparkles, Square, Target, TrendingUp,
+  Phone, Plus, Sparkles, Square, Target, TrendingUp, Upload,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import type { DashboardSupervisor } from '@/hooks/useStudentDashboard';
@@ -15,7 +15,10 @@ import { useNotifications } from '@/hooks/useNotifications';
 import { useTasks, useUpdateTask, useCreateTask, type Task } from '@/hooks/useTasks';
 import { useVisits } from '@/hooks/useVisits';
 import { useResources } from '@/hooks/useResources';
-import { useDocuments, formatFileSize } from '@/hooks/useDocuments';
+import {
+  useDocuments, useUploadDocument, formatFileSize,
+  DOCUMENT_ACCEPT, DOCUMENT_MAX_BYTES, DOC_TYPES,
+} from '@/hooks/useDocuments';
 import { WeeklyLogbookTable } from '@/components/student/WeeklyLogbookTable';
 import { Card, CardHeader } from '@/components/ui/Card';
 import { StatCard } from '@/components/ui/StatCard';
@@ -613,6 +616,8 @@ export default function StudentDashboard() {
               ))}
             </ul>
           )}
+
+          <DocumentUpload placementId={active.id} />
         </Card>
 
         <Card>
@@ -695,6 +700,70 @@ export default function StudentDashboard() {
         <LegendDot color="var(--chart-4)" label="Needs revision" />
         <LegendDot color="var(--chart-2)" label="In progress" />
       </div>
+    </div>
+  );
+}
+
+/**
+ * Upload a placement document.
+ *
+ * The endpoint has existed all along but nothing in the SPA called it, and it
+ * wrote a `local://` placeholder rather than storing anything — so "My docs"
+ * could only ever be empty. Both ends are real now: the file goes to Cloudinary
+ * and the coordinator and the assigned supervisor can open it from the intern's
+ * detail page.
+ */
+function DocumentUpload({ placementId }: { placementId: string }) {
+  const upload = useUploadDocument(placementId);
+  const fileRef = useRef<HTMLInputElement>(null);
+  const [docType, setDocType] = useState<string>(DOC_TYPES[0].value);
+  const [error, setError] = useState<string | null>(null);
+
+  async function onFile(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    e.target.value = ''; // allow re-picking the same file
+    if (!file) return;
+    setError(null);
+    if (file.size > DOCUMENT_MAX_BYTES) {
+      setError('That file is over 10 MB.');
+      return;
+    }
+    try {
+      await upload.mutateAsync({ file, docType });
+    } catch (err) {
+      setError(
+        (err as { response?: { data?: { message?: string } } })?.response?.data?.message
+        ?? 'Upload failed. Please try again.',
+      );
+    }
+  }
+
+  return (
+    <div className="mt-4 border-t border-line pt-4">
+      <div className="flex flex-wrap items-center gap-2">
+        <select
+          value={docType}
+          onChange={(e) => setDocType(e.target.value)}
+          className="rounded-lg border border-line bg-surface px-3 py-2 text-xs text-ink focus:border-brand focus:outline-none"
+          aria-label="Document type"
+        >
+          {DOC_TYPES.map((t) => <option key={t.value} value={t.value}>{t.label}</option>)}
+        </select>
+        <button
+          type="button"
+          onClick={() => fileRef.current?.click()}
+          disabled={upload.isPending}
+          className="inline-flex items-center gap-1.5 rounded-lg border border-line px-3 py-2 text-xs font-semibold text-ink-secondary transition-colors enabled:hover:border-brand enabled:hover:text-brand-ink disabled:opacity-50"
+        >
+          {upload.isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Upload className="h-3.5 w-3.5" />}
+          Upload
+        </button>
+        <input
+          ref={fileRef} type="file" accept={DOCUMENT_ACCEPT} className="hidden" onChange={onFile}
+        />
+      </div>
+      <p className="mt-1.5 text-[11px] text-ink-muted">PDF, PNG or JPEG · up to 10 MB</p>
+      {error && <p className="mt-1 text-[11px] text-danger">{error}</p>}
     </div>
   );
 }

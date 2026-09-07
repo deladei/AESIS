@@ -146,14 +146,10 @@ export async function uploadDocumentHandler(req: Request, res: Response) {
   const docType = z.enum(['placement_letter', 'acceptance_letter', 'final_report'])
     .parse(req.body['docType']);
 
-  // In dev without S3 configured, use a local placeholder URL
-  const fileUrl = (file as Express.Multer.File & { location?: string }).location
-    ?? `local://${file.originalname}`;
-
   const doc = await service.addPlacementDocument(
     id,
     req.user!.sub,
-    { url: fileUrl, name: file.originalname, size: file.size, mimeType: file.mimetype },
+    { buffer: file.buffer, name: file.originalname, size: file.size, mimeType: file.mimetype },
     docType,
   );
   return created(res, doc);

@@ -1,6 +1,9 @@
 import { Prisma, type PlacementStatus, type Region } from '@prisma/client';
 import { prisma } from '../../config/prisma';
 import { AppError } from '../../middleware/errorHandler';
+import { isCloudinaryConfigured, uploadBuffer } from '../../config/cloudinary';
+import { authorizePlacement } from '../entries/entries.policy';
+import type { EntryRole } from '../entries/entry.stateMachine';
 import { paginate, buildMeta } from '../../shared/utils/pagination';
 import { encryptPII } from '../../shared/utils/crypto';
 import { meanQualityScore, mergedQualityScores } from '../../shared/utils/quality';
@@ -696,38 +699,63 @@ export async function getCompanyInterns(companyId: string) {
 
 // ── Document upload ───────────────────────────────────────────
 
+/**
+ * Store a placement document for real.
+ *
+ * This used to write `local://<filename>` and drop the buffer on the floor —
+ * the row existed, the link was dead, and the ownership columns the model
+ * already carries (`ownerUserId`, `storagePublicId`) were never populated. It
+ * now goes through the same Cloudinary helper the entry attachments and avatars
+ * use, so a document is either stored or the request fails.
+ */
 export async function addPlacementDocument(
   placementId: string,
   requesterId: string,
-  file: { url: string; name: string; size: number; mimeType: string },
+  file: { buffer: Buffer; name: string; size: number; mimeType: string },
   docType: string,
 ) {
+  if (!isCloudinaryConfigured()) {
+    throw new AppError(503, 'File storage is not configured on this environment');
+  }
+
   const placement = await prisma.placement.findUnique({ where: { id: placementId } });
   if (!placement) throw new AppError(404, 'Placement not found');
   if (placement.studentId !== requesterId) throw new AppError(403, 'Access denied');
+
+  const uploaded = await uploadBuffer(file.buffer, {
+    folder:  `aesis/placements/${placementId}`,
+    isImage: file.mimeType.startsWith('image/'),
+  });
 
   return prisma.placementDocument.create({
     data: {
       placementId,
       docType,
-      fileUrl:  file.url,
-      fileName: file.name,
-      fileSize: file.size,
-      mimeType: file.mimeType,
+      fileUrl:         uploaded.url,
+      storagePublicId: uploaded.publicId,
+      fileName:        file.name,
+      fileSize:        file.size,
+      mimeType:        file.mimeType,
+      ownerUserId:     placement.studentId,
+      uploadedById:    requesterId,
     },
   });
 }
 
+/**
+ * A placement's documents, scoped to who may actually see them.
+ *
+ * The old check tested ownership for STUDENTS only, so any academic supervisor,
+ * coordinator or admin could read the documents of any placement in the system
+ * — including supervisors with no connection to that student. It also returned
+ * soft-deleted rows. Both fixed by routing through `assertPlacementAccess`, the
+ * one place ownership is decided (the same function the entry attachments use).
+ */
 export async function getPlacementDocuments(placementId: string, requesterId: string, requesterRole: string) {
-  const placement = await prisma.placement.findUnique({ where: { id: placementId } });
-  if (!placement) throw new AppError(404, 'Placement not found');
-
-  if (requesterRole === 'student' && placement.studentId !== requesterId) {
-    throw new AppError(403, 'Access denied');
-  }
+  await authorizePlacement({ id: requesterId, role: requesterRole as EntryRole }, placementId, 'read');
 
   return prisma.placementDocument.findMany({
-    where:   { placementId },
+    where:   { placementId, deletedAt: null },
     orderBy: { uploadedAt: 'desc' },
   });
 }

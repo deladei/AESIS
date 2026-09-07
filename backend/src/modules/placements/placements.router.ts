@@ -2,7 +2,7 @@ import { Router } from 'express';
 import multer from 'multer';
 import { authenticate } from '../../middleware/authenticate';
 import { authorize } from '../../middleware/authorize';
-import { asyncHandler } from '../../middleware/errorHandler';
+import { asyncHandler, AppError } from '../../middleware/errorHandler';
 import * as ctrl from './placements.controller';
 
 const router  = Router();
@@ -10,8 +10,12 @@ const upload  = multer({
   storage: multer.memoryStorage(),
   limits:  { fileSize: 10 * 1024 * 1024 }, // 10 MB
   fileFilter: (_req, file, cb) => {
+    // Rejecting with an error, not `cb(null, false)`: silently dropping the
+    // file made the controller report "No file uploaded", which sends the
+    // student looking for a problem with their upload rather than its type.
     const allowed = ['application/pdf', 'image/png', 'image/jpeg'];
-    cb(null, allowed.includes(file.mimetype));
+    if (allowed.includes(file.mimetype)) return cb(null, true);
+    cb(new AppError(415, 'Upload a PDF, PNG or JPEG'));
   },
 });
 
