@@ -4137,10 +4137,47 @@ Cloudinary.
 frontend build green. Commits: `b20ed91`, `50cb8b0`, `14def77`, `b99a540`, `2be954c`,
 `0375945`.
 
+### Verified directly against both production databases
+
+Read-only `psql` against prod, which turns the diagnosis above from inference into
+fact:
+
+| | Supabase (live prod) | Neon (what the engine reads) |
+|---|---|---|
+| Reachable | yes | **yes — still alive, which is why nothing looked broken** |
+| Public tables | 51 | 45 (S45-era) |
+| `knowledge_passage` | **exists**, 0 rows | **absent** |
+
+Neon still answering is the whole reason this hid for three months: the engine's
+connection pool opened cleanly at every boot, `/health` returned 200, and only the
+one table was missing.
+
+**`_prisma_migrations` on Supabase is clean — the S87 blind spot is closed.** 37
+applied, 0 genuinely unfinished. The single flagged row,
+`20260718130000_assessment_industry`, has `rolled_back_at` set (2026-07-26, the S88
+recovery) and `applied_steps_count = 0`, which is the correct resolved state;
+`migrate deploy` skips rolled-back rows. All four S100 migrations plus
+`20260907120000_knowledge_passages` are present and finished.
+
+### 🔴 Rotate both database passwords
+
+Both production connection strings — Supabase and Neon, passwords included — were
+pasted into a chat transcript on 2026-09-07. The Supabase password was already on
+the rotation list from S88; it is now urgent rather than housekeeping. Neon's is
+moot once the project is deleted, which it should be.
+
+Rotate Supabase → Settings → Database → Reset password, then update `DATABASE_URL`
+on `aesis-backend` **and** `POSTGRES_DSN` on `aesis-ai-engine` (or just the backend,
+once the blueprint's `fromService` link is live).
+
 ### Stopped here — next session should
 
 1. **Do the `POSTGRES_DSN` dashboard edit above**, then confirm the assistant cites a
-   section. Until then the corpus half of the RAG is still empty in prod.
+   section. Until then the corpus half of the RAG is still empty in prod. Confirmed
+   still outstanding as of the end of this session: the engine reports
+   `"database": "neon.tech"`.
+2. **Rotate the Supabase password** (see above), then delete the Neon project — in
+   that order, since the engine is still pointed at Neon right now.
 2. **Verify the model paths are actually running in prod**, not silently falling back.
    Submit an entry and read the persisted `summary.provenance` — it should say
    `{classifier: "model", summarizer: "model", scorer: "model"}`. Anything `keywords`
