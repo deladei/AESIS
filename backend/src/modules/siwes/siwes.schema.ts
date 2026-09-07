@@ -51,6 +51,9 @@ export const createNonWorkingDaySchema = z.object({
   academicYearId: z.string().uuid(),
   day: dateOnly,
   label: freeText(200, 'Label'),
+  /** True for a holiday that lands on the same date every year (Christmas,
+   *  Independence Day). The year of `day` is then only how it was entered. */
+  recurring: z.coerce.boolean().default(false),
 });
 export type CreateNonWorkingDayInput = z.infer<typeof createNonWorkingDaySchema>;
 

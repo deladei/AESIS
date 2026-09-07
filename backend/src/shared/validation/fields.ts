@@ -90,6 +90,39 @@ export const httpUrl = (label = 'Link', max = 2000) =>
       `${label} must start with http:// or https://`,
     );
 
+/**
+ * A website somebody typed. Accepts a bare domain.
+ *
+ * `z.string().url()` demands a scheme, so `facebook.com` was rejected outright
+ * — and it is scheme-agnostic, so `javascript:alert(1)` and `mailto:` sailed
+ * through. Nobody types `https://` when asked for a company's website. This
+ * prepends it, then insists the result is genuinely http(s) with a dotted host.
+ */
+export const webUrl = (label = 'Website', max = 500) =>
+  z
+    .string()
+    .trim()
+    .max(max, `${label} must be ${max.toLocaleString()} characters or fewer`)
+    .transform((v) => (v === '' || /^[a-z][a-z0-9+.-]*:\/\//i.test(v) ? v : `https://${v}`))
+    .superRefine((v, ctx) => {
+      if (v === '') return;
+      let parsed: URL;
+      try {
+        parsed = new URL(v);
+      } catch {
+        ctx.addIssue({ code: z.ZodIssueCode.custom, message: `Enter a valid ${label.toLowerCase()}` });
+        return;
+      }
+      if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') {
+        ctx.addIssue({ code: z.ZodIssueCode.custom, message: `${label} must be an http:// or https:// address` });
+        return;
+      }
+      // "https://facebook" is a valid URL and not a website anyone meant.
+      if (!parsed.hostname.includes('.') || parsed.hostname.endsWith('.')) {
+        ctx.addIssue({ code: z.ZodIssueCode.custom, message: `Enter a full domain, like example.com` });
+      }
+    });
+
 // ── Phone (Ghana) ───────────────────────────────────────────────
 // Accepts 0XXXXXXXXX and +233XXXXXXXXX (and 233XXXXXXXXX, which people paste
 // out of WhatsApp), tolerating spaces/dashes as typed. Stored in one form:

@@ -160,6 +160,9 @@ export interface NonWorkingDay {
   academicYearId: string;
   day:            string; // ISO
   label:          string;
+  /** Falls on the same date every year — the year in `day` is only how it was
+   *  entered. Christmas does not need re-entering per cohort. */
+  recurring:      boolean;
 }
 
 const nwdKey = (academicYearId: string | undefined) => ['siwes-non-working-days', academicYearId];
@@ -180,7 +183,7 @@ export function useNonWorkingDays(academicYearId: string | undefined) {
 export function useCreateNonWorkingDay(academicYearId: string | undefined) {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: async (input: { day: string; label: string }) => {
+    mutationFn: async (input: { day: string; label: string; recurring?: boolean }) => {
       const r = await api.post<{ data: NonWorkingDay }>('/siwes/non-working-days', {
         academicYearId,
         ...input,

@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { webUrl } from '../../shared/validation';
 import { REGION_VALUES } from '../../shared/constants/regions';
 
 export const regionSchema = z.enum(REGION_VALUES);
@@ -64,7 +65,8 @@ export const createCompanySchema = z.object({
   name:     z.string().trim().min(2).max(200),
   address:  z.string().trim().max(500).optional(),
   industry: z.string().trim().max(100).optional(),
-  website:  z.string().url().optional().or(z.literal('')),
+  // Accepts a bare domain; see `webUrl`. Stored with a scheme.
+  website:  webUrl('Website').optional(),
 });
 
 export type CreatePlacementInput       = z.infer<typeof createPlacementSchema>;

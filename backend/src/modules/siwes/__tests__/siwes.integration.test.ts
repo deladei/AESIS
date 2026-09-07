@@ -201,6 +201,7 @@ describe('daily entries', () => {
       academicYearId: yearId,
       day: iso(day),
       label: 'Republic Day',
+      recurring: false,
     });
     await expect(saveDailyEntry(student, entryInput(day))).rejects.toMatchObject({
       statusCode: 422,

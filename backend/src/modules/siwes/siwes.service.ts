@@ -136,7 +136,7 @@ export async function loadAttachmentContext(
     prisma.cohortConfig.findFirst({ where: { academicYearId: placement.academicYearId } }),
     prisma.nonWorkingDay.findMany({
       where: { academicYearId: placement.academicYearId },
-      select: { day: true },
+      select: { day: true, recurring: true },
     }),
   ]);
 
@@ -169,7 +169,10 @@ export async function loadAttachmentContext(
       chainStart,
       chainEnd: effectiveEnd,
       workingDays: config?.workingDays?.length ? config.workingDays : [1, 2, 3, 4, 5],
-      nonWorkingDays: new Set(holidays.map((h) => iso(h.day))),
+      nonWorkingDays: new Set(holidays.filter((h) => !h.recurring).map((h) => iso(h.day))),
+      recurringHolidays: new Set(
+        holidays.filter((h) => h.recurring).map((h) => iso(h.day).slice(5)),
+      ),
     },
     rules: {
       entryEditWindowDays: config?.entryEditWindowDays ?? 2,
@@ -466,6 +469,7 @@ export async function createNonWorkingDay(input: CreateNonWorkingDayInput) {
         academicYearId: input.academicYearId,
         day: parseDateOnly(input.day, 'day'),
         label: input.label,
+        recurring: input.recurring,
       },
     });
   } catch (err) {

@@ -286,13 +286,16 @@ function HolidaySection({ academicYearId, yearLabel }: { academicYearId: string;
   const remove = useDeleteNonWorkingDay(academicYearId);
   const [day, setDay] = useState('');
   const [label, setLabel] = useState('');
+  // Most public holidays are the same date every year, so this defaults on —
+  // re-entering Christmas for every cohort is the behaviour being fixed.
+  const [recurring, setRecurring] = useState(true);
 
   const sorted = [...days].sort((a, b) => a.day.localeCompare(b.day));
 
   return (
     <Section
       n={6} icon={CalendarDays} title="Holiday calendar"
-      hint={`Public holidays and non-working days in ${yearLabel}. A declared holiday beats the weekday pattern, so a missing entry never flags on one.`}
+      hint={`Public holidays and non-working days in ${yearLabel}. A declared holiday beats the weekday pattern, so a missing entry never flags on one. Mark one "every year" and it matches that date in any year — Christmas is the 25th of December whatever cohort you are running.`}
       aside={
         <Impact title={sorted.length === 0 ? 'No holidays declared' : `${sorted.length} day${sorted.length === 1 ? '' : 's'} declared`}>
           {sorted.length === 0
@@ -310,8 +313,15 @@ function HolidaySection({ academicYearId, yearLabel }: { academicYearId: string;
           {sorted.map(d => (
             <li key={d.id} className="flex items-center justify-between py-2.5">
               <span className="flex items-center gap-3 text-sm">
-                <span className="w-28 font-semibold text-ink">{fmtDate(d.day.slice(0, 10))}</span>
+                <span className="w-28 font-semibold text-ink">
+                  {d.recurring
+                    ? new Date(`${d.day.slice(0, 10)}T00:00:00Z`).toLocaleDateString('en-GB', {
+                        day: 'numeric', month: 'long', timeZone: 'UTC',
+                      })
+                    : fmtDate(d.day.slice(0, 10))}
+                </span>
                 <span className="text-ink-secondary">{d.label}</span>
+                {d.recurring && <Badge tone="neutral">Every year</Badge>}
               </span>
               <button
                 type="button" onClick={() => remove.mutate(d.id)} disabled={remove.isPending}
@@ -341,11 +351,18 @@ function HolidaySection({ academicYearId, yearLabel }: { academicYearId: string;
             className="rounded-lg border border-line bg-surface px-3 py-2 text-sm text-ink placeholder:text-ink-muted focus:border-brand focus:outline-none"
           />
         </label>
+        <label className="flex cursor-pointer items-center gap-2 pb-2.5 text-xs font-semibold text-ink-secondary">
+          <input
+            type="checkbox" checked={recurring} onChange={(e) => setRecurring(e.target.checked)}
+            className="h-4 w-4 rounded border-line accent-brand"
+          />
+          Every year
+        </label>
         <button
           type="button"
           onClick={() => {
             if (!day || !label.trim()) return;
-            create.mutate({ day, label: label.trim() }, {
+            create.mutate({ day, label: label.trim(), recurring }, {
               onSuccess: () => { setDay(''); setLabel(''); },
             });
           }}

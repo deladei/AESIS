@@ -1370,8 +1370,15 @@ model NonWorkingDay {
   id             String       @id @default(uuid())
   academicYearId String       @map("academic_year_id")
   academicYear   AcademicYear @relation(fields: [academicYearId], references: [id], onDelete: Cascade)
+  // The date this holiday was entered for. Kept for a one-off closure (a
+  // funeral, a company shutdown) AND as the source of month/day for a recurring
+  // one, so the coordinator always enters a real date.
   day            DateTime     @db.Date
   label          String
+  // Christmas is the 25th of December every year; the year it was first entered
+  // is irrelevant. A recurring holiday matches on month + day-of-month in ANY
+  // year, so a cohort spanning a new year does not need it re-entered.
+  recurring      Boolean      @default(false)
   createdAt      DateTime     @default(now()) @map("created_at")
 
   @@unique([academicYearId, day])

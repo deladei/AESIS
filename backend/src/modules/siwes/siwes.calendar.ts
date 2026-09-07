@@ -13,7 +13,9 @@ export interface AttachmentCalendar {
   chainStart: Date;
   chainEnd: Date | null; // null = no configured end (no outer bound)
   workingDays: number[]; // ISO weekday numbers, 1 = Monday … 7 = Sunday
-  nonWorkingDays: Set<string>; // 'YYYY-MM-DD' cohort holidays
+  nonWorkingDays: Set<string>; // 'YYYY-MM-DD' cohort holidays, one-off
+  /** 'MM-DD' holidays that fall on the same date every year (Christmas). */
+  recurringHolidays?: Set<string>;
 }
 
 export type DayClass =
@@ -40,6 +42,9 @@ export function classifyDay(date: Date, cal: AttachmentCalendar): DayClass {
   if (date.getTime() < cal.chainStart.getTime()) return 'before_attachment';
   if (cal.chainEnd && date.getTime() > cal.chainEnd.getTime()) return 'after_attachment';
   if (cal.nonWorkingDays.has(iso(date))) return 'non_working';
+  // A recurring holiday matches on month + day, whatever the year — so a cohort
+  // running across New Year does not need Christmas entered twice.
+  if (cal.recurringHolidays?.has(iso(date).slice(5))) return 'non_working';
   if (!cal.workingDays.includes(isoWeekday(date))) return 'weekly_rest';
   return 'working';
 }

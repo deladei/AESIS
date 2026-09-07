@@ -435,7 +435,7 @@ function AddCompanyDialog({ onClose }: { onClose: () => void }) {
         <form onSubmit={submit} className="space-y-3">
           <Field label="Company name" value={form.name} onChange={set('name')} placeholder="Ananse Technologies Ltd." autoFocus />
           <Field label="Industry"     value={form.industry} onChange={set('industry')} placeholder="Software" />
-          <Field label="Website"      value={form.website} onChange={set('website')} placeholder="https://…" type="url" />
+          <Field label="Website"      value={form.website} onChange={set('website')} placeholder="example.com" type="text" inputMode="url" />
           <Field label="Address"      value={form.address} onChange={set('address')} placeholder="Accra" />
 
           <FieldError message={error ?? undefined} />

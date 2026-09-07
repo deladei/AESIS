@@ -135,3 +135,33 @@ describe('withinEditWindow', () => {
     expect(withinEditWindow(createdAt, new Date('2026-06-12T09:00:01.000Z'), rules)).toBe(false);
   });
 });
+
+// ── Recurring holidays ──────────────────────────────────────────
+
+describe('classifyDay — recurring holidays', () => {
+  const cal = {
+    chainStart: new Date('2025-12-01T00:00:00.000Z'),
+    chainEnd:   new Date('2026-03-31T00:00:00.000Z'),
+    workingDays: [1, 2, 3, 4, 5],
+    nonWorkingDays: new Set<string>(),
+    recurringHolidays: new Set(['12-25', '03-06']),
+  };
+
+  it('matches the same month and day in ANY year', () => {
+    // Christmas was entered once; the attachment spans a new year and must not
+    // need it entered twice.
+    expect(classifyDay(new Date('2025-12-25T00:00:00.000Z'), cal)).toBe('non_working');
+    // Independence Day, in the following calendar year.
+    expect(classifyDay(new Date('2026-03-06T00:00:00.000Z'), cal)).toBe('non_working');
+  });
+
+  it('leaves every other working day alone', () => {
+    expect(classifyDay(new Date('2025-12-24T00:00:00.000Z'), cal)).toBe('working');
+    expect(classifyDay(new Date('2026-03-05T00:00:00.000Z'), cal)).toBe('working');
+  });
+
+  it('still yields to the attachment bounds', () => {
+    // 25 Dec 2024 is a recurring match but before the attachment started.
+    expect(classifyDay(new Date('2024-12-25T00:00:00.000Z'), cal)).toBe('before_attachment');
+  });
+});
