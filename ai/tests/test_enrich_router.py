@@ -69,6 +69,23 @@ class TestEnrichEntry:
             assert 0.0 <= q[dim] <= 100.0
         assert data["plagiarism"]["checked"] is False  # empty corpus
         assert data["feedback_draft"] is None  # Groq key pinned empty
+        # The tests pin GROQ_API_KEY empty, so the model classifier cannot run
+        # and the word list is the floor. The response says so rather than
+        # presenting a degraded signal as the model's judgement.
+        assert data["classifier"] == "keywords"
+
+    def test_enrichment_still_returns_when_the_model_is_unreachable(self):
+        # The whole pipeline must survive a dead Groq. Competency classification
+        # falls back to the word list, and quality, plagiarism and the summary
+        # are unaffected — a degraded score beats a failed enrichment pass.
+        r = client.post("/ai/enrich/entry", json=entry_body(), headers=HEADERS)
+        assert r.status_code == 200
+        data = r.json()
+        assert data["classifier"] == "keywords"
+        assert data["summary"]["activity_relevance"]
+        # The word list has no reasoning to offer, and says nothing rather than
+        # inventing a justification.
+        assert all(a["reason"] == "" for a in data["summary"]["activity_relevance"])
 
     def test_classifier_marks_technical_vs_nontechnical(self):
         r = client.post("/ai/enrich/entry", json=entry_body(), headers=HEADERS)

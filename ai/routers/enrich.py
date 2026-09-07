@@ -22,6 +22,7 @@ from fastapi import APIRouter, Header, HTTPException
 from pydantic import BaseModel, Field
 
 from config.settings import settings
+from services import competency
 from services.entry_plagiarism import CorpusDoc, PlagiarismReport, check_entry
 from services.feedback_draft import FeedbackDraft, draft_feedback
 from services.quality_scorer import clamp_quality_score, score as compute_quality
@@ -86,6 +87,10 @@ class ActivityRelevance(BaseModel):
     relevance: float = Field(ge=0.0, le=1.0)
     on_topic: bool
     themes: list[str] = Field(default_factory=list)
+    # One short clause saying WHY, when a model did the classifying. Empty on
+    # the keyword fallback, which has no reasoning to offer — and an empty
+    # reason is itself the honest signal that the fallback ran.
+    reason: str = ""
 
 
 class EntrySummary(BaseModel):
@@ -111,6 +116,11 @@ class QualityBreakdown(BaseModel):
 
 class EnrichEntryResponse(BaseModel):
     model_name: str
+    # Which classifier actually produced `summary.activity_relevance`: "model"
+    # when Groq answered, "keywords" when it fell back. Reported rather than
+    # hidden, so a supervisor is never shown a degraded signal as if it were the
+    # real one.
+    classifier: str = "keywords"
     relevance: float = Field(ge=0.0, le=1.0)
     summary: EntrySummary
     quality: QualityBreakdown
@@ -126,6 +136,13 @@ def _require_internal(x_api_key: str | None) -> None:
 
 
 # ── Stage 1 — classify a single activity ─────────────────────────────────────
+#
+# The keyword path below is the FALLBACK now, not the primary. It stays because
+# enrichment must still produce something when Groq is unreachable — a degraded
+# score beats a failed pipeline — but it is a floor, not the ceiling. See
+# `services/competency.py` for what actually runs first and why the word list
+# was not good enough: it could only see a competency if the student happened to
+# use one of ~70 hardcoded words.
 def _classify_activity(text: str, tags: list[str]) -> ActivityRelevance:
     tokens = {t.lower() for t in _WORD_RE.findall(text)}
     matched_themes: list[str] = []
@@ -228,6 +245,46 @@ def _summarize(req: EnrichEntryRequest, scored: list[ActivityRelevance]) -> Entr
     )
 
 
+async def _classify_activities(
+    activities: list[ActivityIn],
+) -> tuple[list[ActivityRelevance], str]:
+    """Classify a week's activities, model first and word list as the floor.
+
+    Returns the scored activities and which path produced them, so the caller
+    can report a degraded signal as degraded rather than passing it off as the
+    model's judgement.
+    """
+    if not activities:
+        return [], "keywords"
+
+    judged = await competency.classify([a.description for a in activities])
+    if judged is None:
+        return (
+            [_classify_activity(a.description, a.competency_tags) for a in activities],
+            "keywords",
+        )
+
+    by_index = {j.index: j for j in judged}
+    scored: list[ActivityRelevance] = []
+    for i, activity in enumerate(activities):
+        verdict = by_index.get(i)
+        if verdict is None:
+            # The model skipped this one; the word list is better than nothing.
+            scored.append(_classify_activity(activity.description, activity.competency_tags))
+            continue
+        scored.append(ActivityRelevance(
+            description=activity.description[:140],
+            relevance=round(verdict.relevance, 3),
+            on_topic=verdict.relevance >= 0.34,
+            # The author's own tags are kept alongside the model's: a student
+            # who tagged their work is evidence, not noise, and dropping their
+            # input in favour of the model would be the wrong way round.
+            themes=sorted(set(verdict.competencies) | set(activity.competency_tags)),
+            reason=verdict.reason,
+        ))
+    return scored, "model"
+
+
 @router.post("/enrich/entry", response_model=EnrichEntryResponse)
 async def enrich_entry(
     body: EnrichEntryRequest,
@@ -235,7 +292,7 @@ async def enrich_entry(
 ) -> EnrichEntryResponse:
     _require_internal(x_api_key)
 
-    scored = [_classify_activity(a.description, a.competency_tags) for a in body.activities]
+    scored, classifier = await _classify_activities(body.activities)
     overall = round(sum(a.relevance for a in scored) / len(scored), 3) if scored else 0.0
     summary = _summarize(body, scored)
     quality = _score_quality(body)
@@ -250,6 +307,7 @@ async def enrich_entry(
 
     return EnrichEntryResponse(
         model_name=MODEL_NAME,
+        classifier=classifier,
         relevance=overall,
         summary=summary,
         quality=quality,

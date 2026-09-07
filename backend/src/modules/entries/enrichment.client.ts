@@ -17,6 +17,10 @@ const activityRelevanceSchema = z.object({
   relevance: z.number().min(0).max(1),
   on_topic: z.boolean(),
   themes: z.array(z.string()).default([]),
+  // Why the model judged it that way, in one clause. Empty when the keyword
+  // fallback ran — it has no reasoning to offer, and says nothing rather than
+  // inventing a justification. Optional so a v1 engine still parses.
+  reason: z.string().default(''),
 });
 
 // 6-dimension rubric — every score hard-bounded to [0, 100] so an out-of-range
@@ -60,6 +64,15 @@ const feedbackDraftSchema = z.object({
 
 export const enrichmentResponseSchema = z.object({
   model_name: z.string().min(1),
+  /**
+   * Which classifier produced the activity relevance: `model` when Groq
+   * answered, `keywords` when it fell back to the word list.
+   *
+   * Persisted so a supervisor is never shown a degraded signal as if it were
+   * the model's judgement, and so "how often is the engine actually up?" is
+   * answerable from the data rather than from logs.
+   */
+  classifier: z.enum(['model', 'keywords']).default('keywords'),
   relevance: z.number().min(0).max(1),
   summary: z.object({
     headline: z.string(),

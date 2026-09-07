@@ -638,6 +638,8 @@ describe('authorization & isolation', () => {
 // racing the other suite's TRUNCATE. The model is injected, so no live FastAPI.
 describe('AI enrichment (Path 2)', () => {
   const goodResult: EnrichmentResult = {
+    // The word-list floor, i.e. what a v1 engine or an unreachable Groq yields.
+    classifier: 'keywords',
     model_name: 'test-model/v1',
     relevance: 0.9,
     summary: { headline: 'looks good', themes: ['software_engineering'], activity_relevance: [], concerns: [] },
