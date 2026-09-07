@@ -60,6 +60,12 @@ export interface QualityBreakdown {
   relevance: number;
   flags?: string[];
   feedback?: string;
+  /**
+   * One clause per dimension saying what in the entry drove that score, keyed
+   * by dimension. Present only when a model assessed the entry; the rubric
+   * floor scores on word counts and has no evidence to offer.
+   */
+  evidence?: Record<string, string>;
 }
 
 export interface PlagiarismMatch {

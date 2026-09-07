@@ -68,8 +68,8 @@ function pct100(v: unknown): number | null {
 }
 
 // The quality.relevance dimension is deliberately omitted: the panel already
-// shows CS relevance from the classifier, and two differently-computed
-// "relevance" numbers side by side would only conflict.
+// shows CS relevance from the classifier, and repeating the same figure twice
+// under two labels reads as two measurements that happen to agree.
 const QUALITY_DIMS: { key: keyof QualityBreakdown; label: string }[] = [
   { key: 'overall', label: 'Overall writing quality' },
   { key: 'task_depth', label: 'Task detail' },
@@ -616,6 +616,10 @@ export default function EntryReview() {
                             {QUALITY_DIMS.map(({ key, label }) => {
                               const v = pct100(quality[key]);
                               if (v == null) return null;
+                              // Why the score is what it is. A supervisor who
+                              // cannot see the reasoning can only accept or
+                              // ignore the number; with it they can disagree.
+                              const why = quality.evidence?.[key];
                               return (
                                 <div key={key}>
                                   <div className="mb-0.5 flex justify-between text-xs">
@@ -628,6 +632,9 @@ export default function EntryReview() {
                                       style={{ width: `${v}%` }}
                                     />
                                   </div>
+                                  {why && (
+                                    <p className="mt-1 text-xs leading-snug text-ink-muted">{why}</p>
+                                  )}
                                 </div>
                               );
                             })}

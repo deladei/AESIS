@@ -34,6 +34,10 @@ const qualityBreakdownSchema = z.object({
   relevance: z.number().min(0).max(100),
   flags: z.array(z.string()).default([]),
   feedback: z.string().default(''),
+  // One clause per dimension saying what in the entry drove the score, so a
+  // supervisor can disagree with a number instead of only being handed it.
+  // Empty on the rubric floor, which has no evidence beyond word counts.
+  evidence: z.record(z.string()).default({}),
 });
 
 const plagiarismMatchSchema = z.object({
@@ -81,6 +85,12 @@ export const enrichmentResponseSchema = z.object({
    * Defaulted rather than required so an older AI-engine deploy still parses.
    */
   summarizer: z.enum(['model', 'template']).default('template'),
+  /**
+   * Which path produced the quality breakdown: `model` when the entry was read
+   * and assessed, `rubric` when it fell back to the length-and-keyword
+   * heuristic that scores padding above precision.
+   */
+  scorer: z.enum(['model', 'rubric']).default('rubric'),
   relevance: z.number().min(0).max(1),
   summary: z.object({
     headline: z.string(),

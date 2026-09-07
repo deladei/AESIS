@@ -78,13 +78,26 @@ def tokenize_words(text: str) -> List[str]:
     return [t for t in tokens if t not in string.punctuation]
 
 
+# Whole-term matching. `if kw in lower` counted a vocabulary term whenever its
+# letters appeared ANYWHERE in the text, and the vocabulary contains "r", "go",
+# "ci" and "cd" — so "r" matched almost every English sentence ever written, and
+# "ci" matched "decision", "efficient", "specific". The keyword count was
+# therefore largely a function of text length, which is precisely what it was
+# supposed to be measuring instead of.
+#
+# The boundaries are hand-rolled rather than \b because the vocabulary contains
+# "c++", "c#" and "node.js", whose edges are not word characters.
+_CS_TERM_RE = re.compile(
+    r"(?<![a-z0-9+#.])(?:"
+    + "|".join(re.escape(k) for k in sorted(CS_VOCABULARY, key=len, reverse=True))
+    + r")(?![a-z0-9+#])",
+    re.IGNORECASE,
+)
+
+
 def count_cs_keywords(text: str) -> int:
-    lower = text.lower()
-    count = 0
-    for kw in CS_VOCABULARY:
-        if kw in lower:
-            count += 1
-    return count
+    """How many DISTINCT vocabulary terms the text actually uses."""
+    return len({m.group(0).lower() for m in _CS_TERM_RE.finditer(text)})
 
 
 def count_pattern_matches(text: str, patterns: list[str]) -> int:

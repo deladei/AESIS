@@ -23,7 +23,7 @@ from fastapi import APIRouter, Header, HTTPException
 from pydantic import BaseModel, Field
 
 from config.settings import settings
-from services import competency, summary as summary_service
+from services import competency, quality as quality_service, summary as summary_service
 from services.entry_plagiarism import CorpusDoc, PlagiarismReport, check_entry
 from services.feedback_draft import FeedbackDraft, draft_feedback
 from services.quality_scorer import clamp_quality_score, score as compute_quality
@@ -113,6 +113,11 @@ class QualityBreakdown(BaseModel):
     relevance: float = Field(ge=0.0, le=100.0)
     flags: list[str] = Field(default_factory=list)
     feedback: str = ""
+    # One clause per dimension saying what in the entry drove the score, so a
+    # supervisor can disagree with a number instead of only receiving it. Empty
+    # on the rubric floor, which has no evidence to offer beyond word counts —
+    # and that emptiness is itself the honest signal that the floor ran.
+    evidence: dict[str, str] = Field(default_factory=dict)
 
 
 class EnrichEntryResponse(BaseModel):
@@ -127,6 +132,9 @@ class EnrichEntryResponse(BaseModel):
     # `classifier` — a supervisor is never shown the floor as if it were the
     # real thing.
     summarizer: str = "template"
+    # "model" when the entry was actually read and assessed, "rubric" when it
+    # fell back to the length-and-keyword heuristic.
+    scorer: str = "rubric"
     relevance: float = Field(ge=0.0, le=1.0)
     summary: EntrySummary
     quality: QualityBreakdown
@@ -219,6 +227,67 @@ def _score_quality(req: EnrichEntryRequest) -> QualityBreakdown:
         relevance=_bounded(q.relevance_score * 100),
         flags=flags,
         feedback=q.ai_feedback_summary,
+    )
+
+
+# The rubric's dimension weights. `overall` is COMPOSED here from the four
+# dimensions rather than asked of the model, so the composite can never
+# disagree with its own parts — the same rule that keeps the summary from
+# contradicting the table beside it.
+RUBRIC_WEIGHTS = {
+    "task_depth": 0.30,
+    "tech_vocab": 0.25,
+    "reflection": 0.25,
+    "temporal_consistency": 0.20,
+}
+
+# Below this, the entry does not read as computer-science work at all.
+LOW_RELEVANCE = 0.15
+
+
+async def _build_quality(
+    req: EnrichEntryRequest,
+    relevance: float,
+) -> tuple[QualityBreakdown, str]:
+    """The quality breakdown, model-assessed where possible.
+
+    `relevance` is the competency classifier's mean, passed in rather than
+    recomputed. The rubric had its own separate CS-relevance heuristic, so the
+    relevance shown in the quality panel and the relevance shown against the
+    activities were two different numbers derived two different ways — and they
+    disagreed. There is now one.
+    """
+    rubric = _score_quality(req)
+
+    judged = await quality_service.assess(
+        activities=[a.description for a in req.activities],
+        learning=req.reflection.learning if req.reflection else "",
+        challenges=req.reflection.challenges if req.reflection else "",
+    )
+    if judged is None:
+        return rubric, "rubric"
+
+    overall = sum(getattr(judged, dim) * weight for dim, weight in RUBRIC_WEIGHTS.items())
+
+    flags = list(judged.flags)
+    if relevance < LOW_RELEVANCE and "low_cs_relevance" not in flags:
+        flags.append("low_cs_relevance")
+
+    return (
+        QualityBreakdown(
+            overall=_bounded(overall),
+            task_depth=_bounded(judged.task_depth),
+            tech_vocab=_bounded(judged.tech_vocab),
+            reflection=_bounded(judged.reflection),
+            temporal_consistency=_bounded(judged.temporal_consistency),
+            relevance=_bounded(relevance * 100),
+            flags=flags,
+            # The rubric's own feedback is the fallback: it is generic, but a
+            # supervisor seeing nothing at all is worse.
+            feedback=judged.feedback or rubric.feedback,
+            evidence=judged.evidence,
+        ),
+        "model",
     )
 
 
@@ -347,7 +416,7 @@ async def enrich_entry(
     scored, classifier = await _classify_activities(body.activities)
     overall = round(sum(a.relevance for a in scored) / len(scored), 3) if scored else 0.0
     summary, summarizer = await _build_summary(body, scored)
-    quality = _score_quality(body)
+    quality, scorer = await _build_quality(body, overall)
     plagiarism = check_entry(_entry_text(body.activities, body.reflection), body.corpus)
     feedback = await draft_feedback(
         activities=[a.description for a in body.activities],
@@ -361,6 +430,7 @@ async def enrich_entry(
         model_name=MODEL_NAME,
         classifier=classifier,
         summarizer=summarizer,
+        scorer=scorer,
         relevance=overall,
         summary=summary,
         quality=quality,

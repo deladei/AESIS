@@ -23,6 +23,13 @@ CS_RELEVANCE_KEYWORDS = {
     *CS_VOCABULARY,
 }
 
+_RELEVANCE_TERM_RE = re.compile(
+    r"(?<![a-z0-9+#.])(?:"
+    + "|".join(re.escape(k) for k in sorted(CS_RELEVANCE_KEYWORDS, key=len, reverse=True))
+    + r")(?![a-z0-9+#])",
+    re.IGNORECASE,
+)
+
 QUALITY_MIN = 0.0
 QUALITY_MAX = 100.0
 
@@ -115,9 +122,11 @@ def _compute_relevance(tasks: str, technologies: str) -> tuple[float, bool]:
     Returns (score 0–1, is_flagged).
     """
     combined    = f"{tasks} {technologies}"
-    lower       = combined.lower()
     total_words = max(word_count(combined), 1)
-    cs_hits     = sum(1 for kw in CS_RELEVANCE_KEYWORDS if kw in lower)
+    # Whole-term matching, for the same reason as count_cs_keywords: a substring
+    # test against a vocabulary containing "r" and "go" scored every piece of
+    # English prose as CS-relevant.
+    cs_hits     = len({m.group(0).lower() for m in _RELEVANCE_TERM_RE.finditer(combined)})
     score       = min(cs_hits / math.sqrt(total_words) * 2, 1.0)
     return round(score, 3), score < 0.15
 

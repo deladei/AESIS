@@ -641,6 +641,7 @@ describe('AI enrichment (Path 2)', () => {
     // The word-list floor, i.e. what a v1 engine or an unreachable Groq yields.
     classifier: 'keywords',
     summarizer: 'template',
+    scorer: 'rubric',
     model_name: 'test-model/v1',
     relevance: 0.9,
     summary: { headline: 'looks good', themes: ['software_engineering'], activity_relevance: [], concerns: [] },
@@ -687,7 +688,11 @@ describe('AI enrichment (Path 2)', () => {
     const [assessment] = await prisma.aiAssessment.findMany({ where: { entryId } });
     const summary = assessment.summary as { headline: string; provenance: unknown };
     expect(summary.headline).toBe('looks good');
-    expect(summary.provenance).toEqual({ classifier: 'keywords', summarizer: 'template' });
+    expect(summary.provenance).toEqual({
+      classifier: 'keywords',
+      summarizer: 'template',
+      scorer: 'rubric',
+    });
   });
 
   itdb('enrichment never mutates logbook_entry.status', async () => {
@@ -757,6 +762,8 @@ describe('AI enrichment (Path 2)', () => {
       relevance: 100,
       flags: ['low_cs_relevance'],
       feedback: 'Use chronological language.',
+      // Empty, as the rubric floor leaves it — it has no evidence to offer.
+      evidence: {},
     },
     plagiarism: {
       checked: true,

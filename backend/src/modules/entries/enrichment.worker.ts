@@ -158,7 +158,11 @@ async function onSuccess(job: ClaimedJob, payload: EnrichmentPayload, result: Aw
         // answerable only from logs that roll.
         summary: {
           ...result.summary,
-          provenance: { classifier: result.classifier, summarizer: result.summarizer },
+          provenance: {
+            classifier: result.classifier,
+            summarizer: result.summarizer,
+            scorer: result.scorer,
+          },
         } as unknown as Prisma.InputJsonValue,
         // Report fields are absent from older AI-engine responses; a null
         // feedback_draft (Groq down) is stored as SQL NULL, not JSON null.

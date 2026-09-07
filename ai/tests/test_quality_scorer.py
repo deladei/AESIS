@@ -3,6 +3,7 @@ no non-numeric or out-of-range score may ever be persisted."""
 import math
 
 from services.quality_scorer import clamp_quality_score, score
+from utils.text_processing import count_cs_keywords
 
 
 class TestClampQualityScore:
@@ -78,3 +79,39 @@ class TestScore:
                                 "with better planning and more testing discipline "
                                 "than before which taught me resilience and the "
                                 "value of asking questions early and often indeed").ai_feedback_summary
+
+
+class TestWholeTermMatching:
+    """Vocabulary terms are matched as terms, not as substrings.
+
+    `if kw in text` counted a term whenever its letters appeared anywhere, and
+    the vocabulary contains "r", "go", "ci" and "cd". Every entry in English
+    therefore scored at least one keyword, and a purely administrative week came
+    out at 0.348 CS-relevance — comfortably above the 0.15 flag threshold —
+    entirely on the strength of containing the letter r.
+    """
+
+    ADMIN_WEEK = (
+        "This week I shadowed the operations officer, attended a client meeting "
+        "about procurement, updated the office attendance register and helped "
+        "organise the storage cupboard. I also assisted with reception duties."
+    )
+
+    def test_non_technical_work_scores_no_keywords_and_is_flagged(self):
+        assert count_cs_keywords(self.ADMIN_WEEK) == 0
+        r = score(tasks=self.ADMIN_WEEK, technologies="")
+        assert r.relevance_score == 0.0
+        assert r.is_relevance_flagged is True
+
+    def test_technical_work_still_matches(self):
+        text = "Wrote a parser in Python and containerised it with Docker for the PostgreSQL loader."
+        assert count_cs_keywords(text) >= 3
+        assert score(tasks=text, technologies="").is_relevance_flagged is False
+
+    def test_terms_with_non_word_edges_still_match(self):
+        # "c++", "c#" and "k8s" are why the boundaries are hand-rolled rather
+        # than \b — their edges are not word characters.
+        assert count_cs_keywords("Ported the C++ module to C# and deployed on k8s.") == 3
+
+    def test_a_term_embedded_in_a_longer_word_does_not_count(self):
+        assert count_cs_keywords("The decision required rigour and goodwill.") == 0
