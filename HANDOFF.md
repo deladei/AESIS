@@ -3907,3 +3907,95 @@ interaction testing (forms submit, dialogs open) — the sweep only navigates an
 Supabase password rotation; Neon deletion; S87 prod smokes; Render env nits; stopped Docker
 containers. Local seed data still uses non-Ghanaian demo names (Sarah Jenkins, David Rivera,
 Elena Kostas, Alex Kim) — against the Ghana-names rule, and visible in every screenshot.
+
+---
+
+## S100 — 2026-09-07 · The user's 18-item list, worked end to end
+
+**Shipped as 12 commits, `df91931..4212b47`.** Planned first (plan file
+`~/.claude/plans/twinkly-swinging-dahl.md`), then executed in phases.
+
+### Three reported items were not what they looked like
+
+- **"Returned logbooks aren't editable."** The pipeline always allowed it —
+  `isEditable = draft || returned`, and both day writers exempt `returned` from
+  the submitted-day guard and the edit window. The real cause was the
+  stale-placement bug below. **Nothing was built for this.**
+- **"Admin has nowhere to schedule a check-in."** It exists, and admin is the
+  only role that gets it — it was just gated behind picking an intern first.
+- **"All students takes you to the logbook."** No such label exists. Every
+  drill-down from `/admin/interns` linked into `/coordinator/interns/...`, so an
+  admin landed on a page captioned "Coordinator".
+
+### The bug behind several complaints at once
+
+`getMyPlacements` ordered by `createdAt desc` and **ignored `isCurrent`**, and
+four pages copy-pasted `find(active) ?? [0]`. A student approved months ago who
+picked up a newer pending row read "Awaiting approval" while the coordinator
+saw nothing pending; one carrying a superseded active row was looking at a
+different placement from the one their supervisor was updating. One
+`useMyPlacement()` hook now holds the rule.
+
+### Found while working, not on the list
+
+- **Any staff member could read any student's documents.** The check tested
+  ownership for STUDENTS only — an unassigned supervisor, any coordinator, any
+  admin could list any placement's files. Soft-deleted rows came back too. Now
+  through `assertPlacementAccess`; two tests pin it.
+- **Placement documents were never stored.** The controller dropped the multer
+  buffer and wrote `local://<filename>`. Real Cloudinary now, and nothing in the
+  SPA had ever called the endpoint anyway.
+- **"Save day" silently un-submitted the day** on every save.
+- **The Vite dev proxy targeted `localhost`** → ::1 with no listener here.
+- **Nested `<a>` in the company cards**; **conditional hook** crashing the
+  student dashboard ("this page hit a snag").
+
+### Everything on the list
+
+| Item | Where |
+|---|---|
+| Charts floating | `Charts.tsx` layout prop, two collapsed histograms, one `TREND_HEIGHT` |
+| Date inconsistency | one week anchor (`chainStart`), one server-side `weekBoundsFor` |
+| Progress math | `workingDaysElapsed` + `dayProgressPercent`; 1 day of 5 = 20% |
+| Logbook to the image | three-column rebuild + real writing assist |
+| Roster auto-fill + flag | roster wins on name/index; coordinators notified of a mismatch |
+| Recurring holidays | `NonWorkingDay.recurring`, matched on month+day |
+| Bare-domain websites | `webUrl` primitive; also rejects `javascript:` |
+| Editable returned logbook | already worked — see above |
+| Chat files + emoji | `MessageAttachment`, multipart POST, 24-emoji picker |
+| Supervisor sees student logs | already existed; documents panel added to intern detail |
+| Admin check-in | surfaced; admin routing kept in `/admin/*` |
+| ≥10 feedback drafts | Groq returns 10; pager with Use / Append / Copy |
+| Sidebar collapse | `w-64 ↔ 4.5rem`, persisted in localStorage |
+| Duration 5→6 propagates | already one source; students now notified |
+| To-do date/time/duration | `durationMinutes` column + picker; time rendered |
+| Student docs visible to staff | real upload + intern-detail panel |
+| "What to act on" functional | carries `placementId`; links per role |
+| Coordinator in Feedback Centre | route excluded them though the service admits them |
+
+### ⚠️ Four migrations are waiting for prod
+
+`20260906110000_cohort_duration_editable`, `20260907090000_recurring_holidays`,
+`20260907100000_task_duration`, `20260907110000_message_attachments`.
+
+All additive; none drops a column. **The local test DB was schema-pushed, not
+migrated, so `prisma migrate deploy` cannot replay there** — the columns were
+applied by hand locally. Prod has real migration history and should apply
+cleanly on boot, but this is the S87 blind spot: verify `_prisma_migrations` has
+no failed row after the deploy, and see `RUNBOOK.md` if the boot loops.
+
+Cloudinary must be configured in prod or document and chat uploads 503 (by
+design — they no longer pretend).
+
+### State
+
+**853 tests green, 59/59 suites** (+15 this session). Both typechecks clean,
+production build green. All 33 routes re-swept live in dark mode: 0 redirects,
+no console errors, no hook violations.
+
+### Still not done
+
+Light mode has never been swept, there is no narrow-viewport pass, and the
+harness only navigates — no form submits, no dialogs opened. The AI writing
+assist and the 10-draft generator both need the AI engine running to do anything
+(`docker start aesis_ai`); both fail open.
