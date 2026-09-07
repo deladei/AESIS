@@ -8,7 +8,8 @@ Contract with the Node worker (backend/src/modules/entries/enrichment.*.ts):
 - Exactly one model, run in two stages:
     1. classify  — score each activity's relevance/quality vs a CS competency
                    vocabulary (free, local, deterministic — no training data).
-    2. summarize — fold the per-activity signal into a short supervisor summary.
+    2. summarize — narrate the week for the supervisor (model-written, with the
+                   count-based template as the floor).
 - Output is schema-validated by FastAPI (response_model). The Node side
   ALSO validates; an unparseable/invalid response degrades to "no assessment"
   there and never blocks human review.
@@ -22,7 +23,7 @@ from fastapi import APIRouter, Header, HTTPException
 from pydantic import BaseModel, Field
 
 from config.settings import settings
-from services import competency
+from services import competency, summary as summary_service
 from services.entry_plagiarism import CorpusDoc, PlagiarismReport, check_entry
 from services.feedback_draft import FeedbackDraft, draft_feedback
 from services.quality_scorer import clamp_quality_score, score as compute_quality
@@ -121,6 +122,11 @@ class EnrichEntryResponse(BaseModel):
     # hidden, so a supervisor is never shown a degraded signal as if it were the
     # real one.
     classifier: str = "keywords"
+    # Which path wrote `summary.headline`: "model" when Groq narrated the week,
+    # "template" when it fell back to counting. Same honesty rule as
+    # `classifier` — a supervisor is never shown the floor as if it were the
+    # real thing.
+    summarizer: str = "template"
     relevance: float = Field(ge=0.0, le=1.0)
     summary: EntrySummary
     quality: QualityBreakdown
@@ -217,6 +223,15 @@ def _score_quality(req: EnrichEntryRequest) -> QualityBreakdown:
 
 
 # ── Stage 2 — summarize the week ─────────────────────────────────────────────
+#
+# Two halves, and the split is the design. `_summarize` computes everything that
+# is a FACT about the week — the counts, the taxonomy themes, the concerns that
+# follow from the classifier and from a missing reflection. `_build_summary`
+# then asks the model to narrate the same week, and swaps in its prose for the
+# counting headline while leaving every computed fact exactly as it was.
+#
+# The model is therefore never in a position to state a number, name a
+# competency outside the taxonomy, or contradict the table rendered beside it.
 def _summarize(req: EnrichEntryRequest, scored: list[ActivityRelevance]) -> EntrySummary:
     n = len(scored)
     on_topic = sum(1 for a in scored if a.on_topic)
@@ -242,6 +257,43 @@ def _summarize(req: EnrichEntryRequest, scored: list[ActivityRelevance]) -> Entr
         themes=themes,
         activity_relevance=scored,
         concerns=concerns,
+    )
+
+
+async def _build_summary(
+    req: EnrichEntryRequest,
+    scored: list[ActivityRelevance],
+) -> tuple[EntrySummary, str]:
+    """The week's summary, model-narrated where possible.
+
+    Returns the summary and which path wrote the headline. The computed
+    concerns are kept in every case and listed first: "no reflection provided"
+    is a fact about the entry, not an observation the model is better placed to
+    make, and losing it because Groq answered would be a regression.
+    """
+    computed = _summarize(req, scored)
+
+    narrative = await summary_service.summarize_week(
+        activities=[a.description for a in req.activities],
+        learning=req.reflection.learning if req.reflection else "",
+        challenges=req.reflection.challenges if req.reflection else "",
+    )
+    if narrative is None:
+        return computed, "template"
+
+    concerns = list(computed.concerns)
+    for item in narrative.concerns:
+        if item not in concerns:
+            concerns.append(item)
+
+    return (
+        EntrySummary(
+            headline=narrative.headline,
+            themes=computed.themes,
+            activity_relevance=computed.activity_relevance,
+            concerns=concerns,
+        ),
+        "model",
     )
 
 
@@ -294,7 +346,7 @@ async def enrich_entry(
 
     scored, classifier = await _classify_activities(body.activities)
     overall = round(sum(a.relevance for a in scored) / len(scored), 3) if scored else 0.0
-    summary = _summarize(body, scored)
+    summary, summarizer = await _build_summary(body, scored)
     quality = _score_quality(body)
     plagiarism = check_entry(_entry_text(body.activities, body.reflection), body.corpus)
     feedback = await draft_feedback(
@@ -308,6 +360,7 @@ async def enrich_entry(
     return EnrichEntryResponse(
         model_name=MODEL_NAME,
         classifier=classifier,
+        summarizer=summarizer,
         relevance=overall,
         summary=summary,
         quality=quality,
@@ -336,6 +389,9 @@ class PlacementSummary(BaseModel):
 
 class PlacementSummaryResponse(BaseModel):
     model_name: str
+    # "model" when the placement was narrated, "template" when it fell back to
+    # counting weeks and activities.
+    summarizer: str = "template"
     summary: PlacementSummary
 
 
@@ -360,6 +416,9 @@ async def enrich_placement(
     weeks = len(body.entries)
     themes = sorted(theme_counts, key=lambda t: theme_counts[t], reverse=True)
 
+    # Computed first and kept regardless of what the model says. "No evidence of
+    # testing work across the placement" is a fact derived from the taxonomy
+    # counts; it is not the model's to confirm or to quietly drop.
     recommendations: list[str] = []
     if weeks == 0:
         headline = "No acknowledged weeks to summarize."
@@ -374,8 +433,20 @@ async def enrich_placement(
         if "testing_quality" not in theme_counts:
             recommendations.append("Little evidence of testing/QA work across the placement.")
 
+    summarizer = "template"
+    narrative = await summary_service.summarize_placement(
+        [(e.week_number, [a.description for a in e.activities]) for e in body.entries]
+    )
+    if narrative is not None:
+        headline = narrative.headline
+        summarizer = "model"
+        for item in narrative.recommendations:
+            if item not in recommendations:
+                recommendations.append(item)
+
     return PlacementSummaryResponse(
         model_name=MODEL_NAME,
+        summarizer=summarizer,
         summary=PlacementSummary(
             headline=headline,
             themes=themes,

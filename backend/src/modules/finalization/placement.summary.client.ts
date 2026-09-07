@@ -9,6 +9,9 @@ import { aiEngineUrl, AI_ENGINE_TIMEOUT_MS } from '../../shared/utils/aiEngine';
  */
 export const placementSummarySchema = z.object({
   model_name: z.string().min(1),
+  // `model` when the placement was narrated, `template` when it fell back to
+  // counting weeks and activities. Defaulted so an older engine still parses.
+  summarizer: z.enum(['model', 'template']).default('template'),
   summary: z.object({
     headline: z.string(),
     themes: z.array(z.string()).default([]),

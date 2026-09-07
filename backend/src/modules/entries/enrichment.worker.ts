@@ -149,7 +149,17 @@ async function onSuccess(job: ClaimedJob, payload: EnrichmentPayload, result: Aw
         entryId: payload.entry_id,
         modelName: result.model_name,
         relevance: result.relevance,
-        summary: result.summary as unknown as Prisma.InputJsonValue,
+        // Provenance travels inside the summary JSON rather than in new
+        // columns: which path produced the relevance and which wrote the
+        // headline. Validating those flags and then dropping them — which is
+        // what happened until now — means "the supervisor is never shown a
+        // degraded signal as if it were the real one" is a claim with nothing
+        // behind it, and makes "how often is the engine actually up?"
+        // answerable only from logs that roll.
+        summary: {
+          ...result.summary,
+          provenance: { classifier: result.classifier, summarizer: result.summarizer },
+        } as unknown as Prisma.InputJsonValue,
         // Report fields are absent from older AI-engine responses; a null
         // feedback_draft (Groq down) is stored as SQL NULL, not JSON null.
         quality: (result.quality as unknown as Prisma.InputJsonValue) ?? undefined,

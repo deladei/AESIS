@@ -640,6 +640,7 @@ describe('AI enrichment (Path 2)', () => {
   const goodResult: EnrichmentResult = {
     // The word-list floor, i.e. what a v1 engine or an unreachable Groq yields.
     classifier: 'keywords',
+    summarizer: 'template',
     model_name: 'test-model/v1',
     relevance: 0.9,
     summary: { headline: 'looks good', themes: ['software_engineering'], activity_relevance: [], concerns: [] },
@@ -673,6 +674,20 @@ describe('AI enrichment (Path 2)', () => {
     const job = await prisma.enrichmentQueue.findFirst({ where: { entryId } });
     expect(job?.status).toBe('succeeded');
     expect(job?.lockedAt).toBeNull();
+  });
+
+  itdb('records which path produced the assessment, not just the assessment', async () => {
+    // The engine reports whether the model or the fallback did the work. Those
+    // flags were validated and then dropped, so a degraded signal was stored
+    // indistinguishably from the real one — and "how often is the engine up?"
+    // could only be answered from logs that roll.
+    const entryId = await submitFreshWeek(39);
+    expect(await processOne(okEnrich)).toBe(true);
+
+    const [assessment] = await prisma.aiAssessment.findMany({ where: { entryId } });
+    const summary = assessment.summary as { headline: string; provenance: unknown };
+    expect(summary.headline).toBe('looks good');
+    expect(summary.provenance).toEqual({ classifier: 'keywords', summarizer: 'template' });
   });
 
   itdb('enrichment never mutates logbook_entry.status', async () => {
@@ -811,6 +826,7 @@ describe('AI enrichment (Path 2)', () => {
 describe('placement finalization', () => {
   const okSummary: PlacementSummaryResult = {
     model_name: 'test-xweek/v1',
+    summarizer: 'template',
     summary: { headline: 'solid placement', themes: ['software_engineering'], week_count: 1, recommendations: [] },
   };
   const okSummarize: SummarizeFn = async () => okSummary;

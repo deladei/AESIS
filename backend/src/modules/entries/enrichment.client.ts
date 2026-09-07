@@ -73,6 +73,14 @@ export const enrichmentResponseSchema = z.object({
    * answerable from the data rather than from logs.
    */
   classifier: z.enum(['model', 'keywords']).default('keywords'),
+  /**
+   * Which path wrote `summary.headline`: `model` when the week was narrated,
+   * `template` when it fell back to the count-based sentence ("5 activities
+   * logged; 4 clearly CS-relevant").
+   *
+   * Defaulted rather than required so an older AI-engine deploy still parses.
+   */
+  summarizer: z.enum(['model', 'template']).default('template'),
   relevance: z.number().min(0).max(1),
   summary: z.object({
     headline: z.string(),
