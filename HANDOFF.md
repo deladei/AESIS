@@ -1980,7 +1980,7 @@ Same pattern as S41's flag columns. Do this **before/while** Render finishes bui
 **Stopped here — next session should**
 1. **Celery worker NOT recreated.** Active enrichment + chatbot work without it (synchronous HTTP). Only the **legacy** `analyze_logbook`/`compute_risk` Celery queues need it. Create it later if legacy risk/analysis is wanted: Docker, Root `ai`, dockerCommand `celery -A tasks.celery_app worker --loglevel=info -Q analysis,risk --concurrency=2`, same env (`POSTGRES_DSN`/`MONGO_URI`/`AI_API_KEY`/`REDIS_URL`/`CELERY_BROKER_URL`).
 2. **Engine reports `environment: development`** (cosmetic — `ENVIRONMENT` var unset on the service). Set `ENVIRONMENT=production` if you want clean logs/flags.
-3. **🔐 ROTATE SECRETS** — Neon password (`npg_wud75URGckaY`), Mongo user pw, and the `5324…` AI key were pasted into a chat session. Rotate when the pilot is stable; update both backend + engine after.
+3. **🔐 ROTATE SECRETS** — the Neon password (redacted S101; it was written out here in full and is still recoverable from this file's git history — see the S101 entry), the Mongo user password, and the AI key were pasted into a chat session. Rotate when the pilot is stable; update both backend + engine after.
 4. **render.yaml drift vs reality:** the live engine uses Upstash for `REDIS_URL`/`CELERY_BROKER_URL`, but render.yaml wires them `fromService: aesis-redis` (managed, may not exist). A future blueprint sync would repoint them. Reconcile render.yaml to Upstash, or stand up `aesis-redis` and migrate, before ever running a blueprint apply.
 5. Standing infra debt unchanged: Prisma migration-history reconciliation (S41); pilot still on free/suspendable tiers (Render free backend, Upstash free).
 
@@ -4158,6 +4158,22 @@ applied, 0 genuinely unfinished. The single flagged row,
 recovery) and `applied_steps_count = 0`, which is the correct resolved state;
 `migrate deploy` skips rolled-back rows. All four S100 migrations plus
 `20260907120000_knowledge_passages` are present and finished.
+
+### 🔴 Credential exposure — the Neon password is in this repo's git history
+
+A scan run this session found the **Neon database password written out in full in
+this file**, at the S46/S47 "ROTATE SECRETS" line, committed in `0017d41` in June
+and pushed ever since. The working copy is redacted as of S101, but **redaction does
+not remove it from git history** — anyone with repo access can still recover it with
+`git log -S`.
+
+The right remedy is not a history rewrite: it is to **delete the Neon project**,
+which makes the credential worthless. That was already a carried item; this makes it
+the priority. Do it only after `POSTGRES_DSN` has been moved to Supabase, since the
+AI engine is still pointed at Neon.
+
+The Supabase password was checked against the working tree and the full git history
+and appears in **neither**.
 
 ### 🔴 Rotate both database passwords
 
