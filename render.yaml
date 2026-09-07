@@ -107,11 +107,28 @@ services:
       # unset (the cosmetic env:development the engine showed since S47).
       - key: ENVIRONMENT
         value: production
-      # NOTE: the FastAPI code reads POSTGRES_DSN (ai/config/database.py),
-      # NOT DATABASE_URL. Point this at the Neon string (same value as the
-      # backend's DATABASE_URL) in the dashboard. See HANDOFF S45.
+      # The FastAPI code reads POSTGRES_DSN (ai/config/database.py), NOT
+      # DATABASE_URL. It must be the SAME database as the backend's
+      # DATABASE_URL: the assistant's corpus lives in `knowledge_passage`, and
+      # that table is created by the backend's `prisma migrate deploy`.
+      #
+      # This is now COPIED from the backend rather than set independently,
+      # because two dashboard variables that must match and are edited
+      # separately will eventually stop matching. They did: S46 pointed this at
+      # Neon, S88 moved prod to Supabase and repointed only the backend, and
+      # from then until S101 the engine read a database with no corpus table in
+      # it. Nothing surfaced — /health stayed 200 and the assistant just said it
+      # could not help.
+      #
+      # If a blueprint sync cannot resolve `fromService` against a `sync:false`
+      # variable on the other service, fall back to `sync: false` here and set
+      # it by hand — but then re-read the paragraph above, because that is the
+      # exact arrangement that broke.
       - key: POSTGRES_DSN
-        sync: false
+        fromService:
+          type: web
+          name: aesis-backend
+          envVarKey: DATABASE_URL
       - key: MONGO_URI
         sync: false
       # FastAPI validates the inbound x-api-key against env AI_API_KEY
@@ -141,8 +158,13 @@ services:
 # blueprint sync would override the live Upstash URL with an empty Render
 # instance. See HANDOFF S47/S82.
 #
-# NOTE (Session 45): the prod Postgres is now a FREE Neon instance (external,
-# non-expiring) — host ep-autumn-waterfall-a6nt7o2h.us-west-2.aws.neon.tech.
-# It is NOT a Render-managed resource, so there is no `databases:` block. Each
-# service's DATABASE_URL / POSTGRES_DSN is set in the dashboard (sync:false).
-# The old Render-managed aesis-postgres-2 expired and is gone; do not re-add it.
+# NOTE: the prod Postgres is a free SUPABASE instance (external), cut over in
+# S88 after Neon ran out of compute-hours — see the DATABASE_URL comment on the
+# backend for the exact connection-string requirements. It is NOT a
+# Render-managed resource, so there is no `databases:` block, and the old
+# Render-managed aesis-postgres-2 expired long ago; do not re-add it.
+#
+# The AI engine's POSTGRES_DSN is copied from the backend above rather than set
+# on its own. This block used to say "point POSTGRES_DSN at the Neon string",
+# and it went on saying it for three months after prod left Neon — which is how
+# the engine ended up reading a dead database. One source, not two.

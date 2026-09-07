@@ -3999,3 +3999,154 @@ Light mode has never been swept, there is no narrow-viewport pass, and the
 harness only navigates — no form submits, no dialogs opened. The AI writing
 assist and the 10-draft generator both need the AI engine running to do anything
 (`docker start aesis_ai`); both fail open.
+
+---
+
+## S101 — 2026-09-07 · The AI engine stops guessing: grounded, classified, narrated, assessed
+
+Four AI items were on the list (`#4` RAG grounding, `#1` competency, `#2` summaries,
+`#3` quality). All four are in. The theme running through them: **every one of these
+features already claimed to do something it was not doing**, and in each case the
+claim was checkable and nobody had checked it.
+
+### The corpus was reading the wrong database (root cause found, fix is yours)
+
+`GET /api/v1/ai/health` reported `{"engine":true,"knowledge":null}` after the S100
+work. `null` meant "the call failed", which reduces to "no idea" by the time it
+reaches a status dot, so the engine's keyless `/health` now carries the corpus and
+says why it is empty. It answered immediately:
+
+```json
+"knowledge": {
+  "passages": 0,
+  "database": "neon.tech",
+  "boot": "failed: UndefinedTableError: relation \"knowledge_passage\" does not exist"
+}
+```
+
+**The AI engine is still pointed at Neon.** S46 set its `POSTGRES_DSN` to the Neon
+string; S88 moved prod to Supabase and repointed **only the backend's**
+`DATABASE_URL`. Two dashboard variables that must match, edited separately, with a
+render.yaml comment that went on saying "point this at Neon" for three months. The
+backend's `prisma migrate deploy` therefore created `knowledge_passage` on Supabase
+while the engine looked for it on Neon.
+
+Blast radius is contained: `grep` confirms the corpus is the **only** thing the AI
+engine reads from Postgres. Enrichment, the writing assist, feedback drafts and chat
+history are all unaffected.
+
+**⚠️ USER ACTION — Render dashboard, cannot be done from this box:**
+1. `aesis-backend` → Environment → copy `DATABASE_URL`.
+2. `aesis-ai-engine` → Environment → set `POSTGRES_DSN` to that exact value.
+3. Save. Boot ingest is idempotent, so the restart populates the corpus by itself.
+4. Verify: `curl -s https://aesis-ai-engine.onrender.com/health` → `"database":
+   "supabase.com"` and a non-zero `passages`.
+
+**So it cannot drift again:** `render.yaml` now copies `POSTGRES_DSN` from the
+backend's `DATABASE_URL` via `fromService`, and the keepalive workflow raises a
+GitHub Actions **warning** (not a failure — an empty corpus is not a dead engine)
+whenever the assistant has nothing to cite. Note the blueprint change only bites on
+a blueprint sync; it does not fix today's value.
+
+### A real bug the diagnosis exposed
+
+`services/chatbot.py:62` called `knowledge.retrieve()` unguarded. The missing table
+raised **out of the chat stream**, the engine 500'd, and the backend showed the
+assistant as unavailable. A corpus that cannot be read is now an honest "I don't
+know" — which the caller already handled — not an outage. Startup pool warm-up is
+guarded for the same reason: enrichment and the drafts are stateless Groq calls that
+need no database.
+
+### #1 Competency — a closed taxonomy instead of ~70 words
+
+`services/competency.py`. The keyword classifier could only see a competency if the
+student used one of its words: "wrote a recursive-descent parser" scored as
+off-topic, "had a meeting about the code review" scored as solidly technical. It was
+measuring vocabulary overlap and reporting it as relevance. The model now judges the
+work against nine fixed keys; off-taxonomy tags are dropped, relevance clamped,
+hallucinated indices rejected. Falls open to the word list.
+
+### #2 Summaries — the model narrates, the code counts
+
+`services/summary.py`. Before: `"5 activities logged; 4 clearly CS-relevant."` and
+`"6 acknowledged weeks, 31 activities; strongest areas: data, testing_quality."`
+Counting templates wearing the word "summary" — they restate the table directly
+above them.
+
+**The division of labour is the design.** Every number, every taxonomy theme and
+every fact-derived concern is still computed deterministically and passed *in*. The
+model gets no arithmetic to do and no vocabulary to choose from, so it cannot
+produce a summary whose figures disagree with the table beside it — the failure mode
+that makes an AI summary worse than none.
+
+"Never implies a grade" is enforced on the way out, not merely requested in the
+prompt: an evaluative headline is **refused outright** rather than sanitised, since a
+model that graded the week answered a different question. The guard is deliberately
+narrow — `passing`/`failing` are **not** banned, because "traced the failing
+integration tests" is ordinary CS prose and blocking it would trade the feature for
+a word.
+
+### #3 Quality — reading the entry instead of measuring it
+
+`services/quality.py`. The rubric scorer did not assess quality:
+
+| Dimension | What it actually scored |
+|---|---|
+| Task depth | 40 pts for 200 words, 20 for 5 sentences, 20 for avg sentence ≥15 words, 20 for 5 numbers |
+| Reflection | 50 pts for 150 words, 50 for matching `\bi (learned\|discovered)\b` — the phrase, not the learning |
+| Temporal consistency | 100 pts for 4 hits on {monday, then, after, finally, began} — a writing-tic detector |
+| Tech vocab | keyword density over a fixed list |
+
+Every dimension was a proxy a student could satisfy without doing the work, and fail
+while doing it. Padding maxed task depth; a precise 60-word account of real
+engineering could not pass ~35. The model now scores each dimension **with a
+one-clause evidence statement**, rendered under the bar in `EntryReview` — a score
+that cannot be interrogated can only be accepted or ignored.
+
+Code still bounds and composes: dimensions clamped to [0,100], `overall` computed
+from the four by the existing weights rather than asked for, flags a closed
+vocabulary. A dimension that is not a readable number invalidates the **whole**
+assessment rather than defaulting to 0 — a fabricated zero would show a supervisor a
+failing dimension the model never judged.
+
+### Errors & fixes
+
+| Error | Fix |
+|---|---|
+| Corpus empty in prod, reported as `knowledge: null` | Root cause: engine on Neon, table on Supabase. Health now reports the reason; dashboard fix is the user's |
+| `retrieve()` unguarded → missing table killed the whole chat stream | Fail-soft to an empty result, which already meant "I don't know" |
+| `count_cs_keywords` used `if kw in text` with `"r"`, `"go"`, `"ci"` in the vocabulary | Whole-term regex. An admin-only week scored **0.348 CS-relevance, unflagged**, on the strength of containing the letter *r*; now 0.0 and flagged |
+| Flag dedupe never ran — comprehension tested membership of the list it was building | Explicit loop; test pinned it |
+| `\b` after `%` can never match, so the evaluative guard let every percentage through | Numeric alternatives anchored separately |
+| `classifier` validated then dropped — degraded signal stored as if it were the model's | Provenance (`classifier`/`summarizer`/`scorer`) rides inside the summary JSON. No migration |
+| **My own regression:** four sequential Groq calls, ~95s worst case vs a 45s abort | Three independent calls under one `asyncio.gather`; enrichment gets its own `AI_ENRICHMENT_TIMEOUT_MS = 90s`, interactive paths keep 45s |
+| Test fixture week 38 collided with an existing test | Week 39 |
+
+### Also
+
+`docs/STACK.md` — every tool in the system, where it lives and what it does, verified
+against the manifests rather than written from memory. Records the things a
+dependency list hides: `pymongo` is pinned because motor 3.4 crashes at boot against
+≥4.17, `torch` is pinned `+cpu` or pip pulls 3–5 GB of CUDA wheels, `clsx` is
+declared in the backend and referenced nowhere, and the `AWS_*` env vars predate
+Cloudinary.
+
+### State
+
+**854 backend tests (59/59 suites), 150 AI tests, 2 skipped.** Both typechecks clean,
+frontend build green. Commits: `b20ed91`, `50cb8b0`, `14def77`, `b99a540`, `2be954c`,
+`0375945`.
+
+### Stopped here — next session should
+
+1. **Do the `POSTGRES_DSN` dashboard edit above**, then confirm the assistant cites a
+   section. Until then the corpus half of the RAG is still empty in prod.
+2. **Verify the model paths are actually running in prod**, not silently falling back.
+   Submit an entry and read the persisted `summary.provenance` — it should say
+   `{classifier: "model", summarizer: "model", scorer: "model"}`. Anything `keywords`
+   / `template` / `rubric` means Groq is not answering.
+3. The four S100 migrations still want a prod `_prisma_migrations` check (S87 blind
+   spot; see `RUNBOOK.md`).
+4. Carried and still open: rotate the Supabase DB password (burned since S88), delete
+   the dead Neon project, and settle `SYSTEM_MAX_WEEKS = 6` vs the 24-week cohort
+   config — that one is a decision, not an oversight.

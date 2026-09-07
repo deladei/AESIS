@@ -63,10 +63,33 @@ jobs:
         run: |
           url="https://aesis-ai-engine.onrender.com/health"
           for i in 1 2 3 4 5; do
-            code=$(curl -sS -o /dev/null -m 240 -w '%{http_code}' "$url" || echo 000)
+            code=$(curl -sS -o /dev/null -m 240 -w '%{http_code}' -D /tmp/h "$url" || echo 000)
             echo "attempt $i → HTTP $code"
             [ "$code" = "200" ] && { echo "ai engine healthy"; exit 0; }
             sleep 15
           done
           echo "ai engine did not return 200 after retries"
           exit 1
+
+      # The engine answering 200 does not mean the assistant can answer a
+      # question. Its corpus lives in Postgres behind POSTGRES_DSN, which is a
+      # SEPARATE dashboard variable from the backend's DATABASE_URL — and when
+      # prod moved off Neon only the backend was repointed, so the engine spent
+      # the interval reading a database that has no knowledge_passage table.
+      # Nothing surfaced: /health was 200 throughout and the assistant simply
+      # said it could not help.
+      #
+      # A warning, not a failure: the keepalive's job is to keep the service
+      # awake, and an empty corpus must not be reported as a dead engine.
+      - name: Warn if the assistant has no corpus to cite
+        run: |
+          body=$(curl -sS -m 60 https://aesis-ai-engine.onrender.com/health || echo '{}')
+          passages=$(printf '%s' "$body" | python3 -c \
+            'import json,sys; print((json.load(sys.stdin).get("knowledge") or {}).get("passages", 0))' \
+            2>/dev/null || echo 0)
+          if [ "$passages" -gt 0 ] 2>/dev/null; then
+            echo "corpus healthy: $passages passages"
+          else
+            echo "::warning::AI assistant has NO knowledge corpus - it cannot answer from the regulations."
+            printf '%s\n' "$body"
+          fi
