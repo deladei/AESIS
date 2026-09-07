@@ -581,12 +581,35 @@ model Message {
   placement   Placement @relation(fields: [placementId], references: [id], onDelete: Cascade)
   senderId    String    @map("sender_id")
   sender      User      @relation("MessageSender", fields: [senderId], references: [id])
+  /// Empty is allowed when the message carries an attachment — sending a file
+  /// with no caption is a normal thing to do.
   body        String
   readAt      DateTime? @map("read_at")
   createdAt   DateTime  @default(now()) @map("created_at")
 
+  attachments MessageAttachment[]
+
   @@index([placementId, createdAt])
   @@map("messages")
+}
+
+/// A file sent in a mentorship thread. Same storage path and limits as
+/// `EntryAttachment` — one upload mechanism, not two.
+model MessageAttachment {
+  id           String         @id @default(uuid())
+  messageId    String         @map("message_id")
+  message      Message        @relation(fields: [messageId], references: [id], onDelete: Cascade)
+  fileUrl      String         @map("file_url")
+  publicId     String         @map("public_id")
+  fileName     String         @map("file_name")
+  fileSize     Int            @map("file_size")
+  mimeType     String         @map("mime_type")
+  kind         AttachmentKind
+  uploadedById String         @map("uploaded_by_id")
+  uploadedAt   DateTime       @default(now()) @map("uploaded_at")
+
+  @@index([messageId])
+  @@map("message_attachment")
 }
 
 // ─────────────────────────────────────────────

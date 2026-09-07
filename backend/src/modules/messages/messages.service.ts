@@ -66,6 +66,12 @@ export async function listThread(actor: Actor, placementId: string) {
       readAt: true,
       senderId: true,
       sender: { select: { firstName: true, lastName: true, role: true } },
+      attachments: {
+        select: {
+          id: true, fileUrl: true, fileName: true, fileSize: true,
+          mimeType: true, kind: true,
+        },
+      },
     },
   });
 
@@ -86,12 +92,29 @@ export async function listThread(actor: Actor, placementId: string) {
     senderName: `${m.sender.firstName} ${m.sender.lastName}`.trim(),
     senderRole: m.sender.role,
     mine: m.senderId === actor.id,
+    attachments: m.attachments,
   }));
 }
 
-export async function postMessage(actor: Actor, placementId: string, body: string) {
+export interface OutgoingAttachment {
+  fileUrl: string;
+  publicId: string;
+  fileName: string;
+  fileSize: number;
+  mimeType: string;
+  kind: 'image' | 'document';
+}
+
+export async function postMessage(
+  actor: Actor,
+  placementId: string,
+  body: string,
+  attachments: OutgoingAttachment[] = [],
+) {
   const trimmed = body.trim();
-  if (!trimmed) throw new AppError(400, 'Message cannot be empty');
+  // A file with no caption is a normal thing to send, so an empty body is only
+  // an error when there is nothing else in the message.
+  if (!trimmed && attachments.length === 0) throw new AppError(400, 'Message cannot be empty');
   if (trimmed.length > 4000) throw new AppError(400, 'Message is too long (max 4000 characters)');
 
   const placement = await loadThreadPlacement(placementId);
@@ -100,13 +123,26 @@ export async function postMessage(actor: Actor, placementId: string, body: strin
   }
 
   const created = await prisma.message.create({
-    data: { placementId, senderId: actor.id, body: trimmed },
+    data: {
+      placementId,
+      senderId: actor.id,
+      body: trimmed,
+      attachments: attachments.length
+        ? { create: attachments.map(a => ({ ...a, uploadedById: actor.id })) }
+        : undefined,
+    },
     select: {
       id: true,
       body: true,
       createdAt: true,
       senderId: true,
       sender: { select: { firstName: true, lastName: true, role: true } },
+      attachments: {
+        select: {
+          id: true, fileUrl: true, fileName: true, fileSize: true,
+          mimeType: true, kind: true,
+        },
+      },
     },
   });
 
@@ -126,7 +162,13 @@ export async function postMessage(actor: Actor, placementId: string, body: strin
   if (placement.academicSupervisorId) recipientIds.add(placement.academicSupervisorId);
   recipientIds.delete(actor.id);
 
-  const snippet = trimmed.length > 140 ? `${trimmed.slice(0, 137)}…` : trimmed;
+  // The notification has to say something even when the message is a bare file.
+  const fileNote = attachments.length
+    ? `${attachments.length} attachment${attachments.length === 1 ? '' : 's'}`
+    : '';
+  const snippet = trimmed
+    ? (trimmed.length > 140 ? `${trimmed.slice(0, 137)}…` : trimmed)
+    : fileNote;
   for (const userId of recipientIds) {
     await createNotification({
       userId,
@@ -161,5 +203,6 @@ export async function postMessage(actor: Actor, placementId: string, body: strin
     senderName,
     senderRole: created.sender.role,
     mine: true,
+    attachments: created.attachments,
   };
 }
