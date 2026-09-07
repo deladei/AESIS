@@ -756,7 +756,8 @@ describe('AI enrichment (Path 2)', () => {
         },
       ],
     },
-    feedback_draft: { text: 'Solid API work this week.', model: 'llama-3.1-8b-instant' },
+    // `alternatives: []` is the v1-engine shape — one draft, no choices.
+    feedback_draft: { text: 'Solid API work this week.', alternatives: [], model: 'llama-3.1-8b-instant' },
   };
 
   itdb('persists v2 report fields; getEntry redacts plagiarism + draft for the student', async () => {

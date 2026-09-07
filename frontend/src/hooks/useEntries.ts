@@ -80,6 +80,8 @@ export interface PlagiarismReport {
 
 // Draft for the supervisor to edit before sending — never auto-sent.
 export interface FeedbackDraft {
+  /** Further drafts to choose between; empty from a v1 engine. */
+  alternatives?: string[];
   text: string;
   model: string;
 }

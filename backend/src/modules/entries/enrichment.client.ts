@@ -52,6 +52,9 @@ const plagiarismReportSchema = z.object({
 // unconfigured/down. Never sent to a student as-is.
 const feedbackDraftSchema = z.object({
   text: z.string().min(1),
+  // Further drafts to choose between. Optional so a v1 engine, which returns
+  // only `text`, still parses.
+  alternatives: z.array(z.string().min(1)).max(20).default([]),
   model: z.string().min(1),
 });
 

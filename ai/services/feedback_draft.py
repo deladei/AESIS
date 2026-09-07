@@ -23,18 +23,36 @@ DRAFT_TIMEOUT_S = 20.0
 MAX_DRAFT_CHARS = 1_200
 MAX_CONTEXT_CHARS = 4_000
 
-SYSTEM_PROMPT = """You draft weekly logbook feedback for an academic supervisor \
-overseeing a computer-science internship in Ghana. Write 2-4 sentences of \
-constructive, specific feedback addressed directly to the student ("you"), \
-based only on what they logged. Acknowledge something concrete they did well, \
-then give one or two actionable suggestions drawn from the rubric hints. \
+# How many alternatives to offer. One draft made the feature a coin flip: take
+# it or write your own. A supervisor reviewing a cohort wants to pick a tone,
+# not accept a sentence.
+DRAFT_COUNT = 10
+
+SYSTEM_PROMPT = f"""You draft weekly logbook feedback for an academic supervisor \
+overseeing a computer-science internship in Ghana.
+
+Write {DRAFT_COUNT} DIFFERENT drafts. Each is 2-4 sentences of constructive, \
+specific feedback addressed directly to the student ("you"), based only on what \
+they logged. Acknowledge something concrete they did well, then give one or two \
+actionable suggestions drawn from the rubric hints.
+
+Vary them meaningfully — different opening, different emphasis, different \
+register (warm, plain, brisk) — so the supervisor is choosing between real \
+alternatives rather than rewordings.
+
 Never mention grades, marks, scores, percentages, passing or failing. Never \
-mention that AI or a rubric was involved. Do not invent activities that are \
-not in the log. Plain text only, no headings, no bullet points."""
+mention that AI or a rubric was involved. Do not invent activities that are not \
+in the log.
+
+Output EXACTLY {DRAFT_COUNT} drafts, one per line, each prefixed with "---". No \
+headings, no numbering, no bullet points, no blank lines within a draft."""
 
 
 class FeedbackDraft(BaseModel):
+    """`text` is the first draft — kept so older clients and the stored JSONB
+    shape keep working. `alternatives` carries the rest."""
     text: str
+    alternatives: list[str] = []
     model: str
 
 
@@ -88,17 +106,40 @@ async def draft_feedback(
                             ),
                         },
                     ],
-                    "temperature": 0.4,
-                    "max_tokens": 400,
+                    "temperature": 0.7,
+                    "max_tokens": 2_000,
                     "stream": False,
                 },
             )
             resp.raise_for_status()
             data = resp.json()
-            text = (data.get("choices") or [{}])[0].get("message", {}).get("content", "")
-            text = (text or "").strip()
-            if not text:
+            raw = (data.get("choices") or [{}])[0].get("message", {}).get("content", "")
+            drafts = _split_drafts(raw or "")
+            if not drafts:
                 return None
-            return FeedbackDraft(text=text[:MAX_DRAFT_CHARS], model=settings.GROQ_MODEL)
+            return FeedbackDraft(
+                text=drafts[0],
+                alternatives=drafts[1:],
+                model=settings.GROQ_MODEL,
+            )
     except Exception:
         return None  # fail-open: enrichment proceeds without a draft
+
+
+def _split_drafts(raw: str) -> list[str]:
+    """Split the completion into individual drafts.
+
+    The model is asked for `---`-prefixed lines, but a model that ignores the
+    format must not cost the supervisor the whole feature — so a completion with
+    no separators falls back to being one draft.
+    """
+    lines = [ln.strip() for ln in raw.splitlines() if ln.strip()]
+    marked = [ln.lstrip("- ").strip() for ln in lines if ln.startswith("---")]
+    candidates = marked if marked else ([raw.strip()] if raw.strip() else [])
+
+    out: list[str] = []
+    for c in candidates:
+        c = c[:MAX_DRAFT_CHARS]
+        if c and c not in out:
+            out.append(c)
+    return out[:DRAFT_COUNT]

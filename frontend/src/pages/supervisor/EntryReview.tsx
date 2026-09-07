@@ -2,7 +2,7 @@ import { useState, useEffect, useMemo } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import {
   Loader2, CheckCircle2, RotateCcw, Sparkles, Clock, Inbox, AlertCircle,
-  CalendarDays, Tag, FileText,
+  CalendarDays, Tag, FileText, ChevronLeft, ChevronRight, Copy, Check,
 } from 'lucide-react';
 import {
   useReviewQueue, useEntry, useAcknowledgeEntry, useReturnEntry, useReviewStats, dayKey,
@@ -707,24 +707,11 @@ export default function EntryReview() {
                         <span className="ml-2 text-xs font-normal text-ink-secondary">Required to return</span>
                       </label>
                       {draft && (
-                        <div className="mb-2 rounded-lg border border-brand bg-surface-sunken p-3">
-                          <p className="mb-1 flex items-center gap-1.5 text-xs font-semibold text-brand-ink">
-                            <Sparkles className="h-3 w-3" /> Suggested draft
-                          </p>
-                          <p className="text-xs leading-relaxed text-ink-secondary">{draft.text}</p>
-                          {comment !== draft.text && (
-                            <button
-                              type="button"
-                              onClick={() => setComment(draft.text)}
-                              className="mt-2 rounded-md border border-line bg-surface px-2.5 py-1 text-xs font-semibold text-brand-ink transition-colors hover:bg-brand-soft"
-                            >
-                              Insert into feedback
-                            </button>
-                          )}
-                          <p className="mt-1.5 text-[11px] text-ink-muted">
-                            AI-drafted — review and edit before sending. The student sees only what you send.
-                          </p>
-                        </div>
+                        <DraftPicker
+                          drafts={[draft.text, ...(draft.alternatives ?? [])]}
+                          current={comment}
+                          onUse={setComment}
+                        />
                       )}
                       <textarea
                         id="comment" rows={5} value={comment}
@@ -767,6 +754,92 @@ export default function EntryReview() {
           )}
         </section>
       </div>
+    </div>
+  );
+}
+
+/**
+ * The suggested drafts.
+ *
+ * There used to be exactly one, with a single "Insert into feedback" button
+ * that overwrote whatever was in the box — take it or write your own. A
+ * supervisor working through a cohort wants to pick a tone, so the engine now
+ * returns ten and this shows them one at a time with copy, insert and append.
+ *
+ * Nothing here is sent to the student. The box below is what goes out, and it
+ * stays fully editable — the draft is a starting point, never the message.
+ */
+function DraftPicker({
+  drafts, current, onUse,
+}: { drafts: string[]; current: string; onUse: (text: string) => void }) {
+  const [i, setI] = useState(0);
+  const [copied, setCopied] = useState(false);
+
+  const total = drafts.length;
+  const text = drafts[Math.min(i, total - 1)] ?? '';
+  if (!text) return null;
+
+  const step = (by: number) => { setI((p) => (p + by + total) % total); setCopied(false); };
+
+  return (
+    <div className="mb-2 rounded-lg border border-brand bg-surface-sunken p-3">
+      <div className="mb-1.5 flex flex-wrap items-center justify-between gap-2">
+        <p className="flex items-center gap-1.5 text-xs font-semibold text-brand-ink">
+          <Sparkles className="h-3 w-3" /> Suggested drafts
+        </p>
+        {total > 1 && (
+          <span className="flex items-center gap-1">
+            <button
+              type="button" onClick={() => step(-1)} aria-label="Previous draft"
+              className="grid h-6 w-6 place-items-center rounded-md border border-line bg-surface text-ink-secondary hover:text-brand-ink"
+            >
+              <ChevronLeft className="h-3.5 w-3.5" />
+            </button>
+            <span className="px-1 text-[11px] tabular-nums text-ink-muted">{i + 1}/{total}</span>
+            <button
+              type="button" onClick={() => step(1)} aria-label="Next draft"
+              className="grid h-6 w-6 place-items-center rounded-md border border-line bg-surface text-ink-secondary hover:text-brand-ink"
+            >
+              <ChevronRight className="h-3.5 w-3.5" />
+            </button>
+          </span>
+        )}
+      </div>
+
+      <p className="text-xs leading-relaxed text-ink-secondary">{text}</p>
+
+      <div className="mt-2 flex flex-wrap gap-2">
+        <button
+          type="button" onClick={() => onUse(text)} disabled={current === text}
+          className="rounded-md border border-line bg-surface px-2.5 py-1 text-xs font-semibold text-brand-ink transition-colors enabled:hover:bg-brand-soft disabled:opacity-40"
+        >
+          {current === text ? 'In the box' : 'Use this'}
+        </button>
+        <button
+          type="button"
+          onClick={() => onUse(current.trim() ? `${current.trim()}\n\n${text}` : text)}
+          className="rounded-md border border-line bg-surface px-2.5 py-1 text-xs font-semibold text-ink-secondary transition-colors hover:text-brand-ink"
+        >
+          Append
+        </button>
+        <button
+          type="button"
+          onClick={async () => {
+            try {
+              await navigator.clipboard.writeText(text);
+              setCopied(true);
+            } catch { /* clipboard blocked — the text is selectable anyway */ }
+          }}
+          className="inline-flex items-center gap-1 rounded-md border border-line bg-surface px-2.5 py-1 text-xs font-semibold text-ink-secondary transition-colors hover:text-brand-ink"
+        >
+          {copied ? <Check className="h-3 w-3 text-ok" /> : <Copy className="h-3 w-3" />}
+          {copied ? 'Copied' : 'Copy'}
+        </button>
+      </div>
+
+      <p className="mt-1.5 text-[11px] text-ink-muted">
+        AI-drafted — review and edit before sending. The student sees only what you send.
+      </p>
     </div>
   );
 }
