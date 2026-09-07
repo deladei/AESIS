@@ -5,6 +5,7 @@ import httpx
 from config.settings import settings
 from config.database import get_motor_db
 from services import knowledge
+from services.chatbot import ChatbotService
 
 # When this process started. An env-var change on Render is supposed to restart
 # the service, and when it appears not to have taken effect the first question is
@@ -62,6 +63,9 @@ async def health():
         "environment": settings.ENVIRONMENT,
         "startedAt": _STARTED_AT.isoformat(),
         "uptimeSeconds": int((datetime.now(timezone.utc) - _STARTED_AT).total_seconds()),
+        # Why the last chat turn failed, if one did. Cleared by nothing: a stale
+        # entry with an old timestamp is still the most recent evidence there is.
+        "lastChatFailure": ChatbotService.last_failure,
         "knowledge": {
             "passages": corpus["passages"],
             "sources":  [s["source"] for s in corpus["sources"]],

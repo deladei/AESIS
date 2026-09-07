@@ -15,11 +15,18 @@ they came from so an answer can cite it, and retrieving nothing means the model
 is told to say so rather than to improvise.
 """
 import json
+from datetime import datetime, timezone
 from typing import AsyncIterator
 import httpx
 from sentence_transformers import SentenceTransformer
 
 from config.settings import settings
+
+_UNAVAILABLE = (
+    "I'm currently unable to reach the language model service. "
+    "Please try again in a moment. If the problem persists, "
+    "your supervisor and coordinator are available to help."
+)
 
 SYSTEM_PROMPT = """You are AESIS Assistant, the internship support assistant for a Computer Science department in Ghana.
 
@@ -50,6 +57,13 @@ class ChatbotService:
             self.embedder = SentenceTransformer(settings.EMBEDDING_MODEL)
         except Exception as e:
             print(f"[chatbot] Failed to load embedding model: {e}")
+
+    # Why the last chat turn failed. The fallback the student sees is
+    # deliberately vague, and this service's logs are not readable from
+    # anywhere the person debugging it usually is, so the status code was
+    # simply lost — "unable to reach the language model service" covers a
+    # rate limit, a rejected payload and a dead network equally well.
+    last_failure: dict[str, str] | None = None
 
     async def chat(self, session_id: str, user_message: str, history: list[dict]) -> AsyncIterator[str]:
         """
@@ -125,12 +139,32 @@ class ChatbotService:
                         except json.JSONDecodeError:
                             continue
 
-        except (httpx.ConnectError, httpx.TimeoutException, httpx.HTTPStatusError):
-            yield (
-                "I'm currently unable to reach the language model service. "
-                "Please try again in a moment. If the problem persists, "
-                "your supervisor and coordinator are available to help."
-            )
+        except httpx.HTTPStatusError as e:
+            # Groq puts the actual reason in the body — a rate limit, a model
+            # that no longer exists, a rejected message shape. Read it: on a
+            # streaming response it has not been fetched yet.
+            try:
+                detail = (await e.response.aread()).decode("utf-8", "replace")[:300]
+            except Exception:
+                detail = ""
+            ChatbotService.last_failure = {
+                "at": datetime.now(timezone.utc).isoformat(),
+                "status": str(e.response.status_code),
+                "detail": detail,
+            }
+            print(f"[chat] groq {e.response.status_code}: {detail}")
+            yield _UNAVAILABLE
+        except Exception as e:  # noqa: BLE001
+            # Broadened deliberately: anything raising here escaped mid-stream,
+            # which reaches the student as a truncated reply rather than as an
+            # error, and left no trace at all.
+            ChatbotService.last_failure = {
+                "at": datetime.now(timezone.utc).isoformat(),
+                "status": type(e).__name__,
+                "detail": str(e)[:300],
+            }
+            print(f"[chat] {type(e).__name__}: {e}")
+            yield _UNAVAILABLE
 
 
 chatbot = ChatbotService()
