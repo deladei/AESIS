@@ -1463,7 +1463,7 @@ export async function updateActiveCohortConfig(input: {
 }) {
   const existing = await prisma.cohortConfig.findFirst({
     where:  { academicYear: { isActive: true } },
-    select: { id: true },
+    select: { id: true, academicYearId: true, durationWeeks: true },
   });
   if (!existing) throw new AppError(404, 'No cohort configuration for the active academic year');
 
@@ -1480,5 +1480,35 @@ export async function updateActiveCohortConfig(input: {
     },
     select: COHORT_CONFIG_SELECT,
   });
+
+  // Changing the attachment length moves every student's denominator — their
+  // progress bar, the weeks the logbook will accept, the compliance figure
+  // their supervisor sees. Finding out by noticing the number moved is not
+  // good enough, so say it.
+  if (input.durationWeeks !== undefined && input.durationWeeks !== existing.durationWeeks) {
+    const affected = await prisma.placement.findMany({
+      where:  { academicYearId: existing.academicYearId, placementStatus: 'active' },
+      select: { studentId: true },
+      distinct: ['studentId'],
+    }).catch(() => []);
+
+    const longer = input.durationWeeks > existing.durationWeeks;
+    for (const p of affected) {
+      await createNotification({
+        userId: p.studentId,
+        type:   'system',
+        title:  `Your attachment is now ${input.durationWeeks} weeks`,
+        body:   longer
+          ? `Your coordinator extended the programme from ${existing.durationWeeks} to ${input.durationWeeks} weeks. `
+            + 'Your logbook now accepts the additional weeks, and your progress is measured against the new length.'
+          : `Your coordinator shortened the programme from ${existing.durationWeeks} to ${input.durationWeeks} weeks. `
+            + 'Weeks you have already logged beyond that stay in your record — they simply stop counting toward progress.',
+        link:   '/student/logbook',
+        metadata: { kind: 'cohort_duration_changed', from: existing.durationWeeks, to: input.durationWeeks },
+      }).catch(() => { /* best-effort: the config change itself has committed */ });
+      emitToUser(p.studentId, 'notification:new', { kind: 'cohort_duration_changed' });
+    }
+  }
+
   return shapeCohortConfig(updated);
 }

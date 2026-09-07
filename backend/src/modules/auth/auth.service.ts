@@ -14,6 +14,8 @@ import {
   buildPasswordResetEmail,
 } from '../../shared/utils/email';
 import { createPlacement } from '../placements/placements.service';
+import { createNotification } from '../notifications/notifications.service';
+import { logger } from '../../config/logger';
 import { decryptPII, encryptPII } from '../../shared/utils/crypto';
 import {
   isCloudinaryConfigured,
@@ -84,7 +86,9 @@ export async function register(input: RegisterInput) {
   // Pre-registered class roster: if the coordinator uploaded this student
   // (matched by email or index number, unclaimed), the system already knows
   // them — link the account and skip email verification.
-  let rosterMatch: { id: string } | null = null;
+  let rosterMatch: {
+    id: string; firstName: string; lastName: string; indexNumber: string | null; email: string;
+  } | null = null;
   if (role === 'student') {
     rosterMatch = await prisma.studentRoster.findFirst({
       where: {
@@ -94,9 +98,31 @@ export async function register(input: RegisterInput) {
           ...(indexNumber ? [{ indexNumber }] : []),
         ],
       },
-      select: { id: true },
+      select: { id: true, firstName: true, lastName: true, indexNumber: true, email: true },
     });
   }
+
+  // The roster is the department's own record, so where it disagrees with the
+  // form it wins — a student typing their own name differently, or mistyping
+  // their index number, should not create a second identity the coordinator
+  // then has to reconcile by hand. The match itself is only ever made on an
+  // exact email or index number, so this cannot rename the wrong person.
+  //
+  // Every correction is recorded so nothing is silently rewritten under them.
+  const rosterCorrections: { field: string; submitted: string; roster: string }[] = [];
+  if (rosterMatch) {
+    const fix = (field: string, submitted: string, roster: string) => {
+      if (roster && submitted.trim().toLowerCase() !== roster.trim().toLowerCase()) {
+        rosterCorrections.push({ field, submitted, roster });
+      }
+    };
+    fix('firstName', firstName, rosterMatch.firstName);
+    fix('lastName', lastName, rosterMatch.lastName);
+    if (rosterMatch.indexNumber) fix('indexNumber', indexNumber ?? '', rosterMatch.indexNumber);
+  }
+  const resolvedFirstName   = rosterMatch?.firstName   || firstName;
+  const resolvedLastName    = rosterMatch?.lastName    || lastName;
+  const resolvedIndexNumber = rosterMatch?.indexNumber || indexNumber;
 
   // Auto-verify whenever we can't reliably send a verification email — i.e.
   // dev (no SMTP) or prod without SENDGRID_API_KEY. Otherwise users would
@@ -106,13 +132,13 @@ export async function register(input: RegisterInput) {
 
   const user = await prisma.user.create({
     data: {
-      firstName,
-      lastName,
+      firstName: resolvedFirstName,
+      lastName:  resolvedLastName,
       email,
       passwordHash,
       role,
       gender,
-      indexNumber,
+      indexNumber: resolvedIndexNumber,
       staffId,
       title,
       departmentId,
@@ -154,6 +180,33 @@ export async function register(input: RegisterInput) {
         data: { claimedById: user.id, claimedAt: new Date() },
       })
       .catch(() => { /* best-effort */ });
+
+    // A mismatch is worth a human's attention: it is either a typo the student
+    // made or a stale roster row. The account is created either way — blocking
+    // registration over a middle name would be worse — but the coordinator is
+    // told, with both values, so they can decide which is right.
+    if (rosterCorrections.length > 0) {
+      logger.warn('Registration differed from the class roster', {
+        userId: user.id, email, corrections: rosterCorrections,
+      });
+      const coordinators = await prisma.user.findMany({
+        where:  { role: 'coordinator' },
+        select: { id: true },
+      }).catch(() => []);
+      const detail = rosterCorrections
+        .map(c => `${c.field}: typed "${c.submitted}", roster says "${c.roster}"`)
+        .join('; ');
+      for (const c of coordinators) {
+        await createNotification({
+          userId: c.id,
+          type:   'system',
+          title:  `Roster mismatch for ${resolvedFirstName} ${resolvedLastName}`,
+          body:   `${email} registered with details that differ from the class roster. ${detail}. The roster values were used.`,
+          link:   '/coordinator/interns',
+          metadata: { kind: 'roster_mismatch', userId: user.id, corrections: rosterCorrections },
+        }).catch(() => { /* best-effort */ });
+      }
+    }
   }
 
   if (!autoVerify) {

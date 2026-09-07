@@ -888,7 +888,10 @@ describe('updateActiveCohortConfig', () => {
   });
 
   it('writes the attachment length — the field that had no endpoint at all', async () => {
-    (mp.cohortConfig.findFirst as jest.Mock).mockResolvedValue({ id: 'cc-1' });
+    (mp.cohortConfig.findFirst as jest.Mock).mockResolvedValue({
+      id: 'cc-1', academicYearId: 'ay-1', durationWeeks: 6,
+    });
+    (mp.placement.findMany as jest.Mock).mockResolvedValue([]);
     (mp.cohortConfig.update as jest.Mock).mockResolvedValue({
       id: 'cc-1', minWeeklyHours: 40, performanceThreshold: 50, durationWeeks: 5,
       academicYear: { id: 'ay-1', label: '2024/2025' },
@@ -899,6 +902,39 @@ describe('updateActiveCohortConfig', () => {
     const call = (mp.cohortConfig.update as jest.Mock).mock.calls[0][0];
     expect(call.data).toEqual({ durationWeeks: 5 });
     expect(result.durationWeeks).toBe(5);
+  });
+
+  it('tells every active student when the attachment length changes', async () => {
+    // The length is the denominator of their progress and the ceiling on what
+    // the logbook accepts. Noticing the number moved is not a notification.
+    (mp.cohortConfig.findFirst as jest.Mock).mockResolvedValue({
+      id: 'cc-1', academicYearId: 'ay-1', durationWeeks: 5,
+    });
+    (mp.placement.findMany as jest.Mock).mockResolvedValue([
+      { studentId: 'stu-1' }, { studentId: 'stu-2' },
+    ]);
+    (mp.cohortConfig.update as jest.Mock).mockResolvedValue({
+      id: 'cc-1', minWeeklyHours: 40, performanceThreshold: 50, durationWeeks: 6,
+      academicYear: { id: 'ay-1', label: '2024/2025' },
+    });
+
+    await updateActiveCohortConfig({ durationWeeks: 6 });
+
+    expect(mp.notification.create).toHaveBeenCalledTimes(2);
+  });
+
+  it('says nothing when the length is unchanged', async () => {
+    (mp.cohortConfig.findFirst as jest.Mock).mockResolvedValue({
+      id: 'cc-1', academicYearId: 'ay-1', durationWeeks: 5,
+    });
+    (mp.cohortConfig.update as jest.Mock).mockResolvedValue({
+      id: 'cc-1', minWeeklyHours: 35, performanceThreshold: 50, durationWeeks: 5,
+      academicYear: { id: 'ay-1', label: '2024/2025' },
+    });
+
+    await updateActiveCohortConfig({ durationWeeks: 5, minWeeklyHours: 35 });
+
+    expect(mp.notification.create).not.toHaveBeenCalled();
   });
 
   it('throws 404 (and never writes) when no active cohort config exists', async () => {

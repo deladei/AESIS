@@ -2,11 +2,15 @@ import bcrypt from 'bcryptjs';
 import { AppError } from '../../../middleware/errorHandler';
 
 // ── Mock all external dependencies ───────────────────────────
+jest.mock('../../notifications/notifications.service', () => ({
+  createNotification: jest.fn().mockResolvedValue({ id: 'n-1' }),
+}));
+
 jest.mock('../../../config/prisma', () => ({
   prisma: {
     academicProgramme: { findUnique: jest.fn() },
     department:        { findUnique: jest.fn() },
-    user:              { findUnique: jest.fn(), findFirst: jest.fn(), create: jest.fn(), update: jest.fn(), updateMany: jest.fn() },
+    user:              { findUnique: jest.fn(), findFirst: jest.fn(), findMany: jest.fn().mockResolvedValue([]), create: jest.fn(), update: jest.fn(), updateMany: jest.fn() },
     placement:         { findFirst: jest.fn() },
     refreshToken:      { create: jest.fn(), findFirst: jest.fn(), update: jest.fn(), updateMany: jest.fn() },
     studentRoster:     { findFirst: jest.fn(), update: jest.fn() },
@@ -51,6 +55,7 @@ jest.mock('../../../config/cloudinary', () => ({
 import { prisma } from '../../../config/prisma';
 import * as cloudinary from '../../../config/cloudinary';
 import * as authService from '../auth.service';
+import { createNotification } from '../../notifications/notifications.service';
 
 const mockCloud = cloudinary as jest.Mocked<typeof cloudinary>;
 
@@ -161,7 +166,10 @@ describe('authService.register', () => {
   it('links a class-roster row (matched by email/index) and auto-verifies the student', async () => {
     (mockPrisma.academicProgramme.findUnique as jest.Mock).mockResolvedValue(fakeProgramme);
     (mockPrisma.user.findUnique as jest.Mock).mockResolvedValue(null);
-    (mockPrisma.studentRoster.findFirst as jest.Mock).mockResolvedValue({ id: 'roster-uuid-1' });
+    (mockPrisma.studentRoster.findFirst as jest.Mock).mockResolvedValue({
+      id: 'roster-uuid-1', firstName: 'Ada', lastName: 'Okonkwo',
+      indexNumber: validInput.indexNumber, email: validInput.email,
+    });
     (mockPrisma.studentRoster.update as jest.Mock).mockResolvedValue({ id: 'roster-uuid-1' });
     (mockPrisma.user.create as jest.Mock).mockResolvedValue({
       id: 'user-uuid-1', email: validInput.email, firstName: 'Ada', lastName: 'Okonkwo', role: 'student',
@@ -187,6 +195,42 @@ describe('authService.register', () => {
       expect.objectContaining({
         where: { id: 'roster-uuid-1' },
         data: expect.objectContaining({ claimedById: 'user-uuid-1', claimedAt: expect.any(Date) }),
+      }),
+    );
+  });
+
+  it('uses the roster spelling when the student types something different', async () => {
+    // The roster is the department's record. A student typing their own name
+    // differently must not create a second identity for the coordinator to
+    // reconcile — and the match is on an exact email/index, so this can never
+    // rename the wrong person.
+    (mockPrisma.academicProgramme.findUnique as jest.Mock).mockResolvedValue(fakeProgramme);
+    (mockPrisma.user.findUnique as jest.Mock).mockResolvedValue(null);
+    (mockPrisma.studentRoster.findFirst as jest.Mock).mockResolvedValue({
+      id: 'roster-uuid-2', firstName: 'Akosua', lastName: 'Asante',
+      indexNumber: 'UEB0099', email: validInput.email,
+    });
+    (mockPrisma.studentRoster.update as jest.Mock).mockResolvedValue({ id: 'roster-uuid-2' });
+    (mockPrisma.user.findMany as jest.Mock).mockResolvedValue([{ id: 'coord-1' }]);
+    (mockPrisma.user.create as jest.Mock).mockResolvedValue({
+      id: 'user-uuid-9', email: validInput.email, firstName: 'Akosua', lastName: 'Asante', role: 'student',
+    });
+
+    await authService.register({ ...validInput, firstName: 'Akos', lastName: 'Asanti' });
+
+    expect(mockPrisma.user.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          firstName: 'Akosua', lastName: 'Asante', indexNumber: 'UEB0099',
+        }),
+      }),
+    );
+    // And the coordinator is told, with both values — a mismatch is either a
+    // typo or a stale roster row, and a human decides which.
+    expect(createNotification).toHaveBeenCalledWith(
+      expect.objectContaining({
+        userId: 'coord-1',
+        metadata: expect.objectContaining({ kind: 'roster_mismatch' }),
       }),
     );
   });
