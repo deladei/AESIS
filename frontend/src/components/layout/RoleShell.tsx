@@ -1,5 +1,6 @@
+import { useEffect, useState } from 'react';
 import { Link, useLocation } from 'react-router-dom';
-import { LogOut, Mail, Sparkles } from 'lucide-react';
+import { LogOut, Mail, PanelLeftClose, PanelLeftOpen, Sparkles } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useAuth } from '@/contexts/AuthContext';
 import { useUnreadCount } from '@/hooks/useNotifications';
@@ -36,7 +37,22 @@ interface RoleShellProps {
  * menu and the theme toggle existed only in the coordinator's copy — every role
  * gets them now.
  */
+const SIDEBAR_KEY = 'aesis-sidebar-collapsed';
+
+/** Remembered per browser, like the theme — the only other UI preference the
+ *  app persists. A failed read (private mode) just means expanded. */
+function useCollapsedSidebar() {
+  const [collapsed, setCollapsed] = useState<boolean>(() => {
+    try { return localStorage.getItem(SIDEBAR_KEY) === '1'; } catch { return false; }
+  });
+  useEffect(() => {
+    try { localStorage.setItem(SIDEBAR_KEY, collapsed ? '1' : '0'); } catch { /* ignore */ }
+  }, [collapsed]);
+  return [collapsed, setCollapsed] as const;
+}
+
 export function RoleShell({ role, user, children, topbarSlot }: RoleShellProps) {
+  const [collapsed, setCollapsed] = useCollapsedSidebar();
   const { logout } = useAuth();
   const { pathname } = useLocation();
   const { data: unreadCount = 0 } = useUnreadCount();
@@ -144,19 +160,26 @@ export function RoleShell({ role, user, children, topbarSlot }: RoleShellProps) 
 
   return (
     <div className="flex h-screen overflow-hidden bg-app text-ink">
-      <aside className="hidden w-64 shrink-0 flex-col bg-sidebar md:flex">
+      <aside
+        className={cn(
+          'hidden shrink-0 flex-col bg-sidebar transition-[width] duration-200 md:flex',
+          collapsed ? 'w-[4.5rem]' : 'w-64',
+        )}
+      >
         {/* Brand */}
-        <div className="flex items-center gap-3 px-5 py-5">
-          <span className="grid h-9 w-9 place-items-center rounded-xl bg-brand">
+        <div className={cn('flex items-center gap-3 py-5', collapsed ? 'justify-center px-3' : 'px-5')}>
+          <span className="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-brand">
             <BRAND_ICON className="h-5 w-5 text-white" />
           </span>
-          <span className="leading-tight">
-            <span className="block text-sm font-bold text-white">AESIS</span>
-            <span className="block text-[11px] text-sidebar-ink">{nav.brandSubtitle}</span>
-          </span>
+          {!collapsed && (
+            <span className="min-w-0 leading-tight">
+              <span className="block text-sm font-bold text-white">AESIS</span>
+              <span className="block truncate text-[11px] text-sidebar-ink">{nav.brandSubtitle}</span>
+            </span>
+          )}
         </div>
 
-        {identityOnTop && userCard}
+        {!collapsed && identityOnTop && userCard}
 
         {/* Nav */}
         <nav className="flex-1 space-y-1 overflow-y-auto px-3 py-2">
@@ -169,16 +192,26 @@ export function RoleShell({ role, user, children, topbarSlot }: RoleShellProps) 
                 key={item.href}
                 to={item.href}
                 aria-current={active ? 'page' : undefined}
+                // Collapsed, the label is gone, so the icon carries the name —
+                // `title` gives it back on hover and `aria-label` to a reader.
+                title={collapsed ? item.label : undefined}
+                aria-label={collapsed ? item.label : undefined}
                 className={cn(
-                  'flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition-colors',
+                  'flex items-center gap-3 rounded-xl py-2.5 text-sm font-medium transition-colors',
+                  collapsed ? 'justify-center px-2' : 'px-3',
                   active
                     ? 'bg-brand text-white shadow-card'
                     : 'text-sidebar-ink hover:bg-sidebar-hover hover:text-white',
                 )}
               >
-                <item.icon className="h-[18px] w-[18px] shrink-0" />
-                <span className="truncate">{item.label}</span>
-                {showBadge && (
+                <span className="relative shrink-0">
+                  <item.icon className="h-[18px] w-[18px]" />
+                  {collapsed && showBadge && (
+                    <span className="absolute -right-1.5 -top-1.5 h-2 w-2 rounded-full bg-danger" />
+                  )}
+                </span>
+                {!collapsed && <span className="truncate">{item.label}</span>}
+                {!collapsed && showBadge && (
                   <span className="ml-auto grid h-5 min-w-5 place-items-center rounded-full bg-danger px-1.5 text-[11px] font-bold text-white">
                     {unreadCount > 99 ? '99+' : unreadCount}
                   </span>
@@ -188,9 +221,22 @@ export function RoleShell({ role, user, children, topbarSlot }: RoleShellProps) 
           })}
         </nav>
 
-        {!identityOnTop && userCard}
-        {role !== 'student' && assistantCard}
+        {!collapsed && !identityOnTop && userCard}
+        {!collapsed && role !== 'student' && assistantCard}
 
+        <button
+          type="button"
+          onClick={() => setCollapsed((v) => !v)}
+          aria-expanded={!collapsed}
+          title={collapsed ? 'Expand the sidebar' : 'Collapse the sidebar'}
+          className={cn(
+            'm-3 mt-auto flex items-center gap-2 rounded-xl px-3 py-2.5 text-sm font-medium text-sidebar-ink transition-colors hover:bg-sidebar-hover hover:text-white',
+            collapsed && 'justify-center px-2',
+          )}
+        >
+          {collapsed ? <PanelLeftOpen className="h-[18px] w-[18px]" /> : <PanelLeftClose className="h-[18px] w-[18px]" />}
+          {!collapsed && <span>Collapse</span>}
+        </button>
       </aside>
 
       <div className="flex flex-1 flex-col overflow-hidden">

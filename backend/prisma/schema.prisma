@@ -1450,7 +1450,11 @@ model Task {
   description String?
   category    TaskCategory @default(other)
   status      TaskStatus   @default(open)
+  /// A full timestamp: a task can be due at a TIME, not only on a day. The UI
+  /// showed day granularity only, so a stored time was invisible.
   dueAt       DateTime?    @map("due_at")
+  /// How long the student expects the activity to take. Null = open-ended.
+  durationMinutes Int?     @map("duration_minutes")
   completedAt DateTime?    @map("completed_at")
   /// Deep link to what the task is about (a returned week, an approval).
   sourceType  String?      @map("source_type")

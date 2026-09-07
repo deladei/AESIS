@@ -46,7 +46,7 @@ export async function listTasks(actor: Actor, opts: { placementId?: string; assi
     orderBy: [{ status: 'asc' }, { dueAt: 'asc' }, { createdAt: 'desc' }],
     select: {
       id: true, title: true, description: true, category: true, status: true,
-      dueAt: true, completedAt: true, sourceType: true, sourceId: true, createdAt: true,
+      dueAt: true, durationMinutes: true, completedAt: true, sourceType: true, sourceId: true, createdAt: true,
       createdBy: { select: { id: true, firstName: true, lastName: true } },
     },
   });
@@ -82,6 +82,7 @@ export async function createTask(actor: Actor, input: CreateTaskInput) {
       description: input.description ?? null,
       category: input.category,
       dueAt: input.dueAt ? new Date(input.dueAt) : null,
+      durationMinutes: input.durationMinutes ?? null,
     },
   });
 }
@@ -97,7 +98,7 @@ export async function updateTask(actor: Actor, id: string, input: UpdateTaskInpu
 
   // The assignee owns the tick-box and nothing else: they may move their own
   // task's status, but not rewrite a task somebody assigned to them.
-  const contentKeys = ['title', 'description', 'category', 'dueAt'] as const;
+  const contentKeys = ['title', 'description', 'category', 'dueAt', 'durationMinutes'] as const;
   const editsContent = contentKeys.some((k) => input[k] !== undefined);
   if (editsContent && !isCreator && !isAdmin) {
     throw new AppError(403, 'Only whoever created this task can change its content');
@@ -114,6 +115,7 @@ export async function updateTask(actor: Actor, id: string, input: UpdateTaskInpu
       ...(input.category !== undefined && { category: input.category }),
       ...(input.status !== undefined && { status: input.status }),
       ...(input.dueAt !== undefined && { dueAt: input.dueAt ? new Date(input.dueAt) : null }),
+      ...(input.durationMinutes !== undefined && { durationMinutes: input.durationMinutes }),
       ...(completing && { completedAt: new Date() }),
       ...(reopening && { completedAt: null }),
     },

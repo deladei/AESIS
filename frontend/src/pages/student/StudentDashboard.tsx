@@ -66,14 +66,34 @@ const VISIT_LABEL: Record<string, string> = {
   check_in:       'Check-in',
 };
 
-function dueLabel(iso: string | null): string {
-  if (!iso) return 'No due date';
+/**
+ * "Due today at 14:30 · 45m".
+ *
+ * `dueAt` has always been a full timestamp, but this rendered day granularity
+ * only — so a student who set a time never saw it back. Midnight is treated as
+ * "no particular time", since that is what a date-only picker stores.
+ */
+function dueLabel(iso: string | null, durationMinutes?: number | null): string {
+  const span = durationMinutes ? ` · ${formatDuration(durationMinutes)}` : '';
+  if (!iso) return durationMinutes ? `No due date${span}` : 'No due date';
+
   const d = new Date(iso);
   const days = Math.round((d.getTime() - Date.now()) / 86_400_000);
-  if (days < 0) return `Overdue by ${Math.abs(days)} day${Math.abs(days) === 1 ? '' : 's'}`;
-  if (days === 0) return 'Due today';
-  if (days === 1) return 'Due tomorrow';
-  return `Due ${d.toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}`;
+  const midnight = d.getHours() === 0 && d.getMinutes() === 0;
+  const at = midnight ? '' : ` at ${d.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })}`;
+
+  if (days < 0) return `Overdue by ${Math.abs(days)} day${Math.abs(days) === 1 ? '' : 's'}${span}`;
+  if (days === 0) return `Due today${at}${span}`;
+  if (days === 1) return `Due tomorrow${at}${span}`;
+  return `Due ${d.toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}${at}${span}`;
+}
+
+/** 45 → "45m", 90 → "1h 30m", 120 → "2h". */
+function formatDuration(minutes: number): string {
+  const h = Math.floor(minutes / 60);
+  const m = minutes % 60;
+  if (h === 0) return `${m}m`;
+  return m === 0 ? `${h}h` : `${h}h ${m}m`;
 }
 
 const STATUS_LABEL: Record<string, string> = {
@@ -150,6 +170,11 @@ export default function StudentDashboard() {
   const updateTask = useUpdateTask();
   const createTask = useCreateTask();
   const [newTask, setNewTask] = useState('');
+  // Date, time and duration for the task being added. All optional — a to-do
+  // with no date is still a to-do, so the fields stay folded away until asked for.
+  const [taskWhen, setTaskWhen] = useState('');
+  const [taskMinutes, setTaskMinutes] = useState('');
+  const [showTaskDetail, setShowTaskDetail] = useState(false);
 
   // Weeks the supervisor has decided on. The comment lives on the append-only
   // event, which only the detail endpoint carries, so the three most recent are
@@ -360,31 +385,74 @@ export default function StudentDashboard() {
           {/* Adding your own task is the point — a to-do list you cannot write
               to is a notification feed with checkboxes. */}
           <form
-            className="mb-3 flex gap-2"
+            className="mb-3"
             onSubmit={(e) => {
               e.preventDefault();
               const title = newTask.trim();
               if (title.length < 3) return;
+              const minutes = Number(taskMinutes);
               createTask.mutate(
-                { title, category: 'other', placementId: active.id },
-                { onSuccess: () => setNewTask('') },
+                {
+                  title, category: 'other', placementId: active.id,
+                  // `datetime-local` has no zone; the API wants an instant.
+                  ...(taskWhen ? { dueAt: new Date(taskWhen).toISOString() } : {}),
+                  ...(Number.isFinite(minutes) && minutes >= 5 ? { durationMinutes: minutes } : {}),
+                },
+                {
+                  onSuccess: () => {
+                    setNewTask(''); setTaskWhen(''); setTaskMinutes(''); setShowTaskDetail(false);
+                  },
+                },
               );
             }}
           >
-            <input
-              value={newTask}
-              onChange={(e) => setNewTask(e.target.value)}
-              placeholder="Add a task…"
-              className="flex-1 rounded-lg border border-line bg-surface px-3 py-1.5 text-sm text-ink placeholder:text-ink-muted focus:border-brand focus:outline-none"
-            />
-            <button
-              type="submit"
-              disabled={newTask.trim().length < 3 || createTask.isPending}
-              aria-label="Add task"
-              className="grid h-8 w-8 shrink-0 place-items-center rounded-lg bg-brand text-white disabled:opacity-40"
-            >
-              {createTask.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />}
-            </button>
+            <div className="flex gap-2">
+              <input
+                value={newTask}
+                onChange={(e) => setNewTask(e.target.value)}
+                placeholder="Add a task…"
+                className="flex-1 rounded-lg border border-line bg-surface px-3 py-1.5 text-sm text-ink placeholder:text-ink-muted focus:border-brand focus:outline-none"
+              />
+              <button
+                type="button"
+                onClick={() => setShowTaskDetail((v) => !v)}
+                aria-expanded={showTaskDetail}
+                title="When and how long"
+                className="grid h-8 w-8 shrink-0 place-items-center rounded-lg border border-line text-ink-secondary transition-colors hover:border-brand hover:text-brand-ink"
+              >
+                <CalendarDays className="h-4 w-4" />
+              </button>
+              <button
+                type="submit"
+                disabled={newTask.trim().length < 3 || createTask.isPending}
+                aria-label="Add task"
+                className="grid h-8 w-8 shrink-0 place-items-center rounded-lg bg-brand text-white disabled:opacity-40"
+              >
+                {createTask.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />}
+              </button>
+            </div>
+
+            {showTaskDetail && (
+              <div className="mt-2 flex flex-wrap gap-2">
+                <label className="flex min-w-[11rem] flex-1 flex-col gap-1 text-[11px] font-medium text-ink-muted">
+                  When
+                  <input
+                    type="datetime-local" value={taskWhen}
+                    onChange={(e) => setTaskWhen(e.target.value)}
+                    className="rounded-lg border border-line bg-surface px-2.5 py-1.5 text-sm text-ink focus:border-brand focus:outline-none"
+                  />
+                </label>
+                <label className="flex w-32 flex-col gap-1 text-[11px] font-medium text-ink-muted">
+                  Minutes
+                  <input
+                    type="number" min={5} max={1440} step={5} value={taskMinutes}
+                    onChange={(e) => setTaskMinutes(e.target.value)}
+                    placeholder="e.g. 45"
+                    className="rounded-lg border border-line bg-surface px-2.5 py-1.5 text-sm text-ink placeholder:text-ink-muted focus:border-brand focus:outline-none"
+                  />
+                </label>
+              </div>
+            )}
           </form>
 
           {!taskList || taskList.tasks.length === 0 ? (
@@ -416,7 +484,7 @@ export default function StudentDashboard() {
                       <p className="text-xs text-ink-muted">
                         {done && t.completedAt
                           ? `Completed ${new Date(t.completedAt).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}`
-                          : dueLabel(t.dueAt)}
+                          : dueLabel(t.dueAt, t.durationMinutes)}
                       </p>
                     </div>
                     <Badge tone={TASK_TONE[t.category] ?? 'neutral'}>{t.category}</Badge>

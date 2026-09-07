@@ -11,6 +11,8 @@ export interface Task {
   category:    TaskCategory;
   status:      TaskStatus;
   dueAt:       string | null;
+  /** Minutes the student expects it to take; null = open-ended. */
+  durationMinutes: number | null;
   completedAt: string | null;
   sourceType:  string | null;
   sourceId:    string | null;
@@ -41,7 +43,7 @@ export function useCreateTask() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async (input: {
-      title: string; category?: TaskCategory; dueAt?: string;
+      title: string; category?: TaskCategory; dueAt?: string; durationMinutes?: number;
       description?: string; placementId?: string; assigneeId?: string;
     }) => (await api.post<{ data: Task }>('/tasks', input)).data.data,
     onSuccess: () => qc.invalidateQueries({ queryKey: KEY }),
@@ -51,7 +53,10 @@ export function useCreateTask() {
 export function useUpdateTask() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: async ({ id, ...patch }: { id: string; status?: TaskStatus; title?: string; dueAt?: string | null }) =>
+    mutationFn: async ({ id, ...patch }: {
+      id: string; status?: TaskStatus; title?: string;
+      dueAt?: string | null; durationMinutes?: number | null;
+    }) =>
       (await api.patch<{ data: Task }>(`/tasks/${id}`, patch)).data.data,
     onSuccess: () => qc.invalidateQueries({ queryKey: KEY }),
   });
