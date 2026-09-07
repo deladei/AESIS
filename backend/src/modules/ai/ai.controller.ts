@@ -4,6 +4,7 @@ import { AppError } from '../../middleware/errorHandler';
 import { env } from '../../config/env';
 import { logger } from '../../config/logger';
 import { aiEngineUrl, AI_ENGINE_TIMEOUT_MS } from '../../shared/utils/aiEngine';
+import { buildStudentContext } from './chat.context';
 
 const chatSchema = z.object({ message: z.string().min(1).max(1000) });
 
@@ -100,6 +101,12 @@ export async function chatHandler(req: Request, res: Response) {
   const userId = req.user!.sub;
   const message = parsed.data.message;
 
+  // Facts about the asker, so "how many days have I logged?" has an answer.
+  // Built from the authenticated id and only for students: a supervisor asking
+  // the assistant a question is not asking about a logbook of their own, and
+  // sending someone else's figures would be both wrong and a disclosure.
+  const context = req.user!.role === 'student' ? await buildStudentContext(userId) : '';
+
   res.setHeader('Content-Type', 'text/event-stream');
   res.setHeader('Cache-Control', 'no-cache');
   res.setHeader('Connection', 'keep-alive');
@@ -109,7 +116,7 @@ export async function chatHandler(req: Request, res: Response) {
     const upstream = await fetch(aiEngineUrl('/ai/chat'), {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'x-api-key': env.AI_ENGINE_API_KEY },
-      body: JSON.stringify({ session_id: userId, student_id: userId, message }),
+      body: JSON.stringify({ session_id: userId, student_id: userId, message, context }),
       signal: AbortSignal.timeout(AI_ENGINE_TIMEOUT_MS),
     });
     if (!upstream.ok || !upstream.body) throw new Error(`AI engine returned ${upstream.status}`);

@@ -28,16 +28,8 @@ _UNAVAILABLE = (
     "your supervisor and coordinator are available to help."
 )
 
-SYSTEM_PROMPT = """You are AESIS Assistant, the internship support assistant for a Computer Science department in Ghana.
+from services.chat_prompt import SYSTEM_PROMPT, _system_prompt  # noqa: F401
 
-Answer ONLY from the regulation extracts provided to you. They are the department's own document and they are authoritative.
-
-- If the extracts answer the question, answer plainly and name the section you used, e.g. "(Submission deadlines)".
-- If they do NOT, say you do not have that in the regulations and point the student at their academic supervisor or the programme coordinator. Do not improvise a rule, a deadline, a percentage or a penalty.
-- You have no access to any individual's marks, grades or logbook. Say so if asked.
-- Never state a rule that is not in the extracts, even if it sounds plausible.
-
-Be concise, supportive and academic in tone."""
 
 
 class ChatbotService:
@@ -65,7 +57,13 @@ class ChatbotService:
     # rate limit, a rejected payload and a dead network equally well.
     last_failure: dict[str, str] | None = None
 
-    async def chat(self, session_id: str, user_message: str, history: list[dict]) -> AsyncIterator[str]:
+    async def chat(
+        self,
+        session_id: str,
+        user_message: str,
+        history: list[dict],
+        record: str = "",
+    ) -> AsyncIterator[str]:
         """
         Stream a response token-by-token from Groq's OpenAI-compatible chat completions
         endpoint. Falls back to a static message if no API key is set or the request fails.
@@ -75,7 +73,12 @@ class ChatbotService:
         from services import knowledge  # imported here to avoid a circular import
         passages = await knowledge.retrieve(user_message)
 
-        messages = [{"role": "system", "content": SYSTEM_PROMPT}]
+        messages = [{"role": "system", "content": _system_prompt(bool(record.strip()))}]
+        if record.strip():
+            messages.append({
+                "role": "system",
+                "content": f"This student's own record:\n\n{record.strip()}",
+            })
         if passages:
             context = "\n\n".join(f"### {p.section}\n{p.content}" for p in passages)
             messages.append({

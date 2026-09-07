@@ -47,7 +47,7 @@ async def chat(
 
     async def stream_and_save():
         full_response = []
-        async for token in chatbot.chat(body.session_id, body.message, history):
+        async for token in chatbot.chat(body.session_id, body.message, history, body.context):
             full_response.append(token)
             yield token
 

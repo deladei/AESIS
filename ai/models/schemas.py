@@ -12,6 +12,11 @@ class ChatRequest(BaseModel):
     student_id: str
     message: str
     placement_id: Optional[str] = None
+    # Facts about the student asking, computed by the Node backend from the
+    # system of record and scoped to the authenticated user. Empty for staff and
+    # whenever the figures could not be built — the assistant then answers from
+    # the regulations alone, exactly as before.
+    context: str = ""
 
 
 class QualityResult(BaseModel):

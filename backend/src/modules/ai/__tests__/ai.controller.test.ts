@@ -18,6 +18,14 @@ jest.mock('../../../middleware/rateLimiter', () => ({
   aiRateLimiter: (_req: unknown, _res: unknown, next: () => void) => next(),
 }));
 
+// The student record is real data about a real person. What is under test is
+// WHO it is built for, so the builder is stubbed and its calls recorded rather
+// than hitting the dashboard query.
+const buildStudentContext = jest.fn(async (id: string) => `Current week: 3 of 6 (${id})`);
+jest.mock('../chat.context', () => ({
+  buildStudentContext: (id: string) => buildStudentContext(id),
+}));
+
 import request from 'supertest';
 import express from 'express';
 import jwt from 'jsonwebtoken';
@@ -116,6 +124,36 @@ describe('POST /ai/chat', () => {
     // No percentages, thresholds or tier rules invented locally.
     expect(res.text).not.toMatch(/\d+\s*%|0\.\d+/);
   }, 15000);
+});
+
+describe('POST /ai/chat — whose record is attached', () => {
+  beforeEach(() => buildStudentContext.mockClear());
+
+  it("builds the record from the authenticated id, never the request body", async () => {
+    await request(app)
+      .post('/ai/chat')
+      .set('Authorization', `Bearer ${token('student', 'student-real')}`)
+      // A caller naming someone else must not be able to reach their record.
+      .send({ message: 'how am I doing?', student_id: 'student-victim', context: 'injected' });
+
+    expect(buildStudentContext).toHaveBeenCalledTimes(1);
+    expect(buildStudentContext).toHaveBeenCalledWith('student-real');
+  });
+
+  it.each(['academic_supervisor', 'company_supervisor', 'coordinator', 'admin'])(
+    'attaches no student record for %s',
+    async (role) => {
+      await request(app)
+        .post('/ai/chat')
+        .set('Authorization', `Bearer ${token(role, 'staff-1')}`)
+        .send({ message: 'what are the submission rules?' });
+
+      // A supervisor asking the assistant a question is not asking about a
+      // logbook of their own; building one from their user id would attach
+      // either nothing or, worse, someone else's figures.
+      expect(buildStudentContext).not.toHaveBeenCalled();
+    },
+  );
 });
 
 describe('GET /ai/health', () => {
