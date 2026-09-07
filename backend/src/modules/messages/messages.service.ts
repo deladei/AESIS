@@ -96,6 +96,20 @@ export async function listThread(actor: Actor, placementId: string) {
   }));
 }
 
+/**
+ * Assert the actor may post here, WITHOUT writing anything.
+ *
+ * The controller needs this before it uploads: files were being pushed to
+ * Cloudinary and only then checked, so an unauthorized request still consumed
+ * storage and quota.
+ */
+export async function assertCanPost(actor: Actor, placementId: string): Promise<void> {
+  const placement = await loadThreadPlacement(placementId);
+  if (!canPost(actor, placement)) {
+    throw new AppError(403, 'You cannot post to this conversation');
+  }
+}
+
 export interface OutgoingAttachment {
   fileUrl: string;
   publicId: string;

@@ -36,11 +36,21 @@ export async function postMessageHandler(req: Request, res: Response) {
     throw new AppError(503, 'File storage is not configured on this environment');
   }
 
+  // Authorize BEFORE uploading. This used to upload first and check after, so a
+  // request for a thread the caller cannot post to still wrote its files to
+  // Cloudinary — storage and quota spent on a request that was always going to
+  // be refused.
+  await messages.assertCanPost(actorOf(req), placementId);
+
   const attachments = await Promise.all(files.map(async (file) => {
     const isImage = file.mimetype.startsWith('image/');
+    // A storage failure is the upload's fault, not the server's — a corrupt or
+    // unreadable file used to surface as a bare 500 "unexpected error".
     const uploaded = await uploadBuffer(file.buffer, {
       folder: `aesis/messages/${placementId}`,
       isImage,
+    }).catch(() => {
+      throw new AppError(400, `Could not store "${file.originalname}" — is the file valid?`);
     });
     return {
       fileUrl:  uploaded.url,
