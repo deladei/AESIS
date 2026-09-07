@@ -1,6 +1,6 @@
 name: Keep-alive
 
-# Pings the Render free-tier backend on a schedule so it never idles into a
+# Pings the Render free-tier services on a schedule so neither idles into a
 # spin-down. Render free web services sleep after ~15 min of no traffic, and
 # the next request then pays a full cold start (Node boot + migrate deploy) —
 # that is the "server starting" delay on login. ai-engine is on the paid
@@ -45,4 +45,28 @@ jobs:
             sleep 15
           done
           echo "backend did not return 200 after retries"
+          exit 1
+
+  # The AI engine is a separate Render free-tier web service and sleeps on its
+  # own clock. Pinging only the backend left it idle, so the logbook writing
+  # assist, the feedback drafts and entry enrichment were all dead on the first
+  # request of the day — each fails open, so nobody saw an error, they just
+  # quietly did nothing.
+  #
+  # A separate job, not another step: the engine being asleep must not be
+  # reported as the backend being unhealthy.
+  ping-ai:
+    name: Ping AI engine /health
+    runs-on: ubuntu-latest
+    steps:
+      - name: Wake aesis-ai-engine
+        run: |
+          url="https://aesis-ai-engine.onrender.com/health"
+          for i in 1 2 3 4 5; do
+            code=$(curl -sS -o /dev/null -m 240 -w '%{http_code}' "$url" || echo 000)
+            echo "attempt $i → HTTP $code"
+            [ "$code" = "200" ] && { echo "ai engine healthy"; exit 0; }
+            sleep 15
+          done
+          echo "ai engine did not return 200 after retries"
           exit 1
