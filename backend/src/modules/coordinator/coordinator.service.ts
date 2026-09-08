@@ -92,8 +92,9 @@ export async function getCoordinatorDashboard(opts: { academicYearId?: string } 
       p.logbookSubmissions.map(s => s.analysis?.qualityScore ?? null),
       p.logbookEntries,
     ));
+    const dueHere = weeksDue(p.startDate, weeksForYear(weeksByYear, p.academicYearId), now);
     const { attention } = deriveAttention(
-      { hasSupervisor: p.academicSupervisorId != null, submittedWeeks, overdueLogs, avgQualityScore },
+      { hasSupervisor: p.academicSupervisorId != null, submittedWeeks, overdueLogs, avgQualityScore, weeksDue: dueHere },
       threshold,
     );
     return n + (attention ? 1 : 0);
@@ -375,6 +376,13 @@ export interface AttentionInput {
   overdueLogs:    number;
   /** Validated mean quality score in [0,100], or null when nothing scorable. */
   avgQualityScore: number | null;
+  /**
+   * Weeks whose period has actually ended. Without it a student in their first
+   * week — who has had nothing to submit yet — is flagged for submitting
+   * nothing. Optional so an older caller keeps its previous behaviour rather
+   * than silently changing meaning.
+   */
+  weeksDue?: number;
 }
 
 export interface AttentionResult {
@@ -392,7 +400,10 @@ export interface AttentionResult {
 export function deriveAttention(input: AttentionInput, threshold: number): AttentionResult {
   const reasons = {
     overdueLog:   input.overdueLogs > 0,
-    zeroProgress: input.submittedWeeks === 0,
+    // Only once a week has actually come due. Someone who started on Monday
+    // has submitted nothing because there was nothing to submit, which is a
+    // start, not a risk.
+    zeroProgress: input.submittedWeeks === 0 && (input.weeksDue ?? 1) > 0,
     noSupervisor: !input.hasSupervisor,
     lowScore:     threshold > 0 && input.avgQualityScore !== null && input.avgQualityScore < threshold,
   };
@@ -466,7 +477,7 @@ export async function listStudents(filters: StudentListFilters) {
       p.logbookEntries,
     ));
     const { attention, reasons } = deriveAttention(
-      { hasSupervisor: sup != null, submittedWeeks, overdueLogs, avgQualityScore },
+      { hasSupervisor: sup != null, submittedWeeks, overdueLogs, avgQualityScore, weeksDue: due },
       threshold,
     );
     return {
@@ -661,7 +672,7 @@ export async function exportStudentsCsv(opts: { ids?: string[]; academicYearId?:
       p.logbookSubmissions.map(s => s.analysis?.qualityScore ?? null),
       p.logbookEntries,
     ));
-    const { attention } = deriveAttention({ hasSupervisor: sup != null, submittedWeeks, overdueLogs, avgQualityScore }, threshold);
+    const { attention } = deriveAttention({ hasSupervisor: sup != null, submittedWeeks, overdueLogs, avgQualityScore, weeksDue: due }, threshold);
     lines.push([
       `${p.student.firstName} ${p.student.lastName}`.trim(),
       p.student.email,

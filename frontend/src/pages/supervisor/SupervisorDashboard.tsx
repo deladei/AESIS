@@ -109,7 +109,7 @@ export default function SupervisorDashboard() {
 
   const donut = [
     { label: 'On Track',  value: onTrack,   color: 'var(--chart-1)' },
-    { label: 'At Risk',   value: atRisk,    color: 'var(--chart-2)' },
+    { label: 'Needs attention', value: atRisk, color: 'var(--chart-2)' },
     { label: 'Completed', value: completed, color: 'var(--chart-3)' },
     { label: 'Behind',    value: behind,    color: 'var(--chart-4)' },
   ].filter((d) => d.value > 0);
@@ -153,6 +153,7 @@ export default function SupervisorDashboard() {
           icon={Briefcase}
           tone="ok"
           footnote={activeShare != null ? `${activeShare}% of total` : 'No completed placements yet'}
+          action={{ label: 'See each student', to: '/supervisor/review' }}
         />
         <StatCard
           label="Reports submitted"
@@ -160,6 +161,7 @@ export default function SupervisorDashboard() {
           icon={FileText}
           tone="info"
           footnote="This month"
+          action={{ label: 'Open feedback centre', to: '/feedback' }}
         />
         <StatCard
           label="Pending reviews"
@@ -167,6 +169,7 @@ export default function SupervisorDashboard() {
           icon={ClipboardCheck}
           tone={overview.pendingReview > 0 ? 'warn' : 'ok'}
           footnote={overview.pendingReview > 0 ? 'Action required' : 'Nothing waiting'}
+          action={{ label: 'Review the queue', to: '/supervisor/review' }}
         />
         <StatCard
           label="Completed internships"
@@ -174,6 +177,7 @@ export default function SupervisorDashboard() {
           icon={Award}
           tone="done"
           footnote="Finalized"
+          action={{ label: 'Open finalization', to: '/supervisor/finalize' }}
         />
       </div>
 
@@ -252,7 +256,7 @@ export default function SupervisorDashboard() {
                   "flagged", never "will fail". It is a signal, not a forecast. */}
               <p className="text-xs text-ink-secondary">
                 <span className="font-semibold text-brand-ink">Signal:</span>{' '}
-                {atRiskShare}% of your students are flagged at risk or behind.
+                {atRiskShare}% of your students need attention or are behind.
               </p>
               <Link to="/ai-insights" className="mt-1 inline-block text-xs font-semibold text-brand-ink hover:underline">
                 View details →
@@ -459,7 +463,7 @@ export default function SupervisorDashboard() {
 
           <div className="mt-3 flex flex-wrap gap-x-5 gap-y-1.5 border-t border-line pt-3">
             <LegendDot color="var(--chart-1)" label="On Track" />
-            <LegendDot color="var(--chart-2)" label="At Risk" />
+            <LegendDot color="var(--chart-2)" label="Needs attention" />
             <LegendDot color="var(--chart-3)" label="Completed" />
             <LegendDot color="var(--chart-4)" label="Behind" />
           </div>

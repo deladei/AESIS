@@ -4,6 +4,7 @@ import {
   Loader2, CheckCircle2, RotateCcw, Sparkles, Clock, Inbox, AlertCircle,
   CalendarDays, Tag, FileText, ChevronLeft, ChevronRight, Copy, Check,
 } from 'lucide-react';
+import { useSupervisorDashboard } from '@/hooks/useDashboard';
 import {
   useReviewQueue, useEntry, useAcknowledgeEntry, useReturnEntry, useReviewStats, dayKey,
   type LogbookEntry, type EntryStatus, type QualityBreakdown, type PlagiarismReport,
@@ -82,13 +83,35 @@ const QUALITY_DIMS: { key: keyof QualityBreakdown; label: string }[] = [
   { key: 'temporal_consistency', label: 'Chronology' },
 ];
 
+// The dashboard's risk tier, named for a supervisor rather than a model.
+// 'none' is its own case: no tier is "not yet assessable", not "low risk".
+const RISK_TONE: Record<string, 'ok' | 'warn' | 'danger' | 'neutral'> = {
+  low: 'ok', medium: 'warn', high: 'danger', none: 'neutral',
+};
+const RISK_LABEL: Record<string, string> = {
+  low: 'On track', medium: 'Watch', high: 'Behind', none: 'Not yet rated',
+};
+
 const STATUS_LABEL: Record<EntryStatus, string> = {
   draft: 'Draft', submitted: 'Submitted', returned: 'Returned',
   acknowledged: 'Acknowledged',
 };
 
 export default function EntryReview() {
-  const { data: queue = [], isLoading } = useReviewQueue('submitted');
+  const { data: allQueue = [], isLoading } = useReviewQueue('submitted');
+  const { data: dash } = useSupervisorDashboard();
+  const roster = dash?.students ?? [];
+
+  // Picking a student narrows the queue rather than navigating away: the
+  // reviewer below stays on screen, so choosing a name and reading their week
+  // is one click, not a page load and a scroll back.
+  const [studentFilter, setStudentFilter] = useState<string | null>(null);
+  const queue = useMemo(
+    () => (studentFilter
+      ? allQueue.filter((e) => e.placement?.student?.id === studentFilter)
+      : allQueue),
+    [allQueue, studentFilter],
+  );
   const statsQuery = useReviewStats();
   const stats = statsQuery.data;
 
@@ -267,6 +290,103 @@ export default function EntryReview() {
             />
           )}
         </Card>
+
+        {/* The students themselves, not the weeks waiting on you. The queue
+            below answers "what is on my desk"; this answers "how is each of my
+            interns doing", which is the question a supervisor is actually asked
+            in a progress meeting. Same data the dashboard already fetches. */}
+        {roster.length > 0 && (
+          <Card padded={false} className="overflow-hidden xl:col-span-2">
+            <div className="flex items-center justify-between gap-3 border-b border-line px-5 py-4">
+              <div>
+                <h2 className="text-[15px] font-semibold text-ink">
+                  My students
+                  <span className="ml-2 rounded-full bg-brand-soft px-2 py-0.5 text-xs font-bold text-brand-ink">
+                    {roster.length}
+                  </span>
+                </h2>
+                <p className="mt-0.5 text-xs text-ink-muted">
+                  {studentFilter
+                    ? 'Showing one student’s weeks in the queue below.'
+                    : 'Pick a student to narrow the queue below to their weeks.'}
+                </p>
+              </div>
+              {studentFilter && (
+                <button
+                  type="button"
+                  onClick={() => setStudentFilter(null)}
+                  className="shrink-0 rounded-lg border border-line px-3 py-1.5 text-xs font-semibold text-ink-secondary transition-colors hover:bg-surface-sunken"
+                >
+                  Show all
+                </button>
+              )}
+            </div>
+
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b border-line text-left text-xs text-ink-muted">
+                    <th className="px-5 py-2 font-semibold">Student</th>
+                    <th className="px-3 py-2 font-semibold">Weeks</th>
+                    <th className="px-3 py-2 font-semibold">Progress</th>
+                    <th className="px-3 py-2 font-semibold">Last submitted</th>
+                    <th className="px-3 py-2 font-semibold">Avg quality</th>
+                    <th className="px-5 py-2 font-semibold">Status</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {roster.map((r) => {
+                    const on = studentFilter === r.student.id;
+                    return (
+                      <tr
+                        key={r.placementId}
+                        onClick={() => setStudentFilter(on ? null : r.student.id)}
+                        className={cn(
+                          'cursor-pointer border-b border-line/60 transition-colors',
+                          on ? 'bg-brand-soft' : 'hover:bg-surface-sunken',
+                        )}
+                      >
+                        <td className="px-5 py-2.5">
+                          <span className="flex items-center gap-2">
+                            <InitialsAvatar name={`${r.student.firstName} ${r.student.lastName}`} size={24} />
+                            <span className="truncate font-medium text-ink">
+                              {r.student.firstName} {r.student.lastName}
+                            </span>
+                          </span>
+                        </td>
+                        <td className="px-3 py-2.5 text-ink-secondary">
+                          {r.submittedWeeks}/{r.weeksDue || r.programmeWeeks}
+                        </td>
+                        <td className="px-3 py-2.5">
+                          {/* An em dash, not 0% — a placement that has not
+                              reached its first week has no progress to report. */}
+                          {r.progressPct === null
+                            ? <NoValue title="No week has come due yet" />
+                            : <span className="font-semibold text-ink">{r.progressPct}%</span>}
+                        </td>
+                        <td className="px-3 py-2.5 text-ink-secondary">
+                          {r.lastSubmittedAt
+                            ? new Date(r.lastSubmittedAt).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })
+                            : <NoValue title="Nothing submitted yet" />}
+                        </td>
+                        <td className="px-3 py-2.5">
+                          {r.avgQualityScore === null
+                            ? <NoValue title="No week has been assessed yet" />
+                            : <span className="text-ink">{r.avgQualityScore}/100</span>}
+                        </td>
+                        <td className="px-5 py-2.5">
+                          <Badge tone={RISK_TONE[r.riskTier ?? 'none']}>
+                            {RISK_LABEL[r.riskTier ?? 'none']}
+                          </Badge>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          </Card>
+        )}
 
         <Card padded={false} className="overflow-hidden">
           <div className="border-b border-line px-5 py-4">

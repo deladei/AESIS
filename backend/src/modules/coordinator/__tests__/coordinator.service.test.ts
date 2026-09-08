@@ -1037,6 +1037,27 @@ describe('deriveAttention', () => {
     expect(r.reasons).toEqual({ overdueLog: false, zeroProgress: false, noSupervisor: false, lowScore: false });
   });
 
+  it('does not flag a student whose first week has not come due', () => {
+    // Someone who started on Monday has submitted nothing because there was
+    // nothing to submit. Calling that "needs attention" on day one is a false
+    // accusation, and it is the first thing a new intern would have seen.
+    const r = deriveAttention({ ...ok, submittedWeeks: 0, weeksDue: 0 }, 50);
+    expect(r.reasons.zeroProgress).toBe(false);
+    expect(r.attention).toBe(false);
+  });
+
+  it('still flags a student who has missed a week that DID come due', () => {
+    const r = deriveAttention({ ...ok, submittedWeeks: 0, weeksDue: 2 }, 50);
+    expect(r.reasons.zeroProgress).toBe(true);
+    expect(r.attention).toBe(true);
+  });
+
+  it('keeps the old behaviour when the caller does not say how many weeks are due', () => {
+    // Optional on purpose: an older caller must not silently change meaning.
+    const r = deriveAttention({ ...ok, submittedWeeks: 0 }, 50);
+    expect(r.reasons.zeroProgress).toBe(true);
+  });
+
   it('flags an overdue draft log', () => {
     const r = deriveAttention({ ...ok, overdueLogs: 2 }, 50);
     expect(r.reasons.overdueLog).toBe(true);

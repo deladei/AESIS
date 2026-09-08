@@ -132,7 +132,7 @@ function InternRow({ s, selected, onToggle, internBasePath }: {
             title={`Needs attention — ${attentionReasonText(s.attentionReasons)}`}
             className="inline-flex items-center gap-1 rounded-full bg-danger-soft px-2 py-0.5 text-[11px] font-semibold text-danger"
           >
-            <AlertTriangle className="h-3 w-3" /> At risk
+            <AlertTriangle className="h-3 w-3" /> Needs attention
           </span>
         ) : (
           <span className="text-sm text-ink-muted">—</span>

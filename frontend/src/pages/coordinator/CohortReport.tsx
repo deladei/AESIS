@@ -235,7 +235,7 @@ export default function CohortReport() {
                     <td className="py-1">{s.department ?? '—'}</td>
                     <td className="py-1">{s.supervisor?.name?.trim() ? s.supervisor.name : 'Unassigned'}</td>
                     <td className="py-1 text-right">{s.progressPct}%</td>
-                    <td className="py-1 text-right">{s.attention ? 'At risk' : '—'}</td>
+                    <td className="py-1 text-right">{s.attention ? 'Needs attention' : '—'}</td>
                   </tr>
                 ))}
               </tbody>

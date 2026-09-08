@@ -74,7 +74,7 @@ export default function AdminInterns() {
           footnote="Mean logbook quality, advisory"
         />
         <StatCard
-          label="At risk" value={stats?.atRisk ?? 0} icon={AlertTriangle} tone="danger"
+          label="Needs attention" value={stats?.atRisk ?? 0} icon={AlertTriangle} tone="danger"
           loading={statsQuery.isLoading}
           footnote={stats?.atRisk ? 'Needs attention' : 'Nobody flagged'}
           action={stats?.atRisk ? { label: 'View at-risk list', to: '/admin/interns?attention=1' } : undefined}

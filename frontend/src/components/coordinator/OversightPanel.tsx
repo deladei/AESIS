@@ -85,7 +85,7 @@ export default function OversightPanel() {
           Cross-cohort monitoring · {data.summary.total} active{' '}
           {data.summary.total === 1 ? 'intern' : 'interns'} ·{' '}
           <span className={data.summary.atRisk > 0 ? 'font-semibold text-danger' : ''}>
-            {data.summary.atRisk} at risk
+            {data.summary.atRisk} needing attention
           </span>
         </p>
         <button
@@ -117,7 +117,7 @@ export default function OversightPanel() {
               {rows.length === 0 ? (
                 <tr>
                   <td colSpan={6} className="px-5 py-10 text-center text-sm text-ink-muted">
-                    {riskOnly ? 'No interns are currently flagged at risk.' : 'No active interns.'}
+                    {riskOnly ? 'No interns currently need attention.' : 'No active interns.'}
                   </td>
                 </tr>
               ) : (

@@ -57,6 +57,37 @@ export default function StudentRosterPanel() {
   const valid = rows.filter((r) => r.valid);
   const invalid = rows.length - valid.length;
 
+  // One student keyed in by hand, through the SAME mutation the spreadsheet
+  // uses — one row instead of many. The endpoint is idempotent per email, so
+  // re-adding someone updates their row rather than duplicating them.
+  const [manual, setManual] = useState(false);
+  const [one, setOne] = useState({ firstName: '', lastName: '', email: '', indexNumber: '' });
+
+  // Three capitals then seven digits — the same rule registration enforces, so
+  // a roster row cannot be keyed in a shape a student could never match.
+  const INDEX_RE = /^[A-Z]{3}[0-9]{7}$/;
+  const indexOk = one.indexNumber === '' || INDEX_RE.test(one.indexNumber);
+  const oneReady = one.firstName.trim() !== '' && one.lastName.trim() !== ''
+    && EMAIL_RE.test(one.email.trim()) && indexOk;
+
+  const addOne = () => {
+    setError(null);
+    upload.mutate(
+      [{
+        firstName: one.firstName.trim(), lastName: one.lastName.trim(),
+        email: one.email.trim().toLowerCase(),
+        indexNumber: one.indexNumber.trim() === '' ? null : one.indexNumber.trim(),
+      }],
+      {
+        onSuccess: (res) => {
+          setResult(res);
+          setOne({ firstName: '', lastName: '', email: '', indexNumber: '' });
+        },
+        onError: () => setError('Could not add that student — please try again.'),
+      },
+    );
+  };
+
   const onPick = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     e.target.value = '';
@@ -234,6 +265,76 @@ export default function StudentRosterPanel() {
           )}
         </div>
       )}
+
+      {/* Manual entry — the student who enrols after the class list was sent. */}
+      <div className="mt-4 border-t border-line pt-4">
+        {!manual ? (
+          <button
+            type="button"
+            onClick={() => setManual(true)}
+            className="inline-flex items-center gap-1.5 rounded-lg border border-line px-3 py-2 text-sm font-semibold text-ink-secondary transition-colors hover:bg-surface-sunken"
+          >
+            <UserCheck className="h-4 w-4" /> Or add one student by hand
+          </button>
+        ) : (
+          <div className="space-y-3">
+            <div className="flex items-center justify-between gap-2">
+              <p className="text-sm font-semibold text-ink">Add a student to the roster</p>
+              <button
+                type="button"
+                onClick={() => setManual(false)}
+                className="text-xs font-semibold text-ink-muted hover:text-ink"
+              >
+                Cancel
+              </button>
+            </div>
+
+            <div className="grid gap-3 sm:grid-cols-2">
+              <input
+                value={one.firstName} placeholder="First name"
+                onChange={(e) => setOne((o) => ({ ...o, firstName: e.target.value }))}
+                className="rounded-lg border border-line bg-surface px-3 py-2 text-sm text-ink outline-none focus:ring-1 focus:ring-brand"
+              />
+              <input
+                value={one.lastName} placeholder="Last name"
+                onChange={(e) => setOne((o) => ({ ...o, lastName: e.target.value }))}
+                className="rounded-lg border border-line bg-surface px-3 py-2 text-sm text-ink outline-none focus:ring-1 focus:ring-brand"
+              />
+              <input
+                value={one.email} placeholder="Institutional email" type="email"
+                onChange={(e) => setOne((o) => ({ ...o, email: e.target.value }))}
+                className="rounded-lg border border-line bg-surface px-3 py-2 text-sm text-ink outline-none focus:ring-1 focus:ring-brand"
+              />
+              <div>
+                <input
+                  value={one.indexNumber} placeholder="Index number (optional)"
+                  maxLength={10}
+                  // Upper-cased as typed, exactly as registration does, so the
+                  // roster and the student's own entry cannot disagree on case.
+                  onChange={(e) => setOne((o) => ({ ...o, indexNumber: e.target.value.toUpperCase() }))}
+                  autoCapitalize="characters" autoCorrect="off" spellCheck={false}
+                  className={`w-full rounded-lg border bg-surface px-3 py-2 text-sm text-ink outline-none focus:ring-1 focus:ring-brand ${
+                    indexOk ? 'border-line' : 'border-danger'
+                  }`}
+                />
+                <p className={`mt-1 text-xs ${indexOk ? 'text-ink-muted' : 'text-danger'}`}>
+                  Three letters then seven digits, e.g. UEB0201421.
+                </p>
+              </div>
+            </div>
+
+            <button
+              type="button"
+              onClick={addOne}
+              disabled={!oneReady || upload.isPending}
+              className="inline-flex items-center gap-2 rounded-lg bg-brand px-4 py-2 text-sm font-semibold text-white transition-opacity hover:opacity-90 disabled:pointer-events-none disabled:opacity-40"
+            >
+              {upload.isPending && <Loader2 className="h-4 w-4 animate-spin" />}
+              Add to roster
+            </button>
+          </div>
+        )}
+      </div>
     </section>
   );
 }

@@ -160,7 +160,7 @@ export default function AdminReport() {
                   ))}
                 </tbody>
               </table>
-            ) : <p className="text-sm text-ink-muted">No interns flagged at risk.</p>}
+            ) : <p className="text-sm text-ink-muted">No interns need attention.</p>}
           </section>
 
           {/* Recent submissions */}
