@@ -4662,9 +4662,14 @@ bundle carries "Assign work", "All my students" and "Who gets this". Render's
 start command is `npx prisma migrate deploy && node dist/server.js`, so a serving
 backend is proof every migration applied.
 
-**Not verified from this box:** whether `CLOUDINARY_*` is set on `aesis-backend`.
-Without it, assigning WITH a file returns a clear 503 and assigning without one
-still works.
+**`CLOUDINARY_*` is set on `aesis-backend`** (confirmed by the user), so task
+attachments store for real rather than returning the unconfigured 503.
+
+**Google sign-in AND sign-up were both exercised in a browser by the user and
+both worked.** That was the last thing this feature was waiting on: everything
+before it had been verified server-side only. The round trip — consent, state
+cookie surviving Google's cross-site redirect, server-side code exchange, ID
+token verification, roster match — is now confirmed end to end in production.
 
 ### ⚠️ What this session shipped on
 
@@ -4691,18 +4696,22 @@ cd backend && npm run db:test:sync
 
 ### Still open
 
-1. **`admin` and `academic_supervisor` print the same label.** Deliberate (see
-   above) but unresolved: they remain two distinct roles with different powers,
-   so anywhere both can appear side by side needs a disambiguator. A wording
-   decision, not a bug.
+1. ~~`admin` and `academic_supervisor` print the same label.~~ **RESOLVED**
+   (`40cca74`): `admin` now reads **System Supervisor**. Every role label is
+   distinct again. It read worst on the register page, which offers "Academic
+   Supervisor" as a sign-up option — the words meant one thing to the person
+   choosing them and another to an admin reading their own title. Labels only;
+   the enum, routes, guards and permissions were never touched.
 2. **The six integration suites.** Red since the morning of 2026-09-08 on
    `users.onboarded_at`, now also missing `task_attachment`. `npm run
    db:test:sync` exists to fix this and has never completed successfully —
    run it and READ THE ERROR rather than retrying; it was mis-diagnosed
    twice (wrong database, then the `postgres`-role probe).
-3. **No human has completed a Google sign-in in a browser.** Everything
-   server-side is verified. While the OAuth app is in Testing, only accounts
-   listed under Audience can do it.
+3. ~~No human has completed a Google sign-in in a browser.~~ **DONE** — the
+   user signed in and signed up through Google in a browser; both worked.
+   Note the OAuth app is still in **Testing**, so only accounts listed under
+   Audience can use it. Publishing it removes that limit and, with only the
+   three non-sensitive scopes, needs no Google verification review.
 4. **No real password login since the session-issuer refactor.** Unit-tested;
    a prod 401 only proves the failure path, and `issueSession` runs on success.
 5. `MONGO_URI` on `aesis-ai-engine` — `OperationFailure`, chat transcripts not
