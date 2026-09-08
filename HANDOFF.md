@@ -4304,7 +4304,7 @@ currently photographs the old page.
 
 ---
 
-## S102 — 2026-09-08 · Google sign-in finished; the two roles renamed on screen only
+## S102 — 2026-09-08 · Google sign-in shipped and live; roles relabelled; Redis boot errors, sidebar, index-number format, six-week attachment, student walkthrough
 
 Two jobs. The first was finishing work that was already sitting uncommitted in
 the tree; the second arrived mid-session and was smaller than it sounded.
@@ -4433,28 +4433,197 @@ Renaming those is a refactor, not a relabel, and was not what was asked.
 ### Verified
 
 - `backend`: `npx tsc --noEmit` clean; full Jest suite green — **61 suites, 890
-  tests** (auth alone 77, up from 69). Commits `f94bf38`, `a282e6e`.
+  tests** (auth alone 77, up from 69). Commits `f94bf38`, `a282e6e`. Later
+  work in this session took the suite to 63 / 912; see the sections below.
 - `frontend`: `npm run build` clean — `sync-shared && tsc -b && vite build`, the
   exact Vercel command.
 
-### Carried forward, unchanged from S101
+### Redis: three error lines on every boot, gone — `9bff048`
 
-1. **⚠️ Vercel still may not be deploying.** S101 left `874732e` on `origin/main`
-   with the served bundle unchanged. Nothing this session touched that, and this
-   session pushes more frontend work, so it is now the first thing to check —
-   if the button and the new labels do not appear, that is the reason, not this
-   code.
-2. `MONGO_URI` on `aesis-ai-engine` — `OperationFailure`, chat transcripts not
+Every deploy logged `Redis connect() rejected "already connecting/connected"`
+and two `Unhandled promise rejection: redis-command-timeout`, then reported
+ready a second later. Nothing was broken by them, but an unhandled rejection at
+boot is one policy change away from a crash loop, and they buried real Redis
+problems.
+
+**The boot order in `server.ts` is partly fiction.** The rate limiters are
+module-level consts, so their stores are constructed when `server.ts` imports
+`./app` — before `bootstrap()` connects anything. `lazyConnect` then connects on
+their first command, so by the time `connectRedis()` runs the client is already
+connecting and a second `connect()` rejects. It now connects only from status
+`wait`.
+
+**The two unhandled rejections needed a different fix than the obvious one, and
+the first attempt was wrong.** `rate-limit-redis` loads its Lua scripts in its
+CONSTRUCTOR and keeps the promises without awaiting them:
+
+```js
+this.incrementScriptSha = this.loadIncrementScript();
+this.getScriptSha       = this.loadGetScript();
+```
+
+Catching inside `sendCommand` does not help: `loadIncrementScript` awaits our
+promise and stores its OWN derived one, which our handler never reaches. The
+first fix did exactly that and **the new tests caught it**. They are adopted
+where they actually live instead. Behaviour is unchanged — `retryableIncrement`
+already catches and reloads on the next request, so rate limiting self-heals.
+Also cleared a leaked timer that stayed armed 1.5s after every fast command.
+
+Ten tests, all of which failed before the change. Importing `rateLimiter.ts`
+under a captured `unhandledRejection` listener IS the reproduction.
+
+### Sidebar — `c64779d`
+
+Collapse toggle moved to the top beside the mark (Claude's own pattern). At the
+foot it competed with the nav and moved vertically whenever the content above
+changed height. Collapsed, the row stacks so the control stays visible rather
+than hiding behind a hover, which is unreachable on touch.
+
+Identity moved to the very foot, under Insights. This deleted the
+`identityOnTop` branch: the academic supervisor alone had it at the top, so the
+rail rearranged itself depending on who logged in.
+
+New `.scrollbar-none` utility on the nav. That column is barely taller than its
+content, so the bar appeared and vanished as items were flagged in and out,
+right beside the active pill.
+
+### Index numbers are `^[A-Z]{3}[0-9]{7}$` — `928f8e1`
+
+Ten characters, `UEB0201421`. The rule accepted anything 3–40 characters of
+letters, digits, slashes and hyphens, so a mistyped number passed and was
+stored — and a stored typo is a student who cannot be matched to their roster
+row, surfacing later as a person who cannot claim their place.
+
+Enforced on registration, roster upload and profile edits. **The roster upload
+had its own looser copy** (`max(40)`), which is the likeliest way a bad number
+enters the system at all.
+
+Login lookup deliberately unchanged: it still matches whatever is stored,
+case-insensitively, so no enrolled student loses index-number sign-in.
+
+Lower case is accepted and upper-cased rather than rejected — normalising BEFORE
+the check is what stops two spellings becoming two accounts. A blank roster cell
+stays absence rather than an error.
+
+### The attachment is six weeks — `8f21d1c`
+
+The logbook page said five. Not a label: `duration_weeks` defaulted to 5 and the
+one production cohort had never been edited away from it.
+
+**The migration is the half that fixed the running system.** Changing a column
+default does NOT touch existing rows, so the schema change alone would have left
+the live cohort on 5 forever. The `UPDATE` is scoped to `WHERE duration_weeks =
+5` — only the untouched default is corrected; a length a coordinator set
+deliberately is left alone. Still coordinator-editable, so reversible without a
+deploy.
+
+Also `prisma format` realigned the `Task` model — whitespace drift from an
+earlier commit, kept because any future `prisma format` would re-dirty the file.
+
+### First-run student walkthrough — `6bf4e82`
+
+Six slides from the department's tutorial artwork, sliced at the artwork's real
+gutters (detected, not eyeballed). WebP: 1.3 MB of PNG became 175 KB, in
+`public/` so they never enter the 856 KB JS bundle.
+
+Titles and captions are real text, not part of the picture: the panels are only
+~490px wide so their own type goes soft in a large dialog and is unreadable on a
+phone, and text gives a screen reader something to read. Alt text on every
+image; the next slide prefetches while the current one is read.
+
+`onboardedAt` is a timestamp on the user row, **not localStorage** — that would
+replay the tutorial on every new device or cleared browser. Nullable and
+additive, so every existing student gets it once. Marking is idempotent.
+Escape and the close button count as finishing.
+
+### ⚠️ The integration test database drifts silently, and it cost an hour
+
+`aesis_logbook_test` is a **separate database** from the `DATABASE_URL` in
+`.env` (`aisystem_db`). The six integration suites rewrite the connection before
+importing Prisma:
+
+```ts
+base.pathname = '/aesis_logbook_test';   // entries.integration.test.ts:17
+```
+
+It has **no baseline** (`prisma migrate status` → P3005, so `migrate deploy`
+refuses) and **no sync script**. It only fails once a schema change lands, and
+then all six suites fail at once on `column ... does not exist` — which reads
+like a code break and is not.
+
+**This will happen on every future column.** A `db:test:sync` script is worth
+writing.
+
+**`6bf4e82` shipped with those six suites unverified**, at the user's explicit
+direction, on the strength of 57 suites / 806 unit tests, clean `tsc` and a
+clean frontend build. Still outstanding:
+
+```
+cd backend && DATABASE_URL="$(grep '^DATABASE_URL=' .env | cut -d= -f2- \
+  | sed 's|/aisystem_db|/aesis_logbook_test|')" \
+  npx prisma db execute \
+  --file prisma/migrations/20260908130000_student_onboarding_seen/migration.sql \
+  --schema prisma/schema.prisma
+```
+
+### Google sign-in is live, and the redirect URI was wrong first time
+
+Configured later the same session — three non-sensitive scopes only (`openid`,
+`userinfo.email`, `userinfo.profile`; sensitive and restricted both empty, which
+keeps the app out of Google's verification review).
+
+**`GOOGLE_REDIRECT_URI` had been entered as `.../callbacK`, with a capital K.**
+Worth recording because it very nearly works: Express matches routes
+case-insensitively so the callback still fires, and only Google — which compares
+byte for byte — refuses. Found by reading the `Location` header off
+`GET /api/v1/auth/google` and diffing `redirect_uri`, which needs no browser and
+no Google account.
+
+Verified against production without signing in: exact `redirect_uri`, `scope`
+`openid email profile`, `response_type=code`, 43-char state, cookie
+`HttpOnly; Secure; SameSite=Lax; Max-Age=600`, and both forged callbacks
+(no cookie, mismatched state) refused with `?google=invalid_state`.
+
+### Deploys verified in production
+
+Both the Vercel and Render deploys of `6bf4e82` were confirmed live: all six
+slides serve `image/webp` at the right sizes, `/auth/me/onboarded` answers 401
+rather than 404, `/health` ok, Google still `configured: true`. Render's start
+command is `npx prisma migrate deploy && node dist/server.js`, chained with
+`&&`, so a serving build proves both new migrations applied cleanly.
+
+S101's "Vercel has not deployed" is **CLOSED** — the bundle moved twice and
+"Admin Overview" is gone from production.
+
+### Commits, in order
+
+`f94bf38` Google sign-in · `a282e6e` role labels · `4117ab1` handoff ·
+`4753dbb` Google go-live · `9bff048` Redis boot · `c64779d` sidebar ·
+`928f8e1` index format · `8f21d1c` six weeks · `6bf4e82` onboarding
+
+### Still open
+
+1. **`admin` and `academic_supervisor` print the same label.** Deliberate (see
+   above) but unresolved: they remain two distinct roles with different powers,
+   so anywhere both can appear side by side needs a disambiguator. A wording
+   decision, not a bug.
+2. **The six integration suites, and the `db:test:sync` script.** See above.
+3. **No human has completed a Google sign-in in a browser.** Everything
+   server-side is verified. While the OAuth app is in Testing, only accounts
+   listed under Audience can do it.
+4. **No real password login since the session-issuer refactor.** Unit-tested;
+   a prod 401 only proves the failure path, and `issueSession` runs on success.
+5. `MONGO_URI` on `aesis-ai-engine` — `OperationFailure`, chat transcripts not
    saved.
-3. Enrichment paths still unproven since the Groq model id changed. Submit an
+6. Enrichment paths still unproven since the Groq model id changed. Submit an
    entry, read `summary.provenance`; anything other than
    `{classifier: "model", summarizer: "model", scorer: "model"}` means that path
    is still on its heuristic floor.
-4. Rotate the Supabase password, then delete the Neon project — in that order.
-5. The four S100 migrations still want a prod `_prisma_migrations` check.
-6. `POSTGRES_DSN` has leading/trailing whitespace (cosmetic).
-7. `SYSTEM_MAX_WEEKS = 6` vs the 24-week cohort config — a decision, not an
-   oversight.
-8. Minor, noticed but not fixed: `backend/src/config/seed.ts` seeds a user whose
-   *surname* is literally "Coordinator", which is both stale wording and a
-   non-Ghanaian placeholder.
+7. Rotate the Supabase password, then delete the Neon project — in that order.
+8. The four S100 migrations still want a prod `_prisma_migrations` check.
+9. `POSTGRES_DSN` has leading/trailing whitespace (cosmetic).
+10. `SYSTEM_MAX_WEEKS` is 52 and is only a sanity bound; the real length is the
+    cohort's `durationWeeks`, now 6. **This carried item is settled.**
+11. Minor, noticed but not fixed: `backend/src/config/seed.ts` seeds a user whose
+    *surname* is literally "Coordinator" — stale wording and a non-Ghanaian
+    placeholder.
