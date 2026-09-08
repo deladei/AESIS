@@ -76,10 +76,6 @@ export function RoleShell({ role, user, children, topbarSlot }: RoleShellProps) 
    */
   const canSearch = role === 'coordinator' || role === 'hod' || role === 'admin';
   const canQuickAct = role === 'coordinator' || role === 'hod';
-  // The reference designs place the identity block differently per role: the
-  // supervisor's sits at the TOP of the rail under the brand, the student's and
-  // coordinator's at the bottom.
-  const identityOnTop = role === 'academic_supervisor';
 
   // The dashboard is the only place that carries the student's academic
   // identity, so it's null for every other role and while the query is loading.
@@ -166,23 +162,43 @@ export function RoleShell({ role, user, children, topbarSlot }: RoleShellProps) 
           collapsed ? 'w-[4.5rem]' : 'w-64',
         )}
       >
-        {/* Brand */}
-        <div className={cn('flex items-center gap-3 py-5', collapsed ? 'justify-center px-3' : 'px-5')}>
+        {/* Brand, with the collapse control beside it.
+            The toggle used to sit at the foot of the rail, below the Insights
+            card, where it competed with the nav for the eye and moved whenever
+            the content above it changed height. Up here it is structural
+            furniture next to the mark, always in the same place whether the
+            rail is open or shut, and the foot is left to identity and
+            Insights. Collapsed, the row stacks so the control stays visible
+            rather than hiding behind a hover — a hover-only expand is
+            unreachable on touch. */}
+        <div className={cn('flex py-5', collapsed ? 'flex-col items-center gap-3 px-3' : 'items-center gap-3 px-5')}>
           <span className="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-brand">
             <BRAND_ICON className="h-5 w-5 text-white" />
           </span>
           {!collapsed && (
-            <span className="min-w-0 leading-tight">
+            <span className="min-w-0 flex-1 leading-tight">
               <span className="block text-sm font-bold text-white">AESIS</span>
               <span className="block truncate text-[11px] text-sidebar-ink">{nav.brandSubtitle}</span>
             </span>
           )}
+          <button
+            type="button"
+            onClick={() => setCollapsed((v) => !v)}
+            aria-expanded={!collapsed}
+            aria-label={collapsed ? 'Expand the sidebar' : 'Collapse the sidebar'}
+            title={collapsed ? 'Expand the sidebar' : 'Collapse the sidebar'}
+            className="grid h-8 w-8 shrink-0 place-items-center rounded-lg text-sidebar-ink transition-colors hover:bg-sidebar-hover hover:text-white"
+          >
+            {collapsed
+              ? <PanelLeftOpen className="h-[18px] w-[18px]" />
+              : <PanelLeftClose className="h-[18px] w-[18px]" />}
+          </button>
         </div>
 
-        {!collapsed && identityOnTop && userCard}
-
-        {/* Nav */}
-        <nav className="flex-1 space-y-1 overflow-y-auto px-3 py-2">
+        {/* Nav. `scrollbar-none` because this column is barely taller than its
+            content: the bar appeared and vanished as items were flagged in and
+            out, right beside the active pill. */}
+        <nav className="scrollbar-none flex-1 space-y-1 overflow-y-auto px-3 py-2">
           {visibleNav.map((item) => {
             const active = isActive(item);
             const showBadge = item.href.includes('notifications') && unreadCount > 0;
@@ -221,22 +237,12 @@ export function RoleShell({ role, user, children, topbarSlot }: RoleShellProps) 
           })}
         </nav>
 
-        {!collapsed && !identityOnTop && userCard}
+        {/* Insights first, then who you are signed in as. Identity sits at the
+            very foot for every role now; it used to sit at the top for the
+            supervisor alone, which meant the rail rearranged itself depending
+            on who logged in. Sign out belongs with the name it signs out. */}
         {!collapsed && role !== 'student' && assistantCard}
-
-        <button
-          type="button"
-          onClick={() => setCollapsed((v) => !v)}
-          aria-expanded={!collapsed}
-          title={collapsed ? 'Expand the sidebar' : 'Collapse the sidebar'}
-          className={cn(
-            'm-3 mt-auto flex items-center gap-2 rounded-xl px-3 py-2.5 text-sm font-medium text-sidebar-ink transition-colors hover:bg-sidebar-hover hover:text-white',
-            collapsed && 'justify-center px-2',
-          )}
-        >
-          {collapsed ? <PanelLeftOpen className="h-[18px] w-[18px]" /> : <PanelLeftClose className="h-[18px] w-[18px]" />}
-          {!collapsed && <span>Collapse</span>}
-        </button>
+        {!collapsed && userCard}
       </aside>
 
       <div className="flex flex-1 flex-col overflow-hidden">
