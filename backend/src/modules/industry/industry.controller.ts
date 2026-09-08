@@ -11,6 +11,7 @@ import {
   paperWeeklyCommentSchema,
   digitalWeeklyCommentSchema,
 } from './industry.schema';
+import { getIndustrySkillGaps } from './industry.assessment';
 import {
   listWeeklyComments,
   submitPaperWeeklyComment,
@@ -128,4 +129,24 @@ export async function issueTokenHandler(req: Request, res: Response) {
   const { id } = idParam.parse(req.params);
   const input = issueTokenSchema.parse(req.body);
   return created(res, await issueAssessmentToken(actorOf(req), id, input));
+}
+
+// ── Departmental skill gaps ───────────────────────────────────
+
+/**
+ * Where the cohort is weakest according to its employers, weakest criterion
+ * first. Confidential: the route guard admits coordinator, admin and HoD only.
+ */
+const skillGapScopeSchema = z.object({
+  // A filter, deliberately not a breakdown. Publishing per-programme rows
+  // beside a cohort total lets a reader difference one against the other and
+  // recover a group small enough to have been withheld.
+  academicYearId: z.string().uuid().optional(),
+  programmeId:    z.string().uuid().optional(),
+});
+
+export async function skillGapsHandler(req: Request, res: Response) {
+  const scope = skillGapScopeSchema.parse(req.query);
+  const data = await getIndustrySkillGaps(actorOf(req), scope);
+  return ok(res, data);
 }

@@ -3,6 +3,7 @@ import { Printer, Loader2 } from 'lucide-react';
 import {
   useCoordinatorDashboard, useSupervisorWorkload, usePerformanceDistribution,
   useCoordinatorStudents, useCoordinatorCohorts,
+  useIndustrySkillGaps,
 } from '@/hooks/useDashboard';
 import { useCohortStats, useCohortRegions } from '@/hooks/useGrade';
 import { regionLabel } from '@/lib/regions';
@@ -30,6 +31,9 @@ export default function CohortReport() {
   const { data: cohorts = [] } = useCoordinatorCohorts();
   const { data: gradeStats } = useCohortStats(yearId);
   const { data: regions } = useCohortRegions(yearId);
+  // Deliberately NOT part of the loading gate below: a slow confidential query
+  // should not blank the whole report, so this section renders its own state.
+  const { data: skillGaps } = useIndustrySkillGaps(yearId);
 
   const loading = l1 || l2 || l3 || l4;
   const cohortLabel = yearId ? (cohorts.find((c) => c.id === yearId)?.label ?? 'Selected cohort') : 'All cohorts';
@@ -128,6 +132,61 @@ export default function CohortReport() {
                 </div>
               </>
             ) : <p className="text-sm text-ink-muted">No logbook scores yet.</p>}
+          </section>
+
+          {/* Where employers say the cohort is weakest. Confidential to
+              coordinator/admin/HoD — this route is already guarded to exactly
+              that set, which is why the section lives here and not on
+              AIInsights, where an academic supervisor could reach it. */}
+          <section className="mb-8">
+            <h2 className="mb-3 text-sm font-bold text-ink-muted">
+              Employer evaluation — weakest first
+            </h2>
+            {!skillGaps || !skillGaps.hasData ? (
+              <p className="text-sm text-ink-muted">No employer evaluations submitted yet.</p>
+            ) : skillGaps.suppressed ? (
+              // Never a partial table: a reader differences the published rows
+              // against the total to recover what was withheld.
+              <p className="text-sm text-ink-secondary">
+                Only {skillGaps.n} employer evaluation{skillGaps.n === 1 ? '' : 's'} in this
+                cohort. Criterion means are withheld below {skillGaps.threshold} to protect
+                individual confidentiality.
+              </p>
+            ) : (
+              <>
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="border-b border-line text-left text-xs text-ink-muted">
+                      <th className="py-1.5 font-semibold">Criterion</th>
+                      <th className="py-1.5 font-semibold">Mean</th>
+                      <th className="py-1.5 font-semibold">Of</th>
+                      <th className="py-1.5 font-semibold">% of max</th>
+                      <th className="py-1.5 font-semibold">n</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {skillGaps.criteria.map((c) => (
+                      <tr key={c.key} className="border-b border-line/60">
+                        <td className="py-1.5">{c.label}</td>
+                        {/* An em dash, not a zero — nothing valid was scored. */}
+                        <td className="py-1.5">{c.meanRaw ?? '—'}</td>
+                        <td className="py-1.5 text-ink-muted">{c.max}</td>
+                        <td className="py-1.5 font-semibold">
+                          {c.pctOfMax === null ? '—' : `${c.pctOfMax}%`}
+                        </td>
+                        <td className="py-1.5 text-ink-muted">{c.n}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+                <p className="mt-2 text-xs text-ink-muted">
+                  Company supervisor's final evaluation, ranked weakest first as a percentage
+                  of each criterion's own maximum. Confidential — staff only.
+                  {' '}n = {skillGaps.n} placement{skillGaps.n === 1 ? '' : 's'}
+                  {skillGaps.rawTotalMean !== null && ` · mean total ${skillGaps.rawTotalMean}/100`}.
+                </p>
+              </>
+            )}
           </section>
 
           <section className="mb-8">

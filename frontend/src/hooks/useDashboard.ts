@@ -106,6 +106,45 @@ export function usePerformanceDistribution(academicYearId?: string, enabled = tr
   });
 }
 
+export interface SkillGapCriterion {
+  key:      string;
+  label:    string;
+  max:      number;
+  /** Null when nothing valid was scored — renders as an em dash, never as 0. */
+  meanRaw:  number | null;
+  /** The only figure comparable across criteria; they have different maxima. */
+  pctOfMax: number | null;
+  n:        number;
+}
+
+export interface IndustrySkillGaps {
+  hasData:      boolean;
+  /** True when the cohort is too small to publish without identifying someone. */
+  suppressed:   boolean;
+  n:            number;
+  threshold:    number;
+  criteria:     SkillGapCriterion[];
+  rawTotalMean: number | null;
+}
+
+/**
+ * Where the cohort is weakest according to its employers, weakest first.
+ *
+ * Confidential — the endpoint admits coordinator, admin and HoD only, so this
+ * must not be called from any page an academic supervisor can reach.
+ */
+export function useIndustrySkillGaps(academicYearId?: string, enabled = true) {
+  return useQuery({
+    queryKey: ['industry', 'skill-gaps', academicYearId ?? 'all'],
+    enabled,
+    queryFn:  async () => {
+      const qs = academicYearId ? `?academicYearId=${academicYearId}` : '';
+      const r = await api.get<{ data: IndustrySkillGaps }>(`/industry/skill-gaps${qs}`);
+      return r.data.data;
+    },
+  });
+}
+
 export interface CoordinatorStudent {
   placementId:     string;
   student:         { id: string; firstName: string; lastName: string; email: string };
