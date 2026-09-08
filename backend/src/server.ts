@@ -12,6 +12,7 @@ import { startDeadlineReminderJobs } from './jobs/deadlineReminder';
 import { startWeeklyReportJob } from './jobs/weeklyReport';
 import { startEnrichmentWorker } from './modules/entries/enrichment.worker';
 import { startEnrichmentReviveJob } from './jobs/enrichmentRevive';
+import { startAiEngineKeepWarm } from './jobs/aiEngineKeepWarm';
 import { scheduleWeekAutoSubmit } from './jobs/weekAutoSubmit';
 
 async function bootstrap() {
@@ -66,6 +67,7 @@ async function bootstrap() {
   startWeeklyReportJob();
   startEnrichmentWorker(); // Path 2 — polls enrichment_queue; fail-open, no broker
   startEnrichmentReviveJob(); // self-heal: re-enqueue stuck enrichment after engine outages
+  startAiEngineKeepWarm();    // keep the AI engine awake so the first question of the day is answered
   scheduleWeekAutoSubmit();   // safety net: submit finished weeks the student never sent
 
   // ── Start server ──────────────────────────────────────────────

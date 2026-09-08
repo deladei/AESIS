@@ -189,3 +189,82 @@ describe('GET /ai/health', () => {
     expect(res.status).toBe(401);
   });
 });
+
+/**
+ * The engine runs on a plan that suspends it after a quiet spell, and waking it
+ * takes longer than the request will wait. The attempt that fails is also the
+ * attempt that wakes it, so the assistant retries once rather than telling a
+ * student it is unavailable when it is merely asleep.
+ */
+describe('POST /ai/chat — a sleeping engine', () => {
+  const realFetch = global.fetch;
+  afterEach(() => { global.fetch = realFetch; });
+
+  /** An SSE-ish upstream body, enough for the handler to stream. */
+  const streamingBody = (text: string) => ({
+    ok: true,
+    status: 200,
+    body: {
+      getReader: () => {
+        let sent = false;
+        return {
+          read: async () => sent
+            ? { done: true, value: undefined }
+            : ((sent = true), { done: false, value: new TextEncoder().encode(text) }),
+        };
+      },
+    },
+  });
+
+  it('retries once and answers when the first attempt times out', async () => {
+    let calls = 0;
+    global.fetch = jest.fn(async () => {
+      calls += 1;
+      // First call fails the way an abort does; second succeeds, as it would
+      // once the first had woken the service.
+      if (calls === 1) throw new Error('The operation was aborted due to timeout');
+      return streamingBody('Hello from the engine');
+    }) as unknown as typeof fetch;
+
+    const res = await request(app)
+      .post('/ai/chat')
+      .set('Authorization', `Bearer ${token()}`)
+      .send({ message: 'hello' });
+
+    expect(res.status).toBe(200);
+    expect(calls).toBe(2);
+    expect(res.text).toContain('Hello from the engine');
+    // The student must NOT be told it is unavailable when it answered.
+    expect(res.text).not.toContain('temporarily unavailable');
+  }, 15000);
+
+  it('falls back honestly when the retry also fails', async () => {
+    global.fetch = jest.fn(async () => {
+      throw new Error('connect ECONNREFUSED');
+    }) as unknown as typeof fetch;
+
+    const res = await request(app)
+      .post('/ai/chat')
+      .set('Authorization', `Bearer ${token()}`)
+      .send({ message: 'hello' });
+
+    // Still a well-formed stream — a dead engine is not a broken endpoint.
+    expect(res.status).toBe(200);
+    expect(res.text).toContain('[DONE]');
+  }, 15000);
+
+  it('does not retry a request the engine actually answered', async () => {
+    let calls = 0;
+    global.fetch = jest.fn(async () => {
+      calls += 1;
+      return streamingBody('answered first time');
+    }) as unknown as typeof fetch;
+
+    await request(app)
+      .post('/ai/chat')
+      .set('Authorization', `Bearer ${token()}`)
+      .send({ message: 'hello' });
+
+    expect(calls).toBe(1);
+  }, 15000);
+});

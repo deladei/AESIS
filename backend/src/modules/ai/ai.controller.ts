@@ -112,14 +112,37 @@ export async function chatHandler(req: Request, res: Response) {
   res.setHeader('Connection', 'keep-alive');
   res.flushHeaders();
 
+  const askEngine = () => fetch(aiEngineUrl('/ai/chat'), {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'x-api-key': env.AI_ENGINE_API_KEY },
+    body: JSON.stringify({ session_id: userId, student_id: userId, message, context }),
+    signal: AbortSignal.timeout(AI_ENGINE_TIMEOUT_MS),
+  });
+
   try {
-    const upstream = await fetch(aiEngineUrl('/ai/chat'), {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'x-api-key': env.AI_ENGINE_API_KEY },
-      body: JSON.stringify({ session_id: userId, student_id: userId, message, context }),
-      signal: AbortSignal.timeout(AI_ENGINE_TIMEOUT_MS),
-    });
-    if (!upstream.ok || !upstream.body) throw new Error(`AI engine returned ${upstream.status}`);
+    // Inferred, not `Response`: this file imports Express's Response and the
+    // two names collide.
+    let upstream: Awaited<ReturnType<typeof askEngine>>;
+    try {
+      upstream = await askEngine();
+      if (!upstream.ok || !upstream.body) throw new Error(`AI engine returned ${upstream.status}`);
+    } catch (first) {
+      // One retry, because the most common failure here is not a broken engine
+      // but a suspended one: the hosting plan stops the service after a quiet
+      // spell and waking it takes longer than a person will wait. The attempt
+      // that fails is also the attempt that wakes it, so the second almost
+      // always succeeds. A keep-warm job should make this rare; this is what
+      // catches the times it is not.
+      //
+      // Safe to retry: nothing has been streamed to the client yet, and the
+      // engine writes the transcript only after it has answered, so a failed
+      // first attempt leaves nothing behind to duplicate.
+      logger.info('Chat: first attempt failed, retrying once in case the engine was asleep', {
+        err: first instanceof Error ? first.message : String(first),
+      });
+      upstream = await askEngine();
+      if (!upstream.ok || !upstream.body) throw new Error(`AI engine returned ${upstream.status}`);
+    }
 
     const reader = upstream.body.getReader();
     const decoder = new TextDecoder();
