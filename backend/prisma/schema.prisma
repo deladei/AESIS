@@ -329,7 +329,7 @@ model CohortConfig {
   // database only bounds it at >= 1 (CHECK duration_weeks >= 1). The old
   // >= 6 floor made a 5-week cohort unconfigurable at the database, which is
   // the wrong place for a departmental rule to live.
-  durationWeeks            Int          @default(5) @map("duration_weeks")
+  durationWeeks            Int          @default(6) @map("duration_weeks")
   workingDays              Int[]        @default([1, 2, 3, 4, 5]) @map("working_days") // ISO dow
   entryEditWindowDays      Int          @default(2) @map("entry_edit_window_days")
   syncGraceDays            Int          @default(3) @map("sync_grace_days") // hard outer bound past placement end
@@ -1462,28 +1462,28 @@ enum TaskStatus {
 /// coordinator assigns one. "Tasks completed 18/28" is counted from these rows,
 /// never stored as a counter.
 model Task {
-  id          String       @id @default(uuid())
-  assigneeId  String       @map("assignee_id")
-  assignee    User         @relation("TaskAssignee", fields: [assigneeId], references: [id], onDelete: Cascade)
-  createdById String       @map("created_by_id")
-  createdBy   User         @relation("TaskCreator", fields: [createdById], references: [id])
-  placementId String?      @map("placement_id")
-  placement   Placement?   @relation(fields: [placementId], references: [id], onDelete: Cascade)
-  title       String
-  description String?
-  category    TaskCategory @default(other)
-  status      TaskStatus   @default(open)
+  id              String       @id @default(uuid())
+  assigneeId      String       @map("assignee_id")
+  assignee        User         @relation("TaskAssignee", fields: [assigneeId], references: [id], onDelete: Cascade)
+  createdById     String       @map("created_by_id")
+  createdBy       User         @relation("TaskCreator", fields: [createdById], references: [id])
+  placementId     String?      @map("placement_id")
+  placement       Placement?   @relation(fields: [placementId], references: [id], onDelete: Cascade)
+  title           String
+  description     String?
+  category        TaskCategory @default(other)
+  status          TaskStatus   @default(open)
   /// A full timestamp: a task can be due at a TIME, not only on a day. The UI
   /// showed day granularity only, so a stored time was invisible.
-  dueAt       DateTime?    @map("due_at")
+  dueAt           DateTime?    @map("due_at")
   /// How long the student expects the activity to take. Null = open-ended.
-  durationMinutes Int?     @map("duration_minutes")
-  completedAt DateTime?    @map("completed_at")
+  durationMinutes Int?         @map("duration_minutes")
+  completedAt     DateTime?    @map("completed_at")
   /// Deep link to what the task is about (a returned week, an approval).
-  sourceType  String?      @map("source_type")
-  sourceId    String?      @map("source_id")
-  createdAt   DateTime     @default(now()) @map("created_at")
-  updatedAt   DateTime     @updatedAt @map("updated_at")
+  sourceType      String?      @map("source_type")
+  sourceId        String?      @map("source_id")
+  createdAt       DateTime     @default(now()) @map("created_at")
+  updatedAt       DateTime     @updatedAt @map("updated_at")
 
   @@index([assigneeId, status, dueAt])
   @@index([placementId])

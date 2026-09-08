@@ -20,7 +20,7 @@ export interface ScheduleWeek {
  * table and the history page disagree with the logbook itself; this matches the
  * schema default so the pre-load frame is at least the common case.
  */
-export const SCHEDULE_WEEKS = 5;
+export const SCHEDULE_WEEKS = 6;
 
 export function toYMD(d: Date): string {
   return d.toISOString().slice(0, 10);
