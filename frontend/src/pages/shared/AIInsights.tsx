@@ -2,7 +2,7 @@ import { Link } from 'react-router-dom';
 import {
   Sparkles, Users, AlertTriangle, Clock, Gauge, ArrowRight,
 } from 'lucide-react';
-import { useInsights } from '@/hooks/useDashboard';
+import { useInsights, useProgressSignals } from '@/hooks/useDashboard';
 import { useAuth } from '@/contexts/AuthContext';
 import { Card, CardHeader } from '@/components/ui/Card';
 import { StatCard } from '@/components/ui/StatCard';
@@ -26,6 +26,8 @@ import { EmptyState, ErrorState, SkeletonRows } from '@/components/ui/Feedback';
  */
 export default function AIInsights() {
   const { data, isLoading, isError, refetch } = useInsights();
+  // Its own query: a slower cross-week read should not hold up the charts.
+  const { data: signals } = useProgressSignals();
   const { user } = useAuth();
   // This page is shared by supervisor, coordinator and admin, and each should
   // drill into an intern inside its OWN namespace. The supervisor has no
@@ -175,6 +177,73 @@ export default function AIInsights() {
                       </span>
                     </div>
                     <ProgressBar value={c.pct} label={`${c.tag}: ${c.pct}%`} />
+                  </li>
+                ))}
+              </ul>
+            </>
+          )}
+        </Card>
+
+        {/* Patterns across weeks. Everything above this reads one week at a
+            time, which is also all a supervisor can do by hand; what nobody can
+            do is hold six weeks of twelve students in their head and notice
+            that one has been quietly narrowing or sliding. */}
+        <Card>
+          <CardHeader
+            title="Patterns across weeks"
+            subtitle="Trends a single entry cannot show — advisory, never a grade"
+          />
+          {!signals ? (
+            <SkeletonRows rows={3} />
+          ) : signals.students.length === 0 ? (
+            <EmptyState
+              icon={Sparkles}
+              title={signals.consideredStudents === 0
+                ? 'No active interns to look at yet'
+                : 'Nothing standing out'}
+              hint={signals.consideredStudents === 0
+                ? 'Patterns appear once interns are placed and submitting.'
+                : `All ${signals.consideredStudents} intern${signals.consideredStudents === 1 ? '' : 's'} looked at. A pattern needs several weeks before it means anything.`}
+              className="py-8"
+            />
+          ) : (
+            <>
+              <p className="mb-3 text-xs text-ink-muted">
+                {signals.students.length} of {signals.consideredStudents} intern
+                {signals.consideredStudents === 1 ? '' : 's'} worth a look. Nothing here is a
+                verdict — each one says where to look, with the numbers behind it.
+              </p>
+              <ul className="space-y-3">
+                {signals.students.map((s) => (
+                  <li key={s.placementId} className="rounded-lg border border-line p-3">
+                    <div className="mb-2 flex items-center gap-2">
+                      <InitialsAvatar
+                        name={`${s.student.firstName} ${s.student.lastName}`}
+                        size={24}
+                      />
+                      <span className="min-w-0 flex-1 truncate text-sm font-semibold text-ink">
+                        {s.student.firstName} {s.student.lastName}
+                      </span>
+                      <span className="shrink-0 text-[11px] text-ink-muted">
+                        {s.weeksAssessed} week{s.weeksAssessed === 1 ? '' : 's'} assessed
+                      </span>
+                    </div>
+
+                    <ul className="space-y-2">
+                      {s.signals.map((sig) => (
+                        <li key={sig.kind} className="flex items-start gap-2">
+                          <Badge tone={sig.severity === 'high' ? 'warn' : 'neutral'}>
+                            {sig.severity === 'high' ? 'Worth a word' : 'Worth a glance'}
+                          </Badge>
+                          <span className="min-w-0 flex-1">
+                            <span className="block text-sm text-ink">{sig.headline}</span>
+                            {/* The evidence is the point: a flag a supervisor
+                                cannot check is just an accusation. */}
+                            <span className="block text-[11px] text-ink-muted">{sig.evidence}</span>
+                          </span>
+                        </li>
+                      ))}
+                    </ul>
                   </li>
                 ))}
               </ul>

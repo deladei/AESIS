@@ -626,3 +626,38 @@ export function useFeedbackInterns() {
     },
   });
 }
+
+// ── Progress signals ──────────────────────────────────────────
+
+export interface ProgressSignal {
+  kind:     string;
+  severity: 'watch' | 'high';
+  headline: string;
+  /** The numbers behind the headline, so the claim can be checked. */
+  evidence: string;
+}
+
+export interface ProgressSignals {
+  students: {
+    placementId:   string;
+    student:       { id: string; firstName: string; lastName: string };
+    weeksAssessed: number;
+    signals:       ProgressSignal[];
+  }[];
+  consideredStudents:        number;
+  cohortMeanReflectionWords: number | null;
+}
+
+/**
+ * Patterns across a student's weeks — the things reading one entry cannot
+ * show. Supervisors are scoped to their own students by the server.
+ */
+export function useProgressSignals() {
+  return useQuery({
+    queryKey: ['insights', 'progress-signals'],
+    queryFn:  async () => {
+      const r = await api.get<{ data: ProgressSignals }>('/insights/progress-signals');
+      return r.data.data;
+    },
+  });
+}

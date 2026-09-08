@@ -16,3 +16,11 @@ export async function insights(req: Request, res: Response) {
 export async function interns(req: Request, res: Response) {
   ok(res, await service.listInternsForFeedback(scopeFor(req)));
 }
+
+/**
+ * Patterns across weeks. Same scoping as the insights page: a supervisor sees
+ * only their own students, resolved from their token, never from the query.
+ */
+export async function progressSignals(req: Request, res: Response) {
+  ok(res, await service.getProgressSignals(scopeFor(req)));
+}

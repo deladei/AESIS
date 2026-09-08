@@ -1,4 +1,5 @@
 import { prisma } from '../../config/prisma';
+import { countWords, signalsFor, type SignalWeek } from './progressSignals';
 import {
   meanQualityScore, toQualityNumber, weeksDue, engagementPercent, v2QualityOverall,
 } from '../../shared/utils/quality';
@@ -315,4 +316,85 @@ export async function listInternsForFeedback({ supervisorId }: InsightsScope) {
         : null,
     };
   });
+}
+
+// ── Progress signals ──────────────────────────────────────────
+
+/**
+ * Patterns across a student's weeks that reading any single week cannot show.
+ *
+ * A separate query and endpoint rather than more fields on `getInsights`: this
+ * needs the quality and plagiarism blobs and the reflections, which that page
+ * does not, and a slow read here should not hold up the charts.
+ */
+export async function getProgressSignals({ supervisorId }: InsightsScope) {
+  const placements = await prisma.placement.findMany({
+    where: {
+      placementStatus: 'active',
+      ...(supervisorId ? { academicSupervisorId: supervisorId } : {}),
+    },
+    select: {
+      id: true,
+      student: { select: { id: true, firstName: true, lastName: true } },
+      logbookEntries: {
+        orderBy: { weekNumber: 'asc' },
+        select: {
+          weekNumber:  true,
+          submittedAt: true,
+          periodEnd:   true,
+          activities:  { select: { competencyTags: true } },
+          reflection:  { select: { learning: true, challenges: true } },
+          assessments: {
+            orderBy: { createdAt: 'desc' },
+            take:    1,
+            select:  { quality: true, plagiarism: true },
+          },
+        },
+      },
+    },
+  });
+
+  const perStudent = placements.map((p) => ({
+    placementId: p.id,
+    student:     p.student,
+    weeks: p.logbookEntries.map((e): SignalWeek => ({
+      weekNumber:  e.weekNumber,
+      submittedAt: e.submittedAt,
+      periodEnd:   e.periodEnd,
+      quality:     e.assessments[0]?.quality ?? null,
+      plagiarism:  e.assessments[0]?.plagiarism ?? null,
+      competencyTags: e.activities.flatMap((a) => a.competencyTags),
+      reflectionWords: countWords(e.reflection?.learning, e.reflection?.challenges),
+    })),
+  }));
+
+  // One cohort average, computed across every submitted week in scope. Doing
+  // it per student would compare each of them against themselves and never
+  // flag anything.
+  const submittedWeeks = perStudent.flatMap((s) => s.weeks.filter((w) => w.submittedAt !== null));
+  const cohortMeanWords = submittedWeeks.length > 0
+    ? submittedWeeks.reduce((sum, w) => sum + w.reflectionWords, 0) / submittedWeeks.length
+    : null;
+
+  const students = perStudent
+    .map((s) => ({
+      placementId: s.placementId,
+      student:     s.student,
+      weeksAssessed: s.weeks.filter((w) => w.quality !== null).length,
+      signals:     signalsFor(s.weeks, cohortMeanWords),
+    }))
+    // Only students with something to say. A student with no signals is not a
+    // finding, and listing everyone with an empty row buries the ones that are.
+    .filter((s) => s.signals.length > 0)
+    .sort((a, b) => {
+      const high = (x: typeof a) => x.signals.filter((g) => g.severity === 'high').length;
+      return high(b) - high(a) || b.signals.length - a.signals.length;
+    });
+
+  return {
+    students,
+    /** So the page can say "12 looked at, 3 worth a look" rather than just "3". */
+    consideredStudents: perStudent.length,
+    cohortMeanReflectionWords: cohortMeanWords === null ? null : Math.round(cohortMeanWords),
+  };
 }
