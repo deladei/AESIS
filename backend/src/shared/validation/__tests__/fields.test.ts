@@ -1,6 +1,6 @@
 import {
   personName, organisationName, email, ghanaPhone, normaliseGhanaPhone,
-  indexNumber, freeText, optionalFreeText, weekNumber, weekNumberCeiling,
+  indexNumber, optionalIndexNumber, freeText, optionalFreeText, weekNumber, weekNumberCeiling,
   dayHours, weekHours, score, ASSESSMENT_INDUSTRY_MAXIMA,
 } from '../fields';
 
@@ -97,11 +97,51 @@ describe('ghanaPhone', () => {
 });
 
 describe('indexNumber', () => {
-  it.each(['UEB0201421', 'CS/2026/0417', 'AB-1234'])('accepts %s', (v) => {
+  // Three capital letters then seven digits, ten characters exactly.
+  it.each(['UEB0201421', 'CSC0000001', 'ZZZ9999999'])('accepts %s', (v) => {
     expect(ok(indexNumber, v).success).toBe(true);
   });
-  it.each(['ab', 'UEB 0201421', 'UEB@0201'])('rejects %s', (v) => {
+
+  it('accepts it typed in lower case and stores it upper-cased', () => {
+    // It is printed on the card in capitals and read off it, so this is the
+    // same student — and storing both spellings would be two accounts.
+    const parsed = ok(indexNumber, '  ueb0201421  ');
+    expect(parsed.success).toBe(true);
+    expect(parsed.success && parsed.data).toBe('UEB0201421');
+  });
+
+  it.each([
+    ['ab',            'far too short'],
+    ['UEB020142',     'six digits'],
+    ['UEB02014211',   'eight digits'],
+    ['UE0201421',     'only two letters'],
+    ['UEBA201421',    'four letters'],
+    ['UEB 0201421',   'an internal space'],
+    ['UEB@0201421',   'a symbol'],
+    ['CS/2026/0417',  'the old slash form'],
+    ['AB-1234',       'the old hyphen form'],
+    ['0201421UEB',    'the right characters in the wrong order'],
+  ])('rejects %s (%s)', (v) => {
     expect(ok(indexNumber, v).success).toBe(false);
+  });
+});
+
+describe('optionalIndexNumber', () => {
+  it('treats a blank cell as absence, not as a bad value', () => {
+    // A coordinator pasting a spreadsheet with an empty column should not be
+    // told the file is invalid.
+    const parsed = ok(optionalIndexNumber, '   ');
+    expect(parsed.success).toBe(true);
+    expect(parsed.success && parsed.data).toBeNull();
+  });
+
+  it.each([undefined, null])('accepts %s', (v) => {
+    expect(ok(optionalIndexNumber, v).success).toBe(true);
+  });
+
+  it('still enforces the format when a value is present', () => {
+    expect(ok(optionalIndexNumber, 'CS/2026/0417').success).toBe(false);
+    expect(ok(optionalIndexNumber, 'ueb0201421').success).toBe(true);
   });
 });
 

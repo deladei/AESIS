@@ -159,12 +159,44 @@ export const ghanaPhone = (label = 'Phone number') =>
     });
 
 // ── Identifiers ─────────────────────────────────────────────────
+/**
+ * The university's index number: three capital letters then seven digits,
+ * ten characters exactly — `UEB0201421`.
+ *
+ * This used to accept anything 3-40 characters made of letters, digits,
+ * slashes and hyphens, which let a mistyped number through and stored it, and
+ * a stored typo is a student who cannot be matched to their roster row.
+ */
+const INDEX_NUMBER_RE = /^[A-Z]{3}[0-9]{7}$/;
+const INDEX_NUMBER_MESSAGE =
+  'Index number must be three capital letters followed by seven digits (e.g. UEB0201421)';
+
 export const indexNumber = z
   .string()
   .trim()
-  .min(3, 'Index number is too short')
-  .max(40, 'Index number is too long')
-  .regex(/^[\p{L}\p{N}/-]+$/u, 'Index number may only contain letters, digits, slashes and hyphens');
+  // Printed on the card in capitals and read off it, so a lowercase typing is
+  // the same student. Upper-casing BEFORE the check means `ueb0201421` is
+  // accepted and stored as `UEB0201421` — two spellings can never become two
+  // accounts, and login already matches the column case-insensitively.
+  .toUpperCase()
+  .regex(INDEX_NUMBER_RE, INDEX_NUMBER_MESSAGE);
+
+/**
+ * The same rule where the value is optional — a class roster may list a
+ * student before their index number is known.
+ *
+ * A blank cell is absence, not a bad value, so it collapses to null instead of
+ * failing: a coordinator pasting a spreadsheet with an empty column should not
+ * be told their file is invalid.
+ */
+export const optionalIndexNumber = z
+  .string()
+  .trim()
+  .toUpperCase()
+  .transform((v) => (v === '' ? null : v))
+  .refine((v) => v === null || INDEX_NUMBER_RE.test(v), INDEX_NUMBER_MESSAGE)
+  .nullable()
+  .optional();
 
 export const staffId = z
   .string()

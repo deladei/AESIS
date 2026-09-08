@@ -407,12 +407,26 @@ export default function RegisterPage() {
               <input
                 id="indexNumber"
                 type="text"
-                placeholder="e.g. 10543210"
+                placeholder="e.g. UEB0201421"
+                // Ten characters exactly, so the field will not accept an
+                // eleventh. Cheaper than an error message after the fact.
+                maxLength={10}
                 value={form.indexNumber}
-                onChange={(e) => setField('indexNumber', e.target.value)}
+                // Upper-cased as it is typed rather than silently on submit, so
+                // what the student sees is what gets stored. The number is
+                // printed on their card in capitals anyway.
+                onChange={(e) => setField('indexNumber', e.target.value.toUpperCase())}
+                autoCapitalize="characters"
+                autoCorrect="off"
+                spellCheck={false}
+                aria-describedby="indexNumber-hint"
                 className={fieldClass(!!errors.indexNumber)}
               />
-              {errors.indexNumber && <p className="mt-1 text-xs text-danger">{errors.indexNumber}</p>}
+              {errors.indexNumber
+                ? <p className="mt-1 text-xs text-danger">{errors.indexNumber}</p>
+                : <p id="indexNumber-hint" className="mt-1 text-xs text-ink-muted">
+                    Three letters followed by seven digits.
+                  </p>}
             </div>
           )}
 

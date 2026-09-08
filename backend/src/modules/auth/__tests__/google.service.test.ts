@@ -88,7 +88,7 @@ describe('google sign-in', () => {
   it('creates a student when the roster has them, and claims the row', async () => {
     (mp.user.findUnique as jest.Mock).mockResolvedValue(null);
     (mp.studentRoster.findFirst as jest.Mock).mockResolvedValue({
-      id: 'r-1', firstName: 'Ama', lastName: 'Mensah', indexNumber: 'UEB0099',
+      id: 'r-1', firstName: 'Ama', lastName: 'Mensah', indexNumber: 'UEB0201421',
     });
     (mp.user.create as jest.Mock).mockResolvedValue({ id: 'u-new', role: 'student' });
 
@@ -97,7 +97,7 @@ describe('google sign-in', () => {
     expect(out).toEqual({ kind: 'signed-in', userId: 'u-new', role: 'student' });
     expect(mp.user.create).toHaveBeenCalledWith(expect.objectContaining({
       data: expect.objectContaining({
-        role: 'student', indexNumber: 'UEB0099', isVerified: true, departmentId: 'dept-cs',
+        role: 'student', indexNumber: 'UEB0201421', isVerified: true, departmentId: 'dept-cs',
       }),
     }));
     // The roster row is claimed, so a second Google account cannot take it.

@@ -4,6 +4,7 @@ import { ok } from '../../shared/utils/response';
 import * as service from './coordinator.service';
 import { updateCohortConfigSchema } from './coordinator.schema';
 import { REGION_VALUES } from '../../shared/constants/regions';
+import { optionalIndexNumber } from '../../shared/validation/fields';
 
 const studentsQuerySchema = z.object({
   page:           z.coerce.number().int().positive().default(1),
@@ -155,7 +156,10 @@ const rosterUploadSchema = z.object({
         firstName:   z.string().trim().min(1).max(80),
         lastName:    z.string().trim().min(1).max(80),
         email:       z.string().trim().toLowerCase().pipe(z.string().email().max(160)),
-        indexNumber: z.string().trim().max(40).optional().nullable(),
+        // Same rule as registration. A roster row is where an index number
+        // most often enters the system, so accepting a malformed one here just
+        // moves the failure to the student who cannot claim their row.
+        indexNumber: optionalIndexNumber,
       }),
     )
     .min(1)

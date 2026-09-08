@@ -67,7 +67,7 @@ describe('POST /auth/register', () => {
     lastName:               'Boateng',
     role:                   'student',
     gender:                 'female',
-    indexNumber:            '10543210',
+    indexNumber:            'UEB0543210',
     programmeId:            '00000000-0000-0000-0000-000000000001',
     region:                 'greater_accra',
     companyName:            'Kofi Analytics Ltd',

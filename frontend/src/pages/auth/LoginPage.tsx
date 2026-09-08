@@ -161,7 +161,7 @@ export default function LoginPage() {
                 value={form.identifier}
                 onChange={(e) => { setForm({ ...form, identifier: e.target.value }); clear('identifier'); }}
                 onBlur={() => check('identifier', form.identifier)}
-                placeholder="you@cs.edu.gh or UEB0099"
+                placeholder="you@cs.edu.gh or UEB0201421"
                 className="w-full px-4 py-2.5 rounded-lg bg-surface border border-line text-ink placeholder:text-ink-muted text-sm focus:outline-none focus:border-brand focus:ring-1 focus:ring-brand transition-colors duration-150"
               />
               <FieldError message={errors.identifier} />

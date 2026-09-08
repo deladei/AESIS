@@ -93,7 +93,7 @@ describe('authService.register', () => {
     password:    'Password@123',
     role:        'student' as const,
     gender:      'female' as const,
-    indexNumber: '10543210',
+    indexNumber: 'UEB0543210',
     programmeId: 'prog-uuid-1',
     region:                 'greater_accra' as const,
     companyName:            'TechBridge Ghana',
@@ -145,7 +145,7 @@ describe('authService.register', () => {
     // First findUnique = email lookup (free), second = index-number lookup (taken).
     (mockPrisma.user.findUnique as jest.Mock)
       .mockResolvedValueOnce(null)
-      .mockResolvedValueOnce(fakeUser({ indexNumber: '10543210' }));
+      .mockResolvedValueOnce(fakeUser({ indexNumber: 'UEB0543210' }));
     await expect(authService.register(validInput)).rejects.toMatchObject({ statusCode: 409 });
   });
 
@@ -159,7 +159,7 @@ describe('authService.register', () => {
     await authService.register(validInput);
 
     expect(mockPrisma.user.create).toHaveBeenCalledWith(
-      expect.objectContaining({ data: expect.objectContaining({ gender: 'female', indexNumber: '10543210' }) }),
+      expect.objectContaining({ data: expect.objectContaining({ gender: 'female', indexNumber: 'UEB0543210' }) }),
     );
   });
 
@@ -208,7 +208,7 @@ describe('authService.register', () => {
     (mockPrisma.user.findUnique as jest.Mock).mockResolvedValue(null);
     (mockPrisma.studentRoster.findFirst as jest.Mock).mockResolvedValue({
       id: 'roster-uuid-2', firstName: 'Akosua', lastName: 'Asante',
-      indexNumber: 'UEB0099', email: validInput.email,
+      indexNumber: 'UEB0201421', email: validInput.email,
     });
     (mockPrisma.studentRoster.update as jest.Mock).mockResolvedValue({ id: 'roster-uuid-2' });
     (mockPrisma.user.findMany as jest.Mock).mockResolvedValue([{ id: 'coord-1' }]);
@@ -221,7 +221,7 @@ describe('authService.register', () => {
     expect(mockPrisma.user.create).toHaveBeenCalledWith(
       expect.objectContaining({
         data: expect.objectContaining({
-          firstName: 'Akosua', lastName: 'Asante', indexNumber: 'UEB0099',
+          firstName: 'Akosua', lastName: 'Asante', indexNumber: 'UEB0201421',
         }),
       }),
     );
@@ -320,7 +320,7 @@ describe('authService.getProfile', () => {
   it('returns the student profile with the latest placement', async () => {
     (mockPrisma.user.findUnique as jest.Mock).mockResolvedValue({
       id: 'user-uuid-1', firstName: 'Ada', lastName: 'Okonkwo', email: 'student@cs.edu',
-      role: 'student', gender: 'female', indexNumber: '10543210', phone: null,
+      role: 'student', gender: 'female', indexNumber: 'UEB0543210', phone: null,
       isVerified: true, supervisedRegion: null, createdAt: new Date(), lastLoginAt: null,
       department: { name: 'Computer Science', code: 'CS' },
       programme:  { name: 'B.Sc. Computer Science', code: 'BSC-CS' },
@@ -336,7 +336,7 @@ describe('authService.getProfile', () => {
     const profile = await authService.getProfile('user-uuid-1');
 
     expect(profile).toMatchObject({
-      role: 'student', gender: 'female', indexNumber: '10543210',
+      role: 'student', gender: 'female', indexNumber: 'UEB0543210',
       department: 'Computer Science', programme: 'B.Sc. Computer Science',
     });
     expect(profile.placement).toMatchObject({
@@ -368,7 +368,7 @@ describe('authService.updateProfile', () => {
   const stubProfileRead = (overrides = {}) => {
     (mockPrisma.user.findUnique as jest.Mock).mockResolvedValue({
       id: 'user-uuid-1', firstName: 'Ada', lastName: 'Okonkwo', email: 'student@cs.edu',
-      role: 'student', gender: 'female', indexNumber: '10543210', phone: null,
+      role: 'student', gender: 'female', indexNumber: 'UEB0543210', phone: null,
       isVerified: true, supervisedRegion: null, createdAt: new Date(), lastLoginAt: null,
       department: { name: 'Computer Science', code: 'CS' },
       programme:  { name: 'B.Sc. Computer Science', code: 'BSC-CS' },
@@ -414,10 +414,10 @@ describe('authService.updateProfile', () => {
   it('rejects a duplicate index number with 409', async () => {
     // first findUnique = the user being edited; second = the dup lookup.
     (mockPrisma.user.findUnique as jest.Mock)
-      .mockResolvedValueOnce({ id: 'user-uuid-1', role: 'student', indexNumber: '10543210' })
-      .mockResolvedValueOnce({ id: 'someone-else', indexNumber: '99999999' });
+      .mockResolvedValueOnce({ id: 'user-uuid-1', role: 'student', indexNumber: 'UEB0543210' })
+      .mockResolvedValueOnce({ id: 'someone-else', indexNumber: 'UEB0999999' });
 
-    await expect(authService.updateProfile('user-uuid-1', { indexNumber: '99999999' }))
+    await expect(authService.updateProfile('user-uuid-1', { indexNumber: 'UEB0999999' }))
       .rejects.toMatchObject({ statusCode: 409 });
     expect(mockPrisma.user.update).not.toHaveBeenCalled();
   });
@@ -426,7 +426,7 @@ describe('authService.updateProfile', () => {
     stubProfileRead({ id: 'sup-1', role: 'academic_supervisor', indexNumber: null });
     (mockPrisma.user.update as jest.Mock).mockResolvedValue({});
 
-    await authService.updateProfile('sup-1', { indexNumber: '12345', firstName: 'Akua' });
+    await authService.updateProfile('sup-1', { indexNumber: 'UEB0000123', firstName: 'Akua' });
 
     // only the name change is applied — indexNumber is dropped for non-students.
     expect(mockPrisma.user.update).toHaveBeenCalledWith(
@@ -451,9 +451,9 @@ describe('authService.login — signing in with an index number', () => {
   });
 
   it('signs a student in with their index number', async () => {
-    (mockPrisma.user.findFirst as jest.Mock).mockResolvedValue(fakeUser({ indexNumber: 'UEB0099' }));
+    (mockPrisma.user.findFirst as jest.Mock).mockResolvedValue(fakeUser({ indexNumber: 'UEB0201421' }));
 
-    const result = await authService.login({ identifier: 'UEB0099', password: 'Password@123' });
+    const result = await authService.login({ identifier: 'UEB0201421', password: 'Password@123' });
 
     expect(result.accessToken).toBeTruthy();
     // An index number is never looked up as an email.
@@ -461,9 +461,9 @@ describe('authService.login — signing in with an index number', () => {
   });
 
   it('matches an index number case-insensitively', async () => {
-    // These are printed on cards and read off them; ueb0099 and UEB0099 are
+    // These are printed on cards and read off them; ueb0099 and UEB0201421 are
     // the same student.
-    (mockPrisma.user.findFirst as jest.Mock).mockResolvedValue(fakeUser({ indexNumber: 'UEB0099' }));
+    (mockPrisma.user.findFirst as jest.Mock).mockResolvedValue(fakeUser({ indexNumber: 'UEB0201421' }));
 
     await authService.login({ identifier: 'ueb0099', password: 'Password@123' });
 
@@ -491,8 +491,8 @@ describe('authService.login — signing in with an index number', () => {
     const missing = authService.login({ identifier: 'UEB0000', password: 'Password@123' });
     await expect(missing).rejects.toMatchObject({ statusCode: 401, message: 'Invalid credentials' });
 
-    (mockPrisma.user.findFirst as jest.Mock).mockResolvedValue(fakeUser({ indexNumber: 'UEB0099' }));
-    const wrongPassword = authService.login({ identifier: 'UEB0099', password: 'WrongPassword' });
+    (mockPrisma.user.findFirst as jest.Mock).mockResolvedValue(fakeUser({ indexNumber: 'UEB0201421' }));
+    const wrongPassword = authService.login({ identifier: 'UEB0201421', password: 'WrongPassword' });
     await expect(wrongPassword).rejects.toMatchObject({ statusCode: 401, message: 'Invalid credentials' });
   });
 });
