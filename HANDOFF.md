@@ -4651,8 +4651,9 @@ whether it exists — the application role often cannot connect there at all, an
 requiring it turned "already fine" into a hard failure. That was the first
 version's bug, found by it silently doing nothing.
 
-**⚠️ This script has still never completed successfully.** The six integration
-suites remain red on `users.onboarded_at`, and now also lack `task_attachment`.
+**It works.** One run took 3.19s and closed the whole day's drift at once —
+`users.onboarded_at`, `task_attachment` and the six-week `duration_weeks`
+default. Use it after any schema change; it is the fix for the trap above.
 
 ### Deploys verified in production
 
@@ -4671,21 +4672,25 @@ before it had been verified server-side only. The round trip — consent, state
 cookie surviving Google's cross-site redirect, server-side code exchange, ID
 token verification, roster match — is now confirmed end to end in production.
 
-### ⚠️ What this session shipped on
+### The test-database gap — opened and closed the same session
 
-Everything after `9bff048` rests on unit tests, a clean `tsc`, a clean frontend
-build and production smoke checks — **not** on the integration suites, which have
-not run green since the morning of 2026-09-08. Two changes were shipped at the
-user's explicit direction with that gap open (`6bf4e82`, `33347d5`). The unit
-tests mock Prisma, so they cannot catch a malformed migration; the smoke checks
-above are what stands in for that, and Render's `&&` is what makes a bad
-migration visible rather than silent.
+`6bf4e82` and `33347d5` were shipped at the user's direction while the six
+integration suites were red, resting on unit tests, a clean `tsc`, a clean
+frontend build and production smoke checks. That was a real if narrow gap: unit
+tests mock Prisma, so they cannot catch a malformed migration, and those six are
+the only suites running real queries against Postgres.
 
-Closing the gap is one command:
+**It is now closed.** `npm run db:test:sync` ran clean and the full suite is
+green end to end:
 
 ```
-cd backend && npm run db:test:sync
+Test Suites: 64 passed, 64 total
+Tests:       931 passed, 931 total
 ```
+
+So both migrations shipped on unit tests alone — `onboarded_at` and
+`task_attachment` — are verified against a real database after the fact. Nothing
+had to be walked back.
 
 ### Commits, in order
 
@@ -4702,11 +4707,9 @@ cd backend && npm run db:test:sync
    Supervisor" as a sign-up option — the words meant one thing to the person
    choosing them and another to an admin reading their own title. Labels only;
    the enum, routes, guards and permissions were never touched.
-2. **The six integration suites.** Red since the morning of 2026-09-08 on
-   `users.onboarded_at`, now also missing `task_attachment`. `npm run
-   db:test:sync` exists to fix this and has never completed successfully —
-   run it and READ THE ERROR rather than retrying; it was mis-diagnosed
-   twice (wrong database, then the `postgres`-role probe).
+2. ~~The six integration suites.~~ **DONE** — `npm run db:test:sync` fixed the
+   drift in one run; full suite green at 64 suites / 931 tests. Run that script
+   after any schema change and this cannot recur.
 3. ~~No human has completed a Google sign-in in a browser.~~ **DONE** — the
    user signed in and signed up through Google in a browser; both worked.
    Note the OAuth app is still in **Testing**, so only accounts listed under
