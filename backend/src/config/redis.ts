@@ -54,8 +54,23 @@ export async function connectRedis() {
   logger.info('Redis config', describeRedisUrl(env.REDIS_URL));
 
   const r = getRedis();
-  await r.connect().catch((err: Error) =>
-    logger.error('Redis connect() rejected', { message: err.message }));
+
+  // `lazyConnect` defers the connection until the first command — and the rate
+  // limiter builds its stores at IMPORT time, which happens when server.ts
+  // imports ./app, before bootstrap() ever runs. So by the time we get here the
+  // client is usually already connecting, and calling connect() again rejects
+  // with "Redis is already connecting/connected". That was being logged as an
+  // error on every single boot.
+  //
+  // `wait` is the one status that means nothing has started the connection yet.
+  // Anything else is someone else's connect already in flight, and joining it is
+  // what the PING self-test below is for.
+  if (r.status === 'wait') {
+    await r.connect().catch((err: Error) =>
+      logger.error('Redis connect() rejected', { message: err.message }));
+  } else {
+    logger.info('Redis already connecting before bootstrap', { status: r.status });
+  }
 
   // Boot self-test: prove the client can actually round-trip a command.
   // Raced against a timeout because offline-queued commands hang indefinitely
