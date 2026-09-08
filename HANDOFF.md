@@ -4304,7 +4304,7 @@ currently photographs the old page.
 
 ---
 
-## S102 — 2026-09-08 · Google sign-in shipped and live; roles relabelled; Redis boot errors, sidebar, index-number format, six-week attachment, student walkthrough
+## S102 — 2026-09-08 · Google sign-in shipped and live; roles relabelled; Redis boot errors, sidebar, index-number format, six-week attachment, student walkthrough, supervisors assigning work
 
 Two jobs. The first was finishing work that was already sitting uncommitted in
 the tree; the second arrived mid-session and was smaller than it sounded.
@@ -4595,11 +4595,99 @@ command is `npx prisma migrate deploy && node dist/server.js`, chained with
 S101's "Vercel has not deployed" is **CLOSED** — the bundle moved twice and
 "Admin Overview" is gone from production.
 
+### Supervisors can set work, with a brief attached — `33347d5`
+
+**Half of this already existed.** `Task` already carried `dueAt` as a full
+timestamp, `durationMinutes`, categories and a placement link; `tasks.service`
+already resolved supervision from the placement table rather than trusting the
+client; students already saw their tasks on the dashboard. Supervisors simply
+had no way to create any. So this adds the two genuinely missing pieces rather
+than rebuilding what was there.
+
+`TaskAttachment` mirrors `MessageAttachment` field for field — same folder, same
+10 MB / 5 file limits, same MIME allow-list, same multer config. One upload
+mechanism, not a third. `POST /tasks/assign` is multipart so the brief travels
+with the assignment; create-then-attach would leave a half-set piece of work
+behind whenever the second call failed.
+
+**Two things here are easy to get wrong.**
+
+*Authorization is all-or-nothing.* Every assignee goes through the SAME
+`assertMayAssign` a single task uses, and all of them are checked BEFORE
+anything is written, so one bad id in a list of twenty creates nothing rather
+than a partial batch someone reconciles by hand.
+
+*The upload is shared.* One PDF for fifteen students uploads once and every task
+points at the same asset — which makes deletion dangerous.
+`removeTaskAttachment` counts remaining rows and only deletes the remote asset
+when it was the last one holding it; otherwise removing one student's copy would
+blank the brief for the rest. If the tasks fail to write after an upload, the
+orphaned asset is cleaned up.
+
+The panel offers **All my students** (default) or **Choose students**, resolved
+when Assign is pressed rather than when the mode is picked, so "all" means
+everyone the supervisor has at that moment. Due date and time are separate
+fields: a deadline has both, and storing midnight silently means "the day
+before" to anyone working that evening.
+
+Students see attached briefs as links under each task — the file was otherwise
+stored, returned by the API, and invisible to the one person the work was set
+for. Fifteen tests, in a module whose `__tests__` folder was empty.
+
+### `db:test:sync` — `86e0720`
+
+The script for the trap described above. `db push` rather than `migrate deploy`,
+because a test database has no history worth keeping and the `.env` database
+next door has no baseline anyway.
+
+**The guards matter more than the sync does** — `db push --accept-data-loss`
+against production is what froze migrations S57→S61. Three independent checks:
+the target name must be exactly `aesis_logbook_test`, the host must be local,
+and the raw `DATABASE_URL` must not match any managed provider. No single edit
+to `.env` can aim it at a real database; credentials are never printed.
+
+It probes the test database directly rather than asking the `postgres` database
+whether it exists — the application role often cannot connect there at all, and
+requiring it turned "already fine" into a hard failure. That was the first
+version's bug, found by it silently doing nothing.
+
+**⚠️ This script has still never completed successfully.** The six integration
+suites remain red on `users.onboarded_at`, and now also lack `task_attachment`.
+
+### Deploys verified in production
+
+`/health` ok; `POST /tasks/assign` and `POST /auth/me/onboarded` both answer 401
+rather than 404; `GET /auth/google/status` reports `configured: true`; the Vercel
+bundle carries "Assign work", "All my students" and "Who gets this". Render's
+start command is `npx prisma migrate deploy && node dist/server.js`, so a serving
+backend is proof every migration applied.
+
+**Not verified from this box:** whether `CLOUDINARY_*` is set on `aesis-backend`.
+Without it, assigning WITH a file returns a clear 503 and assigning without one
+still works.
+
+### ⚠️ What this session shipped on
+
+Everything after `9bff048` rests on unit tests, a clean `tsc`, a clean frontend
+build and production smoke checks — **not** on the integration suites, which have
+not run green since the morning of 2026-09-08. Two changes were shipped at the
+user's explicit direction with that gap open (`6bf4e82`, `33347d5`). The unit
+tests mock Prisma, so they cannot catch a malformed migration; the smoke checks
+above are what stands in for that, and Render's `&&` is what makes a bad
+migration visible rather than silent.
+
+Closing the gap is one command:
+
+```
+cd backend && npm run db:test:sync
+```
+
 ### Commits, in order
 
 `f94bf38` Google sign-in · `a282e6e` role labels · `4117ab1` handoff ·
 `4753dbb` Google go-live · `9bff048` Redis boot · `c64779d` sidebar ·
-`928f8e1` index format · `8f21d1c` six weeks · `6bf4e82` onboarding
+`928f8e1` index format · `8f21d1c` six weeks · `6bf4e82` onboarding ·
+`0539c97` handoff · `33347d5` assign work · `86e0720` db:test:sync
 
 ### Still open
 
@@ -4607,7 +4695,11 @@ S101's "Vercel has not deployed" is **CLOSED** — the bundle moved twice and
    above) but unresolved: they remain two distinct roles with different powers,
    so anywhere both can appear side by side needs a disambiguator. A wording
    decision, not a bug.
-2. **The six integration suites, and the `db:test:sync` script.** See above.
+2. **The six integration suites.** Red since the morning of 2026-09-08 on
+   `users.onboarded_at`, now also missing `task_attachment`. `npm run
+   db:test:sync` exists to fix this and has never completed successfully —
+   run it and READ THE ERROR rather than retrying; it was mis-diagnosed
+   twice (wrong database, then the `postgres`-role probe).
 3. **No human has completed a Google sign-in in a browser.** Everything
    server-side is verified. While the OAuth app is in Testing, only accounts
    listed under Audience can do it.
