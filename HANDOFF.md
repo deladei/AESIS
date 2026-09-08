@@ -4692,12 +4692,121 @@ So both migrations shipped on unit tests alone — `onboarded_at` and
 `task_attachment` — are verified against a real database after the fact. Nothing
 had to be walked back.
 
+### Departmental skill gaps, from the employer evaluations — `9391bfa`
+
+Most of a requested AI-engine feature list described a **careers product** — CV
+screening, GitHub analysis, job matching, coursework/GPA, coding tests, a mock
+interviewer. AESIS supervises students who are ALREADY placed and holds no
+jobs, CVs, courses or GPA (`grep -niE "gpa|course|curricul|transcript|module|
+credit|semester"` over the schema returns nothing). Not built. Two more already
+existed — plagiarism and skill extraction — and would have been rebuilt.
+
+**AI-generated-text detection was declined on the merits.** Those classifiers
+are unreliable and their errors are not random: they disproportionately flag
+people writing in English as a second language, which here means false
+accusations against real students. It also contradicts the rule that AI output
+is advisory and never implies a grade.
+
+What was left needed no AI. `AssessmentIndustry` carries seven criteria on
+FIXED maxima identical for every student, so it is comparable across a cohort —
+unlike `PlacementAssessment.evaluation`, whose criterion names are free text per
+submission and cannot be aggregated honestly.
+
+Three things that would otherwise have shipped as bugs: ranking must use each
+criterion's OWN maximum (attendance 15/20 is weaker than safety 8/10); the scope
+must NOT filter `placementStatus: 'active'` the way neighbouring aggregates do,
+because the evaluation arrives at the END of an attachment when the placement is
+`completed`; and a placement assessed by two supervisors has two rows, so the
+mean is per placement then across placements or `n` is wrong.
+
+Sealed-envelope: `coordinator|admin|hod` only, refusing the ACADEMIC SUPERVISOR
+who is staff for nearly everything else. Below n=5 the whole panel is withheld —
+a partial table is what a reader differences to recover what was hidden — and
+`programmeId` is a filter, never a breakdown, for the same reason.
+
+### The AI assessment splits weekly and daily — `c7e6c94`
+
+The engine already judged every activity separately and the worker already sent
+each activity's date; only the display flattened it. A regrouping, not a new
+call. The rubric stays weekly because it is scored once for the week — splitting
+it per day would mean inventing numbers.
+
+**The join is positional and guarded.** The engine returns one verdict per
+activity in send order and truncates descriptions to 140 chars, so text matching
+breaks on longer ones. Position holds only while both lists describe the same
+activities, and a student editing after enrichment, or two activities sharing a
+date (`orderBy activityDate` has no tiebreak), breaks it. `verdictsAlign` checks
+count and prefix and hides the breakdown rather than mis-attributing a verdict.
+
+### Supervisor surfaces — `83dee6c`
+
+A per-student roster on My Students (clicking a row narrows the queue rather
+than navigating away); four inert dashboard stat cards given destinations; and
+manual roster entry under both upload panels, reusing the SAME mutations as the
+file upload so validation and results stay in one place.
+
+**"At risk" was a bug, not wording.** `zeroProgress` flagged any student with no
+submissions, so someone in their first week was labelled at risk on day one,
+before there was anything to submit. It now requires a week to have actually
+come due; `weeksDue` is optional on the input so an older caller cannot silently
+change meaning. The label reads "Needs attention" throughout.
+
+### Patterns across weeks — `a9ad058`
+
+Five signals on Student Progress, all from stored data: quality decline,
+repetition, narrowing exposure, deadline-only submission, thin reflection.
+
+The rules: **nothing is inferred from silence** (too few weeks produces no
+signal, an unassessed week is missing data and never a zero, `checked: false` on
+a plagiarism report is the fail-open marker and not evidence of originality);
+**every signal carries its evidence** so a supervisor can check the claim; and
+two falls is not a trend. Most of the 28 tests are cases that must produce
+NOTHING. Thin reflection compares against the cohort, not a fixed word count — a
+year group writing briefly is a prompt problem. Deadline-only is never phrased
+as lateness: those weeks were submitted on time.
+
+### The assistant was refusing a service that was merely asleep — `4259ed0`
+
+Nothing was broken. `/health` answers in 1.5s once awake, Groq connected, model
+available. `aesis-ai-engine` runs on a plan that suspends after a quiet spell
+and takes 30–60s to wake (it loads a sentence-transformer on boot), while the
+timeouts are deliberately shorter — 8s for the status dot, 45s for a chat turn.
+So the first question after any idle period was refused, and **the question that
+would have woken it was the one being refused**.
+
+Fixed with a `/health` keep-warm every 10 minutes plus one at boot, and one
+retry on a failed chat turn — the attempt that fails is the attempt that wakes
+it. Safe to retry: nothing is streamed yet and the engine writes its transcript
+only after answering.
+
+### MONGO_URI diagnostics — `4d3d9bd`
+
+`/health` said `unavailable: OperationFailure` — the exception class and
+nothing else, pointing everyone at the password. The cause is structural:
+`MONGO_URI` is `sync: false` on BOTH services (render.yaml:33 and :144), typed
+separately into a dashboard, so they drift. Same class as `POSTGRES_DSN` in
+S101.
+
+Both now publish host suffix, database name and whether a password is set —
+never any part of the credential — so comparing them shows which is stale. New
+`GET /health/mongo` returns 503 when disconnected, so a ping fails loudly
+instead of passing while transcripts go nowhere.
+
+**Still unresolved at the time of writing:** the engine cannot save chat
+transcripts. Chat itself works completely. Compare
+`aesis.onrender.com/health/mongo` against the engine's `/health.mongoTarget`
+and fix whichever is stale.
+
 ### Commits, in order
 
 `f94bf38` Google sign-in · `a282e6e` role labels · `4117ab1` handoff ·
 `4753dbb` Google go-live · `9bff048` Redis boot · `c64779d` sidebar ·
 `928f8e1` index format · `8f21d1c` six weeks · `6bf4e82` onboarding ·
-`0539c97` handoff · `33347d5` assign work · `86e0720` db:test:sync
+`0539c97` handoff · `33347d5` assign work · `86e0720` db:test:sync ·
+`88b4673` handoff · `40cca74` System Supervisor · `e77438e` handoff ·
+`63773dd` handoff · `9391bfa` skill gaps · `c7e6c94` weekly/daily ·
+`83dee6c` supervisor surfaces · `a9ad058` progress signals ·
+`4259ed0` AI wake · `4d3d9bd` mongo diagnostics
 
 ### Still open
 
