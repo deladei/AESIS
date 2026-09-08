@@ -7,6 +7,7 @@ import { globalErrorHandler } from './middleware/errorHandler';
 import { env } from './config/env';
 import { prisma } from './config/prisma';
 import { mongoTarget } from './config/mongo';
+import { emailStatus } from './shared/utils/email';
 import { logger } from './config/logger';
 
 import authRouter          from './modules/auth/auth.router';
@@ -122,6 +123,22 @@ export function createApp() {
       status:  target.connected ? 'ok' : 'error',
       service: 'aesis-api',
       mongo:   target,
+      timestamp: new Date().toISOString(),
+    });
+  });
+
+  // Whether mail can actually leave this server. Password resets, email
+  // verification and supervisor invitations all depend on it, and sendEmail
+  // deliberately swallows failures so a reset request cannot 500 — which meant
+  // mail could stop entirely with no signal anywhere. Publishes the sender
+  // identity (the setting that is usually wrong) and never the API key, so it
+  // needs no auth. 503 when nothing would be delivered.
+  app.get('/health/email', (_req, res) => {
+    const status = emailStatus();
+    res.status(status.deliverable ? 200 : 503).json({
+      status: status.deliverable ? 'ok' : 'error',
+      service: 'aesis-api',
+      email: status,
       timestamp: new Date().toISOString(),
     });
   });

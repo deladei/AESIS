@@ -23,6 +23,28 @@ function createTransport() {
 
 const transport = createTransport();
 
+/**
+ * The last send that failed, and why.
+ *
+ * `sendEmail` deliberately swallows failures — a password-reset request must
+ * not 500 because SMTP is down — but swallowing them left NO signal anywhere
+ * that mail had stopped working. A user asks for a reset, sees "check your
+ * inbox", and nothing arrives; nobody finds out until someone complains. This
+ * is what `/health/email` reports.
+ */
+let lastFailure: { at: string; to: string; subject: string; detail: string } | null = null;
+let lastSuccessAt: string | null = null;
+
+/**
+ * A misconfiguration worth shouting about ONCE at boot rather than silently
+ * per email. In production with no key, every message this system sends —
+ * verification, password reset, supervisor invitations — goes to the log and
+ * nowhere else.
+ */
+if (env.NODE_ENV === 'production' && !env.SENDGRID_API_KEY) {
+  logger.error('EMAIL DISABLED: SENDGRID_API_KEY is not set — no mail will be delivered');
+}
+
 export async function sendEmail(payload: EmailPayload): Promise<void> {
   if (!transport) {
     logger.info('📧 [DEV EMAIL — not sent]', {
@@ -40,11 +62,56 @@ export async function sendEmail(payload: EmailPayload): Promise<void> {
       subject: payload.subject,
       html:    payload.html,
     });
+    lastSuccessAt = new Date().toISOString();
     logger.info('Email sent', { to: payload.to, subject: payload.subject });
   } catch (err) {
-    logger.error('Failed to send email', { to: payload.to, error: err });
-    // Email failure is non-fatal — log and continue
+    // SendGrid's most common rejection is a 403 on an unverified sender
+    // identity — the FROM address, not the key. Its message says so, and
+    // keeping it is the difference between a fixable report and "failed".
+    const detail = err instanceof Error ? err.message.split('\n')[0].slice(0, 200) : String(err);
+    lastFailure = { at: new Date().toISOString(), to: payload.to, subject: payload.subject, detail };
+    logger.error('Failed to send email', { to: payload.to, subject: payload.subject, detail });
+    // Still non-fatal: a reset request must not 500 because SMTP is down.
   }
+}
+
+/**
+ * Whether mail can actually leave this server, and what went wrong last time.
+ *
+ * Publishes the sender identity — which is the setting that is usually wrong —
+ * and never the API key. Mirrors `mongoTarget()`.
+ */
+export function emailStatus(): {
+  configured: boolean; deliverable: boolean; from: string; fromName: string;
+  problem?: string; lastSuccessAt: string | null;
+  lastFailure: typeof lastFailure;
+} {
+  const configured = Boolean(env.SENDGRID_API_KEY);
+  const from = env.EMAIL_FROM;
+
+  let problem: string | undefined;
+  if (!configured) {
+    problem = env.NODE_ENV === 'production'
+      ? 'SENDGRID_API_KEY is not set — nothing is delivered'
+      : 'No SENDGRID_API_KEY: mail is logged, not sent (expected outside production)';
+  } else if (from.endsWith('@aesis.cs.edu')) {
+    // The blueprint default. SendGrid rejects any send whose FROM is not a
+    // verified sender identity, and this domain is a placeholder nobody owns,
+    // so every message fails with a 403 that used to be swallowed.
+    problem = `EMAIL_FROM is still the placeholder ${from} — SendGrid will reject it unless that exact address is a verified sender`;
+  }
+
+  return {
+    configured,
+    // Configured is not the same as working: a key with an unverified sender
+    // sends nothing at all.
+    deliverable: configured && !problem,
+    from,
+    fromName: env.EMAIL_FROM_NAME,
+    problem,
+    lastSuccessAt,
+    lastFailure,
+  };
 }
 
 // ── Email templates ───────────────────────────────────────────
