@@ -152,6 +152,18 @@ export async function programmesHandler(_req: Request, res: Response) {
 }
 
 
+/**
+ * Mark the first-run walkthrough as done.
+ *
+ * A POST with no body: the only fact being recorded is "this happened", and
+ * the timestamp is the server's rather than the client's — a browser clock can
+ * be wrong or lied about.
+ */
+export async function markOnboardedHandler(req: Request, res: Response) {
+  const data = await authService.markOnboarded(req.user!.sub);
+  return ok(res, data);
+}
+
 // ── Sign in with Google ───────────────────────────────────────
 
 /**

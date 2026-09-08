@@ -771,3 +771,59 @@ describe('authService.removeAvatar', () => {
     expect(mockPrisma.user.update).not.toHaveBeenCalled();
   });
 });
+
+/**
+ * The first-run walkthrough is remembered on the server, not in localStorage,
+ * so it does not reappear when a student opens the app on another device.
+ */
+describe('markOnboarded', () => {
+  beforeEach(() => jest.clearAllMocks());
+
+  it('stamps the time the student finished the walkthrough', async () => {
+    (mockPrisma.user.findUnique as jest.Mock).mockResolvedValue({ onboardedAt: null });
+    const stamped = new Date('2026-09-08T12:00:00.000Z');
+    (mockPrisma.user.update as jest.Mock).mockResolvedValue({ onboardedAt: stamped });
+
+    await expect(authService.markOnboarded('user-uuid-1')).resolves.toEqual({ onboardedAt: stamped });
+
+    expect(mockPrisma.user.update).toHaveBeenCalledWith(expect.objectContaining({
+      where: { id: 'user-uuid-1' },
+      data:  { onboardedAt: expect.any(Date) },
+    }));
+  });
+
+  it('keeps the original timestamp when called again', async () => {
+    // A double-clicked "Get started", or someone re-opening the walkthrough on
+    // purpose, must not rewrite when they actually completed it.
+    const first = new Date('2026-01-01T00:00:00.000Z');
+    (mockPrisma.user.findUnique as jest.Mock).mockResolvedValue({ onboardedAt: first });
+
+    await expect(authService.markOnboarded('user-uuid-1')).resolves.toEqual({ onboardedAt: first });
+    expect(mockPrisma.user.update).not.toHaveBeenCalled();
+  });
+
+  it('refuses an unknown user rather than creating anything', async () => {
+    (mockPrisma.user.findUnique as jest.Mock).mockResolvedValue(null);
+
+    await expect(authService.markOnboarded('nobody')).rejects.toMatchObject({ statusCode: 404 });
+    expect(mockPrisma.user.update).not.toHaveBeenCalled();
+  });
+});
+
+describe('getProfile — walkthrough state', () => {
+  it('reports onboardedAt so the SPA knows whether to show the walkthrough', async () => {
+    // Null is the meaningful value here: it is what makes the walkthrough
+    // appear, so it has to survive the mapping rather than be dropped.
+    (mockPrisma.user.findUnique as jest.Mock).mockResolvedValue({
+      id: 'user-uuid-1', firstName: 'Ada', lastName: 'Okonkwo', email: 'student@cs.edu',
+      role: 'student', gender: 'female', indexNumber: 'UEB0543210', phone: null,
+      isVerified: true, supervisedRegion: null, createdAt: new Date(), lastLoginAt: null,
+      onboardedAt: null,
+      department: { name: 'Computer Science', code: 'CS' },
+      programme:  { name: 'B.Sc. Computer Science', code: 'BSC-CS' },
+    });
+
+    const profile = await authService.getProfile('user-uuid-1');
+    expect(profile).toHaveProperty('onboardedAt', null);
+  });
+});

@@ -259,6 +259,9 @@ export async function getProfile(userId: string) {
     supervisedRegion: user.supervisedRegion,
     createdAt:    user.createdAt,
     lastLoginAt:  user.lastLoginAt,
+    // Null until the student finishes the first-run walkthrough. The SPA shows
+    // it while this is null, so it survives a new device or a cleared browser.
+    onboardedAt:  user.onboardedAt,
     placement:    null as null | {
       id: string;
       status: string;
@@ -478,6 +481,34 @@ export async function login(input: LoginInput, _ipAddress?: string) {
   }
 
   return issueSession(user);
+}
+
+/**
+ * Record that the student has finished the first-run logbook walkthrough.
+ *
+ * Idempotent: the first call wins and later ones leave the original timestamp
+ * alone, so re-opening the walkthrough deliberately (or a double-clicked
+ * "Get started") cannot rewrite when they actually completed it.
+ *
+ * Deliberately not restricted to students. Nothing is shown to other roles, so
+ * a guard here would only add a way for the call to fail; storing a timestamp
+ * for someone who will never be asked again is harmless.
+ */
+export async function markOnboarded(userId: string) {
+  const user = await prisma.user.findUnique({
+    where:  { id: userId },
+    select: { onboardedAt: true },
+  });
+  if (!user) throw new AppError(404, 'User not found');
+
+  if (user.onboardedAt) return { onboardedAt: user.onboardedAt };
+
+  const updated = await prisma.user.update({
+    where:  { id: userId },
+    data:   { onboardedAt: new Date() },
+    select: { onboardedAt: true },
+  });
+  return { onboardedAt: updated.onboardedAt };
 }
 
 // ── Refresh ───────────────────────────────────────────────────

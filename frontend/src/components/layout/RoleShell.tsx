@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { LogOut, Mail, PanelLeftClose, PanelLeftOpen, Sparkles } from 'lucide-react';
 import { cn } from '@/lib/utils';
@@ -6,6 +6,8 @@ import { useAuth } from '@/contexts/AuthContext';
 import { useUnreadCount } from '@/hooks/useNotifications';
 import { useCoordinatorFeatureFlags } from '@/hooks/useDashboard';
 import { useStudentDashboard } from '@/hooks/useStudentDashboard';
+import { useProfile, useMarkOnboarded } from '@/hooks/useProfile';
+import StudentOnboarding from '@/components/onboarding/StudentOnboarding';
 import { UserAvatar } from './UserAvatar';
 import { MobileNav } from './MobileNav';
 import { ThemeToggle } from './ThemeToggle';
@@ -63,6 +65,26 @@ export function RoleShell({ role, user, children, topbarSlot }: RoleShellProps) 
   // The sidebar's profile-completion meter. Same cached query the student
   // dashboard uses, so this costs no extra request.
   const { data: studentStats } = useStudentDashboard(role === 'student');
+
+  // ── First-run walkthrough ───────────────────────────────────
+  // Students only, and only until they have finished it once. `onboardedAt`
+  // comes from the server rather than localStorage, so it does not reappear on
+  // a second device or after clearing the browser.
+  const isStudent = role === 'student';
+  const { data: profile } = useProfile(isStudent);
+  const markOnboarded = useMarkOnboarded();
+  // Closed locally the instant they finish, without waiting for the request.
+  // The walkthrough is over either way; making them watch a spinner to leave it
+  // would be the one memorable thing about it.
+  const [walkthroughDone, setWalkthroughDone] = useState(false);
+  const showWalkthrough = isStudent && !walkthroughDone && profile?.onboardedAt === null;
+
+  const finishWalkthrough = useCallback(() => {
+    setWalkthroughDone(true);
+    // Fire and forget. A failure here means they see it once more next time,
+    // which is a far smaller problem than blocking them out of the app.
+    markOnboarded.mutate(undefined, { onError: () => { /* shown again next sign-in */ } });
+  }, [markOnboarded]);
 
   const nav = ROLE_NAV[role];
   const visibleNav = nav.items.filter((i) => !i.flag || flags?.[i.flag]);
@@ -156,6 +178,8 @@ export function RoleShell({ role, user, children, topbarSlot }: RoleShellProps) 
 
   return (
     <div className="flex h-screen overflow-hidden bg-app text-ink">
+      {showWalkthrough && <StudentOnboarding onDone={finishWalkthrough} />}
+
       <aside
         className={cn(
           'hidden shrink-0 flex-col bg-sidebar transition-[width] duration-200 md:flex',

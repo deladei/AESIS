@@ -378,6 +378,12 @@ model User {
   createdAt           DateTime           @default(now()) @map("created_at")
   updatedAt           DateTime           @updatedAt @map("updated_at")
   lastLoginAt         DateTime?          @map("last_login_at")
+  // When the student finished the first-run logbook walkthrough. Null means
+  // they have not seen it, so it is shown on their next sign-in. A timestamp
+  // rather than a boolean: it costs the same and answers "when", which a
+  // boolean cannot, and it is on the server rather than in localStorage so the
+  // walkthrough does not reappear when they open the app on another device.
+  onboardedAt         DateTime?          @map("onboarded_at")
 
   // Relations by role
   studentPlacements           Placement[]          @relation("StudentPlacements")

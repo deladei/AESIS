@@ -29,16 +29,24 @@ export interface Profile {
   supervisedRegion: string | null;
   createdAt:        string;
   lastLoginAt:      string | null;
+  /** Null until the student has finished the first-run walkthrough. */
+  onboardedAt:      string | null;
   placement:        ProfilePlacement | null;
 }
 
-export function useProfile() {
+/**
+ * `enabled` exists because the shell needs this for students only — to decide
+ * whether to show the first-run walkthrough — and firing it for every role on
+ * every page load would be a request nobody reads.
+ */
+export function useProfile(enabled = true) {
   return useQuery({
     queryKey: ['profile', 'me'],
     queryFn:  async () => {
       const r = await api.get<{ data: { profile: Profile } }>('/auth/me');
       return r.data.data.profile;
     },
+    enabled,
   });
 }
 
@@ -100,6 +108,28 @@ export function useRemoveAvatar() {
       qc.setQueryData<Profile>(['profile', 'me'], (prev) =>
         prev ? { ...prev, avatarUrl: null } : prev,
       );
+    },
+  });
+}
+
+/**
+ * Record that the first-run walkthrough is done.
+ *
+ * The cached profile is patched directly rather than invalidated: the
+ * walkthrough closes the moment this fires, and a refetch would leave a window
+ * where the profile still says `onboardedAt: null` and the modal reopens over
+ * the dashboard the student just reached.
+ */
+export function useMarkOnboarded() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async () => {
+      const r = await api.post<{ data: { onboardedAt: string } }>('/auth/me/onboarded');
+      return r.data.data.onboardedAt;
+    },
+    onSuccess: (onboardedAt) => {
+      qc.setQueryData<Profile>(['profile', 'me'], (prev) =>
+        prev ? { ...prev, onboardedAt } : prev);
     },
   });
 }

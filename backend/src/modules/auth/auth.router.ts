@@ -10,6 +10,7 @@ router.get('/me',                       authenticate, asyncHandler(ctrl.meHandle
 router.patch('/me',                     authenticate, asyncHandler(ctrl.updateMeHandler));
 router.post('/me/avatar',               authenticate, ctrl.avatarUpload.single('avatar'), asyncHandler(ctrl.uploadAvatarHandler));
 router.delete('/me/avatar',             authenticate, asyncHandler(ctrl.removeAvatarHandler));
+router.post('/me/onboarded',            authenticate, asyncHandler(ctrl.markOnboardedHandler));
 router.post('/register',                asyncHandler(ctrl.registerHandler));
 router.post('/login',                   asyncHandler(ctrl.loginHandler));
 router.get('/google/status',            asyncHandler(ctrl.googleStatusHandler));
