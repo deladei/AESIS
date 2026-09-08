@@ -4351,11 +4351,41 @@ doc. `.env.example` now matches its own `PORT`, the doc uses 3002, and the
 warning tells the reader to read `PORT` out of their own `.env` rather than
 trust either.
 
-**Still inert.** No `GOOGLE_*` variables are set on Render yet, so
-`/auth/google/status` reports `configured: false`, the SPA renders no button and
-nothing has changed for anyone. The console walkthrough is
-`docs/google-sign-in.md`; the user was working through it at the end of this
-session.
+**Configured and live later the same session.** The OAuth client was created
+(three non-sensitive scopes only — `openid`, `userinfo.email`,
+`userinfo.profile`; sensitive and restricted both empty, which keeps the app out
+of Google's verification review), the three variables were set on Render, and
+`/auth/google/status` now reports `configured: true`.
+
+**The redirect URI was wrong on the first attempt, exactly as predicted** —
+`GOOGLE_REDIRECT_URI` had been entered as `.../callbacK`, with a capital K. This
+is worth recording because it very nearly works and would have been miserable to
+diagnose from the browser: Express matches routes case-insensitively, so the
+callback route itself still fires, and only Google — which compares the string
+byte for byte — refuses. Caught by reading the `Location` header off
+`GET /api/v1/auth/google` and diffing the `redirect_uri` parameter against the
+expected string, which is the cheapest way to check this and needs no browser
+and no Google account.
+
+Verified against production after the fix, all without signing in:
+
+```
+GET /api/v1/auth/google  -> 302 accounts.google.com
+  redirect_uri   https://aesis.onrender.com/api/v1/auth/google/callback  (exact)
+  scope          openid email profile      response_type  code
+  state          43 chars, fresh per request
+  set-cookie     aesis_oauth_state=...; HttpOnly; Secure; SameSite=Lax; Max-Age=600
+GET /auth/google/callback?code=fake&state=fake            -> 302 ...?google=invalid_state
+GET /auth/google/callback (cookie aaaa, state bbbb)       -> 302 ...?google=invalid_state
+```
+
+Both forged callbacks refused, so the CSRF check is doing its job in prod.
+
+**Not yet exercised: a real sign-in.** Everything above tests the server side.
+The browser round trip — consent, code exchange, roster match — still needs a
+person with a Google account. While the OAuth app is in **Testing**, only
+accounts listed under Audience can do that. The console walkthrough is
+`docs/google-sign-in.md`.
 
 ### The role rename — labels only, and it exposed a live bug
 
