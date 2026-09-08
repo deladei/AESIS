@@ -6,6 +6,7 @@ import { requestLogger } from './middleware/requestLogger';
 import { globalErrorHandler } from './middleware/errorHandler';
 import { env } from './config/env';
 import { prisma } from './config/prisma';
+import { mongoTarget } from './config/mongo';
 import { logger } from './config/logger';
 
 import authRouter          from './modules/auth/auth.router';
@@ -107,6 +108,22 @@ export function createApp() {
       logger.error('Health check: Postgres unreachable', { error: (err as Error).message });
       res.status(503).json({ status: 'error', service: 'aesis-api', db: 'down', timestamp: new Date().toISOString() });
     }
+  });
+
+  // Where the document store is pointed, and whether it connected. MONGO_URI
+  // is set separately here and on the AI engine (both sync:false in
+  // render.yaml), so they drift — and when they do, chat transcripts stop
+  // being saved with nothing anywhere saying why. Compare this against the
+  // engine's /health `mongoTarget` to see which one is stale. No credential
+  // is published, so this needs no auth.
+  app.get('/health/mongo', (_req, res) => {
+    const target = mongoTarget();
+    res.status(target.connected ? 200 : 503).json({
+      status:  target.connected ? 'ok' : 'error',
+      service: 'aesis-api',
+      mongo:   target,
+      timestamp: new Date().toISOString(),
+    });
   });
 
   // ── API routes ────────────────────────────────────────────────

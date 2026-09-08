@@ -4,6 +4,7 @@ from fastapi import APIRouter
 import httpx
 from config.settings import settings
 from config.database import get_motor_db
+from config.mongo_diagnostics import mongo_target
 from services import knowledge
 from services.chatbot import ChatbotService
 
@@ -63,18 +64,30 @@ async def health():
     # Chat history lives in Mongo. It is not needed to answer a question — the
     # chat endpoint degrades to "first turn" without it — but an unreachable
     # history store silently loses every transcript, so it is worth seeing.
+    mongo_detail = mongo_target()
     try:
         db = await get_motor_db()
         await db.command("ping")
         mongo = "connected"
     except Exception as e:
-        mongo = f"unavailable: {type(e).__name__}"
+        # The class name alone ("OperationFailure") sent everyone looking at
+        # the wrong thing. pymongo's own message for an auth failure is
+        # "Authentication failed." — safe to publish, and it distinguishes a
+        # rejected credential from a database this user cannot see, which have
+        # different fixes. Truncated so a driver that decides to echo the URI
+        # cannot leak one.
+        detail = str(e).split("\n")[0][:160]
+        mongo = f"unavailable: {type(e).__name__} — {detail}" if detail else f"unavailable: {type(e).__name__}"
 
     return {
         "status":      "ok",
         "service":     "aesis-ai",
         "groq":        groq_status,
         "mongo":       mongo,
+        # Where this service thinks history lives. MONGO_URI is set separately
+        # on this service and on the backend (both sync:false), so comparing
+        # these two is how you catch them drifting apart.
+        "mongoTarget": mongo_detail,
         "model":       settings.GROQ_MODEL,
         "modelStatus": model_status,
         "modelsAvailable": available,
