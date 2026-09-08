@@ -17,6 +17,7 @@ import { createPlacement } from '../placements/placements.service';
 import { createNotification } from '../notifications/notifications.service';
 import { logger } from '../../config/logger';
 import { decryptPII, encryptPII } from '../../shared/utils/crypto';
+import { looksLikeEmail } from '../../shared/validation/auth';
 import {
   isCloudinaryConfigured,
   uploadBuffer,
@@ -361,16 +362,42 @@ export async function verifyEmail(token: string) {
 
 // ── Login ─────────────────────────────────────────────────────
 
-export async function login(input: LoginInput, _ipAddress?: string) {
-  const { email, password } = input;
+/**
+ * Find the account behind an email address or a student index number.
+ *
+ * Which one it is is decided by looking at the value, so a student never has to
+ * classify their own credential before typing it. Index numbers are matched
+ * case-insensitively — they are printed on cards and read off them, and
+ * `ug/12345` and `UG/12345` are the same student.
+ *
+ * Email stays an exact match on the normalised (lower-cased) column, which is
+ * how every other lookup in this service treats it.
+ */
+async function findByIdentifier(identifier: string) {
+  const value = identifier.trim();
+  if (!value) return null;
 
-  const user = await prisma.user.findUnique({ where: { email } });
+  if (looksLikeEmail(value)) {
+    return prisma.user.findUnique({ where: { email: value.toLowerCase() } });
+  }
+
+  return prisma.user.findFirst({
+    where: { indexNumber: { equals: value, mode: 'insensitive' } },
+  });
+}
+
+export async function login(input: LoginInput, _ipAddress?: string) {
+  const { identifier, password } = input;
+
+  const user = await findByIdentifier(identifier);
   // Constant-time compare even if user not found — prevents timing attacks
   const dummyHash = '$2a$12$invalidhashforthesakeofconstanttimexxx';
   const passwordMatch = await bcrypt.compare(password, user?.passwordHash ?? dummyHash);
 
   if (!user || !passwordMatch) {
-    throw new AppError(401, 'Invalid email or password');
+    // One message for every failure. Saying "no account with that index number"
+    // would turn the login form into a lookup for who is enrolled.
+    throw new AppError(401, 'Invalid credentials');
   }
   // Only gate on email verification when SendGrid is actually configured.
   // Otherwise users who registered before the auto-verify fix (or whose

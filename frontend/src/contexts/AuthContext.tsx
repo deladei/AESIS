@@ -76,9 +76,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       .finally(() => setLoading(false));
   }, [storeSession]);
 
-  const login = useCallback(async (email: string, password: string): Promise<AuthUser> => {
+  // `identifier` is an email address OR a student index number — the server
+  // decides which by looking at it, so the SPA never has to ask a student to
+  // classify their own credential before typing it.
+  const login = useCallback(async (identifier: string, password: string): Promise<AuthUser> => {
     const r = await api.post<{ data: { accessToken: string; user: AuthUser } }>(
-      '/auth/login', { email, password },
+      '/auth/login', { identifier, password },
     );
     storeSession(r.data.data.accessToken, r.data.data.user);
     return r.data.data.user;

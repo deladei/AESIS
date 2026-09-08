@@ -38,7 +38,16 @@ export async function verifyEmailHandler(req: Request, res: Response) {
 }
 
 export async function loginHandler(req: Request, res: Response) {
-  const input  = loginSchema.parse(req.body);
+  // `email` is the field this endpoint took before sign-in accepted index
+  // numbers. A browser holding a cached SPA bundle still sends it, and the
+  // person behind it typed a perfectly good credential — rejecting them for
+  // our rename would be an outage they cannot diagnose or fix.
+  const body = req.body as Record<string, unknown>;
+  const input = loginSchema.parse(
+    body?.identifier === undefined && typeof body?.email === 'string'
+      ? { ...body, identifier: body.email }
+      : body,
+  );
   const result = await authService.login(input, req.ip);
 
   res.cookie(

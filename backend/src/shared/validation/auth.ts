@@ -89,10 +89,32 @@ export const updateProfileSchema = z.object({
 // Sign-in and password recovery. These live here rather than in the auth
 // module for the same reason registerSchema does: the SPA parses them too, so
 // the message under a field is the message the API would have returned.
+/**
+ * Sign-in accepts an email address OR a student index number.
+ *
+ * Students are issued an index number and know it by heart; many of them reach
+ * for it first and were told "enter a valid email address", which is a
+ * validation rule standing in front of a perfectly good credential.
+ *
+ * It is deliberately one loose field rather than a type switch. Whether the
+ * value is an email or an index number is decided by looking at it, not by
+ * asking the person to classify their own credential before typing it — and a
+ * strict shape here would leak which kind of account exists by rejecting one
+ * form and accepting the other.
+ */
 export const loginSchema = z.object({
-  email:    emailField,
+  identifier: z
+    .string()
+    .trim()
+    .min(1, 'Enter your email address or index number')
+    .max(254, 'That is too long to be an email address or an index number'),
   password: offeredPassword(),
 });
+
+/** True when the value should be looked up as an email rather than an index. */
+export function looksLikeEmail(identifier: string): boolean {
+  return identifier.includes('@');
+}
 
 export const resetPasswordInitSchema = z.object({
   email: emailField,

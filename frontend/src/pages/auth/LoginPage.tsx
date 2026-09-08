@@ -16,7 +16,7 @@ export default function LoginPage() {
   const navigate = useNavigate();
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
-  const [form, setForm] = useState({ email: '', password: '' });
+  const [form, setForm] = useState({ identifier: '', password: '' });
   const [error, setError] = useState('');
   // Same object the API parses this body with, so a malformed address reads
   // identically here and there.
@@ -28,7 +28,7 @@ export default function LoginPage() {
     if (!validate(form)) return;
     setLoading(true);
     try {
-      const loggedInUser = await login(form.email, form.password);
+      const loggedInUser = await login(form.identifier, form.password);
       const redirects: Record<string, string> = {
         student:             '/student/dashboard',
         academic_supervisor: '/supervisor/dashboard',
@@ -42,7 +42,7 @@ export default function LoginPage() {
       if (status === 429) {
         setError('Too many login attempts. Please wait 15 minutes and try again.');
       } else if (status === 401) {
-        setError('Invalid email or password.');
+        setError('Those credentials were not recognised. Check your email or index number and password.');
       } else if (status === 403) {
         setError(apiMessage ?? 'Your account is not allowed to sign in.');
       } else if (!err?.response) {
@@ -121,7 +121,7 @@ export default function LoginPage() {
           </div>
 
           <h2 className="text-2xl font-bold text-ink mb-1">Sign in</h2>
-          <p className="text-ink-muted text-sm mb-8">Use your institutional email address</p>
+          <p className="text-ink-muted text-sm mb-8">Sign in with your institutional email or your student index number</p>
 
           {error && (
             <div className="mb-6 px-4 py-3 rounded-lg bg-danger-soft border border-danger text-danger text-sm">
@@ -131,22 +131,23 @@ export default function LoginPage() {
 
           <form onSubmit={handleSubmit} className="space-y-5">
             <div>
-              <label htmlFor="email" className="block text-sm font-medium text-ink mb-1.5">
-                Institutional email
+              <label htmlFor="identifier" className="block text-sm font-medium text-ink mb-1.5">
+                Email or index number
               </label>
               <input
-                id="email"
-                type="email"
-                autoComplete="email"
+                id="identifier"
+                type="text"
+                inputMode="email"
+                autoComplete="username"
                 required
-                aria-invalid={!!errors.email}
-                value={form.email}
-                onChange={(e) => { setForm({ ...form, email: e.target.value }); clear('email'); }}
-                onBlur={() => check('email', form.email)}
-                placeholder="you@cs.edu.gh"
+                aria-invalid={!!errors.identifier}
+                value={form.identifier}
+                onChange={(e) => { setForm({ ...form, identifier: e.target.value }); clear('identifier'); }}
+                onBlur={() => check('identifier', form.identifier)}
+                placeholder="you@cs.edu.gh or UEB0099"
                 className="w-full px-4 py-2.5 rounded-lg bg-surface border border-line text-ink placeholder:text-ink-muted text-sm focus:outline-none focus:border-brand focus:ring-1 focus:ring-brand transition-colors duration-150"
               />
-              <FieldError message={errors.email} />
+              <FieldError message={errors.identifier} />
             </div>
 
             <div>

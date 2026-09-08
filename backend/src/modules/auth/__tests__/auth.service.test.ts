@@ -438,6 +438,65 @@ describe('authService.updateProfile', () => {
 });
 
 // ─────────────────────────────────────────────────────────────
+describe('authService.login — signing in with an index number', () => {
+  /**
+   * Students are issued an index number and know it by heart. Many reach for it
+   * first and used to be told "enter a valid email address" — a validation rule
+   * standing in front of a perfectly good credential.
+   */
+  beforeEach(() => {
+    jest.clearAllMocks();
+    (mockPrisma.refreshToken.create as jest.Mock).mockResolvedValue({});
+    (mockPrisma.user.update as jest.Mock).mockResolvedValue({});
+  });
+
+  it('signs a student in with their index number', async () => {
+    (mockPrisma.user.findFirst as jest.Mock).mockResolvedValue(fakeUser({ indexNumber: 'UEB0099' }));
+
+    const result = await authService.login({ identifier: 'UEB0099', password: 'Password@123' });
+
+    expect(result.accessToken).toBeTruthy();
+    // An index number is never looked up as an email.
+    expect(mockPrisma.user.findUnique).not.toHaveBeenCalled();
+  });
+
+  it('matches an index number case-insensitively', async () => {
+    // These are printed on cards and read off them; ueb0099 and UEB0099 are
+    // the same student.
+    (mockPrisma.user.findFirst as jest.Mock).mockResolvedValue(fakeUser({ indexNumber: 'UEB0099' }));
+
+    await authService.login({ identifier: 'ueb0099', password: 'Password@123' });
+
+    expect(mockPrisma.user.findFirst).toHaveBeenCalledWith({
+      where: { indexNumber: { equals: 'ueb0099', mode: 'insensitive' } },
+    });
+  });
+
+  it('still routes anything with an @ to the email column', async () => {
+    (mockPrisma.user.findUnique as jest.Mock).mockResolvedValue(fakeUser());
+
+    await authService.login({ identifier: 'Student@CS.edu', password: 'Password@123' });
+
+    // Lower-cased, because that is how the column is written.
+    expect(mockPrisma.user.findUnique).toHaveBeenCalledWith({ where: { email: 'student@cs.edu' } });
+    expect(mockPrisma.user.findFirst).not.toHaveBeenCalled();
+  });
+
+  it('gives one message whether the account is missing or the password is wrong', async () => {
+    // "No account with that index number" would turn the login form into a
+    // lookup for who is enrolled on the programme.
+    (mockPrisma.user.findFirst as jest.Mock).mockResolvedValue(null);
+    (mockPrisma.user.findUnique as jest.Mock).mockResolvedValue(null);
+
+    const missing = authService.login({ identifier: 'UEB0000', password: 'Password@123' });
+    await expect(missing).rejects.toMatchObject({ statusCode: 401, message: 'Invalid credentials' });
+
+    (mockPrisma.user.findFirst as jest.Mock).mockResolvedValue(fakeUser({ indexNumber: 'UEB0099' }));
+    const wrongPassword = authService.login({ identifier: 'UEB0099', password: 'WrongPassword' });
+    await expect(wrongPassword).rejects.toMatchObject({ statusCode: 401, message: 'Invalid credentials' });
+  });
+});
+
 describe('authService.login', () => {
   beforeEach(() => jest.clearAllMocks());
 
@@ -446,7 +505,7 @@ describe('authService.login', () => {
     (mockPrisma.refreshToken.create as jest.Mock).mockResolvedValue({});
     (mockPrisma.user.update as jest.Mock).mockResolvedValue({});
 
-    const result = await authService.login({ email: 'student@cs.edu', password: 'Password@123' });
+    const result = await authService.login({ identifier: 'student@cs.edu', password: 'Password@123' });
 
     expect(result).toHaveProperty('accessToken');
     expect(result).toHaveProperty('refreshToken');
@@ -457,14 +516,14 @@ describe('authService.login', () => {
   it('throws 401 for wrong password', async () => {
     (mockPrisma.user.findUnique as jest.Mock).mockResolvedValue(fakeUser());
     await expect(
-      authService.login({ email: 'student@cs.edu', password: 'WrongPassword' })
+      authService.login({ identifier: 'student@cs.edu', password: 'WrongPassword' })
     ).rejects.toMatchObject({ statusCode: 401 });
   });
 
   it('throws 401 for non-existent email', async () => {
     (mockPrisma.user.findUnique as jest.Mock).mockResolvedValue(null);
     await expect(
-      authService.login({ email: 'nobody@cs.edu', password: 'Password@123' })
+      authService.login({ identifier: 'nobody@cs.edu', password: 'Password@123' })
     ).rejects.toMatchObject({ statusCode: 401 });
   });
 
@@ -475,7 +534,7 @@ describe('authService.login', () => {
     (mockPrisma.refreshToken.create as jest.Mock).mockResolvedValue({});
     (mockPrisma.user.update as jest.Mock).mockResolvedValue({});
 
-    const result = await authService.login({ email: 'student@cs.edu', password: 'Password@123' });
+    const result = await authService.login({ identifier: 'student@cs.edu', password: 'Password@123' });
 
     expect(result).toHaveProperty('accessToken');
     expect(mockPrisma.user.update).toHaveBeenCalledWith(
@@ -504,7 +563,7 @@ describe('authService.login', () => {
     (prodPrisma.user.findUnique as jest.Mock).mockResolvedValue(fakeUser({ isVerified: false }));
 
     await expect(
-      prodAuthService.login({ email: 'student@cs.edu', password: 'Password@123' })
+      prodAuthService.login({ identifier: 'student@cs.edu', password: 'Password@123' })
     ).rejects.toMatchObject({ statusCode: 403 });
 
     jest.dontMock('../../../config/env');
