@@ -53,6 +53,17 @@ const envSchema = z.object({
 
   FRONTEND_URL:              z.string().url().default('http://localhost:5173'),
 
+  // Google sign-in. All three optional: the button is hidden and the routes
+  // report "not configured" until they are set, so an environment without
+  // Google credentials boots and behaves exactly as before.
+  //
+  // GOOGLE_REDIRECT_URI must match a redirect URI registered on the OAuth
+  // client BYTE FOR BYTE — Google compares the full string, so a trailing
+  // slash or http-vs-https is a rejected login, not a warning.
+  GOOGLE_CLIENT_ID:          z.string().trim().optional(),
+  GOOGLE_CLIENT_SECRET:      z.string().trim().optional(),
+  GOOGLE_REDIRECT_URI:       z.string().url().optional(),
+
   SENTRY_DSN:                z.string().optional(),
 
   // ── Weekly logbook pipeline config flags ─────────────────────

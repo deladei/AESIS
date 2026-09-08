@@ -1,3 +1,4 @@
+import type { UserRole } from '@prisma/client';
 import bcrypt from 'bcryptjs';
 import { prisma } from '../../config/prisma';
 import { env } from '../../config/env';
@@ -363,6 +364,68 @@ export async function verifyEmail(token: string) {
 // ── Login ─────────────────────────────────────────────────────
 
 /**
+ * The one place a session is minted.
+ *
+ * Every authenticated entry point ends here — password login and Google
+ * sign-in both — so there is a single token shape, a single refresh row and a
+ * single `lastLoginAt` write. Two session issuers is how one of them quietly
+ * stops matching the other; that is exactly how `avatarUrl` would go missing
+ * from one sign-in path and not the other.
+ *
+ * It performs NO authentication of its own. Callers must have established who
+ * the user is first.
+ */
+async function issueSession(user: {
+  id: string; email: string; firstName: string; lastName: string;
+  role: UserRole; avatarUrl: string | null;
+}) {
+  const accessToken = signAccessToken({ sub: user.id, role: user.role });
+  const { raw: refreshRaw, hash: refreshHash } = generateRefreshToken();
+
+  const expiresAt = new Date(Date.now() + env.REFRESH_TOKEN_EXPIRY_DAYS * 24 * 60 * 60 * 1000);
+
+  await Promise.all([
+    prisma.refreshToken.create({
+      data: { userId: user.id, tokenHash: refreshHash, expiresAt },
+    }),
+    prisma.user.update({
+      where: { id: user.id },
+      data:  { lastLoginAt: new Date() },
+    }),
+  ]);
+
+  return {
+    accessToken,
+    refreshToken: refreshRaw,
+    user: {
+      id:        user.id,
+      email:     user.email,
+      firstName: user.firstName,
+      lastName:  user.lastName,
+      role:      user.role,
+      avatarUrl: user.avatarUrl,
+    },
+  };
+}
+
+/**
+ * Issue a session for a user id whose identity some other flow has already
+ * proved — Google sign-in, which verified the ID token before calling this.
+ */
+export async function issueSessionForUser(userId: string) {
+  const user = await prisma.user.findUnique({
+    where:  { id: userId },
+    select: {
+      id: true, email: true, firstName: true,
+      lastName: true, role: true, avatarUrl: true,
+    },
+  });
+  if (!user) throw new AppError(401, 'Invalid credentials');
+
+  return issueSession(user);
+}
+
+/**
  * Find the account behind an email address or a student index number.
  *
  * Which one it is is decided by looking at the value, so a student never has to
@@ -414,33 +477,7 @@ export async function login(input: LoginInput, _ipAddress?: string) {
     });
   }
 
-  const accessToken               = signAccessToken({ sub: user.id, role: user.role });
-  const { raw: refreshRaw, hash: refreshHash } = generateRefreshToken();
-
-  const expiresAt = new Date(Date.now() + env.REFRESH_TOKEN_EXPIRY_DAYS * 24 * 60 * 60 * 1000);
-
-  await Promise.all([
-    prisma.refreshToken.create({
-      data: { userId: user.id, tokenHash: refreshHash, expiresAt },
-    }),
-    prisma.user.update({
-      where: { id: user.id },
-      data:  { lastLoginAt: new Date() },
-    }),
-  ]);
-
-  return {
-    accessToken,
-    refreshToken: refreshRaw,
-    user: {
-      id:        user.id,
-      email:     user.email,
-      firstName: user.firstName,
-      lastName:  user.lastName,
-      role:      user.role,
-      avatarUrl: user.avatarUrl,
-    },
-  };
+  return issueSession(user);
 }
 
 // ── Refresh ───────────────────────────────────────────────────

@@ -12,6 +12,9 @@ router.post('/me/avatar',               authenticate, ctrl.avatarUpload.single('
 router.delete('/me/avatar',             authenticate, asyncHandler(ctrl.removeAvatarHandler));
 router.post('/register',                asyncHandler(ctrl.registerHandler));
 router.post('/login',                   asyncHandler(ctrl.loginHandler));
+router.get('/google/status',            asyncHandler(ctrl.googleStatusHandler));
+router.get('/google',                   asyncHandler(ctrl.googleStartHandler));
+router.get('/google/callback',          asyncHandler(ctrl.googleCallbackHandler));
 router.get('/verify-email',             asyncHandler(ctrl.verifyEmailHandler));
 router.post('/refresh',                 asyncHandler(ctrl.refreshHandler));
 router.post('/logout',                  asyncHandler(ctrl.logoutHandler));

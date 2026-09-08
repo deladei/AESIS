@@ -7,6 +7,7 @@ import type { ShellRole } from '@/components/layout/roleNav';
 import LoginPage         from '@/pages/auth/LoginPage';
 import RegisterPage      from '@/pages/auth/RegisterPage';
 import VerifyEmailPage   from '@/pages/auth/VerifyEmailPage';
+import GoogleCallbackPage from '@/pages/auth/GoogleCallbackPage';
 import ResetPasswordPage from '@/pages/auth/ResetPasswordPage';
 import ResetPasswordConfirmPage from '@/pages/auth/ResetPasswordConfirmPage';
 import StudentDashboard  from '@/pages/student/StudentDashboard';
@@ -86,6 +87,10 @@ export const router = createBrowserRouter([
   { path: '/',               element: <RootRedirect /> },
   { path: '/auth/login',     element: <LoginPage /> },
   { path: '/auth/register',  element: <RegisterPage /> },
+  // Where Google returns the browser. Public: the session is established by
+  // the refresh cookie the callback just set, so requiring auth here would
+  // bounce every Google sign-in straight back to the login page.
+  { path: '/auth/callback',  element: <GoogleCallbackPage /> },
   // Email-link landing pages (public — reached from verification/reset emails)
   { path: '/auth/verify-email',           element: <VerifyEmailPage /> },
   { path: '/auth/reset-password',         element: <ResetPasswordPage /> },

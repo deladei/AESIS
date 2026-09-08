@@ -1,7 +1,8 @@
 import { useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { Eye, EyeOff, Loader2, ShieldCheck, NotebookPen, MessageSquareText, LineChart } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
+import GoogleButton from '@/components/auth/GoogleButton';
 import { FieldError } from '@/components/shared/FieldError';
 import { useFieldErrors, loginSchema } from '@/lib/validation';
 
@@ -18,6 +19,16 @@ export default function LoginPage() {
   const [loading, setLoading] = useState(false);
   const [form, setForm] = useState({ identifier: '', password: '' });
   const [error, setError] = useState('');
+  const [params] = useSearchParams();
+
+  // The Google callback redirects here with a reason rather than a raw error
+  // from Google, which would be meaningless to a student and leaky to anyone
+  // else. Each one says what to do next.
+  const googleError = ({
+    not_on_roster: 'That Google account is not on the class roster. Ask your coordinator to add you, then try again.',
+    invalid_state: 'That sign-in link expired or was already used. Please try again.',
+    failed:        'Google sign-in did not complete. Please try again, or use your password.',
+  } as Record<string, string>)[params.get('google') ?? ''];
   // Same object the API parses this body with, so a malformed address reads
   // identically here and there.
   const { errors, check, validate, clear } = useFieldErrors(loginSchema);
@@ -123,6 +134,12 @@ export default function LoginPage() {
           <h2 className="text-2xl font-bold text-ink mb-1">Sign in</h2>
           <p className="text-ink-muted text-sm mb-8">Sign in with your institutional email or your student index number</p>
 
+          {googleError && !error && (
+            <div className="mb-6 rounded-lg border border-warn bg-warn-soft px-4 py-3 text-sm text-ink">
+              {googleError}
+            </div>
+          )}
+
           {error && (
             <div className="mb-6 px-4 py-3 rounded-lg bg-danger-soft border border-danger text-danger text-sm">
               {error}
@@ -198,6 +215,8 @@ export default function LoginPage() {
               )}
             </button>
           </form>
+
+          <GoogleButton />
 
           <p className="mt-8 text-center text-sm text-ink-muted">
             Don't have an account?{' '}

@@ -8,6 +8,7 @@ import {
   resetPasswordConfirmSchema,
 } from './auth.schema';
 import * as authService from './auth.service';
+import * as google from './google.service';
 import {
   REFRESH_COOKIE_NAME,
   refreshCookieOptions,
@@ -15,6 +16,7 @@ import {
 } from '../../shared/utils/token';
 import { created, ok } from '../../shared/utils/response';
 import { AppError } from '../../middleware/errorHandler';
+import { logger } from '../../config/logger';
 import { env } from '../../config/env';
 import { prisma } from '../../config/prisma';
 
@@ -147,4 +149,80 @@ export async function programmesHandler(_req: Request, res: Response) {
   });
   res.setHeader('Cache-Control', 'no-store');
   return ok(res, { programmes });
+}
+
+
+// ── Sign in with Google ───────────────────────────────────────
+
+/**
+ * Whether the button should be shown at all.
+ *
+ * The SPA asks rather than assuming, so an environment with no Google
+ * credentials renders no button instead of one that dead-ends — which is the
+ * difference between a feature that is off and a feature that is broken.
+ */
+export async function googleStatusHandler(_req: Request, res: Response) {
+  res.json({ data: { configured: google.isGoogleConfigured() } });
+}
+
+/** Step 1 — hand the browser to Google, remembering `state`. */
+export async function googleStartHandler(_req: Request, res: Response) {
+  const { url, state } = google.buildAuthUrl();
+
+  res.cookie(google.STATE_COOKIE, state, {
+    httpOnly: true,
+    secure:   env.NODE_ENV === 'production',
+    // Lax, not Strict: this cookie has to survive Google redirecting the
+    // browser back to us, which is a cross-site top-level navigation. Strict
+    // withholds it there and every sign-in fails the state check.
+    sameSite: 'lax',
+    maxAge:   google.STATE_TTL_MS,
+    path:     '/',
+  });
+
+  res.redirect(url);
+}
+
+/**
+ * Step 2 — Google sends the browser back here.
+ *
+ * Ends in a redirect either way: the person is in a browser tab, not reading a
+ * JSON body. Failures go back to the login page carrying a reason the SPA can
+ * render, and never an error from Google verbatim.
+ */
+export async function googleCallbackHandler(req: Request, res: Response) {
+  const fail = (reason: string) =>
+    res.redirect(`${env.FRONTEND_URL}/auth/login?google=${encodeURIComponent(reason)}`);
+
+  const { code, state } = req.query as { code?: string; state?: string };
+  const expected = req.cookies?.[google.STATE_COOKIE];
+  res.clearCookie(google.STATE_COOKIE, { path: '/' });
+
+  // A missing or mismatched state is the attack this parameter exists to stop:
+  // without it, a crafted callback URL logs a victim into someone else's
+  // Google account.
+  if (!code || !state || !expected || state !== expected) return fail('invalid_state');
+
+  try {
+    const identity = await google.exchangeCode(code);
+    const outcome  = await google.resolveIdentity(identity);
+
+    if (outcome.kind === 'not-on-roster') return fail('not_on_roster');
+
+    const session = await authService.issueSessionForUser(outcome.userId);
+    res.cookie(
+      REFRESH_COOKIE_NAME,
+      session.refreshToken,
+      refreshCookieOptions(env.REFRESH_TOKEN_EXPIRY_DAYS),
+    );
+
+    // The access token is deliberately NOT in this URL: it would land in
+    // browser history, the Referer header and any proxy log. The SPA trades
+    // the refresh cookie for one on arrival, which is the path it already
+    // uses on every reload.
+    return res.redirect(`${env.FRONTEND_URL}/auth/callback`);
+  } catch (err) {
+    logger.warn('Google sign-in failed', { err: err instanceof Error ? err.message : String(err) });
+    return fail('failed');
+  }
 }

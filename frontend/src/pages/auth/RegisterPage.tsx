@@ -2,6 +2,7 @@ import { useState, useEffect, useRef, useCallback } from 'react';
 import { Link } from 'react-router-dom';
 import { Eye, EyeOff, Loader2, CheckCircle2, GraduationCap, BookOpen, Briefcase, ChevronDown, Check } from 'lucide-react';
 import { useAuth, type SelfRegisterRole } from '@/contexts/AuthContext';
+import GoogleButton from '@/components/auth/GoogleButton';
 import { REGION_VALUES, REGION_LABELS } from '@/lib/regions';
 import { registerSchema } from '@/lib/validation';
 import { extractFieldErrors, formLevelMessage } from '@/lib/validation';
@@ -597,6 +598,10 @@ export default function RegisterPage() {
             )}
           </button>
         </form>
+
+        {/* Only works for students already on the class roster; the callback
+            says so plainly when they are not. */}
+        <GoogleButton label="Sign up with Google" />
 
         <p className="mt-6 text-center text-sm text-ink-secondary">
           Already have an account?{' '}
