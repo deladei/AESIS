@@ -4301,3 +4301,130 @@ currently photographs the old page.
 4. Carried and still open: rotate the Supabase DB password (burned since S88), delete
    the dead Neon project, and settle `SYSTEM_MAX_WEEKS = 6` vs the 24-week cohort
    config — that one is a decision, not an oversight.
+
+---
+
+## S102 — 2026-09-08 · Google sign-in finished; the two roles renamed on screen only
+
+Two jobs. The first was finishing work that was already sitting uncommitted in
+the tree; the second arrived mid-session and was smaller than it sounded.
+
+### Sign in with Google — finished and committed
+
+The flow itself was already written and correct: `state` in an HttpOnly cookie,
+server-to-server code exchange, ID token signature verified against Google's
+published keys, `email_verified` enforced, no token anywhere in a URL. What was
+missing was everything around it.
+
+**The one that mattered.** `issueSessionForUser` carried a doc comment saying it
+was "extracted so Google sign-in issues the SAME session as a password sign-in
+rather than a second implementation of it" — and then `login()` kept its own
+copy anyway. The two had *already* drifted: login returned `avatarUrl` on the
+user object and the Google path did not, so a student signing in with Google
+would have lost their avatar until the next reload. Both now go through one
+private `issueSession(user)`; `issueSessionForUser(userId)` is a thin loader in
+front of it for the Google path, and `login` passes the row it already has, so
+no extra query was added. This is precisely the failure the comment predicted,
+which is worth noticing: the comment was written, the extraction was not
+finished.
+
+**Tests for the part nothing covered.** The existing 9 tests covered
+`resolveIdentity` — who is let through the door — and none covered the
+signature check that decides whether Google said anything at all. Added 8 that
+build a real RS256 token with a locally generated key and then break exactly one
+thing about each: valid token accepted, token signed by a different key
+rejected, wrong `aud` rejected, wrong `iss` rejected, expired rejected,
+`alg: none` rejected, `email_verified: false` carried through rather than
+swallowed, and a failed code exchange surfaced as a 401. The forgery cases are
+the point — an attacker composes those claims freely, so only the signature
+stands between that and a session.
+
+**Also:** the three `GOOGLE_*` keys added to `backend/.env.example` (they were
+in `render.yaml` but not the template, so a new checkout had no way to know they
+exist), and a missing newline at EOF in `auth.controller.ts`.
+
+**Port drift, resolved.** Three files disagreed about the local backend port:
+`.env` says **3002**, `.env.example` says **3000**, and the doc hardcoded
+**3001**. Since Google compares the redirect URI byte for byte, that
+disagreement is a guaranteed `redirect_uri_mismatch` for whoever follows the
+doc. `.env.example` now matches its own `PORT`, the doc uses 3002, and the
+warning tells the reader to read `PORT` out of their own `.env` rather than
+trust either.
+
+**Still inert.** No `GOOGLE_*` variables are set on Render yet, so
+`/auth/google/status` reports `configured: false`, the SPA renders no button and
+nothing has changed for anyone. The console walkthrough is
+`docs/google-sign-in.md`; the user was working through it at the end of this
+session.
+
+### The role rename — labels only, and it exposed a live bug
+
+Asked for: current **admin** to read as *Academic Supervisor*, current
+**coordinator** to read as *Administrator*.
+
+**Stopped and asked first, because `academic_supervisor` already exists** as its
+own enum value with its own dashboard, nav and permissions (128 references).
+Read literally, "admin becomes academic supervisor" is a merge, and a merge
+means every current academic supervisor inherits admin powers or every admin
+loses theirs — silently, either way. Confirmed: display labels only, and the
+existing role stays separate. No enum change, no migration, no route change, no
+permission change. Nobody's access moved.
+
+**⚠️ Known and accepted:** `admin` and `academic_supervisor` now print the same
+two words. That is what was asked for and it is recorded in a comment at
+`frontend/src/lib/roles.ts`, but they remain two distinct roles with different
+powers. Anywhere the two can appear side by side — the feedback centre, chat
+attribution, any future user list — will need a disambiguator before it reads
+correctly. This is a decision left open, not an oversight.
+
+**The rename had to be made in three places, which was itself the finding.**
+`ROLE_LABELS` existed three times — `lib/roles.ts`, `ChatThread.tsx` and
+`ProfilePage.tsx` — and the copies had already drifted (chat showed
+`academic_supervisor` as "Supervisor" and `admin` as "Admin"; the other two used
+full titles). Both duplicates are deleted and import the shared map, so the next
+rename is one edit.
+
+**A real bug, found on the way.** `AccountMenu.tsx` carries a doc comment
+explaining that the subtitle "used to be the literal string 'Head Coordinator'
+for everybody, so a student saw themselves labelled as the coordinator on every
+page." That was fixed for the header — and the chip in the dropdown one line
+below still hardcoded `Coordinator` for every role. Now reads `{roleLabel}`.
+
+Also swapped: nav `brandSubtitle` (coordinator → "Administration", admin →
+"Supervision"), five coordinator page eyebrows, the admin interns eyebrow, the
+login-page marketing line, the feedback-centre oversight sentence, and two
+backend error strings a user actually reads (`Coordinator access to logbook
+entries is read-only`, `Coordinator not found`).
+
+Deliberately **not** touched: every internal identifier — routes `/coordinator/*`
+and `/admin/*`, hook names `useCoordinator*`, service and module names, the enum.
+Renaming those is a refactor, not a relabel, and was not what was asked.
+
+### Verified
+
+- `backend`: `npx tsc --noEmit` clean; full Jest suite green — **61 suites, 890
+  tests** (auth alone 77, up from 69). Commits `f94bf38`, `a282e6e`.
+- `frontend`: `npm run build` clean — `sync-shared && tsc -b && vite build`, the
+  exact Vercel command.
+
+### Carried forward, unchanged from S101
+
+1. **⚠️ Vercel still may not be deploying.** S101 left `874732e` on `origin/main`
+   with the served bundle unchanged. Nothing this session touched that, and this
+   session pushes more frontend work, so it is now the first thing to check —
+   if the button and the new labels do not appear, that is the reason, not this
+   code.
+2. `MONGO_URI` on `aesis-ai-engine` — `OperationFailure`, chat transcripts not
+   saved.
+3. Enrichment paths still unproven since the Groq model id changed. Submit an
+   entry, read `summary.provenance`; anything other than
+   `{classifier: "model", summarizer: "model", scorer: "model"}` means that path
+   is still on its heuristic floor.
+4. Rotate the Supabase password, then delete the Neon project — in that order.
+5. The four S100 migrations still want a prod `_prisma_migrations` check.
+6. `POSTGRES_DSN` has leading/trailing whitespace (cosmetic).
+7. `SYSTEM_MAX_WEEKS = 6` vs the 24-week cohort config — a decision, not an
+   oversight.
+8. Minor, noticed but not fixed: `backend/src/config/seed.ts` seeds a user whose
+   *surname* is literally "Coordinator", which is both stale wording and a
+   non-Ghanaian placeholder.
