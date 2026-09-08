@@ -35,7 +35,7 @@ export default function InternsList() {
     <div className="mx-auto max-w-[1500px] p-4 sm:p-6">
       <div className="mb-6 flex flex-wrap items-end justify-between gap-4">
         <div>
-          <p className="mb-1 text-xs font-semibold tracking-wide text-brand-ink">Coordinator</p>
+          <p className="mb-1 text-xs font-semibold tracking-wide text-brand-ink">Administrator</p>
           <h1 className="text-2xl font-bold tracking-tight text-ink">
             {view === 'oversight'
               ? 'Intern Oversight'

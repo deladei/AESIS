@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { Send, Loader2, Plus, Smile, X, FileText, Paperclip } from 'lucide-react';
 import { useThread, useSendMessage } from '@/hooks/useMessages';
 import { useClickOutside } from '@/hooks/useClickOutside';
+import { ROLE_LABELS } from '@/lib/roles';
 
 const MAX_FILES = 5;
 const MAX_FILE_BYTES = 10 * 1024 * 1024;
@@ -23,13 +24,6 @@ const EMOJI = [
   '🙂', '😄', '🤔', '😅', '👀', '📌', '⏰', '⚠️',
   '❤️', '✨', '📎', '📝', '🚀', '☑️', '❓', '❗',
 ];
-
-const ROLE_LABELS: Record<string, string> = {
-  student:             'Student',
-  academic_supervisor: 'Supervisor',
-  coordinator:         'Coordinator',
-  admin:               'Admin',
-};
 
 function fmtTime(iso: string): string {
   const d = new Date(iso);

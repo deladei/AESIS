@@ -81,7 +81,7 @@ export default function CompaniesList() {
           {/* ── Header ─────────────────────────────────────────── */}
           <header className="flex flex-wrap items-start justify-between gap-3">
             <div>
-              <p className="mb-1 text-xs font-semibold text-brand-ink">Coordinator</p>
+              <p className="mb-1 text-xs font-semibold text-brand-ink">Administrator</p>
               <h1 className="text-2xl font-bold tracking-tight text-ink">Host Companies</h1>
               <p className="mt-1 text-sm text-ink-secondary">
                 Manage partner organisations and track placement opportunities.

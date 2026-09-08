@@ -43,7 +43,7 @@ export function assertPlacementAccess(
     case 'hod':
       // Read-only across all CS placements; never transitions or writes.
       if (mode === 'read') return;
-      throw new AppError(403, 'Coordinator access to logbook entries is read-only');
+      throw new AppError(403, 'Administrator access to logbook entries is read-only');
 
     case 'student':
       // Only their own placement; writes/transitions further gated by the state machine.

@@ -90,7 +90,7 @@ export default function PlacementApproval() {
   return (
     <div className="mx-auto max-w-[1500px] space-y-5 p-4 sm:p-6">
       <header>
-        <p className="mb-1 text-xs font-semibold text-brand-ink">Coordinator</p>
+        <p className="mb-1 text-xs font-semibold text-brand-ink">Administrator</p>
         <h1 className="text-2xl font-bold tracking-tight text-ink">Placement Approval</h1>
         <p className="mt-1 text-sm text-ink-secondary">Review and approve student placements.</p>
       </header>

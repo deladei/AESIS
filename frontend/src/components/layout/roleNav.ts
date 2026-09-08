@@ -69,8 +69,8 @@ export const ROLE_NAV: Record<ShellRole, RoleNav> = {
   },
 
   coordinator: {
-    brandSubtitle: 'Cohort Oversight',
-    roleLabel: 'Coordinator',
+    brandSubtitle: 'Administration',
+    roleLabel: 'Administrator',
     items: [
       { label: 'Intern Overview', href: '/coordinator/dashboard',   icon: LayoutDashboard },
       { label: 'All Interns',     href: '/coordinator/interns',     icon: Users },
@@ -85,8 +85,8 @@ export const ROLE_NAV: Record<ShellRole, RoleNav> = {
   },
 
   admin: {
-    brandSubtitle: 'Administration',
-    roleLabel: 'Administrator',
+    brandSubtitle: 'Supervision',
+    roleLabel: 'Academic Supervisor',
     messagesHref: '/feedback',
     items: [
       { label: 'Dashboard',       href: '/admin/dashboard', icon: LayoutDashboard },

@@ -9,7 +9,7 @@ import { useFieldErrors, loginSchema } from '@/lib/validation';
 const ROLE_POINTS = [
   { icon: NotebookPen,       label: 'Students log their week', desc: 'A simple weekly logbook that takes minutes to fill in.' },
   { icon: MessageSquareText,  label: 'Supervisors give feedback', desc: 'Read submissions and respond without chasing email threads.' },
-  { icon: LineChart,          label: 'Coordinators stay ahead', desc: 'See every placement at a glance and step in early when needed.' },
+  { icon: LineChart,          label: 'Administrators stay ahead', desc: 'See every placement at a glance and step in early when needed.' },
 ];
 
 export default function LoginPage() {

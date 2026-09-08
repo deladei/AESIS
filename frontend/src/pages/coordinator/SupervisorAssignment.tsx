@@ -72,7 +72,7 @@ export default function SupervisorAssignment() {
       <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_330px]">
         <div className="min-w-0 space-y-5">
           <header>
-            <p className="mb-1 text-xs font-semibold text-brand-ink">Coordinator</p>
+            <p className="mb-1 text-xs font-semibold text-brand-ink">Administrator</p>
             <h1 className="text-2xl font-bold tracking-tight text-ink">Supervisor Assignments</h1>
             <p className="mt-1 text-sm text-ink-secondary">
               Assign supervisors to regions and manage intern placements.

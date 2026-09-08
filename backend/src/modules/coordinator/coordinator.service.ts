@@ -974,7 +974,7 @@ export async function bulkCreateSupervisors(coordinatorId: string, rows: BulkSup
     where: { id: coordinatorId },
     select: { departmentId: true },
   });
-  if (!coordinator) throw new AppError(404, 'Coordinator not found');
+  if (!coordinator) throw new AppError(404, 'Administrator not found');
 
   const results: BulkSupervisorResult[] = [];
   let created = 0, updated = 0, skipped = 0;

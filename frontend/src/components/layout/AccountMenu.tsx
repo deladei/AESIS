@@ -39,7 +39,7 @@ export default function AccountMenu({ user }: { user: { name: string; email: str
             <p className="truncate text-sm font-bold text-ink">{user.name}</p>
             <p className="truncate text-xs text-ink-muted">{user.email}</p>
             <span className="mt-2 inline-flex items-center gap-1 rounded-full bg-brand-soft px-2 py-0.5 text-[11px] font-semibold text-brand-ink">
-              <ShieldCheck className="h-3 w-3" /> Coordinator
+              <ShieldCheck className="h-3 w-3" /> {roleLabel}
             </span>
           </div>
           <div className="py-1">

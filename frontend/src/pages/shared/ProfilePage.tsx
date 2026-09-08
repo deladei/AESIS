@@ -16,6 +16,7 @@ import { ProgressBar } from '@/components/ui/Bits';
 import { EmptyState, ErrorState, SkeletonRows } from '@/components/ui/Feedback';
 import { FieldError } from '@/components/shared/FieldError';
 import { useFieldErrors, updateProfileSchema, extractFieldErrors } from '@/lib/validation';
+import { ROLE_LABELS } from '@/lib/roles';
 
 const AVATAR_MAX_BYTES = 5 * 1024 * 1024;
 const AVATAR_MIME = ['image/png', 'image/jpeg', 'image/webp'];
@@ -99,13 +100,6 @@ function AvatarUploader({ profile, initials }: { profile: Profile; initials: str
     </div>
   );
 }
-
-const ROLE_LABELS: Record<Profile['role'], string> = {
-  student:             'Student',
-  academic_supervisor: 'Academic Supervisor',
-  coordinator:         'Coordinator',
-  admin:               'Administrator',
-};
 
 const GENDER_LABELS: Record<NonNullable<Profile['gender']>, string> = {
   male:   'Male',

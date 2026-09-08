@@ -38,7 +38,7 @@ export default function AdminInterns() {
   return (
     <div className="mx-auto max-w-[1600px] space-y-5 p-4 sm:p-6">
       <header>
-        <p className="mb-1 text-xs font-semibold text-brand-ink">Admin</p>
+        <p className="mb-1 text-xs font-semibold text-brand-ink">Academic Supervisor</p>
         <h1 className="text-2xl font-bold tracking-tight text-ink">
           {attentionOnly ? 'Interns needing attention' : 'All Interns'}
         </h1>

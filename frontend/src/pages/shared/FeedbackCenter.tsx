@@ -193,7 +193,7 @@ function ReviewerView() {
           <Step n={2} icon={ClipboardCheck} title="Formal evaluation"
             hint={canDecide
               ? 'Acknowledging closes the week and is final. Returning sends it back for revision — either way the intern is notified and sees exactly what you wrote.'
-              : 'Coordinators oversee but never decide a week — that belongs to the intern\'s own academic supervisor.'}>
+              : 'Administrators oversee but never decide a week — that belongs to the intern\'s own academic supervisor.'}>
             <div className="mb-4 flex flex-wrap items-center gap-2">
               {entry ? (
                 <>
