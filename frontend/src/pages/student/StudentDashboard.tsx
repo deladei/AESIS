@@ -3,7 +3,7 @@ import { useRef, useState } from 'react';
 import {
   Activity, Bell, BookOpen, Briefcase, Building2, CalendarDays, CheckSquare,
   ClipboardCheck, Clock, FileText, GraduationCap, Loader2, Mail, MessageSquare,
-  Phone, Plus, Sparkles, Square, Target, TrendingUp, Upload,
+  Paperclip, Phone, Plus, Sparkles, Square, Target, TrendingUp, Upload,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import type { DashboardSupervisor } from '@/hooks/useStudentDashboard';
@@ -486,6 +486,26 @@ export default function StudentDashboard() {
                           ? `Completed ${new Date(t.completedAt).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}`
                           : dueLabel(t.dueAt, t.durationMinutes)}
                       </p>
+                      {/* The brief the supervisor attached. Without this the
+                          file is stored, listed by the API and invisible to the
+                          one person the work was set for. */}
+                      {t.attachments?.length > 0 && (
+                        <ul className="mt-1 space-y-0.5">
+                          {t.attachments.map((a) => (
+                            <li key={a.id}>
+                              <a
+                                href={a.fileUrl}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="inline-flex max-w-full items-center gap-1 text-xs font-medium text-brand-ink hover:underline"
+                              >
+                                <Paperclip className="h-3 w-3 shrink-0" />
+                                <span className="truncate">{a.fileName}</span>
+                              </a>
+                            </li>
+                          ))}
+                        </ul>
+                      )}
                     </div>
                     <Badge tone={TASK_TONE[t.category] ?? 'neutral'}>{t.category}</Badge>
                   </li>

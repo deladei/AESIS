@@ -18,6 +18,17 @@ export interface Task {
   sourceId:    string | null;
   createdAt:   string;
   createdBy:   { id: string; firstName: string; lastName: string };
+  /** Briefs or templates the supervisor attached when setting the work. */
+  attachments: TaskAttachment[];
+}
+
+export interface TaskAttachment {
+  id:       string;
+  fileUrl:  string;
+  fileName: string;
+  fileSize: number;
+  mimeType: string;
+  kind:     'image' | 'document';
 }
 
 export interface TaskList {
@@ -66,6 +77,50 @@ export function useDeleteTask() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async (id: string) => (await api.delete(`/tasks/${id}`)).data,
+    onSuccess: () => qc.invalidateQueries({ queryKey: KEY }),
+  });
+}
+
+export interface AssignWorkInput {
+  assigneeIds: string[];
+  title:       string;
+  description?: string;
+  category?:   TaskCategory;
+  /** ISO instant. The form collects a date AND a time — a deadline has both. */
+  dueAt?:      string;
+  durationMinutes?: number;
+  files?:      File[];
+}
+
+/**
+ * Set one piece of work for a group of supervised students.
+ *
+ * Multipart because the brief travels with the assignment. The files are
+ * uploaded once server-side and shared across every task created, so setting
+ * the same PDF for fifteen students costs one upload rather than fifteen.
+ *
+ * The instance default of application/json has to be overridden, exactly as
+ * the avatar upload does, so axios computes the multipart boundary itself —
+ * otherwise multer cannot parse the upload.
+ */
+export function useAssignWork() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (input: AssignWorkInput) => {
+      const form = new FormData();
+      form.append('assigneeIds', JSON.stringify(input.assigneeIds));
+      form.append('title', input.title);
+      if (input.description)     form.append('description', input.description);
+      if (input.category)        form.append('category', input.category);
+      if (input.dueAt)           form.append('dueAt', input.dueAt);
+      if (input.durationMinutes) form.append('durationMinutes', String(input.durationMinutes));
+      for (const f of input.files ?? []) form.append('files', f);
+
+      const r = await api.post<{ data: { created: number } }>('/tasks/assign', form, {
+        headers: { 'Content-Type': 'multipart/form-data' },
+      });
+      return r.data.data;
+    },
     onSuccess: () => qc.invalidateQueries({ queryKey: KEY }),
   });
 }

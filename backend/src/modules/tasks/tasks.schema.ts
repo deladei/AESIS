@@ -29,5 +29,25 @@ export const updateTaskSchema = z.object({
   durationMinutes: z.coerce.number().int().min(5).max(1440).nullable().optional(),
 });
 
+/**
+ * Setting one piece of work for several students at once.
+ *
+ * Separate from `createTaskSchema` rather than folded into it: this arrives as
+ * multipart (it carries the brief), so every scalar is a string on the wire and
+ * has to be coerced, and `assigneeIds` comes across as JSON. Overloading the
+ * JSON endpoint with that would make both harder to read.
+ */
+export const assignWorkSchema = z.object({
+  // 40 is the cap because it is a supervision list, not a mailing list; a
+  // supervisor with more than that assigned is a data problem, not a use case.
+  assigneeIds: z.array(z.string().uuid()).min(1, 'Choose at least one student').max(40),
+  title:       z.string().trim().min(3).max(200),
+  description: z.string().trim().max(2000).optional(),
+  category:    taskCategory.default('other'),
+  dueAt:       z.string().datetime().optional(),
+  durationMinutes: z.coerce.number().int().min(5).max(1440).optional(),
+});
+
+export type AssignWorkInput = z.infer<typeof assignWorkSchema>;
 export type CreateTaskInput = z.infer<typeof createTaskSchema>;
 export type UpdateTaskInput = z.infer<typeof updateTaskSchema>;

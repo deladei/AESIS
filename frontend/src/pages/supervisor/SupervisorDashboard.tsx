@@ -13,6 +13,7 @@ import { Badge, LegendDot } from '@/components/ui/Badge';
 import { EmptyState } from '@/components/ui/Feedback';
 import { DateTile, InitialsAvatar, NoValue, ProgressBar } from '@/components/ui/Bits';
 import { DonutStat } from '@/components/ui/Charts';
+import AssignWorkPanel from '@/components/supervisor/AssignWorkPanel';
 
 type Student = Dash['students'][number];
 
@@ -464,6 +465,11 @@ export default function SupervisorDashboard() {
           </div>
         </Card>
       </div>
+
+      {/* Setting work. The student list is the one already on this page rather
+          than a second fetch — one answer to "who do I supervise", not two that
+          can disagree. The panel renders nothing when the list is empty. */}
+      <AssignWorkPanel students={students.map((s) => s.student)} />
     </div>
   );
 }

@@ -1491,9 +1491,39 @@ model Task {
   createdAt       DateTime     @default(now()) @map("created_at")
   updatedAt       DateTime     @updatedAt @map("updated_at")
 
+  attachments TaskAttachment[]
+
   @@index([assigneeId, status, dueAt])
   @@index([placementId])
   @@map("task")
+}
+
+/// A brief, template or assignment sheet a supervisor attaches to work they set.
+///
+/// Same shape, storage path and limits as `MessageAttachment` and
+/// `EntryAttachment` — one upload mechanism, not a third.
+///
+/// Setting the same assignment for several students creates one task each, and
+/// they SHARE a Cloudinary asset: the file is uploaded once and `publicId`
+/// repeats across the rows. So deleting a row must not delete the remote asset
+/// unless it is the last row holding that `publicId`, or removing one student's
+/// copy would break every other student's.
+model TaskAttachment {
+  id           String         @id @default(uuid())
+  taskId       String         @map("task_id")
+  task         Task           @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  fileUrl      String         @map("file_url")
+  publicId     String         @map("public_id")
+  fileName     String         @map("file_name")
+  fileSize     Int            @map("file_size")
+  mimeType     String         @map("mime_type")
+  kind         AttachmentKind
+  uploadedById String         @map("uploaded_by_id")
+  uploadedAt   DateTime       @default(now()) @map("uploaded_at")
+
+  @@index([taskId])
+  @@index([publicId])
+  @@map("task_attachment")
 }
 
 enum ApprovalKind {
