@@ -86,12 +86,32 @@ class ChatbotService:
                 "content": f"Regulation extracts:\n\n{context}",
             })
         else:
+            # The old wording here ordered a refusal outright, so "hello"
+            # retrieved nothing and was answered with "I don't have that in the
+            # regulations" — the assistant refusing to say hello. Refusing is
+            # for rules it does not have; the message type decides.
             messages.append({
                 "role": "system",
                 "content": (
-                    "No regulation extract matched this question. Tell the student you "
-                    "do not have it in the regulations and point them at their academic "
-                    "supervisor or the programme coordinator. Do not answer from memory."
+                    "No regulation extract matched this message. If it is a greeting, "
+                    "small talk, or a question about what you can help with, answer it "
+                    "normally and warmly — do NOT refuse and do NOT mention regulations. "
+                    "If it asks about a rule, a deadline or a procedure, say you do not "
+                    "have that in the regulations and point the student at their academic "
+                    "supervisor or the programme coordinator. Never invent a rule."
+                ),
+            })
+
+        # What the corpus actually covers, so "what can you help me with?" is
+        # answered from the real document rather than a blurb that goes stale
+        # the moment someone edits it.
+        topics = await knowledge.sections()
+        if topics:
+            messages.append({
+                "role": "system",
+                "content": (
+                    "Topics the department's regulations cover, for describing what you "
+                    "can help with:\n" + "\n".join(f"- {t}" for t in topics)
                 ),
             })
         # Include last 6 turns of history for context

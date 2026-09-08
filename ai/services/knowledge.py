@@ -177,6 +177,9 @@ async def ingest(source: str, markdown: str) -> dict:
     Idempotent by (source, ordinal) + checksum: re-running on an unchanged file
     embeds nothing and writes nothing, so this is safe to call on every deploy.
     """
+    global _SECTIONS
+    _SECTIONS = None  # the corpus is about to change; drop the cached headings
+
     chunks = chunk_markdown(markdown)
     if not chunks:
         return {"source": source, "passages": 0, "written": 0, "removed": 0, "skipped": 0}
@@ -287,6 +290,36 @@ async def retrieve(question: str, top_k: int = DEFAULT_TOP_K) -> list[Passage]:
         for r, s in ranked[:top_k]
         if float(s) >= MIN_SIMILARITY
     ]
+
+
+# The section list changes only when a document is re-ingested, so it is cached
+# rather than queried on every chat turn.
+_SECTIONS: list[str] | None = None
+
+
+async def sections() -> list[str]:
+    """The headings the corpus actually covers.
+
+    Used to answer "what can you help me with?" from what is really in the
+    corpus rather than from a hardcoded blurb that drifts the moment a document
+    is edited. Fail-soft: no topics is a shorter answer, not an error.
+    """
+    global _SECTIONS
+    if _SECTIONS is not None:
+        return _SECTIONS
+    try:
+        pool = await _pool()
+        async with pool.acquire() as conn:
+            rows = await conn.fetch(
+                "SELECT DISTINCT section FROM knowledge_passage "
+                "WHERE embedding_model = $1 ORDER BY section",
+                settings.EMBEDDING_MODEL,
+            )
+        _SECTIONS = [r["section"] for r in rows]
+    except Exception as e:  # noqa: BLE001
+        note("sections", f"{type(e).__name__}: {e}")
+        return []
+    return _SECTIONS
 
 
 async def status() -> dict:
