@@ -237,6 +237,33 @@ export function useInviteIndustry(placementId: string) {
   });
 }
 
+export interface WeeklyInvite {
+  url:            string;
+  expiresAt:      string;
+  weekNumber:     number;
+  supervisorName: string;
+  emailedTo?:     string | null;
+}
+
+/**
+ * The WEEKLY-feedback link for the same company supervisor.
+ *
+ * Deliberately a different thing from the industry score above it: that one is
+ * the confidential end-of-placement mark the student never sees, this one is
+ * formative and the student reads it. The server picks the newest submitted
+ * week, which is the week a supervisor would be commenting on.
+ */
+export function useInviteWeekly(placementId: string) {
+  return useMutation({
+    mutationFn: async (vars: { weekNumber?: number } = {}) => {
+      const r = await api.post<{ data: WeeklyInvite }>(
+        `/grades/${placementId}/weekly-invite`, vars,
+      );
+      return r.data.data;
+    },
+  });
+}
+
 export interface IndustryInviteContext {
   organisation: string | null;
   student:      string;

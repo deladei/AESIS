@@ -1,13 +1,13 @@
 import { useEffect, useMemo, useState } from 'react';
 import {
   Award, Lock, Loader2, CheckCircle2, ShieldCheck, Send, Pencil, AlertCircle, Link2, Copy, Check,
-  History, ChevronDown,
-} from 'lucide-react';
+  History, ChevronDown, MessageSquare} from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import {
   useGrade, useScoreComponent, useAggregateGrade, useOverrideGrade, useReleaseGrade, useInviteIndustry,
   useGradeAudit,
   type GradeView, type GradeStatus, type GradeComponent, type GradeAuditEntry,
+  useInviteWeekly,
 } from '@/hooks/useGrade';
 import { FieldError } from '@/components/shared/FieldError';
 import { score } from '@/lib/validation';
@@ -200,21 +200,31 @@ function GradeConsole({ placementId, grade }: { placementId: string; grade: Grad
   const override  = useOverrideGrade(placementId);
   const release   = useReleaseGrade(placementId);
   const invite    = useInviteIndustry(placementId);
+  const weekly    = useInviteWeekly(placementId);
 
   const [showOverride, setShowOverride] = useState(false);
   const [ovTotal, setOvTotal] = useState('');
   const [ovReason, setOvReason] = useState('');
   const [inviteUrl, setInviteUrl] = useState<string | null>(null);
-  const [copied, setCopied] = useState(false);
+  const [weeklyUrl, setWeeklyUrl] = useState<string | null>(null);
+  const [weeklyWeek, setWeeklyWeek] = useState<number | null>(null);
+  // Which link was copied last, so two Copy buttons cannot both read "Copied".
+  const [copied, setCopied] = useState<'industry' | 'weekly' | null>(null);
 
   const onInvite = () => {
-    invite.mutate(undefined, { onSuccess: (res) => { setInviteUrl(res.url); setCopied(false); } });
+    invite.mutate(undefined, { onSuccess: (res) => { setInviteUrl(res.url); setCopied(null); } });
   };
-  const onCopy = () => {
-    if (!inviteUrl) return;
-    navigator.clipboard?.writeText(inviteUrl).then(() => {
-      setCopied(true);
-      setTimeout(() => setCopied(false), 2000);
+  const onWeekly = () => {
+    weekly.mutate({}, {
+      onSuccess: (res) => { setWeeklyUrl(res.url); setWeeklyWeek(res.weekNumber); setCopied(null); },
+    });
+  };
+  const onCopy = (which: 'industry' | 'weekly') => {
+    const url = which === 'industry' ? inviteUrl : weeklyUrl;
+    if (!url) return;
+    navigator.clipboard?.writeText(url).then(() => {
+      setCopied(which);
+      setTimeout(() => setCopied(null), 2000);
     });
   };
 
@@ -285,14 +295,67 @@ function GradeConsole({ placementId, grade }: { placementId: string; grade: Grad
                 className="min-w-0 flex-1 rounded-lg border border-line bg-surface-sunken px-2.5 py-1.5 text-xs text-ink-secondary"
               />
               <button
-                type="button" onClick={onCopy}
+                type="button" onClick={() => onCopy('industry')}
                 className="inline-flex shrink-0 items-center gap-1 rounded-lg bg-brand px-2.5 py-1.5 text-xs font-semibold text-white hover:opacity-90"
               >
-                {copied ? <Check className="h-3.5 w-3.5" /> : <Copy className="h-3.5 w-3.5" />}
-                {copied ? 'Copied' : 'Copy'}
+                {copied === 'industry' ? <Check className="h-3.5 w-3.5" /> : <Copy className="h-3.5 w-3.5" />}
+                {copied === 'industry' ? 'Copied' : 'Copy'}
               </button>
             </div>
           )}
+
+          {/* Weekly feedback — the same supervisor, a different thing. The
+              score above is the confidential end-of-placement mark the student
+              never sees; this is formative, scoped to one week, and the student
+              READS it. Kept visually subordinate so the two are not mistaken
+              for the same link. */}
+          <div className="mt-3 border-t border-dashed border-line pt-3">
+            <div className="flex items-center justify-between gap-2">
+              <p className="text-xs text-ink-muted">
+                Or send them a link to leave <span className="font-semibold text-ink-secondary">weekly feedback</span> on
+                the intern's latest logbook week. The student sees this one.
+              </p>
+              <button
+                type="button"
+                disabled={weekly.isPending}
+                onClick={onWeekly}
+                className="inline-flex shrink-0 items-center gap-1.5 rounded-lg border border-line px-2.5 py-1.5 text-xs font-semibold text-brand-ink hover:bg-surface-sunken disabled:opacity-40"
+              >
+                {weekly.isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <MessageSquare className="h-3.5 w-3.5" />}
+                {weeklyUrl ? 'New link' : 'Weekly feedback link'}
+              </button>
+            </div>
+
+            {weekly.error && (
+              <p className="mt-2 text-xs text-danger">
+                {(weekly.error as { response?: { data?: { message?: string } } })
+                  .response?.data?.message ?? 'Could not create that link.'}
+              </p>
+            )}
+
+            {weeklyUrl && (
+              <>
+                {weeklyWeek !== null && (
+                  <p className="mt-2 text-[11px] text-ink-muted">
+                    Scoped to week {weeklyWeek} — single use, and it expires.
+                  </p>
+                )}
+                <div className="mt-1.5 flex items-center gap-2">
+                  <input
+                    readOnly value={weeklyUrl}
+                    className="min-w-0 flex-1 rounded-lg border border-line bg-surface-sunken px-2.5 py-1.5 text-xs text-ink-secondary"
+                  />
+                  <button
+                    type="button" onClick={() => onCopy('weekly')}
+                    className="inline-flex shrink-0 items-center gap-1 rounded-lg bg-brand px-2.5 py-1.5 text-xs font-semibold text-white hover:opacity-90"
+                  >
+                    {copied === 'weekly' ? <Check className="h-3.5 w-3.5" /> : <Copy className="h-3.5 w-3.5" />}
+                    {copied === 'weekly' ? 'Copied' : 'Copy'}
+                  </button>
+                </div>
+              </>
+            )}
+          </div>
         </div>
       )}
 

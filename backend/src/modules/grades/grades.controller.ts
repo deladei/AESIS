@@ -4,7 +4,7 @@ import { ok } from '../../shared/utils/response';
 import { componentScoreSchema, overrideSchema, industryScoreSchema } from './grades.schema';
 import {
   getGrade, scoreComponent, aggregateGrade, overrideGrade, releaseGrade,
-  inviteIndustryScore, getIndustryInviteContext, submitIndustryScore,
+  inviteIndustryScore, inviteWeeklyComment, getIndustryInviteContext, submitIndustryScore,
   getGradeAudit, releaseCohort, getCohortReport, getCohortGradeStats, getCohortRegionRollups,
 } from './grades.service';
 import type { Actor } from '../entries/entries.policy';
@@ -87,4 +87,18 @@ export async function submitIndustryHandler(req: Request, res: Response) {
   const { token } = tokenParam.parse(req.params);
   const input = industryScoreSchema.parse(req.body);
   return ok(res, await submitIndustryScore(token, input));
+}
+
+/** The weekly-feedback link for the same company supervisor. */
+const weeklyInviteSchema = z.object({
+  // Optional: the service defaults to the newest submitted week, which is the
+  // one a supervisor would actually be commenting on.
+  weekNumber: z.coerce.number().int().min(1).max(52).optional(),
+  send:       z.coerce.boolean().optional(),
+});
+
+export async function inviteWeeklyHandler(req: Request, res: Response) {
+  const { id } = idParam.parse(req.params);
+  const input = weeklyInviteSchema.parse(req.body ?? {});
+  return ok(res, await inviteWeeklyComment(actorOf(req), id, input));
 }

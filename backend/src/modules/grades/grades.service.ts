@@ -12,6 +12,7 @@ import {
   type GradeOwnership,
 } from './grades.policy';
 import { generateIndustryToken, hashIndustryToken } from './grades.token';
+import { issueAssessmentToken } from '../industry/industry.token';
 import {
   GRADE_COMPONENTS,
   type ComponentScoreInput,
@@ -488,6 +489,71 @@ export async function inviteIndustryScore(actor: Actor, placementId: string) {
   await writeAudit(actor, 'grade_drafted', placementId, { action: 'industry_invite', expiresAt });
 
   return { token, url: `${env.FRONTEND_URL}/grade/${token}`, expiresAt };
+}
+
+/**
+ * Issue the WEEKLY-feedback link for the same company supervisor, from the same
+ * place as the industry-score link.
+ *
+ * These two links look alike and are not: the industry score is the
+ * confidential end-of-placement mark, single-use and sealed from the student;
+ * the weekly comment is formative, week-scoped, and the student READS it. They
+ * sit together because that is where the coordinator already is, not because
+ * they are the same thing.
+ *
+ * The token itself is minted by `issueAssessmentToken`, which already decides
+ * who may issue one — staff, or the academic supervisor actually assigned to
+ * this placement. Re-deciding that here would be a second copy of an
+ * authorization rule, and the two would drift.
+ */
+export async function inviteWeeklyComment(
+  actor: Actor,
+  placementId: string,
+  input: { weekNumber?: number; send?: boolean } = {},
+) {
+  await loadGradeOwnership(placementId); // 404 if the placement is gone
+
+  // Newest supervisor record for the placement. A placement can accumulate
+  // several — a supervisor changes, or a second unit is involved — and the
+  // most recent is the one currently working with the student.
+  const supervisor = await prisma.industrySupervisor.findFirst({
+    where:   { placementId },
+    orderBy: { createdAt: 'desc' },
+    select:  { id: true, name: true, email: true },
+  });
+  if (!supervisor) {
+    throw new AppError(422, 'No company supervisor is on record for this placement yet');
+  }
+
+  // Default to the newest week the student has actually submitted — that is
+  // the week a supervisor would be commenting on. Falling back to the newest
+  // week of any status keeps the link usable before the first submission.
+  let weekNumber = input.weekNumber;
+  if (weekNumber == null) {
+    const latest =
+      await prisma.logbookEntry.findFirst({
+        where:   { placementId, submittedAt: { not: null } },
+        orderBy: { weekNumber: 'desc' },
+        select:  { weekNumber: true },
+      })
+      ?? await prisma.logbookEntry.findFirst({
+        where:   { placementId },
+        orderBy: { weekNumber: 'desc' },
+        select:  { weekNumber: true },
+      });
+    if (!latest) {
+      throw new AppError(422, 'This intern has no logbook weeks yet, so there is nothing to comment on');
+    }
+    weekNumber = latest.weekNumber;
+  }
+
+  const issued = await issueAssessmentToken(actor, supervisor.id, {
+    purpose: 'weekly_comment',
+    weekNumber,
+    send: input.send ?? false,
+  });
+
+  return { ...issued, weekNumber, supervisorName: supervisor.name };
 }
 
 async function loadGradeByIndustryToken(token: string) {

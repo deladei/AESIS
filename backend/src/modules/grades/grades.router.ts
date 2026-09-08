@@ -8,6 +8,7 @@ import {
   overrideGradeHandler,
   releaseGradeHandler,
   inviteIndustryHandler,
+  inviteWeeklyHandler,
   gradeAuditHandler,
   releaseCohortHandler,
   cohortReportHandler,
@@ -35,5 +36,6 @@ router.post('/:id/aggregate', asyncHandler(aggregateGradeHandler));
 router.patch('/:id/override', asyncHandler(overrideGradeHandler));
 router.post('/:id/release', asyncHandler(releaseGradeHandler));
 router.post('/:id/industry-invite', asyncHandler(inviteIndustryHandler)); // issue company-supervisor magic link
+router.post('/:id/weekly-invite', asyncHandler(inviteWeeklyHandler)); // issue the company supervisor's WEEKLY feedback link
 
 export default router;
