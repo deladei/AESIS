@@ -9,6 +9,7 @@ import { useMyPlacements } from '@/hooks/usePlacements';
 import {
   useEntries, useEntry, useAcknowledgeEntry, useReturnEntry,
 } from '@/hooks/useEntries';
+import AiDailyBreakdown, { type ActivityVerdict } from '@/components/ai/AiDailyBreakdown';
 import { ChatThread } from '@/components/messaging/ChatThread';
 import ScheduleCallCard from '@/components/messaging/ScheduleCallCard';
 import { Card } from '@/components/ui/Card';
@@ -399,6 +400,9 @@ function ProgressGlance({ intern }: { intern: FeedbackIntern }) {
 function AiStudio({
   entry, onUse,
 }: { entry: FeedbackIntern['latestEntry']; onUse: (text: string) => void }) {
+  // Declared above the early return — a hook cannot sit behind a conditional.
+  const [view, setView] = useState<'weekly' | 'daily'>('weekly');
+
   if (!entry) {
     return (
       <EmptyState
@@ -411,7 +415,10 @@ function AiStudio({
   }
 
   const draft = typeof entry.aiDraft?.text === 'string' ? entry.aiDraft.text : null;
-  const summary = entry.aiSummary as { headline?: string; themes?: string[]; concerns?: string[] } | null;
+  const summary = entry.aiSummary as {
+    headline?: string; themes?: string[]; concerns?: string[];
+    activity_relevance?: ActivityVerdict[];
+  } | null;
 
   // The rubric, split into what went well and what did not. Dimensions are
   // whatever the engine wrote — never a fixed list this page invents.
@@ -436,6 +443,35 @@ function AiStudio({
 
   return (
     <div className="space-y-4">
+      {/* The rubric is scored once for the whole week, so it only appears on the
+          weekly side; the daily side shows the per-activity verdicts the engine
+          genuinely judged one at a time. Splitting the rubric across days would
+          mean inventing numbers. */}
+      <div role="radiogroup" aria-label="AI view" className="flex gap-1">
+        {(['weekly', 'daily'] as const).map((v) => (
+          <button
+            key={v}
+            type="button"
+            role="radio"
+            aria-checked={view === v}
+            onClick={() => setView(v)}
+            className={cn(
+              'rounded-md px-2.5 py-1 text-xs font-semibold capitalize transition-colors',
+              view === v ? 'bg-brand text-white' : 'text-ink-secondary hover:bg-surface-sunken',
+            )}
+          >
+            {v}
+          </button>
+        ))}
+      </div>
+
+      {view === 'daily' ? (
+        <AiDailyBreakdown
+          activities={entry.activities ?? []}
+          verdicts={summary?.activity_relevance ?? []}
+        />
+      ) : (
+      <>
       {summary?.headline && (
         <p className="rounded-lg bg-surface-sunken px-4 py-3 text-sm italic text-ink-secondary">
           “{summary.headline}”
@@ -480,6 +516,8 @@ function AiStudio({
           </div>
           <p className="whitespace-pre-wrap text-sm leading-relaxed text-ink-secondary">{draft}</p>
         </div>
+      )}
+      </>
       )}
 
       <p className="text-xs text-ink-muted">

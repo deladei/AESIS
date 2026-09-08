@@ -608,6 +608,11 @@ export interface FeedbackIntern {
     aiSummary:          Record<string, unknown> | null;
     /** Groq draft for a human to EDIT — never sent as-is. */
     aiDraft:            { text?: string } | null;
+    /**
+     * The week's activities with their dates, in the same order the engine was
+     * given them, so `aiSummary.activity_relevance[]` can be grouped by day.
+     */
+    activities:         { activityDate: string; description: string }[];
   } | null;
 }
 

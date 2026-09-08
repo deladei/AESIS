@@ -9,6 +9,8 @@ import {
   type LogbookEntry, type EntryStatus, type QualityBreakdown, type PlagiarismReport,
   type FeedbackDraft,
 } from '@/hooks/useEntries';
+import { cn } from '@/lib/utils';
+import AiDailyBreakdown, { type ActivityVerdict } from '@/components/ai/AiDailyBreakdown';
 import { EntryAttachments } from '@/components/attachments/EntryAttachments';
 import LatePill from '@/components/shared/LatePill';
 import { Card, CardHeader } from '@/components/ui/Card';
@@ -58,6 +60,8 @@ interface AiSummary {
   headline?: string;
   themes?: string[];
   concerns?: string[];
+  /** One verdict per activity, in the order the engine was given them. */
+  activity_relevance?: ActivityVerdict[];
 }
 
 // A rubric value is only renderable if it's a real number in range — anything
@@ -124,6 +128,7 @@ export default function EntryReview() {
     return s && typeof s === 'object' ? (s as AiSummary) : null;
   }, [detail?.assessments]);
 
+  const [aiView, setAiView] = useState<'weekly' | 'daily'>('weekly');
   const latest = detail?.assessments?.[0];
   const quality: QualityBreakdown | null =
     latest?.quality && typeof latest.quality === 'object' ? latest.quality : null;
@@ -577,10 +582,44 @@ export default function EntryReview() {
               {/* AI panel + actions */}
               <div className="space-y-4">
                 <div className="rounded-card border border-line bg-surface p-5">
-                  <h3 className="mb-3 flex items-center gap-2 text-sm font-semibold text-ink">
-                    <Sparkles className="h-4 w-4 text-brand-ink" /> AI assessment
-                  </h3>
+                  <div className="mb-3 flex items-center justify-between gap-2">
+                    <h3 className="flex items-center gap-2 text-sm font-semibold text-ink">
+                      <Sparkles className="h-4 w-4 text-brand-ink" /> AI assessment
+                    </h3>
+                    {/* The weekly view carries the rubric, which is scored once
+                        for the week; the daily view carries the per-activity
+                        verdicts, which the engine really does judge separately.
+                        Splitting the rubric across days would be inventing
+                        numbers, so it stays on the weekly side. */}
+                    {detail.assessments && detail.assessments.length > 0 && (
+                      <div role="radiogroup" aria-label="AI assessment view" className="flex gap-1">
+                        {(['weekly', 'daily'] as const).map((v) => (
+                          <button
+                            key={v}
+                            type="button"
+                            role="radio"
+                            aria-checked={aiView === v}
+                            onClick={() => setAiView(v)}
+                            className={cn(
+                              'rounded-md px-2 py-1 text-[11px] font-semibold capitalize transition-colors',
+                              aiView === v
+                                ? 'bg-brand text-white'
+                                : 'text-ink-secondary hover:bg-surface-sunken',
+                            )}
+                          >
+                            {v}
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                  </div>
                   {detail.assessments && detail.assessments.length > 0 ? (
+                    aiView === 'daily' ? (
+                      <AiDailyBreakdown
+                        activities={detail.activities ?? []}
+                        verdicts={aiSummary?.activity_relevance ?? []}
+                      />
+                    ) : (
                     <div className="space-y-3">
                       {relevancePct(detail) != null && (
                         <div>
@@ -675,6 +714,7 @@ export default function EntryReview() {
 
                       <p className="text-[11px] text-ink-muted">AI scores are advisory. Your review is final.</p>
                     </div>
+                    )
                   ) : (
                     <div className="py-6 text-center">
                       <Loader2 className="mx-auto mb-2 h-5 w-5 animate-spin text-ink-muted" />

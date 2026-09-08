@@ -247,6 +247,17 @@ export async function listInternsForFeedback({ supervisorId }: InsightsScope) {
             take:    1,
             select:  { quality: true, summary: true, feedbackDraft: true },
           },
+          // Needed to date the AI's per-activity verdicts. The engine returns
+          // one verdict per activity IN THE ORDER IT WAS SENT
+          // (ai/routers/enrich.py:391), and the worker sends them ordered by
+          // activityDate (enrichment.worker.ts:156) — so the same ordering is
+          // used here, and the client still verifies alignment before trusting
+          // it. Truncated descriptions (140 chars, enrich.py:400) make matching
+          // by text unreliable, which is why position is the join.
+          activities: {
+            orderBy: { activityDate: 'asc' },
+            select:  { activityDate: true, description: true },
+          },
         },
       },
     },
@@ -291,6 +302,15 @@ export async function listInternsForFeedback({ supervisorId }: InsightsScope) {
             quality:            assessment?.quality ?? null,
             aiSummary:          assessment?.summary ?? null,
             aiDraft:            assessment?.feedbackDraft ?? null,
+            // Dates for the AI's per-activity verdicts, same order the engine
+            // was given them in.
+            // `?? []` because this is a display convenience: the daily
+            // breakdown not rendering is a far smaller problem than the whole
+            // feedback list 500ing over a missing relation.
+            activities:         (latest.activities ?? []).map((a) => ({
+              activityDate: a.activityDate.toISOString().slice(0, 10),
+              description:  a.description,
+            })),
           }
         : null,
     };
