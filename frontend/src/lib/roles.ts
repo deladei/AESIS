@@ -13,10 +13,12 @@ export const ROLE_LABELS: Record<string, string> = {
   // `admin` enum values, their routes and their permissions are untouched, so
   // nobody's access changed — only what the screen calls them.
   //
-  // NOTE: `admin` and `academic_supervisor` now print the same words. That is
-  // what was asked for, but they remain two distinct roles with different
-  // dashboards and different powers, so anywhere the two can appear side by
-  // side needs a disambiguator before it will read correctly.
+  // `admin` is "System Supervisor" rather than plain "Academic Supervisor":
+  // that label already belongs to the faculty role above, and two different
+  // roles printing the same words is worse than either name is good. It read
+  // badly wherever both can appear — the register page offers "Academic
+  // Supervisor" as a sign-up option, which would have meant one thing to the
+  // person choosing it and another to an admin reading their own title.
   coordinator:         'Administrator',
-  admin:               'Academic Supervisor',
+  admin:               'System Supervisor',
 };

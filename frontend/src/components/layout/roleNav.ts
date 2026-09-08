@@ -85,8 +85,9 @@ export const ROLE_NAV: Record<ShellRole, RoleNav> = {
   },
 
   admin: {
-    brandSubtitle: 'Supervision',
-    roleLabel: 'Academic Supervisor',
+    // 'Supervision' belongs to the faculty rail; this one is system-wide.
+    brandSubtitle: 'System',
+    roleLabel: 'System Supervisor',
     messagesHref: '/feedback',
     items: [
       { label: 'Dashboard',       href: '/admin/dashboard', icon: LayoutDashboard },
