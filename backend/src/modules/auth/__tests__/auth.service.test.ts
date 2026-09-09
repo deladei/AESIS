@@ -18,7 +18,12 @@ jest.mock('../../../config/prisma', () => ({
   },
 }));
 
+// Only the sending is stubbed. `canSendEmail` keeps its real implementation on
+// purpose: it reads the mocked env, and the register/login branches under test
+// here are exactly the ones that ask whether mail is deliverable. A hardcoded
+// stub would answer for them and the assertions would prove nothing.
 jest.mock('../../../shared/utils/email', () => ({
+  ...jest.requireActual('../../../shared/utils/email'),
   sendEmail:                jest.fn().mockResolvedValue(undefined),
   buildVerificationEmail:   jest.fn().mockReturnValue('<html>verify</html>'),
   buildPasswordResetEmail:  jest.fn().mockReturnValue('<html>reset</html>'),

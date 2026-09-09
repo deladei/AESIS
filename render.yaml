@@ -51,6 +51,19 @@ services:
         sync: false
       - key: AI_ENGINE_API_KEY
         sync: false
+      # Outbound mail. Generic SMTP, so the provider is a config change, not a
+      # code change. Brevo: smtp-relay.brevo.com / 587 / the SMTP login and key
+      # from its SMTP page. EMAIL_FROM below must be a sender that provider has
+      # verified, or every send is rejected.
+      - key: SMTP_HOST
+        sync: false
+      - key: SMTP_PORT
+        value: "587"
+      - key: SMTP_USER
+        sync: false
+      - key: SMTP_PASS
+        sync: false
+      # Legacy path, still honoured while SMTP_* is empty. SMTP_* wins.
       - key: SENDGRID_API_KEY
         sync: false
       # Gates System Admin self-registration on the public sign-up page.

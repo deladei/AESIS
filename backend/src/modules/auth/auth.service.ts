@@ -12,6 +12,7 @@ import {
 } from '../../shared/utils/token';
 import {
   sendEmail,
+  canSendEmail,
   buildVerificationEmail,
   buildPasswordResetEmail,
 } from '../../shared/utils/email';
@@ -164,10 +165,9 @@ export async function register(input: RegisterInput) {
   const resolvedIndexNumber = rosterMatch?.indexNumber || indexNumber;
 
   // Auto-verify whenever we can't reliably send a verification email — i.e.
-  // dev (no SMTP) or prod without SENDGRID_API_KEY. Otherwise users would
+  // dev, or prod with no mail provider configured. Otherwise users would
   // register, never get the email, and be stuck unable to log in.
-  const canSendEmail = env.NODE_ENV === 'production' && !!env.SENDGRID_API_KEY;
-  const autoVerify  = !canSendEmail || rosterMatch != null;
+  const autoVerify = !canSendEmail() || rosterMatch != null;
 
   const user = await prisma.user.create({
     data: {
@@ -502,13 +502,12 @@ export async function login(input: LoginInput, _ipAddress?: string) {
     // would turn the login form into a lookup for who is enrolled.
     throw new AppError(401, 'Invalid credentials');
   }
-  // Only gate on email verification when SendGrid is actually configured.
+  // Only gate on email verification when mail is actually being delivered.
   // Otherwise users who registered before the auto-verify fix (or whose
   // verification email never arrived) would be permanently locked out.
   // On unlock-by-login, persist isVerified=true so the row stays clean.
-  const canSendEmail = env.NODE_ENV === 'production' && !!env.SENDGRID_API_KEY;
   if (!user.isVerified) {
-    if (canSendEmail) {
+    if (canSendEmail()) {
       throw new AppError(403, 'Please verify your email address before signing in');
     }
     await prisma.user.update({

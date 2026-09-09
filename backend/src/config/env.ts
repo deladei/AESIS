@@ -34,6 +34,16 @@ const envSchema = z.object({
   AI_ENGINE_URL:             z.string().url().default('http://localhost:8000'),
   AI_ENGINE_API_KEY:         z.string().min(1),
 
+  // Outbound mail. Any SMTP provider works — the transport is generic, so
+  // switching provider is a config change, not a code change. Brevo, Mailjet,
+  // Resend and Gmail all speak this. SENDGRID_API_KEY below is the older
+  // single-provider path, kept so an existing deployment keeps sending while
+  // the SMTP vars are being filled in; SMTP_* wins when both are present.
+  SMTP_HOST:                 z.string().optional(),
+  SMTP_PORT:                 z.coerce.number().default(587),
+  SMTP_USER:                 z.string().optional(),
+  SMTP_PASS:                 z.string().optional(),
+
   SENDGRID_API_KEY:          z.string().optional(),
 
   // Shared secret that gates System Admin self-registration. The sign-up page

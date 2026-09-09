@@ -8,20 +8,67 @@ interface EmailPayload {
   html:    string;
 }
 
-function createTransport() {
-  if (env.NODE_ENV === 'production' && env.SENDGRID_API_KEY) {
-    return nodemailer.createTransport({
-      host:   'smtp.sendgrid.net',
-      port:   465,
-      secure: true,
-      auth:   { user: 'apikey', pass: env.SENDGRID_API_KEY },
-    });
+/**
+ * Which provider this deployment sends through, or null when it sends nothing.
+ *
+ * Generic SMTP first: any provider — Brevo, Mailjet, Resend, Gmail — is then a
+ * config change rather than a code change. SENDGRID_API_KEY is the older
+ * single-provider path, kept so a deployment already sending through SendGrid
+ * keeps working until its SMTP_* vars are filled in.
+ */
+function resolveProvider(): { name: string; options: nodemailer.TransportOptions } | null {
+  if (env.SMTP_HOST && env.SMTP_USER && env.SMTP_PASS) {
+    return {
+      name: env.SMTP_HOST,
+      options: {
+        host:   env.SMTP_HOST,
+        port:   env.SMTP_PORT,
+        // 465 is implicit TLS; 587 starts plaintext and upgrades via STARTTLS.
+        // Getting this pair wrong is the usual cause of a hang on connect.
+        secure: env.SMTP_PORT === 465,
+        auth:   { user: env.SMTP_USER, pass: env.SMTP_PASS },
+      } as nodemailer.TransportOptions,
+    };
   }
-  // Dev/test: log emails to console instead of sending
+  if (env.SENDGRID_API_KEY) {
+    return {
+      name: 'smtp.sendgrid.net',
+      options: {
+        host:   'smtp.sendgrid.net',
+        port:   465,
+        secure: true,
+        auth:   { user: 'apikey', pass: env.SENDGRID_API_KEY },
+      } as nodemailer.TransportOptions,
+    };
+  }
   return null;
 }
 
-const transport = createTransport();
+/**
+ * Whether mail can actually leave this server.
+ *
+ * Outside production nothing is sent even with credentials present — dev logs
+ * instead — and the registration flow reads this to decide whether to auto-
+ * verify: a user must never be told to check an inbox no message is going to.
+ */
+export function canSendEmail(): boolean {
+  return env.NODE_ENV === 'production' && resolveProvider() !== null;
+}
+
+/**
+ * Built on first send, not at import: a module loaded before its config is
+ * settled would otherwise cache "no mail" for the life of the process.
+ * Dev/test never gets a transport at all — those messages go to the log.
+ */
+let transport: nodemailer.Transporter | null | undefined;
+
+function getTransport(): nodemailer.Transporter | null {
+  if (transport === undefined) {
+    const provider = canSendEmail() ? resolveProvider() : null;
+    transport = provider ? nodemailer.createTransport(provider.options) : null;
+  }
+  return transport;
+}
 
 /**
  * The last send that failed, and why.
@@ -41,11 +88,12 @@ let lastSuccessAt: string | null = null;
  * verification, password reset, supervisor invitations — goes to the log and
  * nowhere else.
  */
-if (env.NODE_ENV === 'production' && !env.SENDGRID_API_KEY) {
-  logger.error('EMAIL DISABLED: SENDGRID_API_KEY is not set — no mail will be delivered');
+if (env.NODE_ENV === 'production' && !resolveProvider()) {
+  logger.error('EMAIL DISABLED: no SMTP_HOST/SMTP_USER/SMTP_PASS (or SENDGRID_API_KEY) — no mail will be delivered');
 }
 
 export async function sendEmail(payload: EmailPayload): Promise<void> {
+  const transport = getTransport();
   if (!transport) {
     logger.info('📧 [DEV EMAIL — not sent]', {
       to:      payload.to,
@@ -65,8 +113,8 @@ export async function sendEmail(payload: EmailPayload): Promise<void> {
     lastSuccessAt = new Date().toISOString();
     logger.info('Email sent', { to: payload.to, subject: payload.subject });
   } catch (err) {
-    // SendGrid's most common rejection is a 403 on an unverified sender
-    // identity — the FROM address, not the key. Its message says so, and
+    // Every provider's most common rejection is on an unverified sender
+    // identity — the FROM address, not the key. Their messages say so, and
     // keeping it is the difference between a fixable report and "failed".
     const detail = err instanceof Error ? err.message.split('\n')[0].slice(0, 200) : String(err);
     lastFailure = { at: new Date().toISOString(), to: payload.to, subject: payload.subject, detail };
@@ -82,27 +130,32 @@ export async function sendEmail(payload: EmailPayload): Promise<void> {
  * and never the API key. Mirrors `mongoTarget()`.
  */
 export function emailStatus(): {
-  configured: boolean; deliverable: boolean; from: string; fromName: string;
+  configured: boolean; deliverable: boolean; provider: string | null;
+  from: string; fromName: string;
   problem?: string; lastSuccessAt: string | null;
   lastFailure: typeof lastFailure;
 } {
-  const configured = Boolean(env.SENDGRID_API_KEY);
+  const provider = resolveProvider();
+  const configured = provider !== null;
   const from = env.EMAIL_FROM;
 
   let problem: string | undefined;
   if (!configured) {
     problem = env.NODE_ENV === 'production'
-      ? 'SENDGRID_API_KEY is not set — nothing is delivered'
-      : 'No SENDGRID_API_KEY: mail is logged, not sent (expected outside production)';
+      ? 'SMTP_HOST/SMTP_USER/SMTP_PASS are not set (and no SENDGRID_API_KEY) — nothing is delivered'
+      : 'No SMTP credentials set: mail is logged, not sent (expected outside production)';
   } else if (from.endsWith('@aesis.cs.edu')) {
-    // The blueprint default. SendGrid rejects any send whose FROM is not a
+    // The blueprint default. Every provider rejects a send whose FROM is not a
     // verified sender identity, and this domain is a placeholder nobody owns,
-    // so every message fails with a 403 that used to be swallowed.
-    problem = `EMAIL_FROM is still the placeholder ${from} — SendGrid will reject it unless that exact address is a verified sender`;
+    // so every message fails with an error that used to be swallowed.
+    problem = `EMAIL_FROM is still the placeholder ${from} — the provider will reject it unless that exact address is a verified sender`;
   }
 
   return {
     configured,
+    // The host mail leaves through — never the credential. Publishing it is
+    // what makes a stale or half-switched provider visible from outside.
+    provider: provider?.name ?? null,
     // Configured is not the same as working: a key with an unverified sender
     // sends nothing at all.
     deliverable: configured && !problem,

@@ -37,11 +37,47 @@ describe('emailStatus', () => {
     expect(JSON.stringify(emailStatus())).not.toContain('SG.realkey');
   });
 
+  it('reports the SMTP host it sends through, and prefers it over SendGrid', () => {
+    // Both configured is the state a deployment is in mid-switch. The generic
+    // SMTP credentials are the ones actually used, so they are the ones the
+    // endpoint must name — reporting the old provider would send whoever is
+    // debugging to the wrong dashboard.
+    mockEnv.SMTP_HOST = 'smtp-relay.brevo.com';
+    mockEnv.SMTP_PORT = '587';
+    mockEnv.SMTP_USER = '9a1b2c001@smtp-brevo.com';
+    mockEnv.SMTP_PASS = 'brevo-smtp-key';
+
+    const s = emailStatus();
+    expect(s.configured).toBe(true);
+    expect(s.provider).toBe('smtp-relay.brevo.com');
+    // The password is a credential exactly like the API key was.
+    expect(JSON.stringify(s)).not.toContain('brevo-smtp-key');
+
+    mockEnv.SMTP_HOST = undefined;
+    mockEnv.SMTP_USER = undefined;
+    mockEnv.SMTP_PASS = undefined;
+  });
+
+  it('is not configured by a half-filled SMTP block', () => {
+    // A host with no credentials cannot authenticate anywhere. Treating it as
+    // configured would report a deployment as healthy while it silently
+    // delivers nothing.
+    mockEnv.SENDGRID_API_KEY = undefined;
+    mockEnv.SMTP_HOST = 'smtp-relay.brevo.com';
+
+    const s = emailStatus();
+    expect(s.configured).toBe(false);
+    expect(s.provider).toBeNull();
+
+    mockEnv.SMTP_HOST = undefined;
+    mockEnv.SENDGRID_API_KEY = 'SG.realkey';
+  });
+
   it('names the placeholder FROM address as the problem', () => {
-    // The blueprint default. SendGrid rejects any send whose FROM is not a
+    // The blueprint default. Every provider rejects a send whose FROM is not a
     // verified sender identity, and this domain is a placeholder nobody owns —
-    // so a perfectly valid key still delivers nothing, and the 403 that says
-    // so was being swallowed.
+    // so perfectly valid credentials still deliver nothing, and the rejection
+    // that says so was being swallowed.
     mockEnv.EMAIL_FROM = 'noreply@aesis.cs.edu';
     const s = emailStatus();
 
@@ -52,7 +88,7 @@ describe('emailStatus', () => {
     expect(s.problem).toMatch(/verified sender/);
   });
 
-  it('reports a missing key in production as delivering nothing', () => {
+  it('reports missing credentials in production as delivering nothing', () => {
     mockEnv.EMAIL_FROM = 'noreply@cs.ug.edu.gh';
     mockEnv.SENDGRID_API_KEY = undefined;
 
@@ -62,7 +98,7 @@ describe('emailStatus', () => {
     expect(s.problem).toMatch(/not set/);
   });
 
-  it('treats a missing key outside production as expected, not broken', () => {
+  it('treats missing credentials outside production as expected, not broken', () => {
     mockEnv.NODE_ENV = 'development';
     mockEnv.SENDGRID_API_KEY = undefined;
 
