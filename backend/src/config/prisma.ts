@@ -22,22 +22,21 @@ const globalForPrisma = globalThis as unknown as { prisma?: PrismaClient };
 const POOL_LIMIT = 4;
 const POOL_TIMEOUT_SECONDS = 30;
 
+/**
+ * Append the pool settings. Do NOT parse and re-serialise the DSN to do it:
+ * `new URL(dsn).toString()` re-encodes the credentials, and a password that
+ * survives Prisma's own parser does not necessarily survive that round trip —
+ * which is how this arrived in production as a PrismaClientInitializationError
+ * on a URL that had worked for months. The string is the user's; only add to
+ * the end of it.
+ */
 function boundedUrl(raw: string): string {
   if (env.NODE_ENV !== 'production') return raw;
-  try {
-    const url = new URL(raw);
-    if (!url.searchParams.has('connection_limit')) {
-      url.searchParams.set('connection_limit', String(POOL_LIMIT));
-    }
-    if (!url.searchParams.has('pool_timeout')) {
-      url.searchParams.set('pool_timeout', String(POOL_TIMEOUT_SECONDS));
-    }
-    return url.toString();
-  } catch {
-    // An unparseable URL is the connection's problem to report, not this
-    // function's — hand it back untouched rather than failing at import time.
-    return raw;
-  }
+  const params: string[] = [];
+  if (!/[?&]connection_limit=/.test(raw)) params.push(`connection_limit=${POOL_LIMIT}`);
+  if (!/[?&]pool_timeout=/.test(raw))     params.push(`pool_timeout=${POOL_TIMEOUT_SECONDS}`);
+  if (params.length === 0) return raw;
+  return `${raw}${raw.includes('?') ? '&' : '?'}${params.join('&')}`;
 }
 
 export const prisma =

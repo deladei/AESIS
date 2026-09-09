@@ -105,6 +105,13 @@ process.on('unhandledRejection', (reason) => {
 });
 
 bootstrap().catch((err) => {
-  logger.error('Failed to start server', { error: err });
+  // `{ error: err }` serialises an Error to `{name, clientVersion}` — its
+  // message and stack are non-enumerable, so the one line that says WHY the
+  // process died was the one line the log did not carry.
+  logger.error('Failed to start server', {
+    error: err instanceof Error ? err.message : String(err),
+    name:  err instanceof Error ? err.name : undefined,
+    stack: err instanceof Error ? err.stack : undefined,
+  });
   process.exit(1);
 });
