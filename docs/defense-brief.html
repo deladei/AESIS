@@ -1,0 +1,971 @@
+<title>AESIS Defence Brief</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Newsreader:ital,opsz,wght@0,6..72,400;0,6..72,500;0,6..72,600;1,6..72,400&family=Public+Sans:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap">
+
+<style>
+  :root {
+    --ground:      #f5f6f4;
+    --panel:       #ffffff;
+    --panel-sunk:  #eeF0ec;
+    --ink:         #14181b;
+    --ink-soft:    #3d474d;
+    --ink-mute:    #6b757b;
+    --rule:        #dcdfda;
+    --rule-strong: #c3c8c1;
+    --accent:      #0d5c55;
+    --accent-soft: #e3efec;
+    --caution:     #8a5a12;
+    --caution-soft:#f6eeda;
+    --critical:    #9c2f2a;
+    --critical-soft:#f7e7e4;
+    --shadow:      0 1px 2px rgba(20, 24, 27, .06);
+
+    --step--1: 0.8125rem;
+    --step-0:  1rem;
+    --step-1:  1.1875rem;
+    --step-2:  1.4375rem;
+    --step-3:  1.875rem;
+    --step-4:  2.5rem;
+  }
+
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --ground:      #11151a;
+      --panel:       #171c22;
+      --panel-sunk:  #1d232a;
+      --ink:         #e7eae7;
+      --ink-soft:    #b6bfc4;
+      --ink-mute:    #8a959b;
+      --rule:        #2a323a;
+      --rule-strong: #3a444d;
+      --accent:      #58c3b3;
+      --accent-soft: #14302e;
+      --caution:     #d6a44e;
+      --caution-soft:#2e2517;
+      --critical:    #e08b83;
+      --critical-soft:#31201e;
+      --shadow:      0 1px 2px rgba(0, 0, 0, .4);
+    }
+  }
+
+  :root[data-theme="dark"] {
+    --ground:      #11151a;
+    --panel:       #171c22;
+    --panel-sunk:  #1d232a;
+    --ink:         #e7eae7;
+    --ink-soft:    #b6bfc4;
+    --ink-mute:    #8a959b;
+    --rule:        #2a323a;
+    --rule-strong: #3a444d;
+    --accent:      #58c3b3;
+    --accent-soft: #14302e;
+    --caution:     #d6a44e;
+    --caution-soft:#2e2517;
+    --critical:    #e08b83;
+    --critical-soft:#31201e;
+    --shadow:      0 1px 2px rgba(0, 0, 0, .4);
+  }
+
+  * { box-sizing: border-box; }
+
+  body {
+    background: var(--ground);
+    color: var(--ink);
+    font-family: "Public Sans", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    font-size: var(--step-0);
+    line-height: 1.6;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  .shell {
+    max-width: 1180px;
+    margin: 0 auto;
+    padding: 0 clamp(1.15rem, 4vw, 3rem) 6rem;
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 0;
+  }
+
+  /* ── Masthead ────────────────────────────────────────────── */
+
+  header.masthead {
+    padding: clamp(2.5rem, 6vw, 4.5rem) 0 2rem;
+    border-bottom: 2px solid var(--ink);
+  }
+
+  .eyebrow {
+    font-size: var(--step--1);
+    letter-spacing: .14em;
+    text-transform: uppercase;
+    font-weight: 600;
+    color: var(--accent);
+    margin: 0 0 1rem;
+  }
+
+  h1 {
+    font-family: Newsreader, Georgia, serif;
+    font-size: var(--step-4);
+    font-weight: 500;
+    line-height: 1.08;
+    letter-spacing: -.015em;
+    text-wrap: balance;
+    margin: 0 0 .75rem;
+  }
+
+  .standfirst {
+    font-family: Newsreader, Georgia, serif;
+    font-size: var(--step-1);
+    color: var(--ink-soft);
+    max-width: 62ch;
+    margin: 0 0 2rem;
+  }
+
+  .facts {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+    gap: 1.25rem 2rem;
+    padding-top: .5rem;
+  }
+  .fact dt {
+    font-size: var(--step--1);
+    letter-spacing: .1em;
+    text-transform: uppercase;
+    color: var(--ink-mute);
+    font-weight: 600;
+    margin-bottom: .2rem;
+  }
+  .fact dd {
+    margin: 0;
+    font-family: "JetBrains Mono", ui-monospace, monospace;
+    font-size: var(--step--1);
+    color: var(--ink);
+    word-break: break-word;
+  }
+  .fact dd a { color: var(--accent); text-decoration-thickness: 1px; text-underline-offset: 2px; }
+
+  /* ── Body grid ───────────────────────────────────────────── */
+
+  .body-grid {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 3rem;
+    padding-top: 2.5rem;
+  }
+
+  @media (min-width: 1040px) {
+    .body-grid {
+      grid-template-columns: 190px minmax(0, 1fr);
+      gap: 3.5rem;
+    }
+    nav.toc {
+      position: sticky;
+      top: 1.5rem;
+      align-self: start;
+      max-height: calc(100vh - 3rem);
+      overflow-y: auto;
+    }
+  }
+
+  nav.toc ol {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    gap: .55rem;
+    border-left: 1px solid var(--rule);
+    padding-left: 1rem;
+  }
+  nav.toc a {
+    color: var(--ink-mute);
+    text-decoration: none;
+    font-size: var(--step--1);
+    line-height: 1.35;
+    display: block;
+  }
+  nav.toc a:hover, nav.toc a:focus-visible { color: var(--accent); }
+  nav.toc .toc-num {
+    font-family: "JetBrains Mono", monospace;
+    color: var(--rule-strong);
+    margin-right: .4rem;
+  }
+
+  main { min-width: 0; display: flex; flex-direction: column; gap: 3.5rem; }
+
+  section { scroll-margin-top: 1.5rem; }
+
+  h2 {
+    font-family: Newsreader, Georgia, serif;
+    font-size: var(--step-3);
+    font-weight: 500;
+    letter-spacing: -.01em;
+    line-height: 1.15;
+    text-wrap: balance;
+    margin: 0 0 .4rem;
+  }
+  .section-note {
+    color: var(--ink-mute);
+    font-size: var(--step--1);
+    max-width: 62ch;
+    margin: 0 0 1.75rem;
+    padding-bottom: 1rem;
+    border-bottom: 1px solid var(--rule);
+  }
+
+  h3 {
+    font-size: var(--step--1);
+    letter-spacing: .12em;
+    text-transform: uppercase;
+    font-weight: 700;
+    color: var(--ink-mute);
+    margin: 2.25rem 0 1rem;
+  }
+
+  p { max-width: 66ch; }
+
+  /* ── Q&A ─────────────────────────────────────────────────── */
+
+  .qa { display: flex; flex-direction: column; gap: 1.75rem; }
+
+  .q {
+    display: grid;
+    gap: .5rem;
+    padding-bottom: 1.75rem;
+    border-bottom: 1px solid var(--rule);
+  }
+  .q:last-child { border-bottom: none; padding-bottom: 0; }
+
+  .q > .ask {
+    font-family: Newsreader, Georgia, serif;
+    font-size: var(--step-2);
+    font-weight: 500;
+    line-height: 1.25;
+    letter-spacing: -.005em;
+    text-wrap: balance;
+    margin: 0;
+    color: var(--ink);
+  }
+
+  .q > p { margin: 0; color: var(--ink-soft); }
+  .q > p + p { margin-top: .55rem; }
+  .q strong { color: var(--ink); font-weight: 600; }
+
+  .evidence {
+    display: flex;
+    flex-wrap: wrap;
+    gap: .4rem;
+    margin-top: .35rem;
+  }
+  .evidence span {
+    font-family: "JetBrains Mono", ui-monospace, monospace;
+    font-size: 0.75rem;
+    color: var(--ink-mute);
+    background: var(--panel-sunk);
+    border: 1px solid var(--rule);
+    border-radius: 3px;
+    padding: .15rem .45rem;
+  }
+
+  code {
+    font-family: "JetBrains Mono", ui-monospace, monospace;
+    font-size: 0.85em;
+    background: var(--panel-sunk);
+    border-radius: 3px;
+    padding: .1em .32em;
+  }
+
+  /* ── Flow strip ──────────────────────────────────────────── */
+
+  .flow {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: stretch;
+    gap: .5rem;
+    margin: 0 0 1rem;
+    padding: 0;
+    list-style: none;
+  }
+  .flow li {
+    flex: 1 1 150px;
+    background: var(--panel);
+    border: 1px solid var(--rule);
+    border-top: 2px solid var(--accent);
+    padding: .7rem .8rem;
+    display: flex;
+    flex-direction: column;
+    gap: .2rem;
+  }
+  .flow .step {
+    font-family: "JetBrains Mono", monospace;
+    font-size: 0.72rem;
+    letter-spacing: .06em;
+    color: var(--accent);
+  }
+  .flow .what { font-size: var(--step--1); font-weight: 600; }
+  .flow .how  { font-size: 0.78rem; color: var(--ink-mute); line-height: 1.4; }
+
+  /* ── Tables ──────────────────────────────────────────────── */
+
+  .table-wrap { overflow-x: auto; border: 1px solid var(--rule); background: var(--panel); }
+  table { border-collapse: collapse; width: 100%; font-size: var(--step--1); }
+  caption {
+    text-align: left;
+    font-size: var(--step--1);
+    color: var(--ink-mute);
+    padding: 0 0 .6rem;
+  }
+  th, td {
+    text-align: left;
+    padding: .6rem .85rem;
+    border-bottom: 1px solid var(--rule);
+    vertical-align: top;
+  }
+  th {
+    font-size: 0.74rem;
+    letter-spacing: .09em;
+    text-transform: uppercase;
+    color: var(--ink-mute);
+    font-weight: 700;
+    background: var(--panel-sunk);
+    white-space: nowrap;
+  }
+  tbody tr:last-child td { border-bottom: none; }
+  td.num {
+    font-family: "JetBrains Mono", monospace;
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+  }
+  td.mono { font-family: "JetBrains Mono", monospace; font-size: 0.78rem; }
+
+  /* ── Risk blocks ─────────────────────────────────────────── */
+
+  .risks { display: flex; flex-direction: column; gap: 1.1rem; }
+
+  .risk {
+    background: var(--panel);
+    border: 1px solid var(--rule);
+    border-left: 3px solid var(--rule-strong);
+    padding: 1rem 1.15rem;
+    display: grid;
+    gap: .45rem;
+  }
+  .risk.is-critical { border-left-color: var(--critical); }
+  .risk.is-caution  { border-left-color: var(--caution); }
+  .risk.is-fine     { border-left-color: var(--accent); }
+
+  .risk-head {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    gap: .6rem;
+  }
+  .risk-head .ask {
+    font-family: Newsreader, Georgia, serif;
+    font-size: var(--step-1);
+    font-weight: 500;
+    margin: 0;
+    flex: 1 1 auto;
+    min-width: 12rem;
+  }
+  .tag {
+    font-family: "JetBrains Mono", monospace;
+    font-size: 0.7rem;
+    letter-spacing: .06em;
+    text-transform: uppercase;
+    padding: .12rem .45rem;
+    border-radius: 2px;
+    white-space: nowrap;
+  }
+  .tag.is-critical { background: var(--critical-soft); color: var(--critical); }
+  .tag.is-caution  { background: var(--caution-soft);  color: var(--caution); }
+  .tag.is-fine     { background: var(--accent-soft);   color: var(--accent); }
+
+  .risk p { margin: 0; font-size: var(--step--1); color: var(--ink-soft); max-width: 72ch; }
+  .risk .say {
+    border-top: 1px dashed var(--rule);
+    padding-top: .5rem;
+    margin-top: .15rem;
+    font-size: var(--step--1);
+  }
+  .risk .say b {
+    font-family: "JetBrains Mono", monospace;
+    font-size: 0.7rem;
+    letter-spacing: .08em;
+    text-transform: uppercase;
+    color: var(--ink-mute);
+    display: block;
+    margin-bottom: .15rem;
+  }
+
+  /* ── Run sheet ───────────────────────────────────────────── */
+
+  ol.runsheet { margin: 0; padding-left: 1.35rem; display: flex; flex-direction: column; gap: .7rem; }
+  ol.runsheet li { padding-left: .25rem; }
+  ol.runsheet li::marker { font-family: "JetBrains Mono", monospace; color: var(--accent); font-size: .85em; }
+  ol.runsheet b { font-weight: 600; }
+  ol.runsheet span { display: block; color: var(--ink-mute); font-size: var(--step--1); }
+
+  ul.plain { margin: 0; padding-left: 1.15rem; display: flex; flex-direction: column; gap: .5rem; }
+  ul.plain li { color: var(--ink-soft); }
+  ul.plain li::marker { color: var(--rule-strong); }
+
+  footer {
+    margin-top: 4rem;
+    padding-top: 1.25rem;
+    border-top: 1px solid var(--rule);
+    font-size: var(--step--1);
+    color: var(--ink-mute);
+  }
+
+  a:focus-visible, nav.toc a:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 2px;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    * { animation: none !important; transition: none !important; scroll-behavior: auto !important; }
+  }
+
+  @media print {
+    :root { --ground: #fff; --panel: #fff; --panel-sunk: #f2f2f2; --ink: #000; --ink-soft: #222; --ink-mute: #555; --rule: #ccc; }
+    nav.toc { display: none; }
+    .body-grid { grid-template-columns: 1fr; padding-top: 1rem; }
+    section { break-inside: avoid-page; }
+    .q, .risk { break-inside: avoid; }
+    body { font-size: 10.5pt; }
+  }
+</style>
+
+<div class="shell">
+
+  <header class="masthead">
+    <p class="eyebrow">Viva preparation · Computer Science Department</p>
+    <h1>AESIS Defence Brief</h1>
+    <p class="standfirst">Every technical claim below is traceable to a file in the repository. Panels test whether you know your own system — the citations are there so you can answer <em>where</em>, not just <em>what</em>.</p>
+
+    <dl class="facts">
+      <div class="fact">
+        <dt>System</dt>
+        <dd>AI-Enhanced Student Internship Supervision System</dd>
+      </div>
+      <div class="fact">
+        <dt>Frontend</dt>
+        <dd><a href="https://aesis.vercel.app">aesis.vercel.app</a></dd>
+      </div>
+      <div class="fact">
+        <dt>API</dt>
+        <dd><a href="https://aesis.onrender.com/health">aesis.onrender.com</a></dd>
+      </div>
+      <div class="fact">
+        <dt>Brief current as of</dt>
+        <dd>2026-09-09 · commit aec2023</dd>
+      </div>
+    </dl>
+  </header>
+
+  <div class="body-grid">
+
+    <nav class="toc" aria-label="Sections">
+      <ol>
+        <li><a href="#pitch"><span class="toc-num">1</span>The system in 60 seconds</a></li>
+        <li><a href="#lifecycle"><span class="toc-num">2</span>One request, end to end</a></li>
+        <li><a href="#architecture"><span class="toc-num">3</span>Architecture &amp; stack</a></li>
+        <li><a href="#backend"><span class="toc-num">4</span>Backend &amp; APIs</a></li>
+        <li><a href="#database"><span class="toc-num">5</span>Database &amp; data model</a></li>
+        <li><a href="#security"><span class="toc-num">6</span>Auth &amp; security</a></li>
+        <li><a href="#ai"><span class="toc-num">7</span>The AI engine</a></li>
+        <li><a href="#frontend"><span class="toc-num">8</span>Frontend</a></li>
+        <li><a href="#ops"><span class="toc-num">9</span>Deployment &amp; testing</a></li>
+        <li><a href="#hard"><span class="toc-num">10</span>The hard questions</a></li>
+        <li><a href="#numbers"><span class="toc-num">11</span>Numbers to quote</a></li>
+        <li><a href="#demo"><span class="toc-num">12</span>Demo run-sheet</a></li>
+        <li><a href="#traps"><span class="toc-num">13</span>Never claim this</a></li>
+      </ol>
+    </nav>
+
+    <main>
+
+      <!-- ─────────────────────────────────────────────── -->
+      <section id="pitch">
+        <h2>The system in 60 seconds</h2>
+        <p class="section-note">If you get one uninterrupted minute, this is what it should contain.</p>
+
+        <p>AESIS manages the full lifecycle of a Computer Science internship placement. A student submits a <strong>daily and weekly logbook</strong>; their assigned <strong>academic supervisor</strong> reviews each week and either acknowledges it or returns it for revision; the <strong>company supervisor</strong> contributes a weekly comment, an industry score and a final attestation <em>without ever needing an account</em>, through single-use email links; the <strong>coordinator</strong> oversees the cohort and releases final grades; and an <strong>AI engine</strong> reads each entry to produce an advisory quality score, a summary, a plagiarism signal and a chatbot that answers from the department's own regulations.</p>
+
+        <p>It is three deployed services in one repository: an <strong>Express + Prisma API</strong> that is the system of record, a <strong>FastAPI service</strong> that does all AI work, and a <strong>React SPA</strong>. It is live in production, not a prototype — the API, the AI engine and the SPA are all deployed and reachable now.</p>
+
+        <p>The single design commitment worth stating out loud: <strong>the AI is advisory and never grades anyone.</strong> Every AI output is clamped, validated and stored on separate tables from the human assessment, and the final grade is composed entirely of human-entered components.</p>
+      </section>
+
+      <!-- ─────────────────────────────────────────────── -->
+      <section id="lifecycle">
+        <h2>One request, end to end</h2>
+        <p class="section-note">The most common whiteboard question: “walk me through what happens when a student submits a logbook entry.” Answer it as a pipeline.</p>
+
+        <ol class="flow">
+          <li>
+            <span class="step">1 · SPA</span>
+            <span class="what">Zod-validated form</span>
+            <span class="how">The same schema file the server uses, mirrored into the frontend, so the client shows the error the server would give.</span>
+          </li>
+          <li>
+            <span class="step">2 · HTTP</span>
+            <span class="what">POST /api/v1/entries</span>
+            <span class="how">Bearer access token in memory; refresh token rides as an HttpOnly cookie.</span>
+          </li>
+          <li>
+            <span class="step">3 · Guard</span>
+            <span class="what">authenticate → authorize</span>
+            <span class="how">JWT verified, <code>req.user</code> attached, role checked before anything touches the database.</span>
+          </li>
+          <li>
+            <span class="step">4 · Policy</span>
+            <span class="what">assertPlacementAccess</span>
+            <span class="how">Ownership decided in one place: is this actor the student, the academic supervisor, or the company supervisor on <em>this</em> placement?</span>
+          </li>
+          <li>
+            <span class="step">5 · Machine</span>
+            <span class="what">resolveTransition</span>
+            <span class="how">A pure function decides whether <code>draft → submitted</code> is legal for this role and state. Nothing else may move an entry.</span>
+          </li>
+          <li>
+            <span class="step">6 · Write</span>
+            <span class="what">Prisma + entry_event</span>
+            <span class="how">Status change and an append-only event row, backed by a database trigger.</span>
+          </li>
+          <li>
+            <span class="step">7 · Enrich</span>
+            <span class="what">FastAPI, fail-open</span>
+            <span class="how">Quality, summary, plagiarism. If the engine is down the entry is still submitted — enrichment status tracks itself separately.</span>
+          </li>
+          <li>
+            <span class="step">8 · Notify</span>
+            <span class="what">Socket.io + notification</span>
+            <span class="how">Emitted to the supervisor's own room, <code>user:&lt;id&gt;</code>.</span>
+          </li>
+        </ol>
+
+        <p>The sentence that ties it together: <strong>authorization, state and enrichment are three separate decisions, and they fail independently.</strong> A broken AI engine cannot block a submission; an unauthorized actor is rejected before the state machine is ever consulted.</p>
+      </section>
+
+      <!-- ─────────────────────────────────────────────── -->
+      <section id="architecture">
+        <h2>Architecture &amp; stack</h2>
+        <p class="section-note">Expect “why three services?” and “why this stack and not X?”</p>
+
+        <div class="qa">
+          <div class="q">
+            <p class="ask">Why is the AI a separate service instead of code inside the API?</p>
+            <p>Three reasons, and the third is the real one. It is a different runtime — the models and the NLP tooling are Python, the API is Node. It has a different failure profile — the engine may be slow or asleep, and the API must answer in milliseconds regardless. And it has a different <strong>deployment cadence</strong>: the AI engine loads a sentence-transformer at boot and takes 30–60 seconds to start, which would be an unacceptable restart cost for the system of record.</p>
+            <p>The boundary is an HTTP contract with a shared secret (<code>AI_ENGINE_API_KEY</code>), so the engine can be restarted, scaled or replaced without a migration.</p>
+            <div class="evidence"><span>ai/</span><span>backend/src/shared/utils/aiEngine.ts</span></div>
+          </div>
+
+          <div class="q">
+            <p class="ask">Why Prisma rather than raw SQL or another ORM?</p>
+            <p>The schema is the source of truth and it is large — <strong>51 models</strong> across 41 migrations. Prisma gives compile-time types generated from that schema, so a renamed column becomes a TypeScript error rather than a runtime 500. Migrations are versioned files in the repository, and production runs <code>prisma migrate deploy</code> at start-up, so the deployed schema can never silently diverge from the code.</p>
+            <p>Where Prisma is a poor fit — aggregate reporting — the code drops to raw SQL through Prisma rather than contorting the query builder.</p>
+            <div class="evidence"><span>backend/prisma/schema.prisma</span><span>41 migrations</span></div>
+          </div>
+
+          <div class="q">
+            <p class="ask">Why three databases? Isn't that over-engineering?</p>
+            <p>Be honest here, because it is the fair version. <strong>PostgreSQL is the system of record</strong> — every relational entity lives there. <strong>Redis</strong> holds only rate-limiter counters. <strong>MongoDB</strong> is a legacy document store for logbook entry text and chat transcripts, kept from an earlier design.</p>
+            <p>The defensible part: Mongo is <em>optional</em>. The code degrades gracefully if it is absent, because nothing that matters academically depends on it. If a panellist calls it unnecessary, agree that a system designed today would use Postgres and JSONB — and point out that the code was written so it can be removed without touching the academic record.</p>
+            <div class="evidence"><span>backend/src/config/mongo.ts</span><span>backend/src/config/redis.ts</span></div>
+          </div>
+
+          <div class="q">
+            <p class="ask">How is the code organised?</p>
+            <p>Feature modules, not layers. Each feature is <code>backend/src/modules/&lt;feature&gt;/</code> containing its own service, controller, router and Zod schema, with tests beside it. Twenty-three modules currently. Cross-cutting concerns live in <code>shared/</code>, infrastructure in <code>config/</code>, request guards in <code>middleware/</code>.</p>
+            <p>The reason to prefer this: a feature is deleted or reviewed in one directory. The logbook consolidation earlier this year removed an entire legacy module without touching another feature's files.</p>
+            <div class="evidence"><span>backend/src/modules/ · 23 modules</span></div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ─────────────────────────────────────────────── -->
+      <section id="backend">
+        <h2>Backend &amp; APIs</h2>
+        <p class="section-note">The state machine is the strongest thing in this system. Steer questions toward it.</p>
+
+        <div class="qa">
+          <div class="q">
+            <p class="ask">Explain the logbook state machine.</p>
+            <p>States are <code>draft → submitted → acknowledged</code>, where <strong>acknowledged is terminal</strong> and locks the week. The revision path is <code>submitted → returned → draft</code>, and a reopen bumps a version counter so a revised week is distinguishable from an original.</p>
+            <p>Four transitions, each with exactly one permitted role: <code>submit</code> (student), <code>acknowledge</code> and <code>return</code> (academic supervisor), <code>reopen</code> (student). It is implemented as a <strong>pure function</strong>, <code>resolveTransition(current, action, role)</code>, which is why it is exhaustively unit-testable without a database.</p>
+            <p>The detail worth volunteering: <strong>the role guard runs before the from-state guard</strong>, so an unauthorized actor gets 403 and never 409. Otherwise the error code itself would leak what state another student's entry is in.</p>
+            <div class="evidence"><span>backend/src/modules/entries/entry.stateMachine.ts</span></div>
+          </div>
+
+          <div class="q">
+            <p class="ask">How do you know a grade was not tampered with?</p>
+            <p>Every transition writes an append-only <code>entry_event</code> row, reinforced by a database trigger, so the history exists even if it were written around the application. Assessment and attestation records are immutable once signed off. A coordinator override of an aggregated grade <strong>requires a reason</strong>, which is stored on the grade and in the audit log — an override is never silent.</p>
+            <div class="evidence"><span>modules/grades/grades.schema.ts</span><span>model AuditLog</span></div>
+          </div>
+
+          <div class="q">
+            <p class="ask">How is the final grade computed?</p>
+            <p>Four components, each raw on 0–100: <strong>industry, university, report, logbook</strong>. Default weights are 30 / 30 / 30 / 10 and are <strong>cohort-configurable</strong> rather than hard-coded, because the department may reweight between academic years.</p>
+            <p>The industry component arrives from the company supervisor through a tokenised link; the other three are entered by the assigned academic supervisor. Only the coordinator may aggregate, override or release. Note the deliberate separation: <em>no AI output is a term in this formula.</em></p>
+            <div class="evidence"><span>grades.service.ts · DEFAULT_WEIGHTS</span><span>grades.policy.ts</span></div>
+          </div>
+
+          <div class="q">
+            <p class="ask">How does a company supervisor participate without an account?</p>
+            <p>Single-use, hashed magic-link tokens. The token is emailed, stored <strong>hash-only</strong>, and is consumed on use. There are public router mounts for exactly three flows — attestation, the industry score, and the seven-criterion industry form — and each is scoped to one placement.</p>
+            <p>The design reason: a company supervisor supervises one student for a few months. Forcing account creation on them is the single most reliable way to get no data at all.</p>
+            <div class="evidence"><span>/api/v1/attest</span><span>/api/v1/grade-invite</span><span>/api/v1/industry-form</span></div>
+          </div>
+
+          <div class="q">
+            <p class="ask">How are the APIs versioned and validated?</p>
+            <p>Everything is mounted under <code>/api/v1/&lt;resource&gt;</code> — around thirty router mounts. <strong>Every request body and route parameter is parsed by a Zod schema</strong> before a controller sees it, so a handler never defends against a malformed payload. Responses go through shared helpers (<code>ok</code> / <code>created</code> / <code>noContent</code>) so shape is consistent, and a single error handler converts a thrown <code>AppError</code> into its status code.</p>
+            <div class="evidence"><span>backend/src/app.ts</span><span>middleware/errorHandler.ts</span></div>
+          </div>
+
+          <div class="q">
+            <p class="ask">What runs on a schedule?</p>
+            <p>Five background jobs: weekly auto-submit, deadline reminders, a weekly report, an enrichment revival sweep for entries whose AI pass failed, and a keep-warm ping to the AI engine every ten minutes — the last because the engine's hosting plan sleeps after inactivity and a cold start is 30–60 seconds.</p>
+            <div class="evidence"><span>backend/src/jobs/ · 5 jobs</span></div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ─────────────────────────────────────────────── -->
+      <section id="database">
+        <h2>Database &amp; data model</h2>
+        <p class="section-note">Know your own numbers, and know why the schema is shaped the way it is.</p>
+
+        <div class="qa">
+          <div class="q">
+            <p class="ask">Why is a placement, not a user, the centre of the model?</p>
+            <p>Because every authorization question in the system is really a question about a placement: it carries the student, the academic supervisor, the company supervisor, the company, the dates and the status. Entries, assessments, attestations, grades, documents, visits and messages all hang off it. That is what makes a single policy function — <code>assertPlacementAccess</code> — sufficient for the whole entries pipeline.</p>
+            <div class="evidence"><span>model Placement</span><span>modules/entries/entries.policy.ts</span></div>
+          </div>
+
+          <div class="q">
+            <p class="ask">Why do daily and weekly entries both exist?</p>
+            <p>They are different academic instruments. <code>DailyEntry</code> records what was done on a given working day, with absences and non-working days modelled explicitly so a gap is never mistaken for a missed obligation. <code>LogbookEntry</code> is the <em>week</em> — the reviewable unit that a supervisor acknowledges and that carries reflection, attachments and objectives.</p>
+            <p>Conflating them would mean either reviewing every day or losing per-day evidence. This is the SIWES daily-logbook requirement met without breaking the weekly review workflow.</p>
+            <div class="evidence"><span>model DailyEntry</span><span>model LogbookEntry</span><span>model Absence</span></div>
+          </div>
+
+          <div class="q">
+            <p class="ask">Naming and conventions?</p>
+            <p>Database columns are <code>snake_case</code> via Prisma's <code>@map</code>; models and fields are <code>camelCase</code> in code. One trap worth stating before they find it: <strong>Prisma serialises <code>Decimal</code> as a JSON string</strong>, so every numeric value coming out of the database is coerced and validated before arithmetic or rendering — a bug we hit once on a dashboard average and then fixed centrally.</p>
+            <div class="evidence"><span>backend/src/shared/utils/quality.ts</span></div>
+          </div>
+
+          <div class="q">
+            <p class="ask">Where does production actually run?</p>
+            <p>Postgres is a free <strong>Supabase</strong> instance, reached through its session pooler host. It was migrated off Neon after Neon's free tier metered compute-hours and a periodic health check exhausted the quota, which took production down. Mongo is Atlas; Redis is Upstash. All three are external to the application host, so a redeploy never touches data.</p>
+            <div class="evidence"><span>render.yaml · DATABASE_URL</span></div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ─────────────────────────────────────────────── -->
+      <section id="security">
+        <h2>Auth &amp; security</h2>
+        <p class="section-note">This is where a strong panel will push hardest. Answer with mechanisms and lifetimes, not adjectives.</p>
+
+        <div class="qa">
+          <div class="q">
+            <p class="ask">Describe the authentication scheme.</p>
+            <p>Custom JWT. The <strong>access token lives 15 minutes and is held in memory only</strong> — never in <code>localStorage</code>, so an XSS payload cannot read it from storage. The <strong>refresh token is a 7-day HttpOnly cookie</strong>, and is stored in the database <strong>SHA-256 hashed</strong>, so a database leak does not yield usable sessions. Passwords are bcrypt at 12 rounds. Google sign-in is also live for accounts that prefer it.</p>
+            <p>The claim set is deliberately minimal — <code>{ sub, role }</code> — so nothing sensitive travels in a token the client can decode.</p>
+            <div class="evidence"><span>shared/utils/token.ts</span><span>model RefreshToken</span></div>
+          </div>
+
+          <div class="q">
+            <p class="ask">How is authorization enforced, and why not row-level security?</p>
+            <p>Two layers. Route-level RBAC via <code>authorize(...roles)</code>, and a per-resource decision point, <code>assertPlacementAccess(actor, placement, mode)</code>, where ownership and access mode (read / write / transition) are decided. <strong>Controllers never re-implement role rules</strong> — that is the property that makes the rules auditable.</p>
+            <p>On RLS: it was a conscious choice, not an oversight. Authorization here depends on relationships (assigned supervisor, regional assignment, cohort) and on the action being attempted, not just row ownership; expressing that as database policy would split the rules across two languages and two review surfaces. The honest cost is that a raw SQL path that bypassed the service layer would bypass the rules — which is why aggregate SQL is read-only.</p>
+            <div class="evidence"><span>middleware/authorize.ts</span><span>entries.policy.ts</span></div>
+          </div>
+
+          <div class="q">
+            <p class="ask">What protects personal data?</p>
+            <p>Phone numbers and addresses are encrypted at the application layer with <strong>AES-256-GCM</strong> before storage. GCM specifically, because it is authenticated encryption — a tampered ciphertext fails to decrypt rather than returning plausible garbage.</p>
+            <div class="evidence"><span>shared/utils/crypto.ts</span></div>
+          </div>
+
+          <div class="q">
+            <p class="ask">Rate limiting and abuse?</p>
+            <p>A global limiter of 100 requests per 15 minutes per IP, and a tighter <strong>30 per 15 minutes for AI endpoints</strong>, because inference is the expensive path. Counters live in Redis so they hold across instances.</p>
+            <p>The interesting decision is the failure mode: the limiter <strong>fails open</strong>. If Redis is unreachable the request proceeds unthrottled rather than 500-ing. A cache outage must not take the chatbot down — availability of the academic system outranks perfect throttling.</p>
+            <div class="evidence"><span>middleware/rateLimiter.ts</span></div>
+          </div>
+
+          <div class="q">
+            <p class="ask">Can someone create an administrator account?</p>
+            <p>Administrator self-registration is gated on a shared setup code, compared <strong>in constant time</strong> so a wrong code cannot be discovered character by character from response timing, and it <strong>fails closed</strong> — if the secret is unset the system refuses admin registration outright rather than leaving the gate open. Coordinator accounts cannot be self-registered at all; they are seeded or invited.</p>
+            <div class="evidence"><span>auth.service.ts · assertAdminSetupCode</span></div>
+          </div>
+
+          <div class="q">
+            <p class="ask">Does the password-reset endpoint leak which emails are registered?</p>
+            <p>No, and the defence is in two parts. The response message is identical whether or not the address exists. And — this is the part worth mentioning, because it shows you understood the attack — <strong>the email is sent without blocking the response</strong>. An awaited send would have made registered addresses measurably slower than unregistered ones, so the response <em>time</em> would have handed back exactly what the wording withholds.</p>
+            <div class="evidence"><span>auth.service.ts · resetPasswordInit</span></div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ─────────────────────────────────────────────── -->
+      <section id="ai">
+        <h2>The AI engine</h2>
+        <p class="section-note">The likeliest hostile question of the whole defence is “so is it really AI?”. Answer it directly, and never overclaim.</p>
+
+        <div class="qa">
+          <div class="q">
+            <p class="ask">What exactly does the AI do?</p>
+            <p>Four things, and they use different techniques deliberately:</p>
+            <p><strong>1 · Quality scoring</strong> — a rule-based rubric over the entry text. The weights are Task Depth 30%, Technical Vocabulary 25%, Reflection 25%, Temporal Consistency 20%. No training data, no model weights, fully explainable: for any score you can say which rubric dimension produced it.</p>
+            <p><strong>2 · Classification and summarisation</strong> — a deterministic keyword classifier with a Groq-hosted LLM producing a feedback draft on top, fail-open.</p>
+            <p><strong>3 · Plagiarism signal</strong> — TF-IDF with a FAISS inner-product index for lexical overlap, plus a MiniLM sentence-embedding stage to catch paraphrase. Stateless: the comparison corpus is supplied per request.</p>
+            <p><strong>4 · Chatbot</strong> — retrieval-augmented generation over the department's own regulations, answered by <code>openai/gpt-oss-120b</code> on Groq.</p>
+            <div class="evidence"><span>ai/services/quality_scorer.py</span><span>ai/services/entry_plagiarism.py</span><span>ai/routers/enrich.py</span></div>
+          </div>
+
+          <div class="q">
+            <p class="ask">Why is the quality score rules-based rather than a trained model?</p>
+            <p>This is a strength, not a shortcut — say so plainly. There is no labelled corpus of graded Ghanaian CS internship logbooks, so a trained scorer would have been trained on a proxy and would carry unexamined bias into an academic setting. A rubric is <strong>auditable by the department that owns the rubric</strong>: a supervisor can disagree with a dimension, and the dimension can be reweighted. A neural score would be a number nobody can contest.</p>
+            <p>Add the boundary: it is advisory. It never becomes a grade component.</p>
+          </div>
+
+          <div class="q">
+            <p class="ask">How does the chatbot avoid making up regulations?</p>
+            <p>Retrieval-augmented generation, with the corpus in <strong>Postgres, not the filesystem</strong>. That distinction has a story behind it, which makes it a good answer: an earlier version read a FAISS index out of <code>/tmp</code>, which the host wipes on every restart — so retrieval was permanently empty and every answer came from the model's priors plus a system prompt while claiming to cite regulations.</p>
+            <p>Now: passages are chunked <strong>by heading</strong>, so the natural retrieval unit and the natural citation are the same thing; embeddings are stored alongside the model name that produced them, so changing models invalidates rows instead of silently mixing vector spaces; and retrieval is an exact numpy dot product over normalised vectors, because at handbook scale an approximate index would add a failure mode and buy nothing.</p>
+            <div class="evidence"><span>ai/services/knowledge.py</span><span>model KnowledgePassage</span></div>
+          </div>
+
+          <div class="q">
+            <p class="ask">What happens when the AI is wrong, or down?</p>
+            <p>Down is the easy half: enrichment is <strong>fail-open</strong> and tracked by its own status field (<code>pending → processing → succeeded | failed | abandoned</code>) which never touches the entry's academic status. A submission is never blocked by AI.</p>
+            <p>Wrong is handled by validation, not trust. <strong>Every AI-originated value is validated before it touches the database or the UI</strong> — quality scores are clamped to 0–100 and an out-of-range value is logged and rejected rather than stored. AI-suggested tags require human confirmation before they count. And any metric that cannot be computed renders as an em dash, never as zero — a fabricated zero in an academic dashboard is worse than an obvious blank.</p>
+            <div class="evidence"><span>ai/services/quality_scorer.py · clamp_quality_score</span><span>shared/utils/quality.ts</span></div>
+          </div>
+
+          <div class="q">
+            <p class="ask">Why Groq, and what happens if the model id changes?</p>
+            <p>Groq's free tier makes inference viable for a departmental pilot with no budget, at roughly 14,400 requests a day — which is why the AI rate limit is 30 per 15 minutes per IP. The model id is environment-set, not hard-coded, and the engine's <code>/health</code> endpoint reports whether the configured id still exists — because hosted providers retire ids, and a silent 404 on a model would otherwise look like the AI simply becoming stupid.</p>
+            <div class="evidence"><span>ai/config/settings.py · GROQ_MODEL</span><span>ai/routers/health.py</span></div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ─────────────────────────────────────────────── -->
+      <section id="frontend">
+        <h2>Frontend</h2>
+        <p class="section-note">Expect questions about state, validation duplication and real-time updates.</p>
+
+        <div class="qa">
+          <div class="q">
+            <p class="ask">How is server state managed?</p>
+            <p>TanStack Query v5 for anything the server owns — caching, invalidation and refetching are the library's job, not hand-rolled effects. React Context holds only what is genuinely client state: the authenticated user and the access token. There is no Redux, and that is deliberate: nearly all state in this application <em>is</em> server state, and modelling it twice is where staleness bugs come from.</p>
+            <div class="evidence"><span>frontend/src/contexts/AuthContext.tsx</span><span>33 pages · 43 components</span></div>
+          </div>
+
+          <div class="q">
+            <p class="ask">Isn't validating on both client and server duplicated logic?</p>
+            <p>It would be if it were written twice. The Zod schemas live in the backend and are <strong>mirrored into the frontend by a sync script, with a drift test that fails the build if the copies diverge</strong>. The server re-parses every request regardless; the client copy exists only to put the error next to the field.</p>
+            <p>The mirroring rather than importing is forced by the deployment: Vercel's build root is <code>frontend/</code>, so a build that reached above it would pass locally and fail in production.</p>
+            <div class="evidence"><span>frontend/scripts/sync-shared.mjs</span><span>shared/validation/auth.ts</span></div>
+          </div>
+
+          <div class="q">
+            <p class="ask">How do supervisors see a submission without refreshing?</p>
+            <p>Socket.io. On connection a client joins a room named for its own user id (<code>user:&lt;id&gt;</code>), and notifications are emitted to that room — so the transport enforces the same per-user boundary the API does, rather than broadcasting and filtering on the client.</p>
+            <div class="evidence"><span>backend/src/server.ts</span><span>shared/utils/socketEmitter.ts</span></div>
+          </div>
+
+          <div class="q">
+            <p class="ask">Why React and Vite specifically?</p>
+            <p>Vite for build speed and native ESM in development; React because the component model matches the domain (a logbook week is a component with a state machine behind it) and because Recharts, shadcn/ui and TanStack Query are mature in that ecosystem. Tailwind keeps styling co-located with markup, which matters when one person maintains 33 pages.</p>
+          </div>
+        </div>
+      </section>
+
+      <!-- ─────────────────────────────────────────────── -->
+      <section id="ops">
+        <h2>Deployment &amp; testing</h2>
+        <p class="section-note">“Is it deployed?” is a yes-or-no question with a URL attached. Have the URL.</p>
+
+        <div class="qa">
+          <div class="q">
+            <p class="ask">How does it deploy?</p>
+            <p>Push to <code>main</code>. Vercel builds the SPA; Render builds the API and the AI engine. The API's start command runs <code>prisma migrate deploy</code>, so schema changes ship with the code that needs them and the deployed schema cannot drift from the application.</p>
+            <p>Infrastructure is described in <code>render.yaml</code>, and every secret is <code>sync: false</code> — set in the dashboard, never in the repository.</p>
+            <div class="evidence"><span>render.yaml</span><span>Vercel root: frontend/</span></div>
+          </div>
+
+          <div class="q">
+            <p class="ask">What does CI actually check?</p>
+            <p>Three parallel jobs on every push: <strong>backend</strong> (lint, typecheck, migrate a test database, run the Jest suites), <strong>AI service</strong> (pytest), and <strong>frontend</strong> (typecheck and a production build). The backend job migrates a real Postgres rather than mocking it, so migration errors are caught before deployment rather than during it.</p>
+            <div class="evidence"><span>.github/workflows/ci.yml</span></div>
+          </div>
+
+          <div class="q">
+            <p class="ask">How is it tested, and what is tested most heavily?</p>
+            <p><strong>69 backend test files</strong> and 11 Python test modules. The heaviest coverage is exactly where the risk is: the state machine (a pure function, so every state-role-action combination is enumerable), the authorization policy, and the grading spine.</p>
+            <p>A specific example worth having ready: the AI quality clamp is tested with out-of-range inputs, because the test is not “does the model work” but “can a bad model value reach the database”. That is the difference between testing a feature and testing a boundary.</p>
+            <div class="evidence"><span>69 *.test.ts · 11 test_*.py</span></div>
+          </div>
+
+          <div class="q">
+            <p class="ask">How do you know production is healthy?</p>
+            <p>Purpose-built health endpoints, not just a 200. <code>/health/email</code> reports whether mail can actually leave the server, which provider it goes through and what the last failure was; <code>/health/mongo</code> returns 503 when disconnected so a ping fails loudly instead of passing while transcripts go nowhere; the AI engine's <code>/health</code> reports whether its configured model id still exists.</p>
+            <p>The principle: <strong>a health check that only proves the process is running is a health check that lies.</strong></p>
+            <div class="evidence"><span>backend/src/app.ts</span></div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ─────────────────────────────────────────────── -->
+      <section id="hard">
+        <h2>The hard questions</h2>
+        <p class="section-note">Every one of these is a real limitation. A panel respects a known weakness with a reasoned position far more than a denial — and it removes the possibility of being caught out.</p>
+
+        <div class="risks">
+
+          <div class="risk is-caution">
+            <div class="risk-head">
+              <p class="ask">“You have no row-level security. Anyone with the database can read everything.”</p>
+              <span class="tag is-caution">Own it</span>
+            </div>
+            <p>True, and deliberate. Authorization is enforced in the application layer because the rules depend on relationships and on the attempted action, not on row ownership alone. The mitigation is that the rules live in <em>one</em> function per pipeline rather than being scattered through controllers.</p>
+            <p class="say"><b>Say this</b>The trade-off is that a future raw-SQL write path would bypass the rules, so raw SQL is confined to read-only aggregates. If the department deploys this beyond a pilot, RLS on the placement relationships is the first hardening step.</p>
+          </div>
+
+          <div class="risk is-caution">
+            <div class="risk-head">
+              <p class="ask">“Password reset tokens are stored in plaintext.”</p>
+              <span class="tag is-caution">Own it</span>
+            </div>
+            <p>Correct, and inconsistent with our own standard — attestation tokens elsewhere in the same codebase are stored hash-only. Anyone with read access to that column could reset an account inside the one-hour expiry window.</p>
+            <p class="say"><b>Say this</b>It is a known defect, it is written down, and the fix is the pattern we already use for the attestation tokens. Do not argue it away.</p>
+          </div>
+
+          <div class="risk is-fine">
+            <div class="risk-head">
+              <p class="ask">“Is the quality score really AI, or just word counting?”</p>
+              <span class="tag is-fine">Strong ground</span>
+            </div>
+            <p>It is NLP-based heuristic scoring, and calling it that is the credible answer. The system also contains genuine ML — sentence-transformer embeddings for paraphrase detection and for retrieval — and an LLM for feedback drafting and the chatbot.</p>
+            <p class="say"><b>Say this</b>The rubric is rules-based on purpose: it is explainable and reweightable by the department, and no labelled corpus of graded logbooks exists to train anything better. Choosing an unauditable model for an academic judgement would have been the weaker engineering decision.</p>
+          </div>
+
+          <div class="risk is-caution">
+            <div class="risk-head">
+              <p class="ask">“Everything is on free hosting. Is this production-grade?”</p>
+              <span class="tag is-caution">Own it</span>
+            </div>
+            <p>It is a departmental pilot on free infrastructure, and the constraints are real: the AI engine sleeps after inactivity, which is why there is a keep-warm job and a retry on the first chat turn; the database was migrated off one provider after its free tier metered compute-hours and exhausted them.</p>
+            <p class="say"><b>Say this</b>The architecture is not what limits scale — every service is stateless and the data lives in managed stores. Moving to paid instances is a plan change, not a rewrite.</p>
+          </div>
+
+          <div class="risk is-fine">
+            <div class="risk-head">
+              <p class="ask">“What stops a student from getting an AI to write their logbook?”</p>
+              <span class="tag is-fine">Strong ground</span>
+            </div>
+            <p>Nothing stops it, and no system can claim to. What AESIS does is make it visible: a plagiarism signal that catches paraphrase as well as copying, a reflection dimension in the rubric that scores first-person analytical language, and a daily entry trail that makes a week fabricated in one sitting look different from one recorded across five days.</p>
+            <p class="say"><b>Say this</b>All of it is advisory evidence for a human supervisor. The system never accuses a student — it surfaces a signal to the person qualified to judge it.</p>
+          </div>
+
+          <div class="risk is-caution">
+            <div class="risk-head">
+              <p class="ask">“Why is there a legacy module still in the codebase?”</p>
+              <span class="tag is-caution">Own it</span>
+            </div>
+            <p>The weekly workflow moved from an earlier logbook pipeline to the current entries pipeline. The consolidation was completed in phases and the legacy module was deleted; historical analysis rows are retained because coordinator dashboards report on past cohorts.</p>
+            <p class="say"><b>Say this</b>Deleting the code and keeping the data was the deliberate split — the old pipeline is gone, the academic record it produced is not.</p>
+          </div>
+
+          <div class="risk is-critical">
+            <div class="risk-head">
+              <p class="ask">“Show me it working right now.”</p>
+              <span class="tag is-critical">Prepare</span>
+            </div>
+            <p>The AI engine may be asleep and takes 30–60 seconds to wake. Warm it before you walk in — open the app and send one chat message ten minutes before the session, and leave the tab open.</p>
+            <p class="say"><b>Say this</b>If it is slow live, name the cause before they ask: free-tier instance, cold start, keep-warm job runs every ten minutes. A known and explained limitation reads as competence; an unexplained pause reads as a broken system.</p>
+          </div>
+
+        </div>
+      </section>
+
+      <!-- ─────────────────────────────────────────────── -->
+      <section id="numbers">
+        <h2>Numbers to quote</h2>
+        <p class="section-note">Precise figures signal that you built it. Approximations signal that you watched someone build it.</p>
+
+        <div class="table-wrap">
+          <table>
+            <caption>Verified against the repository at commit <code>aec2023</code>, 2026-09-09.</caption>
+            <thead>
+              <tr><th scope="col">Area</th><th scope="col">Figure</th><th scope="col">What it is</th></tr>
+            </thead>
+            <tbody>
+              <tr><td>Data model</td><td class="num">51</td><td>Prisma models across 23 enums</td></tr>
+              <tr><td>Data model</td><td class="num">41</td><td>Versioned migrations, additive by policy</td></tr>
+              <tr><td>API</td><td class="num">~30</td><td>Router mounts under <code>/api/v1</code></td></tr>
+              <tr><td>Backend</td><td class="num">23</td><td>Feature modules</td></tr>
+              <tr><td>Backend</td><td class="num">5</td><td>Scheduled jobs</td></tr>
+              <tr><td>Tests</td><td class="num">69</td><td>Backend Jest test files</td></tr>
+              <tr><td>Tests</td><td class="num">11</td><td>AI service pytest modules</td></tr>
+              <tr><td>Frontend</td><td class="num">33 / 43</td><td>Pages / shared components</td></tr>
+              <tr><td>Auth</td><td class="num">15 min / 7 d</td><td>Access token life / refresh token life</td></tr>
+              <tr><td>Auth</td><td class="num">12</td><td>bcrypt cost factor</td></tr>
+              <tr><td>Crypto</td><td class="num">AES-256-GCM</td><td>Application-layer PII encryption</td></tr>
+              <tr><td>Limits</td><td class="num">100 / 30</td><td>Requests per 15 min per IP — global / AI</td></tr>
+              <tr><td>Grading</td><td class="num">30·30·30·10</td><td>Default weights: industry, university, report, logbook</td></tr>
+              <tr><td>AI rubric</td><td class="num">30·25·25·20</td><td>Task depth, tech vocabulary, reflection, temporal consistency</td></tr>
+              <tr><td>AI model</td><td class="mono">openai/gpt-oss-120b</td><td>Chat model, hosted on Groq, env-configured</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <!-- ─────────────────────────────────────────────── -->
+      <section id="demo">
+        <h2>Demo run-sheet</h2>
+        <p class="section-note">A demo that follows the academic workflow answers half the questions before they are asked.</p>
+
+        <ol class="runsheet">
+          <li><b>Ten minutes before.</b><span>Open the app and send one chatbot message to wake the AI engine. Leave the tab open. Have a second browser or private window ready for the supervisor account.</span></li>
+          <li><b>Sign in as a student.</b><span>Show the placement, the day-level progress and the current week.</span></li>
+          <li><b>Fill and submit a week.</b><span>Say the transition out loud as you click: draft → submitted. Mention that the client is validating with the same schema the server will re-parse.</span></li>
+          <li><b>Switch to the supervisor.</b><span>The submission is already there — that is the Socket.io room, not a refresh. Show the AI quality score and summary, and state that it is advisory.</span></li>
+          <li><b>Return the week, then reopen it.</b><span>This is the part panels remember: it proves a state machine exists rather than status strings being written by whoever asks.</span></li>
+          <li><b>Acknowledge the week.</b><span>Point out that acknowledged is terminal and the week is now locked.</span></li>
+          <li><b>Show the magic-link flow.</b><span>The company supervisor's attestation or industry score, with no account. Emphasise single-use and hash-only storage.</span></li>
+          <li><b>Show the coordinator view.</b><span>Cohort oversight, grade aggregation with its four components, and the mandatory reason on an override.</span></li>
+          <li><b>Close on a health endpoint.</b><span><code>/health/email</code> live in the browser. It demonstrates operational maturity in five seconds and invites a question you can answer well.</span></li>
+        </ol>
+      </section>
+
+      <!-- ─────────────────────────────────────────────── -->
+      <section id="traps">
+        <h2>Never claim this</h2>
+        <p class="section-note">Each of these is a claim the system does not support. One overstatement that gets caught costs more than every correct answer gains.</p>
+
+        <ul class="plain">
+          <li><strong>Do not say the AI grades students.</strong> It scores advisory quality. No AI value is a term in the final grade formula.</li>
+          <li><strong>Do not say the quality scorer is a trained model.</strong> It is a weighted rubric. The trained components are the sentence-transformer embeddings and the hosted LLM.</li>
+          <li><strong>Do not say plagiarism detection is conclusive.</strong> It is a similarity signal against a supplied corpus, for a human to interpret.</li>
+          <li><strong>Do not say the system is secure.</strong> Name mechanisms and lifetimes instead — hashed refresh tokens, 15-minute access tokens, AES-256-GCM, constant-time comparison. Then name the known gaps before they do.</li>
+          <li><strong>Do not invent numbers.</strong> If you cannot recall a figure, say which file it is in. Knowing where the answer lives is a better answer than a confident wrong one.</li>
+          <li><strong>Do not describe Mongo as essential.</strong> It is a legacy store the system degrades gracefully without.</li>
+        </ul>
+      </section>
+
+      <footer>
+        <p>Prepared from the AESIS repository at commit <code>aec2023</code> on 9 September 2026. Every figure was read from the source at that commit; if the code has moved since, the code is right and this document is not.</p>
+      </footer>
+
+    </main>
+  </div>
+</div>
