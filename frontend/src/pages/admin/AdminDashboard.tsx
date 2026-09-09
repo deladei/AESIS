@@ -6,7 +6,8 @@ import {
 import { Link } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 import { useAdminDashboard, type AdminDashboard as AdminData } from '@/hooks/useDashboard';
-import { apiErrorDetail } from '@/lib/apiError';
+import { apiErrorDetail, serverFaulted } from '@/lib/apiError';
+import { Diagnose } from '@/components/ui/Diagnose';
 import { usePlacementStats } from '@/hooks/usePlacements';
 import AIEnrichmentPanel from '@/components/admin/AIEnrichmentPanel';
 import { Card, CardHeader } from '@/components/ui/Card';
@@ -161,6 +162,11 @@ export default function AdminDashboard() {
             detail={apiErrorDetail(error)}
             onRetry={() => void refetch()}
           />
+          {serverFaulted(error) && (
+            <div className="flex justify-center pb-6">
+              <Diagnose path="/admin/dashboard/selftest" />
+            </div>
+          )}
         </Card>
       </div>
     );

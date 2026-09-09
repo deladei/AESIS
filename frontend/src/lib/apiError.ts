@@ -106,3 +106,13 @@ export function apiErrorDetail(err: unknown): string | null {
   if (status) return `HTTP ${status}`;
   return said;
 }
+
+/**
+ * Did the server itself fault? Only a 5xx is worth digging into — a 401, a 403
+ * or a request that never left the browser is already fully explained by its
+ * status, and offering a self-test there would just be noise.
+ */
+export function serverFaulted(err: unknown): boolean {
+  const status = (err as ApiErrorShape)?.response?.status ?? 0;
+  return status >= 500;
+}

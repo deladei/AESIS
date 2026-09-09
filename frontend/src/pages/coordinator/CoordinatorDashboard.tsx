@@ -6,7 +6,8 @@ import {
   Sparkles, TrendingUp, X,
 } from 'lucide-react';
 import { useCoordinatorDashboard, useCoordinatorActivity, useCoordinatorCohorts, type CoordinatorActivity } from '@/hooks/useDashboard';
-import { apiErrorDetail } from '@/lib/apiError';
+import { apiErrorDetail, serverFaulted } from '@/lib/apiError';
+import { Diagnose } from '@/components/ui/Diagnose';
 import { useAllPlacements, useUpdatePlacementStatus } from '@/hooks/usePlacements';
 import { useCohortConfig } from '@/hooks/useCohortConfig';
 import { useApplications } from '@/hooks/useOpportunities';
@@ -107,6 +108,11 @@ export default function CoordinatorDashboard() {
             detail={apiErrorDetail(dashErr)}
             onRetry={() => refetchDash()}
           />
+          {serverFaulted(dashErr) && (
+            <div className="flex justify-center pb-6">
+              <Diagnose path="/coordinator/dashboard/selftest" />
+            </div>
+          )}
         </Card>
       </div>
     );

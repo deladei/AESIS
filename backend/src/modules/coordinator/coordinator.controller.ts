@@ -29,6 +29,11 @@ export async function dashboard(req: Request, res: Response) {
   ok(res, data);
 }
 
+export async function dashboardSelfTest(req: Request, res: Response) {
+  const { academicYearId } = cohortScopeSchema.parse(req.query);
+  ok(res, await service.dashboardSelfTest({ academicYearId }));
+}
+
 export async function supervisorWorkload(req: Request, res: Response) {
   const { academicYearId } = cohortScopeSchema.parse(req.query);
   ok(res, await service.getSupervisorWorkload({ academicYearId }));

@@ -13,6 +13,7 @@ import { applicationTrend } from '../opportunities/opportunities.service';
 import { assignSupervisor } from '../placements/placements.service';
 import { emitToUser } from '../../shared/utils/socketEmitter';
 import { refreshRiskSnapshots, latestRiskDistribution } from '../risk/risk.service';
+import { describeFailure } from '../../shared/utils/describeFailure';
 import { Prisma, type RiskTier, type NotificationType } from '@prisma/client';
 
 // ── Dashboard ─────────────────────────────────────────────────
@@ -1522,4 +1523,26 @@ export async function updateActiveCohortConfig(input: {
   }
 
   return shapeCohortConfig(updated);
+}
+
+/**
+ * Run a dashboard read and report the exception instead of throwing it.
+ *
+ * A 500 from `/dashboard` reaches the browser as the same generic body every
+ * fault returns, and the stack is only in the host's log — which is exactly
+ * the thing nobody can reach while a coordinator is standing in front of a
+ * broken page. This runs the identical code path and hands back the error's
+ * own name, message and the frames from our source, so the failure can be
+ * read from the page that is failing.
+ *
+ * Behind the same authorization as the dashboard itself: internal error text
+ * goes to coordinators and admins, never to the public.
+ */
+export async function dashboardSelfTest(opts: { academicYearId?: string } = {}) {
+  try {
+    await getCoordinatorDashboard(opts);
+    return { ok: true as const };
+  } catch (err) {
+    return { ok: false as const, ...describeFailure(err) };
+  }
 }

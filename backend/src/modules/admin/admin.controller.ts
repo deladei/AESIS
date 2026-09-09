@@ -17,6 +17,10 @@ export async function dashboard(_req: Request, res: Response) {
   ok(res, data);
 }
 
+export async function dashboardSelfTest(_req: Request, res: Response) {
+  ok(res, await service.dashboardSelfTest());
+}
+
 export async function internStats(_req: Request, res: Response) {
   const stats = await service.getInternStats();
   return ok(res, stats);

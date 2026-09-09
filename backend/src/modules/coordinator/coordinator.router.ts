@@ -12,6 +12,10 @@ router.use(authorize('coordinator', 'admin'));
 // GET /api/v1/coordinator/dashboard
 router.get('/dashboard', asyncHandler(ctrl.dashboard));
 
+// Why the dashboard is failing, for whoever is looking at the failure. Same
+// authorization as the dashboard; static path, so it is registered beside it.
+router.get('/dashboard/selftest', asyncHandler(ctrl.dashboardSelfTest));
+
 // GET /api/v1/coordinator/students
 router.get('/students', asyncHandler(ctrl.students));
 

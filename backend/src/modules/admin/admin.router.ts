@@ -12,6 +12,9 @@ router.use(authorize('admin'));
 // GET /api/v1/admin/dashboard
 router.get('/dashboard', asyncHandler(ctrl.dashboard));
 
+// Why the dashboard is failing, for whoever is looking at the failure.
+router.get('/dashboard/selftest', asyncHandler(ctrl.dashboardSelfTest));
+
 // GET /api/v1/admin/intern-stats — All Interns headline counts
 router.get('/intern-stats', asyncHandler(ctrl.internStats));
 

@@ -7,6 +7,7 @@ import { AppError } from '../../middleware/errorHandler';
 import { createNotification } from '../notifications/notifications.service';
 import { sendEmail } from '../../shared/utils/email';
 import { refreshRiskSnapshots } from '../risk/risk.service';
+import { describeFailure } from '../../shared/utils/describeFailure';
 
 // Engagement is measured off the active weekly-entry pipeline. A week "counts as
 // submitted" once its entry has actually been submitted (submittedAt set);
@@ -476,4 +477,19 @@ export async function scheduleCallWithIntern(placementId: string, input: Schedul
       `<p>— AESIS Admin</p>`,
   });
   return { ok: true, emailedTo: p.student.email };
+}
+
+/**
+ * The admin dashboard's read, with its exception reported rather than thrown.
+ * Same reasoning as the coordinator's: a generic 500 in the browser and a
+ * stack only in the host's log leaves the person in front of the broken page
+ * with nothing. Behind `authorize('admin')`, like everything else here.
+ */
+export async function dashboardSelfTest() {
+  try {
+    await getAdminDashboard();
+    return { ok: true as const };
+  } catch (err) {
+    return { ok: false as const, ...describeFailure(err) };
+  }
 }
