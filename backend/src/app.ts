@@ -143,6 +143,49 @@ export function createApp() {
     });
   });
 
+  // Which migrations this database has actually run, and whether any of them
+  // failed. A missing column is invisible from /health/db — `SELECT 1` passes
+  // against a schema that is weeks behind — and the request that trips over it
+  // returns the same generic 500 as any other fault, so a half-migrated
+  // database looks exactly like a code bug. Publishes migration names and
+  // timestamps only: no credential, no row data, so this needs no auth.
+  app.get('/health/schema', async (_req, res) => {
+    try {
+      const rows = await prisma.$queryRaw<
+        { migration_name: string; finished_at: Date | null; rolled_back_at: Date | null }[]
+      >`SELECT migration_name, finished_at, rolled_back_at
+          FROM "_prisma_migrations"
+         ORDER BY started_at ASC`;
+
+      // A row with no finish and no rollback is the P3009 case: `migrate
+      // deploy` died mid-migration and every later one is still unapplied.
+      const failed = rows
+        .filter((r) => r.finished_at === null && r.rolled_back_at === null)
+        .map((r) => r.migration_name);
+      const applied = rows.filter((r) => r.finished_at !== null).map((r) => r.migration_name);
+
+      res.status(failed.length === 0 ? 200 : 503).json({
+        status:    failed.length === 0 ? 'ok' : 'error',
+        service:   'aesis-api',
+        count:     applied.length,
+        latest:    applied[applied.length - 1] ?? null,
+        failed,
+        applied,
+        timestamp: new Date().toISOString(),
+      });
+    } catch (err) {
+      // No `_prisma_migrations` table at all means the database was built by
+      // `db push` and has no history — worth saying out loud rather than 500ing.
+      logger.error('Health check: migration history unreadable', { error: (err as Error).message });
+      res.status(503).json({
+        status:  'error',
+        service: 'aesis-api',
+        reason:  (err as Error).message,
+        timestamp: new Date().toISOString(),
+      });
+    }
+  });
+
   // ── API routes ────────────────────────────────────────────────
   app.use('/api/v1/auth',          authRouter);
   app.use('/api/v1/placements',    placementsRouter);
