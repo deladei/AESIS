@@ -14,7 +14,7 @@ import { useStudentDashboard } from '@/hooks/useStudentDashboard';
 import { useNotifications } from '@/hooks/useNotifications';
 import { useTasks, useUpdateTask, useCreateTask, type Task } from '@/hooks/useTasks';
 import { useVisits } from '@/hooks/useVisits';
-import { useResources } from '@/hooks/useResources';
+import { useResources, formatFileSize as formatResourceSize, type Resource } from '@/hooks/useResources';
 import {
   useDocuments, useUploadDocument, formatFileSize,
   DOCUMENT_ACCEPT, DOCUMENT_MAX_BYTES, DOC_TYPES,
@@ -709,7 +709,10 @@ export default function StudentDashboard() {
         </Card>
 
         <Card>
-          <CardHeader title="Quick resources" subtitle="Guidelines, templates and rubrics" />
+          <CardHeader
+            title="Quick resources"
+            subtitle="Guidelines, notices and documents from your coordinator"
+          />
           {resources.length === 0 ? (
             <EmptyState
               icon={BookOpen}
@@ -718,27 +721,12 @@ export default function StudentDashboard() {
             />
           ) : (
             <ul className="space-y-2">
-              {resources.slice(0, 5).map((r) => (
-                <li key={r.id}>
-                  <a
-                    href={r.externalUrl ?? r.fileUrl ?? '#'}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="flex items-center gap-3 rounded-xl border border-line p-2.5 transition-colors hover:border-brand hover:bg-brand-soft"
-                  >
-                    <span className="grid h-9 w-9 shrink-0 place-items-center rounded-lg bg-brand-soft text-brand-ink">
-                      <BookOpen className="h-4 w-4" />
-                    </span>
-                    <span className="min-w-0 flex-1">
-                      <span className="block truncate text-sm font-medium text-ink">{r.title}</span>
-                      {r.description && (
-                        <span className="block truncate text-xs text-ink-muted">{r.description}</span>
-                      )}
-                    </span>
-                    <Badge tone="neutral">{r.category}</Badge>
-                  </a>
+              {resources.slice(0, 6).map((r) => <ResourceRow key={r.id} resource={r} />)}
+              {resources.length > 6 && (
+                <li className="pt-1 text-xs text-ink-muted">
+                  {resources.length - 6} more on the shelf.
                 </li>
-              ))}
+              )}
             </ul>
           )}
         </Card>
@@ -801,6 +789,62 @@ export default function StudentDashboard() {
  * and the coordinator and the assigned supervisor can open it from the intern's
  * detail page.
  */
+/**
+ * One card on the student's shelf. A resource is not always a link: the
+ * coordinator can publish written guidance on its own, so a card with no file
+ * and no URL still has to READ as something — it renders its text rather than
+ * becoming a dead anchor to '#', which is what this row used to do.
+ */
+function ResourceRow({ resource: r }: { resource: Resource }) {
+  const href = r.externalUrl ?? r.fileUrl;
+  const isFile = !r.externalUrl && !!r.fileUrl;
+  const category = r.category.replace(/^./, (c) => c.toUpperCase());
+
+  const head = (
+    <>
+      <span className="grid h-9 w-9 shrink-0 place-items-center rounded-lg bg-brand-soft text-brand-ink">
+        {isFile ? <FileText className="h-4 w-4" /> : <BookOpen className="h-4 w-4" />}
+      </span>
+      <span className="min-w-0 flex-1">
+        <span className="block truncate text-sm font-medium text-ink">{r.title}</span>
+        {r.description && (
+          <span className="block truncate text-xs text-ink-muted">{r.description}</span>
+        )}
+      </span>
+      <Badge tone="neutral">{category}</Badge>
+    </>
+  );
+
+  return (
+    <li>
+      {href ? (
+        <a
+          href={href}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="flex items-center gap-3 rounded-xl border border-line p-2.5 transition-colors hover:border-brand hover:bg-brand-soft"
+        >
+          {head}
+        </a>
+      ) : (
+        <div className="flex items-center gap-3 rounded-xl border border-line p-2.5">{head}</div>
+      )}
+
+      {r.body && (
+        <p className="mt-1.5 whitespace-pre-wrap rounded-xl bg-surface-sunken px-3 py-2 text-sm leading-relaxed text-ink-secondary">
+          {r.body}
+        </p>
+      )}
+      {isFile && (
+        <p className="mt-1 pl-3 text-[11px] text-ink-muted">
+          Opens in a new tab · download from there
+          {r.fileSize ? ` · ${formatResourceSize(r.fileSize)}` : ''}
+        </p>
+      )}
+    </li>
+  );
+}
+
 function DocumentUpload({ placementId }: { placementId: string }) {
   const upload = useUploadDocument(placementId);
   const fileRef = useRef<HTMLInputElement>(null);

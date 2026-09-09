@@ -1590,6 +1590,10 @@ model Resource {
   id             String           @id @default(uuid())
   title          String
   description    String?
+  // Written guidance published on its own: a resource may be a body of text, a
+  // file, a link, or any combination. Before this it had to point somewhere,
+  // so a coordinator could not simply write a notice.
+  body           String?
   category       ResourceCategory @default(other)
   fileUrl        String?          @map("file_url")
   filePublicId   String?          @map("file_public_id")

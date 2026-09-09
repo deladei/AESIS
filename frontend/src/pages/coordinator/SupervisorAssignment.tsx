@@ -18,6 +18,7 @@ import { useSupervisorWorkload } from '@/hooks/useDashboard';
 import SupervisorPicker from '@/components/shared/SupervisorPicker';
 import SupervisorUploadPanel from '@/components/coordinator/SupervisorUploadPanel';
 import StudentRosterPanel from '@/components/coordinator/StudentRosterPanel';
+import ResourceShelfPanel from '@/components/coordinator/ResourceShelfPanel';
 import { Card, CardHeader } from '@/components/ui/Card';
 import { Badge, type BadgeTone } from '@/components/ui/Badge';
 import { InitialsAvatar, ProgressBar, NoValue } from '@/components/ui/Bits';
@@ -166,6 +167,13 @@ export default function SupervisorAssignment() {
           <AssignmentOverview />
           <WorkloadBalance />
         </aside>
+      </div>
+
+      {/* The shelf sits under the assignment work rather than in the rail: a
+          written notice is read at full width, and posting one is a deliberate
+          act, not a glance at a statistic. */}
+      <div className="mt-5">
+        <ResourceShelfPanel />
       </div>
     </div>
   );
