@@ -15,11 +15,49 @@ import { startEnrichmentReviveJob } from './jobs/enrichmentRevive';
 import { startAiEngineKeepWarm } from './jobs/aiEngineKeepWarm';
 import { scheduleWeekAutoSubmit } from './jobs/weekAutoSubmit';
 
+/**
+ * Open the first Postgres connection, waiting out a pool that is momentarily
+ * full rather than dying on it.
+ *
+ * Supabase's session-mode pooler allows 15 clients across everything, and a
+ * deploy is when that is tightest: the outgoing instance still holds its pool
+ * while this one starts. Refused there, `$connect()` threw, the process exited
+ * 1, and the old instance kept its connections — so the next attempt met the
+ * same wall. A restart loop from a condition that clears on its own in seconds.
+ *
+ * Only connection pressure is retried. A wrong password or an unreachable host
+ * will not fix itself, and pretending otherwise just delays the log line that
+ * says so.
+ */
+const CONNECT_BACKOFFS_MS = [3_000, 6_000, 12_000, 20_000, 30_000];
+const POOL_PRESSURE = [
+  'max clients reached',
+  'EMAXCONNSESSION',
+  'too many connections',
+  'Timed out fetching a new connection',
+];
+
+async function connectPostgres(): Promise<void> {
+  for (let attempt = 0; ; attempt++) {
+    try {
+      await prisma.$connect();
+      return;
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      const transient = POOL_PRESSURE.some((needle) => message.includes(needle));
+      if (!transient || attempt >= CONNECT_BACKOFFS_MS.length) throw err;
+      const wait = CONNECT_BACKOFFS_MS[attempt];
+      logger.warn('Postgres pool full; waiting for a connection', { attempt: attempt + 1, waitMs: wait });
+      await new Promise((r) => setTimeout(r, wait));
+    }
+  }
+}
+
 async function bootstrap() {
   // ── Connect all data stores before accepting traffic ──────────
   await connectRedis();
   await connectMongo(); // optional — server starts even if MongoDB is unavailable
-  await prisma.$connect();
+  await connectPostgres();
   logger.info('Core data stores connected (PostgreSQL + Redis)');
 
   const app = createApp();
