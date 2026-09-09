@@ -4,7 +4,7 @@ import { Eye, EyeOff, Loader2, CheckCircle2, GraduationCap, BookOpen, ChevronDow
 import { useAuth, type SelfRegisterRole } from '@/contexts/AuthContext';
 import GoogleButton from '@/components/auth/GoogleButton';
 import { REGION_VALUES, REGION_LABELS } from '@/lib/regions';
-import { registerSchema } from '@/lib/validation';
+import { registerSchema, ACADEMIC_LEVELS } from '@/lib/validation';
 import { extractFieldErrors, formLevelMessage } from '@/lib/validation';
 
 const PROGRAMMES_URL = `${import.meta.env.VITE_API_BASE_URL ?? ''}/api/v1/auth/programmes`;
@@ -39,6 +39,7 @@ interface FormState {
   role: SelfRegisterRole;
   gender: '' | 'male' | 'female' | 'other';
   indexNumber: string;
+  academicLevel: string;
   setupCode: string;
   programmeId: string;
   // Academic supervisor identity
@@ -67,6 +68,9 @@ function payloadFor(form: FormState) {
     ...(form.role === 'student'
       ? {
           indexNumber:            form.indexNumber.trim(),
+          // Sent as a number: the API's level field coerces, but the schema the
+          // client validates with is the same one, so send what it expects.
+          academicLevel:          form.academicLevel ? Number(form.academicLevel) : undefined,
           programmeId:            form.programmeId,
           region:                 form.region,
           companyName:            form.companyName,
@@ -107,6 +111,7 @@ export default function RegisterPage() {
     role:                   'student',
     gender:                 '',
     indexNumber:            '',
+    academicLevel:          '',
     setupCode:              '',
     programmeId:            '',
     staffId:                '',
@@ -462,6 +467,24 @@ export default function RegisterPage() {
                 : <p id="indexNumber-hint" className="mt-1 text-xs text-ink-muted">
                     Three letters followed by seven digits.
                   </p>}
+            </div>
+          )}
+
+          {form.role === 'student' && (
+            <div>
+              <label htmlFor="academicLevel" className="block text-sm font-medium text-ink-muted mb-1.5">Level</label>
+              <select
+                id="academicLevel"
+                value={form.academicLevel}
+                onChange={(e) => setField('academicLevel', e.target.value)}
+                className={`${fieldClass(!!errors.academicLevel)} cursor-pointer`}
+              >
+                <option value="">Select level</option>
+                {ACADEMIC_LEVELS.map((l) => <option key={l} value={l}>Level {l}</option>)}
+              </select>
+              {errors.academicLevel
+                ? <p className="mt-1 text-xs text-danger">{errors.academicLevel}</p>
+                : <p className="mt-1 text-xs text-ink-muted">Your year of study this session.</p>}
             </div>
           )}
 

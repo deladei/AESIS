@@ -178,6 +178,9 @@ export async function register(input: RegisterInput) {
       role,
       gender,
       indexNumber: resolvedIndexNumber,
+      // Students only: staff have no year of study, and a stray value on a
+      // supervisor row would sit in the same column the eligibility gate reads.
+      academicLevel: role === 'student' ? input.academicLevel ?? null : null,
       staffId,
       title,
       departmentId,
@@ -292,6 +295,7 @@ export async function getProfile(userId: string) {
     avatarUrl:    user.avatarUrl,
     gender:       user.gender,
     indexNumber:  user.indexNumber,
+    academicLevel: user.academicLevel,
     phone:        safeDecrypt(user.phone),
     isVerified:   user.isVerified,
     department:   user.department?.name ?? null,
@@ -358,6 +362,7 @@ export async function updateProfile(userId: string, input: UpdateProfileInput) {
     gender?: 'male' | 'female' | 'other';
     phone?: string | null;
     indexNumber?: string | null;
+    academicLevel?: number | null;
   } = {};
 
   if (input.firstName !== undefined) data.firstName = input.firstName;
@@ -379,6 +384,12 @@ export async function updateProfile(userId: string, input: UpdateProfileInput) {
       }
     }
     data.indexNumber = input.indexNumber;
+  }
+
+  // Year of study, same student-only rule: a supervisor sending one is ignored
+  // rather than refused, because the field simply does not apply to them.
+  if (input.academicLevel !== undefined && user.role === 'student') {
+    data.academicLevel = input.academicLevel;
   }
 
   if (Object.keys(data).length > 0) {

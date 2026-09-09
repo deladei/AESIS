@@ -99,6 +99,7 @@ describe('authService.register', () => {
     role:        'student' as const,
     gender:      'female' as const,
     indexNumber: 'UEB0543210',
+    academicLevel: 300 as const,
     programmeId: 'prog-uuid-1',
     region:                 'greater_accra' as const,
     companyName:            'TechBridge Ghana',
@@ -164,7 +165,35 @@ describe('authService.register', () => {
     await authService.register(validInput);
 
     expect(mockPrisma.user.create).toHaveBeenCalledWith(
-      expect.objectContaining({ data: expect.objectContaining({ gender: 'female', indexNumber: 'UEB0543210' }) }),
+      expect.objectContaining({
+        data: expect.objectContaining({
+          gender: 'female', indexNumber: 'UEB0543210', academicLevel: 300,
+        }),
+      }),
+    );
+  });
+
+  it('never stores a year of study on a staff account', async () => {
+    // The column is read by the opportunity eligibility gate, which only asks
+    // it of students — a value on a supervisor row would be answering a
+    // question nobody asked of them.
+    (mockPrisma.user.findUnique as jest.Mock).mockResolvedValue(null);
+    // A supervisor is attached to the CS department, not to a programme.
+    (mockPrisma.department.findUnique as jest.Mock).mockResolvedValue({ id: 'dept-uuid-1', code: 'CS' });
+    (mockPrisma.user.create as jest.Mock).mockResolvedValue({
+      id: 'user-uuid-2', email: 'sup@cs.edu', firstName: 'Yaa', lastName: 'Asantewaa',
+      role: 'academic_supervisor',
+    });
+
+    await authService.register({
+      firstName: 'Yaa', lastName: 'Asantewaa', email: 'sup@cs.edu',
+      password: 'Password@123', role: 'academic_supervisor' as const,
+      gender: 'female' as const, staffId: 'STF00123', title: 'Dr.',
+      academicLevel: 300,
+    } as never);
+
+    expect(mockPrisma.user.create).toHaveBeenCalledWith(
+      expect.objectContaining({ data: expect.objectContaining({ academicLevel: null }) }),
     );
   });
 

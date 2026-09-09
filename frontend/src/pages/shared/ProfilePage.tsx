@@ -15,7 +15,7 @@ import { Badge, type BadgeTone } from '@/components/ui/Badge';
 import { ProgressBar } from '@/components/ui/Bits';
 import { EmptyState, ErrorState, SkeletonRows } from '@/components/ui/Feedback';
 import { FieldError } from '@/components/shared/FieldError';
-import { useFieldErrors, updateProfileSchema, extractFieldErrors } from '@/lib/validation';
+import { useFieldErrors, updateProfileSchema, extractFieldErrors, ACADEMIC_LEVELS } from '@/lib/validation';
 import { ROLE_LABELS } from '@/lib/roles';
 
 const AVATAR_MAX_BYTES = 5 * 1024 * 1024;
@@ -147,6 +147,9 @@ function EditProfileForm({ profile, onDone }: { profile: Profile; onDone: () => 
   const [gender, setGender]         = useState<Profile['gender']>(profile.gender);
   const [phone, setPhone]           = useState(profile.phone ?? '');
   const [indexNumber, setIndexNumber] = useState(profile.indexNumber ?? '');
+  const [academicLevel, setAcademicLevel] = useState(
+    profile.academicLevel != null ? String(profile.academicLevel) : '',
+  );
 
   const inputCls = 'w-full rounded-lg border border-line bg-surface px-3 py-2 text-sm text-ink placeholder:text-ink-muted focus:border-brand focus:outline-none';
   const labelCls = 'mb-1 block text-xs font-medium text-ink-muted';
@@ -161,6 +164,9 @@ function EditProfileForm({ profile, onDone }: { profile: Profile; onDone: () => 
     if (phone !== (profile.phone ?? ''))         patch.phone     = phone.trim();
     if (isStudent && indexNumber.trim() !== (profile.indexNumber ?? '')) {
       patch.indexNumber = indexNumber.trim();
+    }
+    if (isStudent && academicLevel && Number(academicLevel) !== profile.academicLevel) {
+      patch.academicLevel = Number(academicLevel);
     }
     return patch;
   }
@@ -226,6 +232,20 @@ function EditProfileForm({ profile, onDone }: { profile: Profile; onDone: () => 
             <FieldError message={errors.indexNumber} />
           </div>
         )}
+        {isStudent && (
+          <div>
+            <label className={labelCls} htmlFor="pf-level">Level</label>
+            <select
+              id="pf-level" className={inputCls} value={academicLevel}
+              onChange={(e) => { setAcademicLevel(e.target.value); clear('academicLevel'); }}
+              aria-invalid={!!errors.academicLevel}
+            >
+              <option value="">Select level</option>
+              {ACADEMIC_LEVELS.map((l) => <option key={l} value={l}>Level {l}</option>)}
+            </select>
+            <FieldError message={errors.academicLevel} />
+          </div>
+        )}
       </div>
 
       {errMsg && <p className="mt-4 text-sm text-danger">{errMsg}</p>}
@@ -263,6 +283,7 @@ function completionOf(profile: Profile): { pct: number; missing: string[] } {
   if (profile.role === 'student') {
     fields.push(
       { label: 'Index number', filled: !!profile.indexNumber },
+      { label: 'Level',        filled: profile.academicLevel != null },
       { label: 'Programme',    filled: !!profile.programme },
     );
   }
@@ -498,6 +519,13 @@ export default function ProfilePage() {
               <Field icon={UserRound} label="Gender" value={profile.gender ? GENDER_LABELS[profile.gender] : null} />
               <Field icon={Phone} label="Phone" value={profile.phone} />
               {isStudent && <Field icon={Hash} label="Index number" value={profile.indexNumber} />}
+              {isStudent && (
+                <Field
+                  icon={GraduationCap}
+                  label="Level"
+                  value={profile.academicLevel != null ? `Level ${profile.academicLevel}` : null}
+                />
+              )}
               {isStudent && <Field icon={GraduationCap} label="Programme" value={profile.programme} />}
               <Field icon={Building2} label="Department" value={profile.department} />
               {profile.role === 'academic_supervisor' && (

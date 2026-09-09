@@ -34,6 +34,21 @@ const emailField = emailOf();
 // registration; the placement row is created in the same step and a regional
 // academic supervisor is auto-assigned. These are optional on the base object
 // and made mandatory for students by the superRefine below.
+/**
+ * Year of study. The university runs 100–400 for an undergraduate degree, and
+ * the attachment this system supervises sits inside that span — so this is a
+ * fixed list, not a free number. It is read by the opportunity eligibility gate
+ * (`minAcademicLevel`) and by the profile-completeness meter, both of which were
+ * always looking at NULL because nothing ever wrote it.
+ */
+export const ACADEMIC_LEVELS = [100, 200, 300, 400] as const;
+export const academicLevelField = z.coerce
+  .number()
+  .int()
+  .refine((v): v is (typeof ACADEMIC_LEVELS)[number] => (ACADEMIC_LEVELS as readonly number[]).includes(v), {
+    message: `Level must be one of ${ACADEMIC_LEVELS.join(', ')}`,
+  });
+
 export const registerSchema = z.object({
   firstName:   personName('First name'),
   lastName:    personName('Last name'),
@@ -44,6 +59,8 @@ export const registerSchema = z.object({
   programmeId: z.string().uuid('Invalid programme ID').optional(),
   // Student university index/matric number (unique). Required for students below.
   indexNumber: indexNumberField.optional(),
+  // Year of study. Required for students below; meaningless for staff.
+  academicLevel: academicLevelField.optional(),
   // Academic-supervisor identity. Required for that role below: a university
   // staff ID (unique — one staff record cannot back two accounts) + honorific.
   staffId: staffIdField.optional(),
@@ -70,6 +87,7 @@ export const registerSchema = z.object({
   if (data.role !== 'student') return;
   if (!data.programmeId)            ctx.addIssue({ code: 'custom', path: ['programmeId'],            message: 'Students must select a programme' });
   if (!data.indexNumber)           ctx.addIssue({ code: 'custom', path: ['indexNumber'],           message: 'Index number is required' });
+  if (!data.academicLevel)         ctx.addIssue({ code: 'custom', path: ['academicLevel'],         message: 'Select your level' });
   if (!data.region)                ctx.addIssue({ code: 'custom', path: ['region'],                message: 'Select your placement region' });
   if (!data.companyName)           ctx.addIssue({ code: 'custom', path: ['companyName'],           message: 'Company name is required' });
   if (!data.companyAddress)        ctx.addIssue({ code: 'custom', path: ['companyAddress'],        message: 'Company address is required' });
@@ -95,6 +113,9 @@ export const updateProfileSchema = z.object({
   // must be a Ghanaian number and is stored normalised as +233XXXXXXXXX.
   phone:       z.union([z.literal(''), ghanaPhone()]).optional(),
   indexNumber: indexNumberField.optional(),
+  // Students only — applied against the authenticated role in the service, the
+  // same rule indexNumber follows, since the body cannot be trusted to carry it.
+  academicLevel: academicLevelField.optional(),
 }).refine(
   (data) => Object.values(data).some((v) => v !== undefined),
   { message: 'No fields to update' },

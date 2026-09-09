@@ -68,6 +68,7 @@ describe('POST /auth/register', () => {
     role:                   'student',
     gender:                 'female',
     indexNumber:            'UEB0543210',
+    academicLevel:          300,
     programmeId:            '00000000-0000-0000-0000-000000000001',
     region:                 'greater_accra',
     companyName:            'Kofi Analytics Ltd',
@@ -84,6 +85,21 @@ describe('POST /auth/register', () => {
     const res = await request(app).post('/auth/register').send(validBody);
     expect(res.status).toBe(201);
     expect(res.body.data).toHaveProperty('userId', 'user-1');
+  });
+
+  it('refuses a student registration with no level', async () => {
+    // The year of study drives opportunity eligibility and the profile meter,
+    // both of which read NULL for every account created before it was asked for.
+    const { academicLevel, ...noLevel } = validBody;
+    const res = await request(app).post('/auth/register').send(noLevel);
+    expect(res.status).toBe(400);
+    expect(res.body.errors).toHaveProperty('academicLevel');
+  });
+
+  it('refuses a level the university does not run', async () => {
+    const res = await request(app).post('/auth/register').send({ ...validBody, academicLevel: 250 });
+    expect(res.status).toBe(400);
+    expect(res.body.errors).toHaveProperty('academicLevel');
   });
 
   it('returns 400 on Zod validation error (invalid email)', async () => {

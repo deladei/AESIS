@@ -22,6 +22,8 @@ export interface Profile {
   avatarUrl:        string | null;
   gender:           'male' | 'female' | 'other' | null;
   indexNumber:      string | null;
+  /** Year of study, students only. Null on accounts that predate the field. */
+  academicLevel:    number | null;
   phone:            string | null;
   isVerified:       boolean;
   department:       string | null;
@@ -58,6 +60,7 @@ export interface UpdateProfileInput {
   gender?:      'male' | 'female' | 'other';
   phone?:       string;
   indexNumber?: string;
+  academicLevel?: number;
 }
 
 export function useUpdateProfile() {
