@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { Link } from 'react-router-dom';
-import { Eye, EyeOff, Loader2, CheckCircle2, GraduationCap, BookOpen, Briefcase, ChevronDown, Check } from 'lucide-react';
+import { Eye, EyeOff, Loader2, CheckCircle2, GraduationCap, BookOpen, ChevronDown, Check, ShieldCheck } from 'lucide-react';
 import { useAuth, type SelfRegisterRole } from '@/contexts/AuthContext';
 import GoogleButton from '@/components/auth/GoogleButton';
 import { REGION_VALUES, REGION_LABELS } from '@/lib/regions';
@@ -21,7 +21,14 @@ interface RoleChoice {
 const ROLE_CHOICES: RoleChoice[] = [
   { value: 'student',             label: 'Student',            description: 'I am completing an internship placement', icon: GraduationCap },
   { value: 'academic_supervisor', label: 'Academic Supervisor', description: 'I supervise students from the university', icon: BookOpen },
-  { value: 'company_supervisor',  label: 'Company Supervisor',  description: 'I mentor a student at my company',         icon: Briefcase },
+  // Company Supervisor was removed: it did nothing. They never need an account
+  // — attestation, the weekly comment and the industry score all reach them by
+  // single-use magic link — so registering as one linked to no placement and
+  // granted no access.
+  //
+  // System Admin is gated on a setup code the server checks. Coordinator is
+  // still deliberately absent: those are seeded or invited.
+  { value: 'admin',               label: 'System Admin',        description: 'I administer AESIS for the department',    icon: ShieldCheck },
 ];
 
 interface FormState {
@@ -32,6 +39,7 @@ interface FormState {
   role: SelfRegisterRole;
   gender: '' | 'male' | 'female' | 'other';
   indexNumber: string;
+  setupCode: string;
   programmeId: string;
   // Academic supervisor identity
   staffId: string;
@@ -72,6 +80,9 @@ function payloadFor(form: FormState) {
     ...(form.role === 'academic_supervisor'
       ? { staffId: form.staffId.trim(), title: form.title }
       : {}),
+    // Verified on the server against ADMIN_SETUP_CODE — never here, where
+    // anyone could read the comparison.
+    ...(form.role === 'admin' ? { setupCode: form.setupCode } : {}),
   };
 }
 
@@ -96,6 +107,7 @@ export default function RegisterPage() {
     role:                   'student',
     gender:                 '',
     indexNumber:            '',
+    setupCode:              '',
     programmeId:            '',
     staffId:                '',
     title:                  '',
@@ -398,6 +410,29 @@ export default function RegisterPage() {
                 />
                 {errors.staffId && <p className="mt-1 text-xs text-danger">{errors.staffId}</p>}
               </div>
+            </div>
+          )}
+
+          {form.role === 'admin' && (
+            <div>
+              <label htmlFor="setupCode" className="block text-sm font-medium text-ink-muted mb-1.5">
+                Setup code
+              </label>
+              <input
+                id="setupCode"
+                type="password"
+                autoComplete="off"
+                placeholder="Provided by the department"
+                value={form.setupCode}
+                onChange={(e) => setField('setupCode', e.target.value)}
+                className={fieldClass(!!errors.setupCode)}
+              />
+              {errors.setupCode
+                ? <p className="mt-1 text-xs text-danger">{errors.setupCode}</p>
+                : <p className="mt-1 text-xs text-ink-muted">
+                    An administrator account has full access to every student record, so it
+                    cannot be created without this code.
+                  </p>}
             </div>
           )}
 

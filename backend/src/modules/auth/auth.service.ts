@@ -1,3 +1,4 @@
+import crypto from 'node:crypto';
 import type { UserRole } from '@prisma/client';
 import bcrypt from 'bcryptjs';
 import { prisma } from '../../config/prisma';
@@ -36,8 +37,44 @@ const PASSWORD_RESET_EXPIRY_MS = 60 * 60 * 1000; // 1 hour
 
 // ── Register ─────────────────────────────────────────────────
 
+/**
+ * Gate on System Admin self-registration.
+ *
+ * The sign-up page is public, so without this anyone who found the URL could
+ * create an account with break-glass rights over every placement, grade and
+ * logbook in the system.
+ *
+ * FAILS CLOSED. An unset `ADMIN_SETUP_CODE` refuses admin registration rather
+ * than waving it through — the dangerous reading of a missing secret is "no
+ * gate", and that is exactly the deployment where it would be missing.
+ *
+ * Compared in constant time so a wrong code cannot be discovered a character at
+ * a time from response timing.
+ */
+function assertAdminSetupCode(supplied: string | undefined): void {
+  const expected = env.ADMIN_SETUP_CODE;
+  if (!expected) {
+    logger.error('Admin self-registration attempted but ADMIN_SETUP_CODE is not set');
+    throw new AppError(403, 'Administrator accounts cannot be created on this server');
+  }
+
+  const a = Buffer.from(supplied ?? '');
+  const b = Buffer.from(expected);
+  // timingSafeEqual throws on a length mismatch, which would itself leak the
+  // length, so the lengths are folded into the same boolean.
+  const ok = a.length === b.length && crypto.timingSafeEqual(a, b);
+  if (!ok) {
+    logger.warn('Admin self-registration refused: wrong setup code');
+    throw new AppError(403, 'That setup code is not valid');
+  }
+}
+
 export async function register(input: RegisterInput) {
   const { firstName, lastName, email, password, role, programmeId, gender } = input;
+
+  // Before anything is written, and before the email is even looked up: a
+  // failed gate must not tell an attacker whether an address is registered.
+  if (role === 'admin') assertAdminSetupCode(input.setupCode);
   // Index number is a student-only identifier; ignore it for other roles.
   const indexNumber = role === 'student' ? input.indexNumber! : null;
   // Staff ID + title identify an academic supervisor; ignored for other roles.

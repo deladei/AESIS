@@ -2,6 +2,7 @@ import { createContext, useContext, useEffect, useState, useCallback } from 'rea
 import { api, setAccessToken } from '@/lib/api';
 import { initSocket, disconnectSocket } from '@/lib/socket';
 import { queryClient } from '@/lib/queryClient';
+import { SELF_REGISTERABLE_ROLES } from '@/shared/validation/auth';
 
 export interface AuthUser {
   id:        string;
@@ -22,7 +23,9 @@ interface AuthState {
   updateUser:      (patch: Partial<AuthUser>) => void;
 }
 
-export type SelfRegisterRole = 'student' | 'academic_supervisor' | 'company_supervisor';
+// Derived from the shared list rather than re-typed: this was a second copy of
+// SELF_REGISTERABLE_ROLES and the two would drift the moment either changed.
+export type SelfRegisterRole = (typeof SELF_REGISTERABLE_ROLES)[number];
 
 export interface RegisterInput {
   firstName:    string;
@@ -39,6 +42,9 @@ export interface RegisterInput {
   // role=academic_supervisor: unique university staff ID + honorific title.
   staffId?: string;
   title?:   string;
+  // Admin-only: the shared setup code, checked server-side against
+  // ADMIN_SETUP_CODE. Required by the API when role=admin.
+  setupCode?: string;
   // Student-only: the full placement is created at registration and a regional
   // academic supervisor is auto-assigned. Required by the API when role=student.
   region?:                 string;

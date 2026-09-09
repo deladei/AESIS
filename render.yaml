@@ -53,6 +53,12 @@ services:
         sync: false
       - key: SENDGRID_API_KEY
         sync: false
+      # Gates System Admin self-registration on the public sign-up page.
+      # Without it that page could mint accounts with break-glass rights over
+      # every student record, so the service FAILS CLOSED: unset means admin
+      # registration is refused, never ungated. Minimum 12 characters.
+      - key: ADMIN_SETUP_CODE
+        sync: false
       - key: EMAIL_FROM
         value: noreply@aesis.cs.edu
       - key: EMAIL_FROM_NAME

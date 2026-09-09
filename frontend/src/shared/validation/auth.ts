@@ -14,9 +14,18 @@ import {
 // messages, client and server. The server re-parses on every request; the
 // client copy is only there to show the error next to the field.
 
-// Roles that may be picked at self-registration. `coordinator` and `admin`
-// are intentionally excluded — those must be seeded or invited.
-export const SELF_REGISTERABLE_ROLES = ['student', 'academic_supervisor', 'company_supervisor'] as const;
+/**
+ * Roles that may be picked at self-registration.
+ *
+ * `company_supervisor` was removed: it did nothing. A company supervisor never
+ * needs an account — attestation, the weekly comment and the industry score all
+ * reach them by single-use magic link — and registering as one linked to no
+ * placement and granted no access.
+ *
+ * `admin` is here but GATED on a shared setup code (see `adminSetupCode`
+ * below). `coordinator` stays excluded: it is still seeded or invited.
+ */
+export const SELF_REGISTERABLE_ROLES = ['student', 'academic_supervisor', 'admin'] as const;
 
 // Email normalization is the same everywhere: trim first so a paste-with-
 // whitespace doesn't fail .email(), then lowercase so the DB row from
@@ -42,6 +51,9 @@ export const registerSchema = z.object({
   // staff ID (unique — one staff record cannot back two accounts) + honorific.
   staffId: staffIdField.optional(),
   title:   z.enum(['Prof.', 'Dr.', 'Mr.', 'Mrs.', 'Ms.']).optional(),
+  // Required for `admin` (enforced below). Checked against ADMIN_SETUP_CODE on
+  // the server — never validated client-side, where it would be readable.
+  setupCode: z.string().min(1).max(200).optional(),
   // Student placement fields
   region:                 z.enum(REGION_VALUES).optional(),
   companyName:            organisationName('Company name').optional(),
@@ -51,6 +63,9 @@ export const registerSchema = z.object({
   startDate:              z.string().date('Invalid start date (YYYY-MM-DD)').optional(),
   endDate:                z.string().date('Invalid end date (YYYY-MM-DD)').optional(),
 }).superRefine((data, ctx) => {
+  if (data.role === 'admin' && !data.setupCode) {
+    ctx.addIssue({ code: 'custom', path: ['setupCode'], message: 'A setup code is required to create an administrator account' });
+  }
   if (data.role === 'academic_supervisor') {
     if (!data.staffId) ctx.addIssue({ code: 'custom', path: ['staffId'], message: 'Staff ID is required' });
     if (!data.title)   ctx.addIssue({ code: 'custom', path: ['title'],   message: 'Title is required' });

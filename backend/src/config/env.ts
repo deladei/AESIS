@@ -35,6 +35,13 @@ const envSchema = z.object({
   AI_ENGINE_API_KEY:         z.string().min(1),
 
   SENDGRID_API_KEY:          z.string().optional(),
+
+  // Shared secret that gates System Admin self-registration. The sign-up page
+  // is public, so without this anyone who finds the URL could create an
+  // account with break-glass rights over every student record. Optional here
+  // because dev does not need it — but the service FAILS CLOSED: unset means
+  // admin registration is refused outright, never ungated.
+  ADMIN_SETUP_CODE:          z.string().min(12).optional(),
   EMAIL_FROM:                z.string().email().default('noreply@aesis.cs.edu'),
   EMAIL_FROM_NAME:           z.string().default('AESIS System'),
 
