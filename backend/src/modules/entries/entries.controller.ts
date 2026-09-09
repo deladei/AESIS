@@ -8,6 +8,7 @@ import {
   listQuerySchema,
   saveDaySchema,
   submitDaySchema,
+  saveReflectionSchema,
 } from './entries.schema';
 import {
   saveDraft,
@@ -18,6 +19,7 @@ import {
   getEntryTrail,
   listEntries,
   getReviewStats,
+  saveReflection,
 } from './entries.service';
 import { saveDayDraft, submitDay } from './entries.day.service';
 import type { Actor } from './entries.policy';
@@ -33,6 +35,12 @@ function actorOf(req: Request): Actor {
 export async function saveDraftHandler(req: Request, res: Response) {
   const input = saveDraftSchema.parse(req.body);
   const entry = await saveDraft(actorOf(req), input);
+  return created(res, entry);
+}
+
+export async function saveReflectionHandler(req: Request, res: Response) {
+  const input = saveReflectionSchema.parse(req.body);
+  const entry = await saveReflection(actorOf(req), input);
   return created(res, entry);
 }
 

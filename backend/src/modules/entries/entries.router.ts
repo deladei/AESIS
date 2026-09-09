@@ -12,6 +12,7 @@ import {
   reviewStatsHandler,
   saveDayHandler,
   submitDayHandler,
+  saveReflectionHandler,
 } from './entries.controller';
 import attachmentsRouter from './attachments.router';
 
@@ -27,6 +28,9 @@ router.get('/', asyncHandler(listEntriesHandler));
 router.get('/review-stats', asyncHandler(reviewStatsHandler));
 router.post('/', asyncHandler(saveDraftHandler)); // create or update a draft
 router.post('/days', asyncHandler(saveDayHandler)); // per-day path: save one day's draft (upserts the week)
+// The week's challenges/learning on their own. Separate from POST '/' because
+// that route replaces the week's activities, which a reflection-only save must not.
+router.post('/reflection', asyncHandler(saveReflectionHandler));
 router.get('/:id', asyncHandler(getEntryHandler));
 // Marks ONE day final. Does not send the week — that is `/:id/submit` below,
 // and the student chooses which way they work.

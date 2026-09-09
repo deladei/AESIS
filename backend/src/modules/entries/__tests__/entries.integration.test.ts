@@ -21,6 +21,7 @@ import { prisma } from '../../../config/prisma';
 import { AppError } from '../../../middleware/errorHandler';
 import {
   saveDraft,
+  saveReflection,
   submitEntry,
   acknowledgeEntry,
   returnEntry,
@@ -332,6 +333,84 @@ describe('the day path and the week path are independent', () => {
     expect(submitted.status).toBe('submitted');
     expect((await eventsFor(saved.id)).filter((e) => e.toStatus === 'submitted')).toHaveLength(1);
     expect(await prisma.enrichmentQueue.count({ where: { entryId: saved.id } })).toBe(1);
+  });
+});
+
+// ── Challenges ────────────────────────────────────────────────
+describe('the challenges section writes the reflection on its own', () => {
+  itdb('records a challenge for a week the student has not logged a day of yet', async () => {
+    const entry = await saveReflection(studentA, {
+      placementId: placementA,
+      weekNumber: 11,
+      challenges: 'The staging database was down for two days.',
+    });
+
+    expect(entry.reflection?.challenges).toBe('The staging database was down for two days.');
+    // learning is non-null in the schema; not being made to write one stores ''.
+    expect(entry.reflection?.learning).toBe('');
+    expect(entry.reflection?.supervisorVisible).toBe(true);
+    expect(entry.status).toBe('draft');
+
+    const ev = await eventsFor(entry.id);
+    expect(ev.map((e) => e.eventType)).toEqual(['created', 'edited']);
+  });
+
+  itdb('does not disturb the days the per-day writer put in the same week', async () => {
+    const saved = await saveDayDraft(studentA, {
+      ...week(15), placementId: placementA, date: chainDay(15, 1),
+      activities: [{ description: 'Wired the payment callback', competencyTags: [] }],
+    });
+    expect(saved.activities).toHaveLength(1);
+
+    const after = await saveReflection(studentA, {
+      placementId: placementA, weekNumber: 15, challenges: 'Sandbox keys kept expiring.',
+    });
+
+    // The hazard this route exists to avoid: saveDraft replaces activities
+    // wholesale, so a reflection sent through it would have emptied the week.
+    expect(after.id).toBe(saved.id);
+    expect(after.activities).toHaveLength(1);
+    expect(after.reflection?.challenges).toBe('Sandbox keys kept expiring.');
+  });
+
+  itdb('keeps the learning already stored when only challenges are sent', async () => {
+    await saveDraft(studentA, { ...week(16), placementId: placementA });
+    const after = await saveReflection(studentA, {
+      placementId: placementA, weekNumber: 16, challenges: 'Merge conflicts on every pull.',
+    });
+
+    expect(after.reflection?.learning).toBe('Learned Express');
+    expect(after.reflection?.challenges).toBe('Merge conflicts on every pull.');
+  });
+
+  itdb('honours the company-supervisor visibility choice', async () => {
+    const entry = await saveReflection(studentA, {
+      placementId: placementA, weekNumber: 17,
+      challenges: 'My workplace supervisor travelled for the whole week.',
+      supervisorVisible: false,
+    });
+    expect(entry.reflection?.supervisorVisible).toBe(false);
+  });
+
+  itdb('refuses a week that is already with the supervisor', async () => {
+    const saved = await saveDayDraft(studentA, {
+      ...week(18), placementId: placementA, date: chainDay(18, 1), activities: [],
+    });
+    await submitEntry(studentA, saved.id);
+
+    await expect(
+      saveReflection(studentA, {
+        placementId: placementA, weekNumber: 18, challenges: 'Too late to add this.',
+      }),
+    ).rejects.toBeInstanceOf(AppError);
+  });
+
+  itdb('refuses another student\'s placement', async () => {
+    await expect(
+      saveReflection(studentB, {
+        placementId: placementA, weekNumber: 19, challenges: 'Not my week.',
+      }),
+    ).rejects.toBeInstanceOf(AppError);
   });
 });
 

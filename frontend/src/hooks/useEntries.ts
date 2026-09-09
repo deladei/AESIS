@@ -260,6 +260,33 @@ export function useSubmitDay() {
   });
 }
 
+// ── Reflection path ──
+// The week's challenges (and optionally what was learned), written on their own.
+// Deliberately not the '/entries' draft route: that one replaces the week's
+// activities on every save, so sending a reflection through it would wipe the
+// days written by the per-day path.
+export interface SaveReflectionPayload {
+  placementId: string;
+  weekNumber:  number;
+  challenges:  string;
+  learning?:   string;
+  supervisorVisible?: boolean;
+}
+
+export function useSaveReflection() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (payload: SaveReflectionPayload) => {
+      const r = await api.post<{ data: LogbookEntry }>('/entries/reflection', payload);
+      return r.data.data;
+    },
+    onSuccess: (entry) => {
+      qc.invalidateQueries({ queryKey: ['entries', 'list', entry.placementId] });
+      qc.invalidateQueries({ queryKey: ['entries', 'detail', entry.id] });
+    },
+  });
+}
+
 // ── Supervisor side ──
 // Submitted entries awaiting review. The API scopes by role at the DB layer, so
 // an academic supervisor only sees entries on their own assigned placements.

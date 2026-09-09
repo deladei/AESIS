@@ -8,7 +8,7 @@ import {
 import { useMyPlacement } from '@/hooks/usePlacements';
 import {
   useEntries, useEntry, useSaveDay, useSubmitDay, useSubmitEntry, useAssistDayEntry,
-  dayKey, type EntryStatus,
+  useSaveReflection, dayKey, type EntryStatus, type EntryReflection,
 } from '@/hooks/useEntries';
 import {
   useSiwesCalendar, useSaveDailyEntry, useSaveWeeklySummary, useRecordAbsence,
@@ -43,11 +43,13 @@ const DAY_GRACE_DAYS = 2;
 const WORK_MAX = 10_000;
 const SKILLS_MAX = 10_000;
 const REPORT_MAX = 20_000;
+const CHALLENGES_MAX = 10_000;
 const ACTIVITY_MAX = 5_000;
 
 const workText = freeText(WORK_MAX, 'Description of work done');
 const skillsText = freeText(SKILLS_MAX, 'New skills learnt');
 const reportText = freeText(REPORT_MAX, 'Weekly report');
+const challengesText = freeText(CHALLENGES_MAX, 'Challenges');
 
 const COMPETENCY_SUGGESTIONS = [
   'Problem Solving', 'Teamwork', 'Communication', 'Technical Writing',
@@ -516,6 +518,22 @@ export default function LogbookEditor() {
               locked={weekStatus === 'acknowledged' || weekStatus === 'upcoming'}
               lockReason={weekStatus === 'upcoming' ? 'This week has not started yet.' : undefined}
               summary={calendar.weeklySummaries.find((s) => s.weekNumber === week.weekNumber)}
+            />
+
+            <ChallengesCard
+              placementId={placement.id}
+              weekNumber={week.weekNumber}
+              // Narrower than the weekly report on purpose: the reflection lives on
+              // the entries spine, which stops accepting content once the week is
+              // sent for review.
+              locked={weekStatus !== 'draft' && weekStatus !== 'returned' && weekStatus !== 'not_started'}
+              lockReason={
+                weekStatus === 'upcoming' ? 'This week has not started yet.'
+                : weekStatus === 'submitted' ? 'This week is with your supervisor. It can be edited again if it is returned.'
+                : weekStatus === 'acknowledged' ? 'This week has been acknowledged and is locked.'
+                : undefined
+              }
+              reflection={detail?.reflection}
             />
           </div>
 
@@ -1196,6 +1214,97 @@ function DayPanel({
               </div>
             </div>
           )}
+        </>
+      )}
+    </div>
+  );
+}
+
+// ── The week's challenges ───────────────────────────────────────
+// Stored on the week's reflection (entry_reflection.challenges), which the
+// enrichment worker already reads and the insights service already scores — so
+// what a student writes here reaches the supervisor's review and the
+// thin-reflection signal, not just the page.
+function ChallengesCard({
+  placementId, weekNumber, locked, lockReason, reflection,
+}: {
+  placementId: string;
+  weekNumber: number;
+  locked: boolean;
+  lockReason?: string;
+  reflection: EntryReflection | null | undefined;
+}) {
+  const saveReflection = useSaveReflection();
+  const [text, setText] = useState(reflection?.challenges ?? '');
+  const [shared, setShared] = useState(reflection?.supervisorVisible ?? true);
+  const [saved, setSaved] = useState(false);
+
+  useEffect(() => {
+    setText(reflection?.challenges ?? '');
+    setShared(reflection?.supervisorVisible ?? true);
+    saveReflection.reset();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [weekNumber, reflection?.challenges, reflection?.supervisorVisible]);
+
+  const parsed = text.trim() ? challengesText.safeParse(text) : null;
+  const error = parsed && !parsed.success ? parsed.error.issues[0]?.message : undefined;
+
+  return (
+    <div className="rounded-card border border-line bg-surface p-4">
+      <div className="mb-2 flex items-center justify-between">
+        <h2 className="text-sm font-bold text-ink">Challenges faced</h2>
+        {reflection?.challenges && !locked && (
+          <span className="text-[11px] text-ink-muted">Saved for week {weekNumber}</span>
+        )}
+      </div>
+      <p className="mb-2 text-xs text-ink-secondary">
+        What got in the way this week — a task you were stuck on, a tool you had not used
+        before, something you needed and could not get. Your academic supervisor reads this.
+      </p>
+      <textarea
+        rows={3} value={text} maxLength={CHALLENGES_MAX} disabled={locked}
+        onChange={(e) => setText(e.target.value)}
+        placeholder="Describe a difficulty you met and how you handled it"
+        aria-invalid={!!error}
+        className="w-full rounded-lg border border-line bg-surface px-3 py-2 text-sm text-ink placeholder:text-ink-muted focus:border-brand focus:outline-none disabled:bg-surface-sunken"
+      />
+      <FieldError message={error} />
+      {lockReason && <p className="mt-1 text-xs text-ink-muted">{lockReason}</p>}
+      {saveReflection.isError && (
+        <p className="mt-1 text-xs text-danger">{errMessage(saveReflection.error)}</p>
+      )}
+      {!locked && (
+        <>
+          <label className="mt-2 flex items-start gap-2 text-xs text-ink-secondary">
+            <input
+              type="checkbox"
+              checked={shared}
+              onChange={(e) => setShared(e.target.checked)}
+              className="mt-0.5 h-3.5 w-3.5 rounded border-line accent-brand"
+            />
+            Also show this to my company supervisor. Untick to keep it between you and your
+            academic supervisor.
+          </label>
+          <button
+            type="button"
+            onClick={async () => {
+              try {
+                await saveReflection.mutateAsync({
+                  placementId, weekNumber,
+                  challenges: text.trim(),
+                  supervisorVisible: shared,
+                });
+                setSaved(true);
+                setTimeout(() => setSaved(false), 2500);
+              } catch { /* surfaced above */ }
+            }}
+            disabled={!text.trim() || !!error || saveReflection.isPending}
+            className="mt-2 inline-flex items-center gap-1.5 rounded-lg bg-brand px-4 py-2 text-sm font-semibold text-ink-inverse disabled:opacity-50"
+          >
+            {saveReflection.isPending ? <Loader2 className="h-4 w-4 animate-spin" />
+              : saved ? <CheckCircle2 className="h-4 w-4" /> : <Save className="h-4 w-4" />}
+            {saved ? 'Saved' : reflection?.challenges ? 'Update challenges' : 'Save challenges'}
+          </button>
         </>
       )}
     </div>

@@ -27,7 +27,9 @@ import {
   assertPlacementAccess,
   type Actor,
 } from './entries.policy';
-import type { SaveDraftInput, ReturnInput, AcknowledgeInput, ListQuery } from './entries.schema';
+import type {
+  SaveDraftInput, SaveReflectionInput, ReturnInput, AcknowledgeInput, ListQuery,
+} from './entries.schema';
 
 const ENTRY_INCLUDE = {
   activities: { orderBy: { activityDate: 'asc' } },
@@ -295,6 +297,98 @@ export async function saveDraft(actor: Actor, input: SaveDraftInput) {
         },
       });
     }
+
+    return tx.logbookEntry.findUniqueOrThrow({ where: { id: entryId }, include: ENTRY_INCLUDE });
+  });
+}
+
+/**
+ * Save the week's reflection — the challenges a student met, and optionally what
+ * they learned from them.
+ *
+ * A path of its own, not a field on saveDraft: that route replaces the week's
+ * activities wholesale on every save, so a reflection-only save routed through
+ * it would delete every day the per-day writer had put there. This writes
+ * entry_reflection and nothing else.
+ *
+ * It upserts the owning week the way saveDayDraft does, so a challenge can be
+ * recorded before any day of that week has been written up. `learning` is left
+ * alone when absent — the column is non-null, so a first write with no lesson
+ * stores ''.
+ */
+export async function saveReflection(actor: Actor, input: SaveReflectionInput) {
+  await authorizePlacement(actor, input.placementId, 'write');
+  await assertWeekWithinCohort(input.placementId, input.weekNumber);
+  // Derived from the attachment's chain start, never from the request — same
+  // rule as the day path, so whichever writer creates the week agrees on dates.
+  const { periodStart, periodEnd } = await weekBoundsFor(input.placementId, input.weekNumber);
+
+  return prisma.$transaction(async (tx) => {
+    const placement = await tx.placement.findUniqueOrThrow({
+      where: { id: input.placementId },
+      select: { studentId: true },
+    });
+
+    const existing = await tx.logbookEntry.findUnique({
+      where: { studentId_weekNumber: { studentId: placement.studentId, weekNumber: input.weekNumber } },
+    });
+
+    let entryId: string;
+    if (!existing) {
+      const created = await tx.logbookEntry.create({
+        data: {
+          placementId: input.placementId,
+          studentId: placement.studentId,
+          weekNumber: input.weekNumber,
+          periodStart,
+          periodEnd,
+          status: 'draft',
+        },
+      });
+      entryId = created.id;
+      await tx.entryEvent.create({
+        data: {
+          entryId, actorId: actor.id, actorRole: actor.role,
+          eventType: 'created', fromStatus: null, toStatus: 'draft',
+        },
+      });
+    } else {
+      const status = existing.status as EntryStatus;
+      if (!isEditable(status)) {
+        throw new AppError(
+          409,
+          status === 'acknowledged'
+            ? 'This week is acknowledged and locked; it can no longer be edited'
+            : 'This week has been submitted and is awaiting review; it cannot be edited',
+        );
+      }
+      entryId = existing.id;
+    }
+
+    const before = await snapshotEntry(tx, entryId);
+    await tx.entryReflection.upsert({
+      where: { entryId },
+      create: {
+        entryId,
+        challenges: input.challenges,
+        learning: input.learning ?? '',
+        ...(input.supervisorVisible === undefined ? {} : { supervisorVisible: input.supervisorVisible }),
+      },
+      update: {
+        challenges: input.challenges,
+        ...(input.learning === undefined ? {} : { learning: input.learning }),
+        ...(input.supervisorVisible === undefined ? {} : { supervisorVisible: input.supervisorVisible }),
+      },
+    });
+    const after = await snapshotEntry(tx, entryId);
+    await tx.entryEvent.create({
+      data: {
+        entryId, actorId: actor.id, actorRole: actor.role,
+        eventType: 'edited', fromStatus: null, toStatus: null,
+        before: before as Prisma.InputJsonObject,
+        after: after as Prisma.InputJsonObject,
+      },
+    });
 
     return tx.logbookEntry.findUniqueOrThrow({ where: { id: entryId }, include: ENTRY_INCLUDE });
   });

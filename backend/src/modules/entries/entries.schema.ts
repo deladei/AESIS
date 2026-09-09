@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { weekNumberCeiling, weekHours, freeText } from '../../shared/validation';
+import { weekNumberCeiling, weekHours, freeText, optionalFreeText } from '../../shared/validation';
 
 const dateOnly = z
   .string()
@@ -59,6 +59,22 @@ export const submitDaySchema = z.object({
   date: dateOnly,
 });
 
+// ── Reflection path ───────────────────────────────────────────
+// The week's challenges, written on their own. It is deliberately NOT part of
+// saveDraftSchema: that route replaces every activity in the week on each save,
+// so a student saving only a reflection through it would wipe the days the
+// per-day path wrote. This upserts the owning week the same way saveDay does.
+export const saveReflectionSchema = z.object({
+  placementId: z.string().uuid(),
+  weekNumber: weekNumberCeiling(),
+  challenges: freeText(10000, 'Challenges'),
+  // Both columns are non-null on entry_reflection; learning stays optional here
+  // so a student can record a challenge without also being made to write a
+  // lesson. Absent means "leave whatever is stored", '' on first write.
+  learning: optionalFreeText(10000, 'What you learned'),
+  supervisorVisible: z.boolean().optional(),
+});
+
 export const returnSchema = z.object({
   comment: freeText(5000, 'Comment'),
 });
@@ -78,6 +94,7 @@ export const listQuerySchema = z.object({
 
 export type SaveDayInput = z.infer<typeof saveDaySchema>;
 export type SubmitDayInput = z.infer<typeof submitDaySchema>;
+export type SaveReflectionInput = z.infer<typeof saveReflectionSchema>;
 export type SaveDraftInput = z.infer<typeof saveDraftSchema>;
 export type ReturnInput = z.infer<typeof returnSchema>;
 export type AcknowledgeInput = z.infer<typeof acknowledgeSchema>;
