@@ -2,13 +2,13 @@ import { useState, useEffect, useMemo } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import {
   Loader2, CheckCircle2, RotateCcw, Sparkles, Clock, Inbox, AlertCircle,
-  CalendarDays, Tag, FileText, ChevronLeft, ChevronRight, Copy, Check,
+  CalendarDays, Tag, FileText, ChevronLeft, ChevronRight, ChevronDown, Copy, Check,
 } from 'lucide-react';
 import { useSupervisorDashboard } from '@/hooks/useDashboard';
 import {
   useReviewQueue, useEntry, useAcknowledgeEntry, useReturnEntry, useReviewStats, dayKey,
   type LogbookEntry, type EntryStatus, type QualityBreakdown, type PlagiarismReport,
-  type FeedbackDraft,
+  type FeedbackDraft, type EntryDay, type EntryActivity,
 } from '@/hooks/useEntries';
 import { cn } from '@/lib/utils';
 import AiDailyBreakdown, { type ActivityVerdict } from '@/components/ai/AiDailyBreakdown';
@@ -97,6 +97,111 @@ const STATUS_LABEL: Record<EntryStatus, string> = {
   acknowledged: 'Acknowledged',
 };
 
+/**
+ * One day of a submitted week, opened by the reviewer.
+ *
+ * The list used to be a status strip — date, submitted, logged-on — with the
+ * week's activities pooled in a separate card below it. So a supervisor could
+ * see THAT Tuesday was written up but had to reconstruct WHAT was written from
+ * a flat list, and the day's own write-up (description of work, skills learnt,
+ * sketch) was not on this screen at all. Each row now opens onto exactly what
+ * the student saved for that date.
+ */
+function ReviewDayRow({
+  day, activities, lateByDays, open, onToggle,
+}: {
+  day: EntryDay;
+  activities: EntryActivity[];
+  lateByDays: number;
+  open: boolean;
+  onToggle: () => void;
+}) {
+  const ymd = dayKey(day);
+  const work = (day.descriptionOfWork ?? '').trim();
+  const skills = (day.newSkillsLearnt ?? '').trim();
+  const hasContent = !!work || !!skills || activities.length > 0 || !!day.sketchUrl;
+
+  return (
+    <li className="py-2 first:pt-0 last:pb-0">
+      <button
+        type="button"
+        onClick={onToggle}
+        aria-expanded={open}
+        className="flex w-full flex-wrap items-center gap-2 rounded-lg px-1 py-1 text-left hover:bg-surface-sunken"
+      >
+        {open ? <ChevronDown className="h-4 w-4 shrink-0 text-ink-muted" />
+              : <ChevronRight className="h-4 w-4 shrink-0 text-ink-muted" />}
+        <span className="min-w-[7.5rem] text-sm font-medium text-ink">{fmtDay(ymd)}</span>
+        <span className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-semibold ${
+          day.status === 'submitted' ? 'bg-ok-soft text-ok' : 'bg-surface-sunken text-ink-secondary'
+        }`}>
+          {day.status === 'submitted' ? 'Submitted' : 'Draft'}
+        </span>
+        <LatePill days={lateByDays} />
+        {!open && (
+          <span className="hidden max-w-[18rem] truncate text-xs text-ink-muted sm:inline">
+            {work || (activities[0]?.description ?? 'No write-up')}
+          </span>
+        )}
+        <span className="ml-auto text-xs text-ink-muted">Logged {fmtDate(day.createdAt)}</span>
+      </button>
+
+      {open && (
+        <div className="mt-2 space-y-3 rounded-lg border border-line bg-surface-sunken p-3">
+          {!hasContent && (
+            <p className="text-sm text-ink-muted">
+              This day was marked but nothing was written up.
+            </p>
+          )}
+          {work && (
+            <div>
+              <p className="mb-1 text-xs font-semibold text-ink-secondary">Description of work</p>
+              <p className="whitespace-pre-wrap text-sm text-ink">{work}</p>
+            </div>
+          )}
+          {skills && (
+            <div>
+              <p className="mb-1 text-xs font-semibold text-ink-secondary">New skills learnt</p>
+              <p className="whitespace-pre-wrap text-sm text-ink">{skills}</p>
+            </div>
+          )}
+          {activities.length > 0 && (
+            <div>
+              <p className="mb-1 text-xs font-semibold text-ink-secondary">
+                {activities.length === 1 ? 'Activity' : 'Activities'}
+              </p>
+              <div className="space-y-2">
+                {activities.map((a, i) => (
+                  <div key={i} className="rounded-lg border border-line bg-surface p-3">
+                    <p className="whitespace-pre-wrap text-sm text-ink">{a.description}</p>
+                    {a.competencyTags.length > 0 && (
+                      <div className="mt-2 flex flex-wrap gap-1.5">
+                        {a.competencyTags.map((t) => (
+                          <span key={t} className="inline-flex items-center gap-1 rounded-full bg-brand-soft px-2 py-0.5 text-[11px] font-medium text-brand-ink">
+                            <Tag className="h-2.5 w-2.5" /> {t}
+                          </span>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+          {day.sketchUrl && (
+            <a
+              href={day.sketchUrl} target="_blank" rel="noreferrer"
+              className="inline-flex items-center gap-1.5 text-sm font-medium text-brand-ink hover:underline"
+            >
+              <FileText className="h-4 w-4" /> Sketch for this day
+            </a>
+          )}
+        </div>
+      )}
+    </li>
+  );
+}
+
 export default function EntryReview() {
   const { data: allQueue = [], isLoading } = useReviewQueue('submitted');
   const { data: dash } = useSupervisorDashboard();
@@ -170,6 +275,34 @@ export default function EntryReview() {
     for (const d of detail?.days ?? []) if (d.loggedLate) m.set(dayKey(d), d.lateByDays ?? 0);
     return m;
   }, [detail?.days]);
+
+  // The week's activities filed under the day they belong to, so opening a day
+  // shows that day's work rather than the whole week's.
+  const activitiesByDate = useMemo(() => {
+    const m = new Map<string, EntryActivity[]>();
+    for (const a of detail?.activities ?? []) {
+      const d = a.activityDate.slice(0, 10);
+      m.set(d, [...(m.get(d) ?? []), a]);
+    }
+    return m;
+  }, [detail?.activities]);
+
+  // Activities on a date with no day row — only pre-consolidation weeks have
+  // any, and they would otherwise be unreadable now the days own the content.
+  const orphanActivities = useMemo(() => {
+    const dayDates = new Set((detail?.days ?? []).map(dayKey));
+    return (detail?.activities ?? []).filter((a) => !dayDates.has(a.activityDate.slice(0, 10)));
+  }, [detail?.activities, detail?.days]);
+
+  // Which days are open. A reviewer reads one day at a time but often compares
+  // two, so this is a set rather than a single id.
+  const [openDays, setOpenDays] = useState<Set<string>>(new Set());
+  useEffect(() => { setOpenDays(new Set()); }, [selectedId]);
+  const toggleDay = (ymd: string) => setOpenDays((prev) => {
+    const next = new Set(prev);
+    if (next.has(ymd)) next.delete(ymd); else next.add(ymd);
+    return next;
+  });
 
   const apiErr = (e: unknown) =>
     ((e as { response?: { data?: { message?: string } } })?.response?.data?.message) ??
@@ -590,45 +723,52 @@ export default function EntryReview() {
 
                 {/* Days. The screen used to render only activities, so a day the
                     student wrote up without itemising activities was invisible
-                    here — and lateness lives on the day, not the activity. */}
+                    here — and lateness lives on the day, not the activity.
+                    Each row now opens onto that day's own write-up. */}
                 {(detail.days ?? []).length > 0 && (
                   <div className="rounded-card border border-line bg-surface p-5">
-                    <h3 className="mb-3 flex items-center gap-2 text-sm font-semibold text-ink">
-                      <CalendarDays className="h-4 w-4 text-brand-ink" /> Days
-                    </h3>
+                    <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+                      <h3 className="flex items-center gap-2 text-sm font-semibold text-ink">
+                        <CalendarDays className="h-4 w-4 text-brand-ink" /> Days
+                      </h3>
+                      <button
+                        type="button"
+                        onClick={() => setOpenDays(
+                          openDays.size === (detail.days ?? []).length
+                            ? new Set()
+                            : new Set((detail.days ?? []).map(dayKey)),
+                        )}
+                        className="text-xs font-medium text-brand-ink hover:underline"
+                      >
+                        {openDays.size === (detail.days ?? []).length ? 'Collapse all' : 'Open every day'}
+                      </button>
+                    </div>
                     <ul className="divide-y divide-line">
                       {(detail.days ?? []).map((d) => (
-                        <li key={d.id} className="flex flex-wrap items-center gap-2 py-2 first:pt-0 last:pb-0">
-                          <span className="min-w-[7.5rem] text-sm font-medium text-ink">
-                            {fmtDay(dayKey(d))}
-                          </span>
-                          <span className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-semibold ${
-                            d.status === 'submitted'
-                              ? 'bg-ok-soft text-ok'
-                              : 'bg-surface-sunken text-ink-secondary'
-                          }`}>
-                            {d.status === 'submitted' ? 'Submitted' : 'Draft'}
-                          </span>
-                          <LatePill days={d.lateByDays ?? 0} />
-                          <span className="ml-auto text-xs text-ink-muted">
-                            Logged {fmtDate(d.createdAt)}
-                          </span>
-                        </li>
+                        <ReviewDayRow
+                          key={d.id}
+                          day={d}
+                          activities={activitiesByDate.get(dayKey(d)) ?? []}
+                          lateByDays={d.lateByDays ?? 0}
+                          open={openDays.has(dayKey(d))}
+                          onToggle={() => toggleDay(dayKey(d))}
+                        />
                       ))}
                     </ul>
                   </div>
                 )}
 
-                {/* Activities */}
+                {/* Activities that belong to no day row. Every week written since
+                    the consolidation files its activities under a day (rendered
+                    above), so this is empty for them and stays hidden rather
+                    than repeating the same work under a second heading. */}
+                {orphanActivities.length > 0 && (
                 <div className="rounded-card border border-line bg-surface p-5">
                   <h3 className="mb-3 flex items-center gap-2 text-sm font-semibold text-ink">
-                    <FileText className="h-4 w-4 text-brand-ink" /> Activities
+                    <FileText className="h-4 w-4 text-brand-ink" /> Other activities
                   </h3>
                   <div className="space-y-3">
-                    {(detail.activities ?? []).length === 0 && (
-                      <p className="text-sm text-ink-muted">No activities recorded.</p>
-                    )}
-                    {(detail.activities ?? []).map((a, i) => (
+                    {orphanActivities.map((a, i) => (
                       <div key={i} className="rounded-lg border border-line bg-surface-sunken p-3">
                         <p className="mb-1 inline-flex items-center gap-1.5 text-xs font-medium text-ink-secondary">
                           <span className="inline-flex items-center gap-1"><CalendarDays className="h-3 w-3" /> {fmtDate(a.activityDate)}</span>
@@ -648,6 +788,15 @@ export default function EntryReview() {
                     ))}
                   </div>
                 </div>
+                )}
+
+                {(detail.days ?? []).length === 0 && orphanActivities.length === 0 && (
+                  <div className="rounded-card border border-line bg-surface p-5">
+                    <p className="text-sm text-ink-muted">
+                      Nothing was written up for this week.
+                    </p>
+                  </div>
+                )}
 
                 {/* Evidence — photos / documents the student attached. Read-only
                     for the supervisor, so they can assess the actual work. */}

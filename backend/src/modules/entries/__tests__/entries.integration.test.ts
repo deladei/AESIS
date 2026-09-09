@@ -341,7 +341,7 @@ describe('the challenges section writes the reflection on its own', () => {
   itdb('records a challenge for a week the student has not logged a day of yet', async () => {
     const entry = await saveReflection(studentA, {
       placementId: placementA,
-      weekNumber: 11,
+      weekNumber: 26,
       challenges: 'The staging database was down for two days.',
     });
 
@@ -466,6 +466,32 @@ describe('getEntry gives the logbook what it renders', () => {
 
     expect(detail.completion?.missingDates).toHaveLength(detail.completion!.remaining);
     expect(detail.completion?.missingDates.every((d) => /^\d{4}-\d{2}-\d{2}$/.test(d))).toBe(true);
+  });
+
+  itdb('carries each day\'s own write-up, so a reviewer can open any day', async () => {
+    // The supervisor's review reads the day's content off this payload. It is
+    // written by the SIWES day writer, not by this module, so the columns must
+    // survive the entries serializer — they are not in any select list, and a
+    // stray `select` here would silently blank the reviewer's day panel.
+    const saved = await saveDayDraft(studentA, {
+      ...week(27), placementId: placementA, date: chainDay(27, 2),
+      activities: [{ description: 'Traced a failing webhook', competencyTags: ['debugging'] }],
+    });
+    await prisma.dailyEntry.update({
+      where: { studentId_workDate: { studentId: studentA.id, workDate: new Date(`${chainDay(27, 2)}T00:00:00.000Z`) } },
+      data: {
+        descriptionOfWork: 'Rebuilt the payment callback handler.',
+        newSkillsLearnt: 'Webhook signature verification.',
+      },
+    });
+    await submitEntry(studentA, saved.id);
+
+    const detail = await getEntry(supervisorA, saved.id);
+    const [day] = detail.days;
+    expect(day.descriptionOfWork).toBe('Rebuilt the payment callback handler.');
+    expect(day.newSkillsLearnt).toBe('Webhook signature verification.');
+    // The day's activities are matched to it by date on the client.
+    expect(detail.activities.map((a) => iso(a.activityDate))).toEqual([chainDay(27, 2)]);
   });
 
   itdb('rolls the week up to one late headline the reviewer sees first', async () => {

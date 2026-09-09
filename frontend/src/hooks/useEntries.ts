@@ -32,6 +32,14 @@ export interface EntryDay {
   status:      DayStatus;
   submittedAt: string | null;
   createdAt:   string;
+  /**
+   * The day's own write-up, as the student typed it. Nullable on rows created
+   * by the weekly path before the day carried content (the columns are
+   * nullable for exactly that transition), so never render these unchecked.
+   */
+  descriptionOfWork: string | null;
+  newSkillsLearnt:   string | null;
+  sketchUrl:         string | null;
   /** Derived server-side in getEntry — first logged past the day's grace window. */
   loggedLate:  boolean;
   /** How many whole days after the work date it was first logged. 0 when on time. */
