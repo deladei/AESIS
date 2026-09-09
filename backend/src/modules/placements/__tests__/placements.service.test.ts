@@ -6,7 +6,7 @@ jest.mock('../../../config/prisma', () => ({
     company:            { findFirst: jest.fn(), findUnique: jest.fn(), findMany: jest.fn(), count: jest.fn(), upsert: jest.fn(), create: jest.fn(), update: jest.fn() },
     internshipOpportunity: { count: jest.fn() },
     opportunityApplication: { groupBy: jest.fn() },
-    user:               { findUnique: jest.fn(), findMany: jest.fn(), create: jest.fn() },
+    user:               { findUnique: jest.fn(), findMany: jest.fn(), create: jest.fn(), count: jest.fn() },
     academicYear:       { findFirst: jest.fn() },
     department:         { findUnique: jest.fn() },
     auditLog:           { create: jest.fn() },
@@ -434,6 +434,7 @@ describe('service.getPlacementStats', () => {
       { status: 'under_review', _count: { _all: 2 } },
       { status: 'shortlisted',  _count: { _all: 1 } },
     ]);
+    (mp.user.count as jest.Mock).mockResolvedValue(2);  // students with no placement
   };
 
   it('counts approvals, rejections and the pipeline off real rows', async () => {
@@ -448,12 +449,27 @@ describe('service.getPlacementStats', () => {
     expect(stats.pipeline.find(p => p.key === 'under_review')?.count).toBe(2);
   });
 
+  it('counts student accounts that have no placement at all', async () => {
+    setup();
+    const stats = await service.getPlacementStats();
+
+    // These are NOT pending: there is nothing to approve. A Google sign-up off
+    // the class roster creates the account and no placement, and that student
+    // is otherwise invisible — the approval queue simply looks empty.
+    expect(stats.awaitingPlacement).toBe(2);
+    expect(stats.pending).toBe(3);
+    expect(mp.user.count).toHaveBeenCalledWith({
+      where: { role: 'student', studentPlacements: { none: {} } },
+    });
+  });
+
   it('reports no placement rate at all when nothing has been decided', async () => {
     (mp.placement.groupBy as jest.Mock).mockResolvedValue([
       { placementStatus: 'pending', _count: { _all: 4 } },
     ]);
     (mp.placement.count as jest.Mock).mockResolvedValue(0);
     (mp.opportunityApplication.groupBy as jest.Mock).mockResolvedValue([]);
+    (mp.user.count as jest.Mock).mockResolvedValue(0);
 
     const stats = await service.getPlacementStats();
     // Not 0% — a queue nobody has reviewed yet is not a failure rate.

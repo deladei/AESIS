@@ -9,6 +9,7 @@ import { cn } from '@/lib/utils';
 import type { DashboardSupervisor } from '@/hooks/useStudentDashboard';
 import { useAuth } from '@/contexts/AuthContext';
 import { useMyPlacement } from '@/hooks/usePlacements';
+import PlacementApplicationForm from '@/components/student/PlacementApplicationForm';
 import { useEntries, useEntry } from '@/hooks/useEntries';
 import { useStudentDashboard } from '@/hooks/useStudentDashboard';
 import { useNotifications } from '@/hooks/useNotifications';
@@ -155,7 +156,7 @@ function SupervisorRow({
  */
 export default function StudentDashboard() {
   const { user } = useAuth();
-  const { placement: active, isLoading: placementsLoading } = useMyPlacement();
+  const { placement: active, placements, isLoading: placementsLoading } = useMyPlacement();
   // The weekly pipeline, not the retired `logbook_submissions` table: nothing
   // writes that any more, so reading it showed every student an empty logbook
   // and no supervisor feedback however much of either they actually had.
@@ -203,18 +204,28 @@ export default function StudentDashboard() {
   }
 
   if (!active) {
+    // Two different situations wear the same empty screen, and telling them
+    // apart is the whole point: a student WITH a pending placement is waiting
+    // on a coordinator, while a student with none has nothing in any queue —
+    // the second one used to be told to wait for an approval that could never
+    // arrive, because nothing had been submitted.
+    const submitted = (placements ?? []).length > 0;
     return (
       <div className="mx-auto max-w-[1400px] p-6">
         <h1 className="text-2xl font-bold text-ink">
           {greeting()}, {user?.firstName}
         </h1>
-        <Card className="mt-6">
-          <EmptyState
-            icon={Briefcase}
-            title="No active placement yet"
-            hint="Once your placement is approved, your internship progress, logbook and feedback all appear here."
-          />
-        </Card>
+        {submitted ? (
+          <Card className="mt-6">
+            <EmptyState
+              icon={Briefcase}
+              title="Your placement is with your coordinator"
+              hint="Once it is approved, your internship progress, logbook and feedback all appear here."
+            />
+          </Card>
+        ) : (
+          <PlacementApplicationForm />
+        )}
       </div>
     );
   }

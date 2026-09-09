@@ -87,7 +87,10 @@ export const ROLE_NAV: Record<ShellRole, RoleNav> = {
   admin: {
     // 'Supervision' belongs to the faculty rail; this one is system-wide.
     brandSubtitle: 'System',
-    roleLabel: 'System Supervisor',
+    // Not 'System Supervisor': that reads as a supervisor role, and this rail
+    // carries admin-only work (placement approval, supervisor assignment) that
+    // an academic supervisor must never be shown.
+    roleLabel: 'Administrator',
     messagesHref: '/feedback',
     items: [
       { label: 'Dashboard',       href: '/admin/dashboard', icon: LayoutDashboard },

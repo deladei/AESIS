@@ -47,6 +47,8 @@ export interface PlacementStats {
   total:    number;
   /** Share of DECIDED placements approved; null while nothing is decided. */
   placementRate: number | null;
+  /** Student accounts with no placement row at all — nothing to approve yet. */
+  awaitingPlacement: number;
   pipeline: { key: string; label: string; count: number }[];
 }
 
@@ -119,6 +121,37 @@ export function useMyPlacement() {
     placements?.find((p) => p.placementStatus === 'active') ??
     placements?.[0];
   return { ...query, placement, placements };
+}
+
+export interface NewPlacement {
+  companyName:            string;
+  companyAddress:         string;
+  companySupervisorName:  string;
+  companySupervisorEmail: string;
+  region:                 string;
+  startDate:              string; // YYYY-MM-DD
+  endDate:                string; // YYYY-MM-DD
+}
+
+/**
+ * Submit a placement for approval from inside the app.
+ *
+ * The endpoint has always existed and nothing called it: a placement was only
+ * ever created during password registration, so a student who arrived any other
+ * way — a Google sign-up off the class roster creates the account and no
+ * placement — had no route to one. They saw "waiting for approval" while no
+ * approval queue anywhere held a row for them.
+ */
+export function useCreatePlacement() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (input: NewPlacement) =>
+      (await api.post<{ data: Placement }>('/placements', input)).data.data,
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['placements'] });
+      qc.invalidateQueries({ queryKey: ['student'] });
+    },
+  });
 }
 
 /** Placements assigned to the logged-in academic supervisor. */

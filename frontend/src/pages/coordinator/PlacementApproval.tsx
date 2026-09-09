@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react';
 import {
   CheckCircle2, XCircle, Clock, Loader2, ChevronDown, ChevronUp, ChevronRight,
-  ChevronLeft, Search, Users, ClipboardCheck, TrendingUp, Briefcase,
+  ChevronLeft, Search, Users, ClipboardCheck, TrendingUp, Briefcase, AlertTriangle,
 } from 'lucide-react';
 import {
   useAllPlacements, useUpdatePlacementStatus, useSupervisors, usePlacementStats,
@@ -93,6 +93,19 @@ export default function PlacementApproval() {
         <p className="mb-1 text-xs font-semibold text-brand-ink">Administrator</p>
         <h1 className="text-2xl font-bold tracking-tight text-ink">Placement Approval</h1>
         <p className="mt-1 text-sm text-ink-secondary">Review and approve student placements.</p>
+        {/* An empty queue and a stuck student look identical from here. A
+            student who signed up with Google off the class roster has an
+            account and no placement, so there is nothing to approve for them
+            until they submit one from their own dashboard — say so rather than
+            leaving the queue silently short. */}
+        {(stats?.awaitingPlacement ?? 0) > 0 && (
+          <p className="mt-2 inline-flex items-center gap-2 rounded-lg bg-warn-soft px-3 py-1.5 text-xs text-warn">
+            <AlertTriangle className="h-3.5 w-3.5 shrink-0" />
+            {stats!.awaitingPlacement === 1
+              ? 'One registered student has not submitted a placement yet — nothing to approve for them.'
+              : `${stats!.awaitingPlacement} registered students have not submitted a placement yet — nothing to approve for them.`}
+          </p>
+        )}
       </header>
 
       {/* ── Headline figures ─────────────────────────────────── */}

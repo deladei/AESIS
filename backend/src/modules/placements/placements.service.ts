@@ -429,12 +429,18 @@ export async function listPlacements(filters: {
  * nothing in this system models a match, so it is absent rather than guessed.
  */
 export async function getPlacementStats() {
-  const [byStatus, rejected, byApplication] = await Promise.all([
+  const [byStatus, rejected, byApplication, awaitingPlacement] = await Promise.all([
     prisma.placement.groupBy({ by: ['placementStatus'], _count: { _all: true } }),
     prisma.placement.count({
       where: { placementStatus: 'cancelled', rejectionReason: { not: null } },
     }),
     prisma.opportunityApplication.groupBy({ by: ['status'], _count: { _all: true } }),
+    // Students with an account and no placement of any kind. Password
+    // registration always creates one, but a Google sign-up off the class
+    // roster does not — that account is real, sees "waiting for approval", and
+    // appears in NO approval queue, because there is nothing to approve. An
+    // empty queue and a stuck student look identical without this number.
+    prisma.user.count({ where: { role: 'student', studentPlacements: { none: {} } } }),
   ]);
 
   const placementCount = (s: string) =>
@@ -451,6 +457,8 @@ export async function getPlacementStats() {
     approved,
     rejected,
     total,
+    /** Student accounts with no placement row at all — nothing to approve yet. */
+    awaitingPlacement,
     // Share of DECIDED placements that were approved. Undecided placements are
     // in neither half — counting them as failures would punish a coordinator
     // for having a queue.
