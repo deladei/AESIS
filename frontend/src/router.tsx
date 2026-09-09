@@ -169,6 +169,12 @@ export const router = createBrowserRouter([
     children: [
       { path: '/admin/dashboard', element: <AdminDashboard /> },
       { path: '/admin/interns',   element: <AdminInterns /> },
+      // Placement approval and supervisor assignment were reachable only under
+      // /coordinator/*, and the admin sidebar links to neither — so a system
+      // supervisor had no route to the queue a student's registration lands in.
+      // Same components, admin's own namespace (see the note below).
+      { path: '/admin/placements',   element: <PlacementApproval /> },
+      { path: '/admin/assignments',  element: <SupervisorAssignment /> },
       // Admin keeps its own namespace when drilling in. These render the same
       // components the coordinator uses — an admin was previously bounced into
       // /coordinator/* and landed on pages captioned "Coordinator".

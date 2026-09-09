@@ -1,11 +1,12 @@
 import {
   Users, FileCheck2, Gauge, GraduationCap, ChevronRight, CalendarDays, Clock,
   CalendarPlus, ClipboardList, FileText, BarChart3, Activity, ArrowUpRight,
-  Sparkles, TrendingUp,
+  Sparkles, TrendingUp, Landmark,
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 import { useAdminDashboard, type AdminDashboard as AdminData } from '@/hooks/useDashboard';
+import { usePlacementStats } from '@/hooks/usePlacements';
 import AIEnrichmentPanel from '@/components/admin/AIEnrichmentPanel';
 import { Card, CardHeader } from '@/components/ui/Card';
 import { Badge, type BadgeTone } from '@/components/ui/Badge';
@@ -36,6 +37,7 @@ import { EmptyState, ErrorState, SkeletonRows } from '@/components/ui/Feedback';
  */
 
 const QUICK_ACTIONS = [
+  { icon: Landmark,      label: 'Placement requests', hint: 'Registrations waiting on approval', to: '/admin/placements' },
   { icon: CalendarPlus,  label: 'Review submissions', hint: 'Weeks waiting on a decision', to: '/admin/review' },
   { icon: ClipboardList, label: 'All interns',        hint: 'Every placement and its state', to: '/admin/interns' },
   { icon: FileText,      label: 'Finalize placement', hint: 'Close out a completed intern',  to: '/admin/finalize' },
@@ -141,6 +143,12 @@ function HeadlineCard({
 export default function AdminDashboard() {
   const { user } = useAuth();
   const { data, isLoading, isError, refetch } = useAdminDashboard();
+  // A student's registration creates a PENDING placement, and nothing on this
+  // dashboard used to say so — the queue lived on the coordinator's screen,
+  // which the admin rail does not link to. Read off the stats endpoint, not a
+  // page of rows: a first page caps at 20 and would quietly under-count.
+  const { data: placementStats, isLoading: statsLoading } = usePlacementStats();
+  const pendingCount = placementStats?.pending ?? 0;
   const now = new Date();
 
   if (isError) {
@@ -205,7 +213,15 @@ export default function AdminDashboard() {
           </div>
 
           {/* Headline figures */}
-          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
+            <HeadlineCard
+              icon={Landmark} tone="warn" label="Placements to approve"
+              to="/admin/placements"
+              value={statsLoading ? '—' : pendingCount}
+              caption={pendingCount === 0
+                ? 'Nothing waiting'
+                : `${pendingCount === 1 ? 'One registration is' : `${pendingCount} registrations are`} waiting on you`}
+            />
             <HeadlineCard
               icon={Users} tone="brand" label="Active interns" to="/admin/interns"
               value={isLoading ? '—' : data?.overview.activeInterns ?? 0}

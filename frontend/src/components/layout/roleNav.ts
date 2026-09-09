@@ -91,6 +91,12 @@ export const ROLE_NAV: Record<ShellRole, RoleNav> = {
     messagesHref: '/feedback',
     items: [
       { label: 'Dashboard',       href: '/admin/dashboard', icon: LayoutDashboard },
+      // Where a student's registration lands. Without these two the approval
+      // queue and the assignment board existed only under /coordinator/*, with
+      // nothing in this rail pointing at either — so a placement waiting on an
+      // admin was invisible to them.
+      { label: 'Placements',      href: '/admin/placements', icon: ClipboardList },
+      { label: 'Assignments',     href: '/admin/assignments', icon: UserCheck },
       { label: 'Interns',         href: '/admin/interns',   icon: Users },
       { label: 'Review Logbooks', href: '/admin/review',    icon: ClipboardCheck },
       { label: 'Finalization',    href: '/admin/finalize',  icon: Award },
