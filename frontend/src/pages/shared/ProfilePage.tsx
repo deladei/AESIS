@@ -16,6 +16,7 @@ import { ProgressBar } from '@/components/ui/Bits';
 import { EmptyState, ErrorState, SkeletonRows } from '@/components/ui/Feedback';
 import { FieldError } from '@/components/shared/FieldError';
 import { useFieldErrors, updateProfileSchema, extractFieldErrors, ACADEMIC_LEVELS } from '@/lib/validation';
+import { apiErrorMessage } from '@/lib/apiError';
 import { ROLE_LABELS } from '@/lib/roles';
 
 const AVATAR_MAX_BYTES = 5 * 1024 * 1024;
@@ -185,9 +186,12 @@ function EditProfileForm({ profile, onDone }: { profile: Profile; onDone: () => 
     }
   }
 
+  // The API answers `{ status, code, message }` — never `{ error: { message } }`,
+  // which is the shape this used to read. So every explanation the server gave
+  // was thrown away and replaced with "Could not save changes", including the
+  // one that says which field it rejected and why.
   const errMsg = update.isError
-    ? ((update.error as { response?: { data?: { error?: { message?: string } } } })?.response?.data?.error?.message
-        ?? 'Could not save changes. Please try again.')
+    ? apiErrorMessage(update.error, 'Could not save changes. Please try again.')
     : null;
 
   return (

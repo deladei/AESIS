@@ -429,6 +429,31 @@ describe('authService.updateProfile', () => {
     );
   });
 
+  it('saves a student\'s level on its own', async () => {
+    // Editing only the level sends a patch of exactly one field. It has to
+    // reach the column the eligibility gate and the completeness meter read.
+    stubProfileRead();
+    (mockPrisma.user.update as jest.Mock).mockResolvedValue({});
+
+    await authService.updateProfile('user-uuid-1', { academicLevel: 300 });
+
+    expect(mockPrisma.user.update).toHaveBeenCalledWith(
+      expect.objectContaining({ data: { academicLevel: 300 } }),
+    );
+  });
+
+  it('ignores a level sent by a staff account', async () => {
+    stubProfileRead({ role: 'academic_supervisor', indexNumber: null });
+    (mockPrisma.user.update as jest.Mock).mockResolvedValue({});
+
+    await authService.updateProfile('user-uuid-1', { academicLevel: 300, firstName: 'Yaa' });
+
+    // The name change lands; the year of study does not — a supervisor has none.
+    expect(mockPrisma.user.update).toHaveBeenCalledWith(
+      expect.objectContaining({ data: { firstName: 'Yaa' } }),
+    );
+  });
+
   it('encrypts phone (not stored in plaintext) and clears it on empty string', async () => {
     stubProfileRead();
     (mockPrisma.user.update as jest.Mock).mockResolvedValue({});

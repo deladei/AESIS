@@ -12,6 +12,15 @@
  */
 const FIELD_LABELS: Record<string, string> = {
   title: 'Title',
+  firstName: 'First name',
+  lastName: 'Last name',
+  gender: 'Gender',
+  phone: 'Phone',
+  indexNumber: 'Index number',
+  academicLevel: 'Level',
+  programmeId: 'Programme',
+  password: 'Password',
+  email: 'Email',
   description: 'Summary line',
   body: 'Written guidance',
   externalUrl: 'Link',
