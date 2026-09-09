@@ -28,7 +28,13 @@ async def get_motor_db():
 async def get_pg_pool() -> asyncpg.Pool:
     global _pg_pool
     if _pg_pool is None:
-        _pg_pool = await asyncpg.create_pool(settings.POSTGRES_DSN, min_size=2, max_size=10)
+        # Supabase's session-mode pooler allows 15 clients TOTAL, and this
+        # engine shares them with the backend (same DSN — see render.yaml) and
+        # with the `prisma migrate deploy` that gates every backend deploy.
+        # max_size=10 meant one idle engine could hold two thirds of the pool
+        # and starve both. Three is enough for the enrichment worker's
+        # concurrency and leaves the rest of the budget alone.
+        _pg_pool = await asyncpg.create_pool(settings.POSTGRES_DSN, min_size=1, max_size=3)
     return _pg_pool
 
 

@@ -12,6 +12,11 @@ generator client {
 // Node process, not serverless, and unlike transaction mode (6543) it can run
 // `prisma migrate deploy`. So no `directUrl` is needed — one URL for app and
 // migrations, same as local dev.
+//
+// That pool is 15 clients TOTAL and is shared with the AI engine and, during a
+// deploy, with the outgoing instance. Both consumers bound themselves rather
+// than trusting their defaults: see `connection_limit` in src/config/prisma.ts
+// and `max_size` in ai/config/database.py.
 datasource db {
   provider = "postgresql"
   url      = env("DATABASE_URL")

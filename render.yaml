@@ -7,7 +7,11 @@ services:
     region: oregon
     plan: free
     buildCommand: npm ci && npm run build && npx prisma generate
-    startCommand: npx prisma migrate deploy && node dist/server.js
+    # The migration retries rather than exiting on the first refused connection:
+    # during a deploy the old instance still holds its pool, and a migration
+    # that cannot get one of Supavisor's 15 session clients would otherwise fail
+    # the deploy, keep the old instance alive, and loop forever. See the script.
+    startCommand: node scripts/migrate-with-retry.mjs && node dist/server.js
     healthCheckPath: /health
     envVars:
       - key: NODE_ENV
