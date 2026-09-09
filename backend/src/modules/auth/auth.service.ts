@@ -249,7 +249,10 @@ export async function register(input: RegisterInput) {
   }
 
   if (!autoVerify) {
-    await sendEmail({
+    // Not awaited: the account already exists, and `sendEmail` never throws —
+    // it records its own failure for /health/email. Waiting on the provider
+    // would only make a slow one look like a failed registration.
+    void sendEmail({
       to:      email,
       subject: 'Verify your AESIS account',
       html:    buildVerificationEmail(`${firstName} ${lastName}`, verificationToken),
@@ -681,7 +684,17 @@ export async function resetPasswordInit(input: ResetPasswordInitInput) {
     data:  { passwordResetToken: token, passwordResetExpiry: expiry },
   });
 
-  await sendEmail({
+  // Deliberately not awaited. Two reasons, and the second is the important one:
+  //
+  // 1. A provider that stalls would hang this request until the browser gives
+  //    up, and the SPA reports that as "server starting up" — a lie about a
+  //    system that is working. `sendEmail` never throws; it records its own
+  //    failure for /health/email.
+  // 2. Awaiting it undoes the enumeration defence directly above. The message
+  //    is identical for a registered and an unregistered address on purpose,
+  //    but only the registered one costs a round-trip to the mail provider —
+  //    so the response time gives back exactly what the wording withholds.
+  void sendEmail({
     to:      email,
     subject: 'Reset your AESIS password',
     html:    buildPasswordResetEmail(`${user.firstName} ${user.lastName}`, token),

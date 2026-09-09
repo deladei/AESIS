@@ -8,17 +8,30 @@ interface EmailPayload {
   html:    string;
 }
 
+type Provider =
+  | { kind: 'api';  name: string; apiKey: string }
+  | { kind: 'smtp'; name: string; options: nodemailer.TransportOptions };
+
 /**
  * Which provider this deployment sends through, or null when it sends nothing.
  *
- * Generic SMTP first: any provider — Brevo, Mailjet, Resend, Gmail — is then a
- * config change rather than a code change. SENDGRID_API_KEY is the older
- * single-provider path, kept so a deployment already sending through SendGrid
- * keeps working until its SMTP_* vars are filled in.
+ * HTTPS first, and not as a stylistic preference: **Render blocks outbound
+ * SMTP**. Port 587 to Brevo never completes the connect, nodemailer waits out
+ * its timeout, and the reset request hangs until the browser gives up — which
+ * is exactly what happened in production. Port 443 is not blocked anywhere.
+ *
+ * Generic SMTP stays as the second choice for hosts that do allow it, and any
+ * provider — Brevo, Mailjet, Resend, Gmail — is then a config change rather
+ * than a code change. SENDGRID_API_KEY is the older single-provider path, kept
+ * so a deployment already sending through SendGrid keeps working.
  */
-function resolveProvider(): { name: string; options: nodemailer.TransportOptions } | null {
+function resolveProvider(): Provider | null {
+  if (env.BREVO_API_KEY) {
+    return { kind: 'api', name: 'api.brevo.com', apiKey: env.BREVO_API_KEY };
+  }
   if (env.SMTP_HOST && env.SMTP_USER && env.SMTP_PASS) {
     return {
+      kind: 'smtp',
       name: env.SMTP_HOST,
       options: {
         host:   env.SMTP_HOST,
@@ -27,21 +40,61 @@ function resolveProvider(): { name: string; options: nodemailer.TransportOptions
         // Getting this pair wrong is the usual cause of a hang on connect.
         secure: env.SMTP_PORT === 465,
         auth:   { user: env.SMTP_USER, pass: env.SMTP_PASS },
+        // Without these, a blocked port is a two-minute hang rather than an
+        // error: the request that is waiting on it times out in the browser
+        // first, and the user is told something untrue about the server.
+        connectionTimeout: 10_000,
+        greetingTimeout:   10_000,
+        socketTimeout:     20_000,
       } as nodemailer.TransportOptions,
     };
   }
   if (env.SENDGRID_API_KEY) {
     return {
+      kind: 'smtp',
       name: 'smtp.sendgrid.net',
       options: {
         host:   'smtp.sendgrid.net',
         port:   465,
         secure: true,
         auth:   { user: 'apikey', pass: env.SENDGRID_API_KEY },
+        connectionTimeout: 10_000,
+        greetingTimeout:   10_000,
+        socketTimeout:     20_000,
       } as nodemailer.TransportOptions,
     };
   }
   return null;
+}
+
+/**
+ * Brevo's transactional endpoint. Same account and same verified sender as the
+ * SMTP path — a different door into it, over a port nothing blocks.
+ */
+async function sendViaBrevoApi(apiKey: string, payload: EmailPayload): Promise<void> {
+  const res = await fetch('https://api.brevo.com/v3/smtp/email', {
+    method:  'POST',
+    headers: {
+      'api-key':      apiKey,
+      'content-type': 'application/json',
+      accept:         'application/json',
+    },
+    body: JSON.stringify({
+      sender:      { name: env.EMAIL_FROM_NAME, email: env.EMAIL_FROM },
+      to:          [{ email: payload.to }],
+      subject:     payload.subject,
+      htmlContent: payload.html,
+    }),
+    // A send must not outlive the request that is waiting on it.
+    signal: AbortSignal.timeout(15_000),
+  });
+
+  if (!res.ok) {
+    // Brevo answers a rejection with {code, message} — the message names the
+    // actual cause (unverified sender, bad key), so it is worth keeping.
+    const body = await res.text().catch(() => '');
+    throw new Error(`Brevo API ${res.status}: ${body.slice(0, 200)}`);
+  }
 }
 
 /**
@@ -57,16 +110,14 @@ export function canSendEmail(): boolean {
 
 /**
  * Built on first send, not at import: a module loaded before its config is
- * settled would otherwise cache "no mail" for the life of the process.
- * Dev/test never gets a transport at all — those messages go to the log.
+ * settled would otherwise cache "no mail" for the life of the process. Only
+ * the SMTP path needs one — the API path is a plain HTTPS request, and
+ * dev/test builds nothing at all because those messages go to the log.
  */
-let transport: nodemailer.Transporter | null | undefined;
+let transport: nodemailer.Transporter | undefined;
 
-function getTransport(): nodemailer.Transporter | null {
-  if (transport === undefined) {
-    const provider = canSendEmail() ? resolveProvider() : null;
-    transport = provider ? nodemailer.createTransport(provider.options) : null;
-  }
+function getTransport(options: nodemailer.TransportOptions): nodemailer.Transporter {
+  if (!transport) transport = nodemailer.createTransport(options);
   return transport;
 }
 
@@ -89,12 +140,12 @@ let lastSuccessAt: string | null = null;
  * nowhere else.
  */
 if (env.NODE_ENV === 'production' && !resolveProvider()) {
-  logger.error('EMAIL DISABLED: no SMTP_HOST/SMTP_USER/SMTP_PASS (or SENDGRID_API_KEY) — no mail will be delivered');
+  logger.error('EMAIL DISABLED: no BREVO_API_KEY, no SMTP_HOST/SMTP_USER/SMTP_PASS, no SENDGRID_API_KEY — no mail will be delivered');
 }
 
 export async function sendEmail(payload: EmailPayload): Promise<void> {
-  const transport = getTransport();
-  if (!transport) {
+  const provider = canSendEmail() ? resolveProvider() : null;
+  if (!provider) {
     logger.info('📧 [DEV EMAIL — not sent]', {
       to:      payload.to,
       subject: payload.subject,
@@ -104,12 +155,16 @@ export async function sendEmail(payload: EmailPayload): Promise<void> {
   }
 
   try {
-    await transport.sendMail({
-      from:    `"${env.EMAIL_FROM_NAME}" <${env.EMAIL_FROM}>`,
-      to:      payload.to,
-      subject: payload.subject,
-      html:    payload.html,
-    });
+    if (provider.kind === 'api') {
+      await sendViaBrevoApi(provider.apiKey, payload);
+    } else {
+      await getTransport(provider.options).sendMail({
+        from:    `"${env.EMAIL_FROM_NAME}" <${env.EMAIL_FROM}>`,
+        to:      payload.to,
+        subject: payload.subject,
+        html:    payload.html,
+      });
+    }
     lastSuccessAt = new Date().toISOString();
     logger.info('Email sent', { to: payload.to, subject: payload.subject });
   } catch (err) {
@@ -119,7 +174,7 @@ export async function sendEmail(payload: EmailPayload): Promise<void> {
     const detail = err instanceof Error ? err.message.split('\n')[0].slice(0, 200) : String(err);
     lastFailure = { at: new Date().toISOString(), to: payload.to, subject: payload.subject, detail };
     logger.error('Failed to send email', { to: payload.to, subject: payload.subject, detail });
-    // Still non-fatal: a reset request must not 500 because SMTP is down.
+    // Still non-fatal: a reset request must not 500 because mail is down.
   }
 }
 
@@ -142,8 +197,8 @@ export function emailStatus(): {
   let problem: string | undefined;
   if (!configured) {
     problem = env.NODE_ENV === 'production'
-      ? 'SMTP_HOST/SMTP_USER/SMTP_PASS are not set (and no SENDGRID_API_KEY) — nothing is delivered'
-      : 'No SMTP credentials set: mail is logged, not sent (expected outside production)';
+      ? 'BREVO_API_KEY and SMTP_HOST/SMTP_USER/SMTP_PASS are not set — nothing is delivered'
+      : 'No mail credentials set: mail is logged, not sent (expected outside production)';
   } else if (from.endsWith('@aesis.cs.edu')) {
     // The blueprint default. Every provider rejects a send whose FROM is not a
     // verified sender identity, and this domain is a placeholder nobody owns,

@@ -51,7 +51,12 @@ services:
         sync: false
       - key: AI_ENGINE_API_KEY
         sync: false
-      # Outbound mail. Generic SMTP, so the provider is a config change, not a
+      # Outbound mail over HTTPS. Render blocks outbound SMTP, so this is the
+      # path that actually delivers from here; the SMTP_* block below is kept
+      # for hosts that allow port 587. Brevo → SMTP & API → API Keys.
+      - key: BREVO_API_KEY
+        sync: false
+      # Generic SMTP, so the provider is a config change, not a
       # code change. Brevo: smtp-relay.brevo.com / 587 / the SMTP login and key
       # from its SMTP page. EMAIL_FROM below must be a sender that provider has
       # verified, or every send is rejected.

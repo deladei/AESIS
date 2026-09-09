@@ -37,6 +37,26 @@ describe('emailStatus', () => {
     expect(JSON.stringify(emailStatus())).not.toContain('SG.realkey');
   });
 
+  it('prefers the Brevo API over SMTP, because Render blocks outbound SMTP', () => {
+    // This is not a preference. Port 587 does not connect from Render at all —
+    // production reported "Connection timeout" against a correctly configured
+    // Brevo account — so a deployment carrying both must take the HTTPS path.
+    mockEnv.BREVO_API_KEY = 'xkeysib-brevo-api-key';
+    mockEnv.SMTP_HOST = 'smtp-relay.brevo.com';
+    mockEnv.SMTP_USER = '9a1b2c001@smtp-brevo.com';
+    mockEnv.SMTP_PASS = 'brevo-smtp-key';
+
+    const s = emailStatus();
+    expect(s.configured).toBe(true);
+    expect(s.provider).toBe('api.brevo.com');
+    expect(JSON.stringify(s)).not.toContain('xkeysib-brevo-api-key');
+
+    mockEnv.BREVO_API_KEY = undefined;
+    mockEnv.SMTP_HOST = undefined;
+    mockEnv.SMTP_USER = undefined;
+    mockEnv.SMTP_PASS = undefined;
+  });
+
   it('reports the SMTP host it sends through, and prefers it over SendGrid', () => {
     // Both configured is the state a deployment is in mid-switch. The generic
     // SMTP credentials are the ones actually used, so they are the ones the

@@ -34,6 +34,11 @@ const envSchema = z.object({
   AI_ENGINE_URL:             z.string().url().default('http://localhost:8000'),
   AI_ENGINE_API_KEY:         z.string().min(1),
 
+  // Brevo's HTTPS transactional API. Preferred over SMTP because Render blocks
+  // outbound SMTP: port 587 never connects there, so the SMTP path below hangs
+  // until it times out. Port 443 is not blocked.
+  BREVO_API_KEY:             z.string().optional(),
+
   // Outbound mail. Any SMTP provider works — the transport is generic, so
   // switching provider is a config change, not a code change. Brevo, Mailjet,
   // Resend and Gmail all speak this. SENDGRID_API_KEY below is the older
