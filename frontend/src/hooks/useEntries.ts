@@ -298,11 +298,19 @@ export function useSaveReflection() {
 // ── Supervisor side ──
 // Submitted entries awaiting review. The API scopes by role at the DB layer, so
 // an academic supervisor only sees entries on their own assigned placements.
-export function useReviewQueue(status: EntryStatus = 'submitted') {
+/**
+ * The reviewer's list. `'all'` drops the status filter, so it returns every
+ * week of every student the API scopes this actor to — the way a supervisor
+ * re-reads a week they already acknowledged, which the submitted-only queue
+ * drops the moment it is decided.
+ */
+export function useReviewQueue(status: EntryStatus | 'all' = 'submitted') {
   return useQuery({
     queryKey: ['entries', 'queue', status],
     queryFn:  async () => {
-      const r = await api.get<{ data: LogbookEntry[] }>(`/entries?status=${status}&limit=100`);
+      const r = await api.get<{ data: LogbookEntry[] }>(
+        `/entries?limit=100${status === 'all' ? '' : `&status=${status}`}`,
+      );
       return r.data.data;
     },
   });

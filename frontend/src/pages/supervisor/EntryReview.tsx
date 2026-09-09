@@ -97,6 +97,12 @@ const STATUS_LABEL: Record<EntryStatus, string> = {
   acknowledged: 'Acknowledged',
 };
 
+// A decided week reads differently from one still being written, so the list
+// says which at a glance rather than making the reviewer open it to find out.
+const ENTRY_STATUS_TONE: Record<EntryStatus, 'ok' | 'warn' | 'danger' | 'neutral'> = {
+  draft: 'neutral', submitted: 'warn', returned: 'danger', acknowledged: 'ok',
+};
+
 /**
  * One day of a submitted week, opened by the reviewer.
  *
@@ -203,7 +209,11 @@ function ReviewDayRow({
 }
 
 export default function EntryReview() {
-  const { data: allQueue = [], isLoading } = useReviewQueue('submitted');
+  // 'submitted' is what is on the reviewer's desk; 'all' is the same students'
+  // whole logbook, which is the only way back to a week once it is decided —
+  // acknowledging it used to remove it from the only list that could open it.
+  const [scope, setScope] = useState<'submitted' | 'all'>('submitted');
+  const { data: allQueue = [], isLoading } = useReviewQueue(scope);
   const { data: dash } = useSupervisorDashboard();
   const roster = dash?.students ?? [];
 
@@ -523,22 +533,46 @@ export default function EntryReview() {
 
         <Card padded={false} className="overflow-hidden">
           <div className="border-b border-line px-5 py-4">
-            <h2 className="text-[15px] font-semibold text-ink">
-              Review queue
-              <span className="ml-2 rounded-full bg-brand-soft px-2 py-0.5 text-xs font-bold text-brand-ink">
-                {queue.length}
-              </span>
-            </h2>
-            <p className="mt-0.5 text-xs text-ink-muted">
-              Pick a week to open it in the reviewer below.
-            </p>
+            <div className="flex flex-wrap items-start justify-between gap-3">
+              <div>
+                <h2 className="text-[15px] font-semibold text-ink">
+                  {scope === 'submitted' ? 'Review queue' : 'All weeks'}
+                  <span className="ml-2 rounded-full bg-brand-soft px-2 py-0.5 text-xs font-bold text-brand-ink">
+                    {queue.length}
+                  </span>
+                </h2>
+                <p className="mt-0.5 text-xs text-ink-muted">
+                  {scope === 'submitted'
+                    ? 'Pick a week to open it in the reviewer below.'
+                    : 'Every week of your interns, decided or not — open any one to read it again.'}
+                </p>
+              </div>
+              <div className="flex shrink-0 rounded-lg border border-line p-0.5">
+                {([['submitted', 'Awaiting review'], ['all', 'All weeks']] as const).map(([value, label]) => (
+                  <button
+                    key={value}
+                    type="button"
+                    onClick={() => setScope(value)}
+                    aria-pressed={scope === value}
+                    className={cn(
+                      'rounded-md px-3 py-1.5 text-xs font-semibold transition-colors',
+                      scope === value ? 'bg-brand-soft text-brand-ink' : 'text-ink-secondary hover:bg-surface-sunken',
+                    )}
+                  >
+                    {label}
+                  </button>
+                ))}
+              </div>
+            </div>
           </div>
 
           {queue.length === 0 ? (
             <EmptyState
-              icon={CheckCircle2}
-              title="You're all caught up"
-              hint="Submitted weeks from your interns appear here."
+              icon={scope === 'submitted' ? CheckCircle2 : Inbox}
+              title={scope === 'submitted' ? "You're all caught up" : 'No weeks yet'}
+              hint={scope === 'submitted'
+                ? 'Submitted weeks from your interns appear here. Switch to All weeks to re-read one you have already decided.'
+                : 'Weeks appear here as soon as your interns start writing them up.'}
               className="py-10"
             />
           ) : (
@@ -550,6 +584,7 @@ export default function EntryReview() {
                     <th scope="col" className="px-4 py-2.5">Week</th>
                     <th scope="col" className="px-4 py-2.5">Quality</th>
                     <th scope="col" className="px-4 py-2.5">Flags</th>
+                    {scope === 'all' && <th scope="col" className="px-4 py-2.5">Status</th>}
                     <th scope="col" className="px-4 py-2.5">Submitted</th>
                   </tr>
                 </thead>
@@ -591,8 +626,13 @@ export default function EntryReview() {
                               </span>
                             )}
                         </td>
+                        {scope === 'all' && (
+                          <td className="px-4 py-2.5">
+                            <Badge tone={ENTRY_STATUS_TONE[e.status]}>{STATUS_LABEL[e.status]}</Badge>
+                          </td>
+                        )}
                         <td className="px-4 py-2.5 text-ink-secondary">
-                          {e.submittedAt ? fmtDate(e.submittedAt) : <NoValue />}
+                          {e.submittedAt ? fmtDate(e.submittedAt) : <NoValue title="Not submitted yet" />}
                         </td>
                       </tr>
                     );
