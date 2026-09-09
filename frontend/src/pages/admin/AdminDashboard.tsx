@@ -6,6 +6,7 @@ import {
 import { Link } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 import { useAdminDashboard, type AdminDashboard as AdminData } from '@/hooks/useDashboard';
+import { apiErrorDetail } from '@/lib/apiError';
 import { usePlacementStats } from '@/hooks/usePlacements';
 import AIEnrichmentPanel from '@/components/admin/AIEnrichmentPanel';
 import { Card, CardHeader } from '@/components/ui/Card';
@@ -142,7 +143,7 @@ function HeadlineCard({
 
 export default function AdminDashboard() {
   const { user } = useAuth();
-  const { data, isLoading, isError, refetch } = useAdminDashboard();
+  const { data, isLoading, isError, error, refetch } = useAdminDashboard();
   // A student's registration creates a PENDING placement, and nothing on this
   // dashboard used to say so — the queue lived on the coordinator's screen,
   // which the admin rail does not link to. Read off the stats endpoint, not a
@@ -154,7 +155,13 @@ export default function AdminDashboard() {
   if (isError) {
     return (
       <div className="mx-auto max-w-[1500px] p-4 sm:p-6">
-        <Card><ErrorState message="Couldn't load the dashboard." onRetry={() => void refetch()} /></Card>
+        <Card>
+          <ErrorState
+            message="Couldn't load the dashboard."
+            detail={apiErrorDetail(error)}
+            onRetry={() => void refetch()}
+          />
+        </Card>
       </div>
     );
   }

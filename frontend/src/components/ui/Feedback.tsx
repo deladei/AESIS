@@ -36,10 +36,13 @@ export function EmptyState({
 /** Panel-level failure. Never silently swallows — a retry is always offered. */
 export function ErrorState({
   message = 'Could not load this panel.',
+  detail,
   onRetry,
   className,
 }: {
   message?: string;
+  /** What the server actually said — a status, or its own words. */
+  detail?: string | null;
   onRetry?: () => void;
   className?: string;
 }) {
@@ -49,6 +52,7 @@ export function ErrorState({
         <AlertTriangle className="h-5 w-5" />
       </span>
       <p className="text-sm font-semibold text-ink">{message}</p>
+      {detail && <p className="mt-1 text-xs text-ink-secondary">{detail}</p>}
       {onRetry && (
         <button
           type="button"

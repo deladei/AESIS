@@ -10,6 +10,7 @@ import { Badge } from '@/components/ui/Badge';
 import { InitialsAvatar, ProgressBar, NoValue } from '@/components/ui/Bits';
 import { LineTrend, RadarProfile } from '@/components/ui/Charts';
 import { EmptyState, ErrorState, SkeletonRows } from '@/components/ui/Feedback';
+import { apiErrorDetail } from '@/lib/apiError';
 
 /**
  * AI Insights & Analytics — wired to GET /api/v1/insights, which aggregates the
@@ -25,7 +26,7 @@ import { EmptyState, ErrorState, SkeletonRows } from '@/components/ui/Feedback';
  * empty state.
  */
 export default function AIInsights() {
-  const { data, isLoading, isError, refetch } = useInsights();
+  const { data, isLoading, isError, error, refetch } = useInsights();
   // Its own query: a slower cross-week read should not hold up the charts.
   const { data: signals } = useProgressSignals();
   const { user } = useAuth();
@@ -44,7 +45,13 @@ export default function AIInsights() {
   if (isError || !data) {
     return (
       <div className="mx-auto max-w-[1500px] p-4 sm:p-6">
-        <Card><ErrorState message="Couldn't load insights." onRetry={() => void refetch()} /></Card>
+        <Card>
+          <ErrorState
+            message="Couldn't load insights."
+            detail={apiErrorDetail(error)}
+            onRetry={() => void refetch()}
+          />
+        </Card>
       </div>
     );
   }

@@ -16,6 +16,7 @@ import { Card } from '@/components/ui/Card';
 import { Badge } from '@/components/ui/Badge';
 import { InitialsAvatar, ProgressBar, NoValue } from '@/components/ui/Bits';
 import { EmptyState, ErrorState, SkeletonRows } from '@/components/ui/Feedback';
+import { apiErrorDetail } from '@/lib/apiError';
 import { FieldError } from '@/components/shared/FieldError';
 import { freeText } from '@/lib/validation';
 import { cn } from '@/lib/utils';
@@ -70,7 +71,7 @@ function Step({
 function ReviewerView() {
   const { user } = useAuth();
   const isReadOnlyChat = user?.role === 'coordinator';
-  const { data: interns, isLoading, isError, refetch } = useFeedbackInterns();
+  const { data: interns, isLoading, isError, error, refetch } = useFeedbackInterns();
 
   const acknowledge = useAcknowledgeEntry();
   const returnEntry = useReturnEntry();
@@ -103,7 +104,13 @@ function ReviewerView() {
   if (isError || !interns) {
     return (
       <div className="mx-auto max-w-[1500px] p-4 sm:p-6">
-        <Card><ErrorState message="Couldn't load interns." onRetry={() => void refetch()} /></Card>
+        <Card>
+          <ErrorState
+            message="Couldn't load interns."
+            detail={apiErrorDetail(error)}
+            onRetry={() => void refetch()}
+          />
+        </Card>
       </div>
     );
   }

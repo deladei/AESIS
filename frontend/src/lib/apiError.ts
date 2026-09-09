@@ -82,3 +82,27 @@ export function apiErrorMessage(err: unknown, fallback = 'Something went wrong. 
   // a bare apology.
   return status ? `${fallback} (HTTP ${status})` : fallback;
 }
+
+/**
+ * The same failure, written for a panel rather than a form.
+ *
+ * A dashboard that renders one fixed sentence ("Couldn't load the coordinator
+ * dashboard.") for 401, 403, 500 and a request that never left the browser is
+ * unfixable from a screenshot — every cause looks identical, and the first
+ * question anyone asks back is "what did it actually say?". This keeps the
+ * headline stable and puts the status and the server's own words beneath it.
+ *
+ * Returns null when there is nothing to add.
+ */
+export function apiErrorDetail(err: unknown): string | null {
+  if (!err) return null;
+  const e = err as ApiErrorShape;
+
+  if (!e?.response) return 'The request never reached the server.';
+
+  const { status, data } = e.response;
+  const said = typeof data?.message === 'string' && data.message ? data.message : null;
+  if (status && said) return `HTTP ${status} · ${said}`;
+  if (status) return `HTTP ${status}`;
+  return said;
+}

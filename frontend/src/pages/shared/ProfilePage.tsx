@@ -16,7 +16,7 @@ import { ProgressBar } from '@/components/ui/Bits';
 import { EmptyState, ErrorState, SkeletonRows } from '@/components/ui/Feedback';
 import { FieldError } from '@/components/shared/FieldError';
 import { useFieldErrors, updateProfileSchema, extractFieldErrors, ACADEMIC_LEVELS } from '@/lib/validation';
-import { apiErrorMessage } from '@/lib/apiError';
+import { apiErrorDetail, apiErrorMessage } from '@/lib/apiError';
 import { ROLE_LABELS } from '@/lib/roles';
 
 const AVATAR_MAX_BYTES = 5 * 1024 * 1024;
@@ -383,7 +383,7 @@ function ActivitySummary() {
 
 /** The real audit trail, most recent first. */
 function RecentActivity() {
-  const { data: rows = [], isLoading, isError, refetch } = useCoordinatorActivity(6);
+  const { data: rows = [], isLoading, isError, error, refetch } = useCoordinatorActivity(6);
 
   return (
     <Card>
@@ -391,7 +391,12 @@ function RecentActivity() {
       {isLoading ? (
         <SkeletonRows rows={3} />
       ) : isError ? (
-        <ErrorState message="Couldn't load the audit feed." onRetry={() => void refetch()} className="py-6" />
+        <ErrorState
+          message="Couldn't load the audit feed."
+          detail={apiErrorDetail(error)}
+          onRetry={() => void refetch()}
+          className="py-6"
+        />
       ) : rows.length === 0 ? (
         <EmptyState
           icon={Activity}
@@ -450,7 +455,7 @@ const QUICK_ACTIONS: Record<Profile['role'], { label: string; to: string }[]> = 
 };
 
 export default function ProfilePage() {
-  const { data: profile, isLoading, isError, refetch } = useProfile();
+  const { data: profile, isLoading, isError, error, refetch } = useProfile();
   const [editing, setEditing] = useState(false);
 
   if (isLoading) {
@@ -464,7 +469,13 @@ export default function ProfilePage() {
   if (isError || !profile) {
     return (
       <div className="mx-auto max-w-[1500px] p-4 sm:p-6">
-        <Card><ErrorState message="Couldn't load your profile." onRetry={() => void refetch()} /></Card>
+        <Card>
+          <ErrorState
+            message="Couldn't load your profile."
+            detail={apiErrorDetail(error)}
+            onRetry={() => void refetch()}
+          />
+        </Card>
       </div>
     );
   }

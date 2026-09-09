@@ -6,6 +6,7 @@ import {
   Sparkles, TrendingUp, X,
 } from 'lucide-react';
 import { useCoordinatorDashboard, useCoordinatorActivity, useCoordinatorCohorts, type CoordinatorActivity } from '@/hooks/useDashboard';
+import { apiErrorDetail } from '@/lib/apiError';
 import { useAllPlacements, useUpdatePlacementStatus } from '@/hooks/usePlacements';
 import { useCohortConfig } from '@/hooks/useCohortConfig';
 import { useApplications } from '@/hooks/useOpportunities';
@@ -86,7 +87,7 @@ export default function CoordinatorDashboard() {
       { onSuccess: () => { setRejectingId(null); setRejectReason(''); } });
   };
 
-  const { data: dash, isLoading: dashLoading, isError: dashError, refetch: refetchDash } = useCoordinatorDashboard(scopeYearId);
+  const { data: dash, isLoading: dashLoading, isError: dashError, error: dashErr, refetch: refetchDash } = useCoordinatorDashboard(scopeYearId);
   const { data: pending } = useAllPlacements(1, 'pending');
   const { data: activity, isLoading: activityLoading, refetch: refetchActivity } = useCoordinatorActivity(8);
   const { data: cohorts = [] } = useCoordinatorCohorts();
@@ -101,7 +102,11 @@ export default function CoordinatorDashboard() {
     return (
       <div className="p-6">
         <Card>
-          <ErrorState message="Couldn't load the coordinator dashboard." onRetry={() => refetchDash()} />
+          <ErrorState
+            message="Couldn't load the coordinator dashboard."
+            detail={apiErrorDetail(dashErr)}
+            onRetry={() => refetchDash()}
+          />
         </Card>
       </div>
     );
