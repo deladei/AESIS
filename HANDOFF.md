@@ -4840,3 +4840,98 @@ and fix whichever is stale.
 11. Minor, noticed but not fixed: `backend/src/config/seed.ts` seeds a user whose
     *surname* is literally "Coordinator" — stale wording and a non-Ghanaian
     placeholder.
+
+---
+
+## S103 — 2026-09-09 · Mail actually leaves the building; admin sign-up gated
+
+Two commits shipped and verified on prod. The headline is that **AESIS has now
+delivered its first email** — `lastSuccessAt: 2026-09-09T01:45:05Z` — after
+being silently unable to send since launch.
+
+### Admin self-registration, gated on a setup code — `3ee814c`
+
+Uncommitted WIP found at session start; finished and shipped. `admin` is now
+offered on the public sign-up page, gated on `ADMIN_SETUP_CODE`, compared
+server-side in constant time. **Fails closed**: an unset code refuses admin
+registration rather than waving it through, because "missing secret" and "no
+gate" must never mean the same thing.
+
+`company_supervisor` dropped from self-registration — it did nothing.
+Attestation, the weekly comment and the industry score all reach a company
+supervisor by single-use magic link, so registering as one produced an account
+linked to no placement with no access. `coordinator` stays seeded-or-invited.
+
+Three defects in the WIP fixed before shipping: `setupCode` was spread inside
+the `role === 'student'` branch, where the admin test could never be true and
+the field was never sent; `SELF_REGISTERABLE_ROLES` was not imported in
+`AuthContext`; `RegisterInput` had no `setupCode`.
+
+### Mail: SendGrid → Brevo, and then SMTP → HTTPS — `842c867`, `941832c`
+
+Mail had **never** been delivered from production. `SENDGRID_API_KEY` was never
+set, and `EMAIL_FROM` was still `noreply@aesis.cs.edu` — a domain nobody owns,
+which every provider rejects as an unverified sender. Password reset, email
+verification and supervisor invitations all went to the log and nowhere else.
+
+SendGrid's free tier is gone. Brevo (300/day, verified single sender, no domain
+needed) replaced it, so the transport became generic SMTP — provider is config,
+not code.
+
+**That was not enough, and the reason is worth remembering: Render blocks
+outbound SMTP.** Port 587 to Brevo never connects; `/health/email` reported
+`Connection timeout`. Nodemailer then sat on the dead socket for its two-minute
+default while the reset request waited on it, the browser gave up at 65s, and
+the SPA reported **"Server is starting up"** — a lie about a working system, on
+a path with no other signal. That message fires on `!err?.response`, i.e. no
+HTTP response at all; it is a catch-all, not something the server said.
+
+Mail now goes out through **Brevo's HTTPS API** (`api.brevo.com`, port 443)
+whenever `BREVO_API_KEY` is set. Same account, same verified sender, a door
+that is not blocked. SMTP stays as second choice for hosts that allow it, and
+gets real timeouts (10s connect, not 120s) so a blocked port fails fast.
+
+Both sends are now fire-and-forget. `sendEmail` never throws — it records its
+own failure for `/health/email` — so awaiting it only made a slow provider look
+like a failed registration. On the reset path the await was also undoing the
+enumeration defence three lines above it: the message is identical for a
+registered and an unregistered address on purpose, but only the registered one
+paid for a round-trip, so the response time handed back exactly what the
+wording withholds.
+
+`/health/email` now publishes `provider` — the host mail leaves through, never
+the credential — so a stale or half-switched provider is visible from outside.
+
+**Errors & fixes**
+
+| Error | Fix |
+|---|---|
+| `Connection timeout` to `smtp-relay.brevo.com:587` from Render | Send via `api.brevo.com` over HTTPS; `BREVO_API_KEY` takes priority over SMTP |
+| SPA said "Server is starting up" while the server was fine | Sends no longer block the response; SMTP path fails in 10s, not 120s |
+| 10 auth tests: `canSendEmail is not a function` | The suite mocked the whole email module with three keys; now spreads `requireActual` and stubs only the sending |
+
+**Prod env now set (dashboard):** `BREVO_API_KEY`, `SMTP_HOST/PORT/USER/PASS`
+(inert fallback), `EMAIL_FROM=alankobbydei@gmail.com` (Brevo-verified),
+`EMAIL_FROM_NAME`, `ADMIN_SETUP_CODE`.
+
+**Verified:** `/health/email` → `provider: api.brevo.com`, `deliverable: true`,
+`lastSuccessAt` set, `lastFailure: null`. Real forgot-password on prod
+delivered to a real inbox. Backend `tsc` clean; auth.service 52/52; email
+suites 13/13; frontend `vite build` clean.
+
+**Stopped here — next session should**
+
+1. **Rotate `ADMIN_SETUP_CODE`.** The value set this session was shared as a
+   screenshot and is in the conversation transcript and `~/.claude/image-cache/`.
+   Rotate once the admin accounts that need it exist.
+2. `EMAIL_FROM` is a `@gmail.com` address sending through Brevo, so DKIM/SPF
+   align to Brevo and not to the visible domain — expect spam-foldering. A real
+   AESIS domain verified in Brevo removes this.
+3. `passwordResetToken` is stored in plaintext on the user row, while
+   attestation tokens elsewhere are stored hash-only. Anyone with a read of that
+   column can reset any account inside the 1-hour window.
+4. Carried from S102, all still open: engine `MONGO_URI` stale so chat
+   transcripts are not saved; no real password login proven since the
+   session-issuer refactor; enrichment provenance unverified since the Groq
+   model id changed; the four S100 migrations still want a prod
+   `_prisma_migrations` check; rotate Supabase then delete Neon.
