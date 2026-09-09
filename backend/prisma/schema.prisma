@@ -1576,6 +1576,7 @@ model ApprovalRequest {
 }
 
 enum ResourceCategory {
+  announcement
   guideline
   template
   rubric

@@ -16,6 +16,7 @@ process.env.DATABASE_URL = base.toString();
 // business talking to it. Stub the transport only — the row it writes is the
 // thing under test.
 jest.mock('../../../config/cloudinary', () => ({
+  isCloudinaryConfigured: jest.fn(() => true),
   uploadBuffer: jest.fn().mockResolvedValue({
     url: 'https://res.cloudinary.com/demo/raw/upload/aesis/resources/handbook.pdf',
     publicId: 'aesis/resources/handbook',
@@ -24,6 +25,7 @@ jest.mock('../../../config/cloudinary', () => ({
 }));
 
 import { prisma } from '../../../config/prisma';
+import { isCloudinaryConfigured } from '../../../config/cloudinary';
 import { AppError } from '../../../middleware/errorHandler';
 import {
   listResources,
@@ -144,6 +146,21 @@ describe('the resource shelf', () => {
     expect(created.mimeType).toBe('application/pdf');
     expect(created.fileSize).toBe(2048);
     expect((await listResources(student)).map((r) => r.title)).toContain('Placement handbook');
+  });
+
+  itdb('says so plainly when the file store is not configured', async () => {
+    // Unconfigured, this used to throw a generic error and reach the browser as
+    // "something went wrong" — with a link and written guidance both still
+    // working, that named the wrong problem.
+    (isCloudinaryConfigured as jest.Mock).mockReturnValueOnce(false);
+
+    await expect(uploadResource(
+      admin,
+      { ...notice, title: 'Unstorable handbook' },
+      { buffer: Buffer.from('x'), originalName: 'a.pdf', size: 1, mimeType: 'application/pdf' },
+    )).rejects.toMatchObject({ statusCode: 503 });
+
+    expect((await listManagedResources()).map((r) => r.title)).not.toContain('Unstorable handbook');
   });
 
   itdb('hiding a card takes it off the reader\'s shelf but keeps it curatable', async () => {

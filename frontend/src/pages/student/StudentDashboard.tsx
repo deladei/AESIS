@@ -3,7 +3,7 @@ import { useRef, useState } from 'react';
 import {
   Activity, Bell, BookOpen, Briefcase, Building2, CalendarDays, CheckSquare,
   ClipboardCheck, Clock, FileText, GraduationCap, Loader2, Mail, MessageSquare,
-  Paperclip, Phone, Plus, Sparkles, Square, Target, TrendingUp, Upload,
+  Megaphone, Paperclip, Phone, Plus, Sparkles, Square, Target, TrendingUp, Upload,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import type { DashboardSupervisor } from '@/hooks/useStudentDashboard';
@@ -810,11 +810,14 @@ function ResourceRow({ resource: r }: { resource: Resource }) {
   const href = r.externalUrl ?? r.fileUrl;
   const isFile = !r.externalUrl && !!r.fileUrl;
   const category = r.category.replace(/^./, (c) => c.toUpperCase());
+  // A notice to the cohort is not the same kind of thing as a template on a
+  // shelf, and reads past the eye when both wear the same grey chip.
+  const isAnnouncement = r.category === 'announcement';
 
   const head = (
     <>
       <span className="grid h-9 w-9 shrink-0 place-items-center rounded-lg bg-brand-soft text-brand-ink">
-        {isFile ? <FileText className="h-4 w-4" /> : <BookOpen className="h-4 w-4" />}
+        {isFile ? <FileText className="h-4 w-4" /> : isAnnouncement ? <Megaphone className="h-4 w-4" /> : <BookOpen className="h-4 w-4" />}
       </span>
       <span className="min-w-0 flex-1">
         <span className="block truncate text-sm font-medium text-ink">{r.title}</span>
@@ -822,7 +825,7 @@ function ResourceRow({ resource: r }: { resource: Resource }) {
           <span className="block truncate text-xs text-ink-muted">{r.description}</span>
         )}
       </span>
-      <Badge tone="neutral">{category}</Badge>
+      <Badge tone={isAnnouncement ? 'warn' : 'neutral'}>{category}</Badge>
     </>
   );
 

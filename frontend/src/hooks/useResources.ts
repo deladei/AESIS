@@ -2,7 +2,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { api } from '@/lib/api';
 
 export type ResourceCategory =
-  | 'guideline' | 'template' | 'rubric' | 'policy' | 'form' | 'sample' | 'other';
+  | 'announcement' | 'guideline' | 'template' | 'rubric' | 'policy' | 'form' | 'sample' | 'other';
 
 export type ResourceAudience =
   | 'student' | 'academic_supervisor' | 'company_supervisor' | 'coordinator' | 'hod' | 'admin';

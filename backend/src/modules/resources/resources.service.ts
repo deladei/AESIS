@@ -1,6 +1,6 @@
 import { prisma } from '../../config/prisma';
 import { AppError } from '../../middleware/errorHandler';
-import { uploadBuffer } from '../../config/cloudinary';
+import { isCloudinaryConfigured, uploadBuffer } from '../../config/cloudinary';
 import type { CreateResourceInput, UploadResourceInput } from './resources.schema';
 import type { UserRole } from '@prisma/client';
 
@@ -82,6 +82,13 @@ export interface IncomingFile {
  * order would put a broken tile on every reader's dashboard.
  */
 export async function uploadResource(actor: Actor, input: UploadResourceInput, file: IncomingFile) {
+  // The store is optional in env, and calling it unconfigured throws a generic
+  // error that reaches the browser as "something went wrong". Say what is
+  // actually wrong — and say it before the row is written.
+  if (!isCloudinaryConfigured()) {
+    throw new AppError(503, 'File storage is not configured, so documents cannot be uploaded yet. A link or written guidance still works.');
+  }
+
   const asset = await uploadBuffer(file.buffer, {
     folder: RESOURCE_FOLDER,
     isImage: file.mimeType.startsWith('image/'),

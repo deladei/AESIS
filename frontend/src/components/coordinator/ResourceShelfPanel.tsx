@@ -11,6 +11,7 @@ import { Card, CardHeader } from '@/components/ui/Card';
 import { Badge } from '@/components/ui/Badge';
 import { EmptyState, SkeletonRows } from '@/components/ui/Feedback';
 import { cn } from '@/lib/utils';
+import { apiErrorMessage } from '@/lib/apiError';
 
 // Same accept-list and cap the API enforces (multer fileFilter, 10 MB). The
 // attribute is a hint; the server is the gate.
@@ -18,6 +19,7 @@ const ACCEPT = '.pdf,.png,.jpg,.jpeg,.docx,application/pdf,image/png,image/jpeg,
 const MAX_BYTES = 10 * 1024 * 1024;
 
 const CATEGORIES: { value: ResourceCategory; label: string }[] = [
+  { value: 'announcement', label: 'Announcement' },
   { value: 'guideline', label: 'Guideline' },
   { value: 'template',  label: 'Template' },
   { value: 'rubric',    label: 'Rubric' },
@@ -42,10 +44,6 @@ const categoryLabel = (c: ResourceCategory) =>
 const audienceLabel = (r: ResourceAudience) =>
   AUDIENCES.find((x) => x.value === r)?.label ?? r.replace(/_/g, ' ');
 
-const apiErr = (e: unknown) =>
-  ((e as { response?: { data?: { message?: string } } })?.response?.data?.message)
-  ?? 'Something went wrong. Please try again.';
-
 /**
  * The shelf a coordinator publishes to — written guidance, links and documents
  * that land on the reader's dashboard ("Quick resources" for a student).
@@ -67,7 +65,7 @@ export default function ResourceShelfPanel() {
   const [description, setDescription] = useState('');
   const [body, setBody] = useState('');
   const [externalUrl, setExternalUrl] = useState('');
-  const [category, setCategory] = useState<ResourceCategory>('guideline');
+  const [category, setCategory] = useState<ResourceCategory>('announcement');
   const [audience, setAudience] = useState<ResourceAudience[]>(['student']);
   const [publishNow, setPublishNow] = useState(true);
   const [file, setFile] = useState<File | null>(null);
@@ -81,7 +79,7 @@ export default function ResourceShelfPanel() {
 
   function reset() {
     setTitle(''); setDescription(''); setBody(''); setExternalUrl('');
-    setCategory('guideline'); setAudience(['student']); setPublishNow(true);
+    setCategory('announcement'); setAudience(['student']); setPublishNow(true);
     setFile(null); setError(null);
   }
 
@@ -96,11 +94,16 @@ export default function ResourceShelfPanel() {
 
   async function post() {
     setError(null);
+    // A link typed as "example.com/handbook.pdf" is what people type, and the
+    // API requires an absolute URL. Adding the scheme here is the difference
+    // between a working card and a validation error nobody could read.
+    const link = externalUrl.trim();
+    const normalisedLink = link && !/^https?:\/\//i.test(link) ? `https://${link}` : link;
     const payload = {
       title: title.trim(),
       description: description.trim() || undefined,
       body: body.trim() || undefined,
-      externalUrl: externalUrl.trim() || undefined,
+      externalUrl: normalisedLink || undefined,
       category,
       audienceRoles: audience,
       isPublished: publishNow,
@@ -111,7 +114,7 @@ export default function ResourceShelfPanel() {
       reset();
       setComposing(false);
     } catch (e) {
-      setError(apiErr(e));
+      setError(apiErrorMessage(e));
     }
   }
 

@@ -1,6 +1,8 @@
 import { z } from 'zod';
 
-export const resourceCategory = z.enum(['guideline', 'template', 'rubric', 'policy', 'form', 'sample', 'other']);
+export const resourceCategory = z.enum([
+  'announcement', 'guideline', 'template', 'rubric', 'policy', 'form', 'sample', 'other',
+]);
 export const roleEnum = z.enum(['student', 'academic_supervisor', 'company_supervisor', 'coordinator', 'hod', 'admin']);
 
 // The fields a resource carries however it arrives. Multipart sends every value
@@ -15,7 +17,13 @@ const resourceFields = {
   externalUrl: z.string().url().max(2000).optional(),
   audienceRoles: z.array(roleEnum).min(1).default(['student']),
   sortOrder:   z.coerce.number().int().min(0).max(999).default(0),
-  isPublished: z.coerce.boolean().default(true),
+  // Multipart sends strings, and `z.coerce.boolean()` reads the STRING "false"
+  // as true — unticking "publish now" on an upload would have published it
+  // anyway. Map the words a form actually sends, then coerce.
+  isPublished: z.preprocess(
+    (v) => (typeof v === 'string' ? !['false', '0', 'off', ''].includes(v.trim().toLowerCase()) : v),
+    z.boolean().default(true),
+  ),
 };
 
 export const createResourceSchema = z
